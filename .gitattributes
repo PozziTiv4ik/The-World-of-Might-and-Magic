@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.md text working-tree-encoding=UTF-8 eol=lf
+*.ps1 text working-tree-encoding=UTF-8 eol=crlf
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.webp binary

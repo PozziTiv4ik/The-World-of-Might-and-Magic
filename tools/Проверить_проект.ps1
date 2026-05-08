@@ -1,0 +1,231 @@
+$ErrorActionPreference = 'Stop'
+
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
+
+$root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$errors = New-Object 'System.Collections.Generic.List[string]'
+$warnings = New-Object 'System.Collections.Generic.List[string]'
+
+function Add-Problem {
+    param(
+        [string]$Kind,
+        [string]$Message
+    )
+
+    if ($Kind -eq 'Error') {
+        $errors.Add($Message) | Out-Null
+    } else {
+        $warnings.Add($Message) | Out-Null
+    }
+}
+
+function Get-RelativePath {
+    param([string]$Path)
+
+    if ($Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $Path.Substring($root.Length).TrimStart('\', '/')
+    }
+
+    return $Path
+}
+
+function Test-ProjectPath {
+    param(
+        [string]$Reference,
+        [string]$FromFile
+    )
+
+    if ($Reference -match '^[a-z]+://') {
+        return $true
+    }
+
+    $normalized = $Reference -replace '/', '\'
+
+    if ([System.IO.Path]::IsPathRooted($normalized)) {
+        return Test-Path -LiteralPath $normalized
+    }
+
+    $rootCandidate = Join-Path $root $normalized
+    if (Test-Path -LiteralPath $rootCandidate) {
+        return $true
+    }
+
+    $fromDir = Split-Path -Parent $FromFile
+    $relativeCandidate = Join-Path $fromDir $normalized
+    return Test-Path -LiteralPath $relativeCandidate
+}
+
+function Get-MetaType {
+    param([string]$Text)
+
+    if ($Text -match '(?s)^# .+?\r?\n\r?\n---\r?\n(.+?)\r?\n---') {
+        $meta = $Matches[1]
+        if ($meta -match '(?m)^type:\s*(.+?)\s*$') {
+            return $Matches[1].Trim()
+        }
+    }
+
+    return $null
+}
+
+$mdFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File -Filter '*.md' |
+    Where-Object { $_.FullName -notmatch '\\.git\\' }
+
+$imageFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File |
+    Where-Object { $_.FullName -notmatch '\\.git\\' -and $_.Extension -match '^\.(jpg|jpeg|png|webp)$' }
+
+$filesByType = @{}
+
+foreach ($file in $mdFiles) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $type = Get-MetaType -Text $text
+    $relativeFile = Get-RelativePath $file.FullName
+    $isTemplateFile = $relativeFile -like '09_*'
+
+    if ($type -and -not $isTemplateFile) {
+        if (-not $filesByType.ContainsKey($type)) {
+            $filesByType[$type] = New-Object 'System.Collections.Generic.List[object]'
+        }
+
+        $filesByType[$type].Add($file) | Out-Null
+    }
+
+    $matches = [regex]::Matches($text, '`([^`]+\.(?:md|jpg|jpeg|png|webp))`')
+
+    foreach ($match in $matches) {
+        $ref = $match.Groups[1].Value
+        if (-not (Test-ProjectPath -Reference $ref -FromFile $file.FullName)) {
+            Add-Problem Error "Broken local reference: $(Get-RelativePath $file.FullName) -> $ref"
+        }
+    }
+
+    if (-not $isTemplateFile -and $text -match '(?s)^# .+?\r?\n\r?\n---\r?\n(.+?)\r?\n---') {
+        $meta = $Matches[1]
+        foreach ($field in @('type', 'status', 'canon_level')) {
+            if ($meta -notmatch "(?m)^$field\s*:\s*\S+") {
+                Add-Problem Warning "Missing front matter field '$field': $(Get-RelativePath $file.FullName)"
+            }
+        }
+    }
+}
+
+if (-not $filesByType.ContainsKey('character_index')) {
+    Add-Problem Error 'character_index file not found.'
+} else {
+    $characterIndexPath = $filesByType['character_index'][0].FullName
+    $characterIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterIndexPath
+    $characterRefs = [regex]::Matches($characterIndex, '`([^`]+\.md)`') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -like '03_*' }
+
+    $characterFiles = @()
+    if ($filesByType.ContainsKey('character')) {
+        $characterFiles = $filesByType['character'] |
+            ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
+    }
+
+    foreach ($ref in $characterRefs) {
+        if (-not (Test-ProjectPath -Reference $ref -FromFile $characterIndexPath)) {
+            Add-Problem Error "Character index points to missing file: $ref"
+        }
+    }
+
+    foreach ($file in $characterFiles) {
+        if ($characterRefs -notcontains $file) {
+            Add-Problem Error "Character card is missing from index: $file"
+        }
+    }
+}
+
+if ($filesByType.ContainsKey('character')) {
+    foreach ($file in $filesByType['character']) {
+        $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+
+        if ($text -notmatch '(?m)^portrait:\s*(.+)\s*$') {
+            Add-Problem Error "Character card has no portrait field: $(Get-RelativePath $file.FullName)"
+            continue
+        }
+
+        $portrait = $Matches[1].Trim()
+
+        if ($text -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
+            Add-Problem Error "Character card has invalid portrait_status: $(Get-RelativePath $file.FullName)"
+            continue
+        }
+
+        $portraitStatus = $Matches[1].Trim()
+
+        if ($portraitStatus -eq 'available') {
+            if ($portrait -eq 'null' -or -not (Test-ProjectPath -Reference $portrait -FromFile $file.FullName)) {
+                Add-Problem Error "portrait_status=available but portrait file is missing: $(Get-RelativePath $file.FullName)"
+            }
+        }
+    }
+}
+
+if (-not $filesByType.ContainsKey('character_portrait_index')) {
+    Add-Problem Error 'character_portrait_index file not found.'
+} else {
+    $portraitIndexPath = $filesByType['character_portrait_index'][0].FullName
+    $portraitIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $portraitIndexPath
+    $portraitRoot = Split-Path -Parent $portraitIndexPath
+    $portraitRefs = [regex]::Matches($portraitIndex, '`([^`]+\.(?:jpg|jpeg|png|webp))`') |
+        ForEach-Object { $_.Groups[1].Value }
+    $portraitImageFiles = Get-ChildItem -LiteralPath $portraitRoot -Recurse -File |
+        Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } |
+        ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
+
+    foreach ($ref in $portraitRefs) {
+        if (-not (Test-ProjectPath -Reference $ref -FromFile $portraitIndexPath)) {
+            Add-Problem Error "Portrait index points to missing file: $ref"
+        }
+    }
+
+    foreach ($file in $portraitImageFiles) {
+        if ($portraitRefs -notcontains $file) {
+            Add-Problem Error "Portrait image is missing from portrait index: $file"
+        }
+    }
+
+    foreach ($dir in Get-ChildItem -LiteralPath $portraitRoot -Directory) {
+        $hasImage = (Get-ChildItem -LiteralPath $dir.FullName -File |
+            Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } |
+            Measure-Object).Count -gt 0
+        $hasPrompt = $false
+
+        foreach ($promptFile in Get-ChildItem -LiteralPath $dir.FullName -File -Filter '*.md') {
+            $promptText = Get-Content -Raw -Encoding UTF8 -LiteralPath $promptFile.FullName
+            if ((Get-MetaType -Text $promptText) -eq 'portrait_prompt') {
+                $hasPrompt = $true
+                break
+            }
+        }
+
+        if ($hasImage -and -not $hasPrompt) {
+            Add-Problem Warning "Portrait folder has image but no portrait_prompt file: $(Get-RelativePath $dir.FullName)"
+        }
+    }
+}
+
+$result = [pscustomobject]@{
+    MarkdownFiles = $mdFiles.Count
+    ImageFiles = $imageFiles.Count
+    Errors = $errors.Count
+    Warnings = $warnings.Count
+}
+
+$result | Format-List
+
+if ($warnings.Count -gt 0) {
+    "`nWarnings:"
+    $warnings | Sort-Object | ForEach-Object { "- $_" }
+}
+
+if ($errors.Count -gt 0) {
+    "`nErrors:"
+    $errors | Sort-Object | ForEach-Object { "- $_" }
+    exit 1
+}
+
+"`nProject check completed successfully."
