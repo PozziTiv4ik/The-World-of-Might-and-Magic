@@ -56,6 +56,40 @@ function Test-ProjectPath {
     return Test-Path -LiteralPath $relativeCandidate
 }
 
+function Test-PlannedReference {
+    param(
+        [string]$Reference,
+        [string]$FromFile,
+        [string]$Text
+    )
+
+    if ($Reference -notmatch '\.(jpg|jpeg|png|webp)$') {
+        return $false
+    }
+
+    if ($Text -match '(?m)^portrait_status:\s*planned\s*$') {
+        return $true
+    }
+
+    if ($Text -match '(?m)^status:\s*planned\s*$') {
+        return $true
+    }
+
+    if ($Text -match '(?m)^type:\s*character_portrait_index\s*$') {
+        foreach ($line in ($Text -split "\r?\n")) {
+            if ($line.Contains($Reference) -and $line -match '\bplanned\b') {
+                return $true
+            }
+        }
+    }
+
+    if ($Text -match '(?m)^type:\s*portrait_prompt\s*$' -and $Text -match '(?m)^status:\s*planned\s*$') {
+        return $true
+    }
+
+    return $false
+}
+
 function Get-MetaType {
     param([string]$Text)
 
@@ -70,12 +104,37 @@ function Get-MetaType {
 }
 
 $mdFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File -Filter '*.md' |
-    Where-Object { $_.FullName -notmatch '\\.git\\' }
+    Where-Object {
+        $_.FullName -notmatch '\\.git\\' -and
+        $_.FullName -notmatch '\\[^\\]*_MD_[^\\]*\\'
+    }
 
 $imageFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File |
-    Where-Object { $_.FullName -notmatch '\\.git\\' -and $_.Extension -match '^\.(jpg|jpeg|png|webp)$' }
+    Where-Object {
+        $_.FullName -notmatch '\\.git\\' -and
+        $_.FullName -notmatch '\\[^\\]*_MD_[^\\]*\\' -and
+        $_.Extension -match '^\.(jpg|jpeg|png|webp)$'
+    }
 
 $filesByType = @{}
+
+foreach ($requiredPath in @(
+    'AGENTS.md'
+)) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root $requiredPath))) {
+        Add-Problem Error "Required AI support file is missing: $requiredPath"
+    }
+}
+
+$gitignorePath = Join-Path $root '.gitignore'
+if (-not (Test-Path -LiteralPath $gitignorePath)) {
+    Add-Problem Warning '.gitignore file not found.'
+} else {
+    $gitignore = Get-Content -Raw -Encoding UTF8 -LiteralPath $gitignorePath
+    if ($gitignore -notmatch '(?m)^.+_MD_.+/$') {
+        Add-Problem Warning '.gitignore does not appear to ignore the temporary Markdown export folder.'
+    }
+}
 
 foreach ($file in $mdFiles) {
     $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
@@ -95,7 +154,10 @@ foreach ($file in $mdFiles) {
 
     foreach ($match in $matches) {
         $ref = $match.Groups[1].Value
-        if (-not (Test-ProjectPath -Reference $ref -FromFile $file.FullName)) {
+        if (
+            -not (Test-ProjectPath -Reference $ref -FromFile $file.FullName) -and
+            -not (Test-PlannedReference -Reference $ref -FromFile $file.FullName -Text $text)
+        ) {
             Add-Problem Error "Broken local reference: $(Get-RelativePath $file.FullName) -> $ref"
         }
     }
@@ -107,6 +169,24 @@ foreach ($file in $mdFiles) {
                 Add-Problem Warning "Missing front matter field '$field': $(Get-RelativePath $file.FullName)"
             }
         }
+    }
+}
+
+foreach ($requiredType in @(
+    'ai_agent_instructions',
+    'ai_current_context',
+    'alias_index',
+    'campaign_summary',
+    'active_chapter',
+    'decision_log',
+    'open_questions',
+    'world_state',
+    'front_tracker',
+    'character_index',
+    'character_portrait_index'
+)) {
+    if (-not $filesByType.ContainsKey($requiredType)) {
+        Add-Problem Warning "Required support type not found: $requiredType"
     }
 }
 
@@ -177,7 +257,10 @@ if (-not $filesByType.ContainsKey('character_portrait_index')) {
         ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
 
     foreach ($ref in $portraitRefs) {
-        if (-not (Test-ProjectPath -Reference $ref -FromFile $portraitIndexPath)) {
+        if (
+            -not (Test-ProjectPath -Reference $ref -FromFile $portraitIndexPath) -and
+            -not (Test-PlannedReference -Reference $ref -FromFile $portraitIndexPath -Text $portraitIndex)
+        ) {
             Add-Problem Error "Portrait index points to missing file: $ref"
         }
     }
@@ -205,6 +288,46 @@ if (-not $filesByType.ContainsKey('character_portrait_index')) {
         if ($hasImage -and -not $hasPrompt) {
             Add-Problem Warning "Portrait folder has image but no portrait_prompt file: $(Get-RelativePath $dir.FullName)"
         }
+    }
+}
+
+if ($filesByType.ContainsKey('decision_log')) {
+    $decisionLogPath = $filesByType['decision_log'][0].FullName
+    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+    $decisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+(DEC(?:-PENDING)?-\d{3})\s*$') |
+        ForEach-Object { $_.Groups[1].Value }
+
+    if ($decisionIds.Count -eq 0) {
+        Add-Problem Warning 'No decision IDs found in decision_log headings.'
+    }
+
+    $duplicateDecisionIds = $decisionIds |
+        Group-Object |
+        Where-Object { $_.Count -gt 1 } |
+        ForEach-Object { $_.Name }
+
+    foreach ($id in $duplicateDecisionIds) {
+        Add-Problem Error "Duplicate decision ID in decision log: $id"
+    }
+}
+
+if ($filesByType.ContainsKey('open_questions')) {
+    $openQuestionsPath = $filesByType['open_questions'][0].FullName
+    $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+    $questionIds = [regex]::Matches($openQuestions, '\bQ-(?:C2|WORLD)-\d{3}\b') |
+        ForEach-Object { $_.Value }
+
+    if ($questionIds.Count -eq 0) {
+        Add-Problem Warning 'No Q-C2/Q-WORLD IDs found in open_questions.'
+    }
+
+    $duplicateQuestionIds = $questionIds |
+        Group-Object |
+        Where-Object { $_.Count -gt 1 } |
+        ForEach-Object { $_.Name }
+
+    foreach ($id in $duplicateQuestionIds) {
+        Add-Problem Error "Duplicate open question ID: $id"
     }
 }
 

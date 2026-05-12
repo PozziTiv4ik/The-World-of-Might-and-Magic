@@ -1,0 +1,15 @@
+# Temporary markdown export used for sharing with external tools.
+Все_MD_файлы/
+
+# Local editor and OS noise.
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Local Obsidian workspace state, if the vault is opened there.
+.obsidian/workspace*.json
+.obsidian/cache/
