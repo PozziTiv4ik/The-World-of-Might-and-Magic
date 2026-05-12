@@ -216,6 +216,52 @@ if (-not $filesByType.ContainsKey('character_index')) {
             Add-Problem Error "Character card is missing from index: $file"
         }
     }
+
+    $characterIndexRows = [regex]::Matches(
+        $characterIndex,
+        '(?m)^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*`([^`]+\.md)`\s*\|\s*$'
+    )
+
+    foreach ($row in $characterIndexRows) {
+        $characterName = $row.Groups[1].Value.Trim()
+        $indexPortraitStatus = $row.Groups[3].Value.Trim()
+        $characterRef = $row.Groups[4].Value.Trim()
+
+        if ($characterRef -notlike '03_*') {
+            continue
+        }
+
+        $normalizedRef = $characterRef -replace '/', '\'
+        $characterPath = Join-Path $root $normalizedRef
+
+        if (-not (Test-Path -LiteralPath $characterPath)) {
+            $characterPath = Join-Path (Split-Path -Parent $characterIndexPath) $normalizedRef
+        }
+
+        if (-not (Test-Path -LiteralPath $characterPath)) {
+            continue
+        }
+
+        $characterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterPath
+
+        if ($characterText -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
+            continue
+        }
+
+        $portraitStatus = $Matches[1].Trim()
+        $indexStatusAvailable = -join [char[]](0x0435, 0x0441, 0x0442, 0x044C)
+        $indexStatusMissing = -join [char[]](0x043D, 0x0443, 0x0436, 0x0435, 0x043D)
+        $indexStatusPlanned = -join [char[]](0x0437, 0x0430, 0x043F, 0x043B, 0x0430, 0x043D, 0x0438, 0x0440, 0x043E, 0x0432, 0x0430, 0x043D)
+        $expectedIndexStatus = switch ($portraitStatus) {
+            'available' { $indexStatusAvailable }
+            'missing' { $indexStatusMissing }
+            'planned' { $indexStatusPlanned }
+        }
+
+        if ($indexPortraitStatus -ne $expectedIndexStatus) {
+            Add-Problem Warning "Character index portrait status mismatch: $characterName uses '$indexPortraitStatus' but card expects '$expectedIndexStatus': $characterRef"
+        }
+    }
 }
 
 if ($filesByType.ContainsKey('character')) {
@@ -308,6 +354,20 @@ if ($filesByType.ContainsKey('decision_log')) {
 
     foreach ($id in $duplicateDecisionIds) {
         Add-Problem Error "Duplicate decision ID in decision log: $id"
+    }
+
+    $acceptedDecisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+DEC-(\d{3})\s*$') |
+        ForEach-Object {
+            [pscustomobject]@{
+                Id = [int]$_.Groups[1].Value
+                Text = $_.Value.Trim()
+            }
+        }
+
+    for ($i = 1; $i -lt $acceptedDecisionIds.Count; $i++) {
+        if ($acceptedDecisionIds[$i].Id -lt $acceptedDecisionIds[$i - 1].Id) {
+            Add-Problem Warning "Decision IDs are out of order: $($acceptedDecisionIds[$i].Text) follows $($acceptedDecisionIds[$i - 1].Text)"
+        }
     }
 }
 
