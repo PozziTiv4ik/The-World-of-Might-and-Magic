@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
@@ -103,6 +103,44 @@ function Get-MetaType {
     return $null
 }
 
+function Get-SectionText {
+    param(
+        [string]$Text,
+        [string]$Heading
+    )
+
+    $escapedHeading = [regex]::Escape($Heading)
+    if ($Text -match "(?ms)^##\s+$escapedHeading\s*\r?\n(.+?)(?:\r?\n##\s+|\z)") {
+        return $Matches[1]
+    }
+
+    return ''
+}
+
+function Compare-IdSets {
+    param(
+        [string]$LeftName,
+        [string[]]$LeftIds,
+        [string]$RightName,
+        [string[]]$RightIds
+    )
+
+    $leftUnique = @($LeftIds | Sort-Object -Unique)
+    $rightUnique = @($RightIds | Sort-Object -Unique)
+
+    foreach ($id in $leftUnique) {
+        if ($rightUnique -notcontains $id) {
+            Add-Problem Error "$LeftName contains $id but $RightName does not."
+        }
+    }
+
+    foreach ($id in $rightUnique) {
+        if ($leftUnique -notcontains $id) {
+            Add-Problem Error "$RightName contains $id but $LeftName does not."
+        }
+    }
+}
+
 $mdFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File -Filter '*.md' |
     Where-Object {
         $_.FullName -notmatch '\\.git\\' -and
@@ -119,10 +157,33 @@ $imageFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File |
 $filesByType = @{}
 
 foreach ($requiredPath in @(
-    'AGENTS.md'
+    'AGENTS.md',
+    'tools\Новый_персонаж.ps1',
+    'tools\Новая_локация.ps1',
+    'tools\Закрыть_решение.ps1',
+    'tools\Проверить_портреты.ps1'
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $requiredPath))) {
-        Add-Problem Error "Required AI support file is missing: $requiredPath"
+        Add-Problem Error "Required support file is missing: $requiredPath"
+    }
+}
+
+foreach ($forbiddenPath in @(
+    '00_НАЧАТЬ_ОТСЮДА.md',
+    '00_ТЕКУЩИЙ_КОНТЕКСТ_ДЛЯ_ИИ.md',
+    '00_Словарь_имен_и_алиасов.md',
+    '05_Текстовые_описания',
+    '09_Шаблоны\Шаблон_текстового_описания.md',
+    '10_ПРОСТОЙ_РЕЖИМ_ДЛЯ_ТЕБЯ.md',
+    '11_Медиа\Иллюстрации_сцен',
+    '11_Медиа\Карты_и_схемы',
+    '11_Медиа\Портреты_персонажей\Правила_генерации_портретов.md',
+    'AI_ПРОМПТ_ДЛЯ_ВЕДЕНИЯ_ИГРЫ.md',
+    'AI_ПРОМПТ_ДЛЯ_ФОТО.md',
+    'Инструкция_собрать_все_MD_в_одну_папку.md'
+)) {
+    if (Test-Path -LiteralPath (Join-Path $root $forbiddenPath)) {
+        Add-Problem Error "Forbidden legacy path exists: $forbiddenPath"
     }
 }
 
@@ -141,6 +202,27 @@ foreach ($file in $mdFiles) {
     $type = Get-MetaType -Text $text
     $relativeFile = Get-RelativePath $file.FullName
     $isTemplateFile = $relativeFile -like '09_*'
+
+    foreach ($forbiddenReference in @(
+        '00_НАЧАТЬ_ОТСЮДА.md',
+        '00_ТЕКУЩИЙ_КОНТЕКСТ_ДЛЯ_ИИ.md',
+        '05_Текстовые_описания',
+        '09_Шаблоны/Шаблон_текстового_описания.md',
+        '09_Шаблоны\Шаблон_текстового_описания.md',
+        '10_ПРОСТОЙ_РЕЖИМ_ДЛЯ_ТЕБЯ.md',
+        '11_Медиа/Иллюстрации_сцен',
+        '11_Медиа\Иллюстрации_сцен',
+        '11_Медиа/Карты_и_схемы',
+        '11_Медиа\Карты_и_схемы',
+        '11_Медиа/Портреты_персонажей/Правила_генерации_портретов.md',
+        'AI_ПРОМПТ_ДЛЯ_ВЕДЕНИЯ_ИГРЫ.md',
+        'AI_ПРОМПТ_ДЛЯ_ФОТО.md',
+        'Инструкция_собрать_все_MD_в_одну_папку.md'
+    )) {
+        if ($text.Contains($forbiddenReference)) {
+            Add-Problem Error "Forbidden legacy reference in $(Get-RelativePath $file.FullName): $forbiddenReference"
+        }
+    }
 
     if ($type -and -not $isTemplateFile) {
         if (-not $filesByType.ContainsKey($type)) {
@@ -290,6 +372,20 @@ if ($filesByType.ContainsKey('character')) {
     }
 }
 
+if ($filesByType.ContainsKey('portrait_prompt')) {
+    foreach ($file in $filesByType['portrait_prompt']) {
+        $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+
+        if ($text -notmatch '(?m)^character:\s*\S+') {
+            Add-Problem Warning "Portrait prompt has no character field: $(Get-RelativePath $file.FullName)"
+        }
+
+        if ($text -notmatch '(?m)^(output|result):\s*11_Медиа/Портреты_персонажей/.+\.(jpg|jpeg|png|webp)\s*$') {
+            Add-Problem Warning "Portrait prompt has no output/result image path: $(Get-RelativePath $file.FullName)"
+        }
+    }
+}
+
 if (-not $filesByType.ContainsKey('character_portrait_index')) {
     Add-Problem Error 'character_portrait_index file not found.'
 } else {
@@ -374,7 +470,10 @@ if ($filesByType.ContainsKey('decision_log')) {
 if ($filesByType.ContainsKey('open_questions')) {
     $openQuestionsPath = $filesByType['open_questions'][0].FullName
     $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-    $questionIds = [regex]::Matches($openQuestions, '\bQ-(?:C2|WORLD)-\d{3}\b') |
+    $questionIds = [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|') |
+        ForEach-Object { $_.Groups[1].Value }
+
+    $openQuestionRowsWithIds = [regex]::Matches($openQuestions, '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C2|WORLD))-\d{3})\s*\|') |
         ForEach-Object { $_.Value }
 
     if ($questionIds.Count -eq 0) {
@@ -388,6 +487,85 @@ if ($filesByType.ContainsKey('open_questions')) {
 
     foreach ($id in $duplicateQuestionIds) {
         Add-Problem Error "Duplicate open question ID: $id"
+    }
+
+    $validQuestionStatuses = @('active', 'waiting', 'later', 'resolved')
+    $questionRowsWithStatus = [regex]::Matches(
+        $openQuestions,
+        '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C2|WORLD))-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
+    )
+
+    if ($questionRowsWithStatus.Count -ne $openQuestionRowsWithIds.Count) {
+        Add-Problem Error 'Some rows in open_questions have no status column.'
+    }
+
+    foreach ($row in $questionRowsWithStatus) {
+        $id = $row.Groups[1].Value.Trim()
+        $questionStatus = $row.Groups[2].Value.Trim()
+
+        if ($validQuestionStatuses -notcontains $questionStatus) {
+            Add-Problem Error "Invalid open question status for ${id}: $questionStatus"
+        }
+    }
+
+    $pendingQuestionIds = @(
+        $questionRowsWithStatus |
+            Where-Object {
+                $_.Groups[1].Value.Trim() -match '^DEC-PENDING-\d{3}$' -and
+                $_.Groups[2].Value.Trim() -ne 'resolved'
+            } |
+            ForEach-Object { $_.Groups[1].Value.Trim() }
+    )
+
+    if ($filesByType.ContainsKey('decision_log')) {
+        $decisionLogPath = $filesByType['decision_log'][0].FullName
+        $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+        $pendingDecisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+(DEC-PENDING-\d{3})\s*$') |
+            ForEach-Object { $_.Groups[1].Value }
+
+        Compare-IdSets 'decision_log pending decisions' $pendingDecisionIds 'open_questions pending decisions' $pendingQuestionIds
+    }
+
+    if ($filesByType.ContainsKey('ai_current_context')) {
+        $currentContextPath = $filesByType['ai_current_context'][0].FullName
+        $currentContext = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentContextPath
+        $contextPendingIds = [regex]::Matches($currentContext, '\bDEC-PENDING-\d{3}\b') |
+            ForEach-Object { $_.Value }
+
+        Compare-IdSets 'current context pending decisions' $contextPendingIds 'open_questions pending decisions' $pendingQuestionIds
+    }
+}
+
+if ($filesByType.ContainsKey('front_tracker')) {
+    $frontTrackerPath = $filesByType['front_tracker'][0].FullName
+    $frontTracker = Get-Content -Raw -Encoding UTF8 -LiteralPath $frontTrackerPath
+    $frontIdSection = Get-SectionText -Text $frontTracker -Heading 'Справочник FRONT-ID'
+    $declaredFrontIds = [regex]::Matches($frontIdSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
+        ForEach-Object { $_.Groups[1].Value }
+
+    if ($declaredFrontIds.Count -eq 0) {
+        Add-Problem Error 'No FRONT-ID declarations found in front tracker.'
+    }
+
+    $duplicateFrontIds = $declaredFrontIds |
+        Group-Object |
+        Where-Object { $_.Count -gt 1 } |
+        ForEach-Object { $_.Name }
+
+    foreach ($id in $duplicateFrontIds) {
+        Add-Problem Error "Duplicate FRONT-ID declaration: $id"
+    }
+
+    $declaredFrontIdSet = @($declaredFrontIds | Sort-Object -Unique)
+    $usedFrontIds = [regex]::Matches($frontTracker, '\bFRONT-[A-Z0-9-]+\b') |
+        ForEach-Object { $_.Value } |
+        Where-Object { $_ -ne 'FRONT-ID' } |
+        Sort-Object -Unique
+
+    foreach ($id in $usedFrontIds) {
+        if ($declaredFrontIdSet -notcontains $id) {
+            Add-Problem Error "FRONT-ID is used but not declared in front tracker: $id"
+        }
     }
 }
 
@@ -412,3 +590,4 @@ if ($errors.Count -gt 0) {
 }
 
 "`nProject check completed successfully."
+
