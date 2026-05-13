@@ -248,8 +248,11 @@ foreach ($requiredPath in @(
     'tools\Установить_git_hooks.ps1',
     'tools\Новый_персонаж.ps1',
     'tools\Новая_локация.ps1',
+    'tools\Новая_сцена.ps1',
+    'tools\Принять_сообщение.ps1',
     'tools\Закрыть_решение.ps1',
-    'tools\Проверить_портреты.ps1'
+    'tools\Проверить_портреты.ps1',
+    'tools\README.md'
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $requiredPath))) {
         Add-Problem Error "Required support file is missing: $requiredPath"
@@ -388,6 +391,7 @@ foreach ($requiredType in @(
     'location_index',
     'scene_index',
     'next_turn_panel',
+    'tool_index',
     'character_index',
     'character_portrait_index'
 )) {
@@ -732,6 +736,8 @@ if ($filesByType.ContainsKey('open_questions')) {
     }
 }
 
+$declaredFrontIdSet = @()
+
 if ($filesByType.ContainsKey('front_tracker')) {
     $frontTrackerPath = $filesByType['front_tracker'][0].FullName
     $frontTracker = Get-Content -Raw -Encoding UTF8 -LiteralPath $frontTrackerPath
@@ -761,6 +767,38 @@ if ($filesByType.ContainsKey('front_tracker')) {
     foreach ($id in $usedFrontIds) {
         if ($declaredFrontIdSet -notcontains $id) {
             Add-Problem Error "FRONT-ID is used but not declared in front tracker: $id"
+        }
+    }
+}
+
+if ($filesByType.ContainsKey('scene')) {
+    foreach ($file in $filesByType['scene']) {
+        $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+        $relativeFile = Get-RelativePath $file.FullName
+
+        if ($text -notmatch '(?m)^front_id:\s*(\S+)\s*$') {
+            Add-Problem Error "Scene has no front_id field: $relativeFile"
+            continue
+        }
+
+        $frontId = $Matches[1].Trim()
+
+        if ([string]::IsNullOrWhiteSpace($frontId)) {
+            Add-Problem Error "Scene has empty front_id field: $relativeFile"
+            continue
+        }
+
+        if ($frontId -eq '-') {
+            continue
+        }
+
+        if ($frontId -notmatch '^FRONT-[A-Z0-9-]+$') {
+            Add-Problem Error "Scene has invalid front_id format: $relativeFile -> $frontId"
+            continue
+        }
+
+        if ($declaredFrontIdSet.Count -gt 0 -and $declaredFrontIdSet -notcontains $frontId) {
+            Add-Problem Error "Scene uses undeclared FRONT-ID: $relativeFile -> $frontId"
         }
     }
 }
