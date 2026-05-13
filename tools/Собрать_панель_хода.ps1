@@ -148,4 +148,3 @@ if (-not $SkipCheck) {
 
 "Updated next turn panel: 01_Кампания/07_Следующий_ход.md"
 
-

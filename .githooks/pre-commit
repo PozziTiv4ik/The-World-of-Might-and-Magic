@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+set -eu
+
+if command -v pwsh >/dev/null 2>&1; then
+  PS=pwsh
+elif command -v powershell >/dev/null 2>&1; then
+  PS=powershell
+else
+  echo "PowerShell is required for project checks." >&2
+  exit 1
+fi
+
+"$PS" -NoProfile -ExecutionPolicy Bypass -File "./tools/Проверить_архив.ps1"
+"$PS" -NoProfile -ExecutionPolicy Bypass -File "./tools/Проверить_портреты.ps1"
+"$PS" -NoProfile -ExecutionPolicy Bypass -File "./tools/Проверить_проект.ps1"

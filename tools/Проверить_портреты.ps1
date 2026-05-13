@@ -8,6 +8,7 @@ $characterRoot = Join-Path $root '03_Персонажи'
 $portraitRoot = Join-Path $root '11_Медиа\Портреты_персонажей'
 $errors = New-Object 'System.Collections.Generic.List[string]'
 $missing = New-Object 'System.Collections.Generic.List[string]'
+$wrongRatio = New-Object 'System.Collections.Generic.List[string]'
 $available = 0
 $planned = 0
 
@@ -30,6 +31,61 @@ function Test-ProjectPath {
     }
 
     return Test-Path -LiteralPath (Join-Path $root $normalized)
+}
+
+function Resolve-ProjectPath {
+    param([string]$Reference)
+
+    $normalized = $Reference -replace '/', '\'
+    if ([System.IO.Path]::IsPathRooted($normalized)) {
+        if (Test-Path -LiteralPath $normalized) {
+            return (Resolve-Path -LiteralPath $normalized).Path
+        }
+
+        return $null
+    }
+
+    $candidate = Join-Path $root $normalized
+    if (Test-Path -LiteralPath $candidate) {
+        return (Resolve-Path -LiteralPath $candidate).Path
+    }
+
+    return $null
+}
+
+function Get-ImageSize {
+    param([string]$Path)
+
+    try {
+        Add-Type -AssemblyName System.Drawing
+        $image = [System.Drawing.Image]::FromFile($Path)
+        try {
+            return [pscustomobject]@{
+                Width = $image.Width
+                Height = $image.Height
+            }
+        } finally {
+            $image.Dispose()
+        }
+    } catch {
+        return $null
+    }
+}
+
+function Test-AcceptedPortraitRatio {
+    param(
+        [int]$Width,
+        [int]$Height
+    )
+
+    if ($Width -le 0 -or $Height -le 0 -or $Width -ge $Height) {
+        return $false
+    }
+
+    $ratio = $Width / $Height
+    $isThreeByFour = [math]::Abs($ratio - 0.75) -le 0.04
+    $isLegacyTwoByThree = [math]::Abs($ratio - (2 / 3)) -le 0.04
+    return ($isThreeByFour -or $isLegacyTwoByThree)
 }
 
 $characterFiles = Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md' |
@@ -62,8 +118,16 @@ foreach ($file in $characterFiles) {
         }
 
         $portraitPath = $Matches[1].Trim()
-        if ($portraitPath -eq 'null' -or -not (Test-ProjectPath -Reference $portraitPath)) {
+        $portraitFullPath = Resolve-ProjectPath -Reference $portraitPath
+        if ($portraitPath -eq 'null' -or -not $portraitFullPath) {
             $errors.Add("portrait_status=available but file is missing: $(Get-RelativePath $file.FullName)") | Out-Null
+        } else {
+            $size = Get-ImageSize -Path $portraitFullPath
+            if (-not $size) {
+                $errors.Add("Cannot read portrait dimensions: $(Get-RelativePath $portraitFullPath)") | Out-Null
+            } elseif (-not (Test-AcceptedPortraitRatio -Width $size.Width -Height $size.Height)) {
+                $wrongRatio.Add("$(Get-RelativePath $portraitFullPath) ($($size.Width)x$($size.Height))") | Out-Null
+            }
         }
     }
 }
@@ -89,6 +153,7 @@ $foldersWithoutPrompt = foreach ($folder in $portraitFoldersWithImages) {
     PortraitMissing = $missing.Count
     PortraitFoldersWithImages = $portraitFoldersWithImages.Count
     FoldersWithoutPrompt = @($foldersWithoutPrompt).Count
+    WrongAspectRatio = $wrongRatio.Count
     Errors = $errors.Count
 } | Format-List
 
@@ -100,6 +165,14 @@ if ($missing.Count -gt 0) {
 if (@($foldersWithoutPrompt).Count -gt 0) {
     "`nPortrait folders without prompt:"
     $foldersWithoutPrompt | Sort-Object | ForEach-Object { "- $_" }
+}
+
+if ($wrongRatio.Count -gt 0) {
+    "`nPortraits with invalid aspect ratio:"
+    $wrongRatio | Sort-Object | ForEach-Object { "- $_" }
+    foreach ($item in $wrongRatio) {
+        $errors.Add("Invalid portrait aspect ratio: $item") | Out-Null
+    }
 }
 
 if ($errors.Count -gt 0) {
