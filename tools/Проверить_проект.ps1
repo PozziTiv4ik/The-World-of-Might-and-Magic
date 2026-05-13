@@ -168,6 +168,23 @@ function Get-MetaType {
     return $null
 }
 
+function Get-MetaField {
+    param(
+        [string]$Text,
+        [string]$Field
+    )
+
+    if ($Text -match '(?s)^# .+?\r?\n\r?\n---\r?\n(.+?)\r?\n---') {
+        $meta = $Matches[1]
+        $escapedField = [regex]::Escape($Field)
+        if ($meta -match "(?m)^$escapedField\s*:\s*(.+?)\s*$") {
+            return $Matches[1].Trim()
+        }
+    }
+
+    return $null
+}
+
 function Get-SectionText {
     param(
         [string]$Text,
@@ -180,6 +197,16 @@ function Get-SectionText {
     }
 
     return ''
+}
+
+function Convert-MarkdownTableRow {
+    param([string]$Line)
+
+    if ($Line -notmatch '^\|.+\|$' -or $Line -match '^\|\s*-') {
+        return $null
+    }
+
+    return ,($Line.Trim('|') -split '\|' | ForEach-Object { $_.Trim() })
 }
 
 function Compare-IdSets {
@@ -705,6 +732,8 @@ if ($filesByType.ContainsKey('decision_log')) {
     }
 }
 
+$activePendingDecisionIds = @()
+
 if ($filesByType.ContainsKey('open_questions')) {
     $openQuestionsPath = $filesByType['open_questions'][0].FullName
     $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
@@ -754,6 +783,7 @@ if ($filesByType.ContainsKey('open_questions')) {
             } |
             ForEach-Object { $_.Groups[1].Value.Trim() }
     )
+    $activePendingDecisionIds = $pendingQuestionIds
 
     if ($filesByType.ContainsKey('decision_log')) {
         $decisionLogPath = $filesByType['decision_log'][0].FullName
@@ -771,6 +801,137 @@ if ($filesByType.ContainsKey('open_questions')) {
             ForEach-Object { $_.Value }
 
         Compare-IdSets 'current context pending decisions' $contextPendingIds 'open_questions pending decisions' $pendingQuestionIds
+    }
+}
+
+$liveContextFilesByPath = @{}
+function Add-LiveContextFile {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $resolved = (Resolve-Path -LiteralPath $Path).Path
+    $liveContextFilesByPath[$resolved] = $true
+}
+
+foreach ($typeName in @(
+    'ai_current_context',
+    'campaign_summary',
+    'active_chapter',
+    'open_questions',
+    'front_tracker',
+    'next_turn_panel'
+)) {
+    if ($filesByType.ContainsKey($typeName)) {
+        foreach ($file in $filesByType[$typeName]) {
+            Add-LiveContextFile -Path $file.FullName
+        }
+    }
+}
+
+if ($filesByType.ContainsKey('chapter')) {
+    foreach ($file in $filesByType['chapter']) {
+        $chapterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+        if ((Get-MetaField -Text $chapterText -Field 'status') -eq 'active') {
+            Add-LiveContextFile -Path $file.FullName
+        }
+    }
+}
+
+if ($filesByType.ContainsKey('character_branch')) {
+    foreach ($file in $filesByType['character_branch']) {
+        Add-LiveContextFile -Path $file.FullName
+    }
+}
+
+$liveContextFiles = @(
+    $liveContextFilesByPath.Keys |
+        ForEach-Object { Get-Item -LiteralPath $_ } |
+        Sort-Object FullName
+)
+
+foreach ($file in $liveContextFiles) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $relativeFile = Get-RelativePath $file.FullName
+    $pendingRefs = @(
+        [regex]::Matches($text, '\bDEC-PENDING-\d{3}\b') |
+            ForEach-Object { $_.Value } |
+            Sort-Object -Unique
+    )
+
+    foreach ($id in $pendingRefs) {
+        if ($activePendingDecisionIds -notcontains $id) {
+            Add-Problem Error "Stale pending decision reference in live context: $relativeFile -> $id"
+        }
+    }
+}
+
+$sceneStatusByRef = @{}
+if ($filesByType.ContainsKey('scene')) {
+    foreach ($file in $filesByType['scene']) {
+        $sceneText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+        $sceneRef = (Get-RelativePath $file.FullName) -replace '\\', '/'
+        $sceneStatusByRef[$sceneRef] = Get-MetaField -Text $sceneText -Field 'status'
+    }
+}
+
+foreach ($file in $liveContextFiles) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $relativeFile = Get-RelativePath $file.FullName
+    $activeSceneSection = Get-SectionText -Text $text -Heading 'Активные сцены'
+    $refsInActiveSceneSection = @(
+        [regex]::Matches($activeSceneSection, '`(01_Кампания/Ветки/[^`]+\.md)`') |
+            ForEach-Object { $_.Groups[1].Value }
+    )
+
+    foreach ($ref in $refsInActiveSceneSection) {
+        if ($sceneStatusByRef.ContainsKey($ref) -and $sceneStatusByRef[$ref] -ne 'active') {
+            Add-Problem Error "Closed scene is listed in active scenes: $relativeFile -> $ref has status '$($sceneStatusByRef[$ref])'"
+        }
+    }
+
+    foreach ($line in ($text -split "\r?\n")) {
+        $cells = Convert-MarkdownTableRow -Line $line
+        if ($null -eq $cells) {
+            continue
+        }
+
+        $activeStatusCell = @($cells | Where-Object { $_.ToLowerInvariant() -match '^(active|актив)' }).Count -gt 0
+        if (-not $activeStatusCell) {
+            continue
+        }
+
+        $sceneRefs = @(
+            [regex]::Matches($line, '`(01_Кампания/Ветки/[^`]+\.md)`') |
+                ForEach-Object { $_.Groups[1].Value }
+        )
+
+        foreach ($ref in $sceneRefs) {
+            if ($sceneStatusByRef.ContainsKey($ref) -and $sceneStatusByRef[$ref] -ne 'active') {
+                Add-Problem Error "Scene table row is marked active but scene is not active: $relativeFile -> $ref has status '$($sceneStatusByRef[$ref])'"
+            }
+        }
+    }
+}
+
+$staleActiveMarkers = @(
+    [pscustomobject]@{
+        Name = 'Hector liner destination'
+        Pattern = 'куда\s+отправить\s+захваченн\w*\s+линкор|захваченн\w*\s+линкор.{0,120}Бел\w*\s+Гаван\w*.{0,120}Порт-Вингард|линкор.{0,80}готов.{0,80}отправк\w*.{0,80}изучен'
+        Message = 'The Hector liner destination is already resolved: the captured liner is in Port-Wingard.'
+    }
+)
+
+foreach ($file in $liveContextFiles) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $relativeFile = Get-RelativePath $file.FullName
+
+    foreach ($marker in $staleActiveMarkers) {
+        if ([regex]::IsMatch($text, $marker.Pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
+            Add-Problem Error "Stale active branch marker in ${relativeFile}: $($marker.Name). $($marker.Message)"
+        }
     }
 }
 

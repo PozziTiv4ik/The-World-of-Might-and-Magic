@@ -1,7 +1,7 @@
 ﻿param(
-    [int]$MaxDecisions = 5,
+    [int]$MaxDecisions = 10,
     [int]$MaxQuestions = 8,
-    [int]$MaxFronts = 8,
+    [int]$MaxFronts = 10,
     [int]$MaxTimers = 8,
     [switch]$SkipCheck
 )
@@ -147,4 +147,3 @@ if (-not $SkipCheck) {
 }
 
 "Updated next turn panel: 01_Кампания/07_Следующий_ход.md"
-

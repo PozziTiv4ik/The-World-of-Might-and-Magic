@@ -25,28 +25,52 @@ $today = Get-Date -Format 'yyyy-MM-dd'
 
 $openQuestionsPath = Join-Path $root '01_Кампания\03_Нерешенные_вопросы.md'
 $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-$pendingRowPattern = "(?m)^(\|\s*$([regex]::Escape($PendingId))\s*\|(?:[^|]*\|){3}\s*)(active|waiting|later|resolved)(\s*\|)\s*$"
+$pendingRowPattern = "(?m)^\|\s*$([regex]::Escape($PendingId))\s*\|.*\|\s*$"
 
 if ($openQuestions -notmatch $pendingRowPattern) {
-    throw "Cannot find $PendingId row with a status column in open questions."
+    throw "Cannot find $PendingId row in open questions."
 }
 
-$openQuestions = [regex]::Replace($openQuestions, $pendingRowPattern, "`${1}resolved`${4}", 1)
+$openQuestions = [regex]::Replace(
+    $openQuestions,
+    $pendingRowPattern,
+    '',
+    1
+)
 Set-Content -LiteralPath $openQuestionsPath -Encoding UTF8 -Value $openQuestions
 
 $decisionLogPath = Join-Path $root '01_Кампания\02_Журнал_решений.md'
 $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
-$headingPattern = "(?m)^###\s+$([regex]::Escape($PendingId))\s*$"
+$escapedPendingId = [regex]::Escape($PendingId)
+$blockPattern = "(?ms)^###\s+$escapedPendingId\s*\r?\n.*?(?=^###\s+|^##\s+|\z)"
+$blockMatch = [regex]::Match($decisionLog, $blockPattern)
 
-if ($decisionLog -notmatch $headingPattern) {
+if (-not $blockMatch.Success) {
     throw "Cannot find $PendingId heading in decision log."
 }
 
-$decisionLog = [regex]::Replace($decisionLog, $headingPattern, "### $AcceptedId", 1)
-$decisionLog = [regex]::Replace($decisionLog, '(?m)^Дата в реальности:\s*ожидает решения\s*$', "Дата в реальности: $today", 1)
-$decisionLog = [regex]::Replace($decisionLog, '(?m)^Выбор:\s*.*$', "Выбор: $Choice", 1)
-$decisionLog = [regex]::Replace($decisionLog, '(?m)^Немедленный эффект:\s*.*$', "Немедленный эффект: $Effect", 1)
-$decisionLog = [regex]::Replace($decisionLog, '(?m)^Статус:\s*ожидает решения\.\s*$', 'Статус: принято.', 1)
+$acceptedBlock = $blockMatch.Value
+$acceptedBlock = [regex]::Replace($acceptedBlock, "(?m)^###\s+$escapedPendingId\s*$", "### $AcceptedId", 1)
+$acceptedBlock = [regex]::Replace($acceptedBlock, '(?m)^Дата в реальности:\s*ожидает решения\s*$', "Дата в реальности: $today", 1)
+$acceptedBlock = [regex]::Replace($acceptedBlock, '(?m)^Выбор:\s*.*$', "Выбор: $Choice", 1)
+$acceptedBlock = [regex]::Replace($acceptedBlock, '(?m)^Немедленный эффект:\s*.*$', "Немедленный эффект: $Effect", 1)
+$acceptedBlock = [regex]::Replace($acceptedBlock, '(?m)^Статус:\s*ожидает решения\.\s*$', 'Статус: принято.', 1)
+$acceptedBlock = $acceptedBlock.Trim()
+
+$decisionLog = $decisionLog.Remove($blockMatch.Index, $blockMatch.Length).TrimEnd()
+$acceptedSectionMatch = [regex]::Match($decisionLog, '(?ms)^## Принятые решения\s*\r?\n.*?(?=^##\s+|\z)')
+if (-not $acceptedSectionMatch.Success) {
+    throw 'Cannot find accepted decisions section in decision log.'
+}
+
+$insertIndex = $acceptedSectionMatch.Index + $acceptedSectionMatch.Length
+$beforeAcceptedInsert = $decisionLog.Substring(0, $insertIndex).TrimEnd()
+$afterAcceptedInsert = $decisionLog.Substring($insertIndex).TrimStart()
+$decisionLog = "$beforeAcceptedInsert`r`n`r`n$acceptedBlock"
+if (-not [string]::IsNullOrWhiteSpace($afterAcceptedInsert)) {
+    $decisionLog += "`r`n`r`n$afterAcceptedInsert"
+}
+
 Set-Content -LiteralPath $decisionLogPath -Encoding UTF8 -Value $decisionLog
 
 $contextPath = Join-Path $root '01_Кампания\00_Текущий_контекст.md'

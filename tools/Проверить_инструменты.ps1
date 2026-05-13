@@ -19,6 +19,11 @@ function Invoke-Step {
 
     "`n== $Name =="
     & $Action
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        throw "Step failed: $Name"
+    }
+
+    $global:LASTEXITCODE = 0
 }
 
 function Assert-TextContains {
@@ -43,6 +48,23 @@ function Assert-TextNotContains {
     if ($text.Contains($Unexpected)) {
         throw "Unexpected text was found in $Path`: $Unexpected"
     }
+}
+
+function Get-NextAcceptedDecisionId {
+    param([string]$DecisionLogPath)
+
+    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionLogPath
+    $numbers = @(
+        [regex]::Matches($decisionLog, '(?m)^###\s+DEC-(\d{3})\s*$') |
+            ForEach-Object { [int]$_.Groups[1].Value }
+    )
+
+    if ($numbers.Count -eq 0) {
+        return 'DEC-001'
+    }
+
+    $max = [int](($numbers | Measure-Object -Maximum).Maximum)
+    return ('DEC-{0:D3}' -f ($max + 1))
 }
 
 try {
@@ -75,6 +97,9 @@ try {
     $frontTrackerPath = Join-Path $copyRoot '01_Кампания\06_Фронты_и_таймеры.md'
     $sourceIndexPath = Join-Path $copyRoot '08_Источники\00_Индекс_источников.md'
     $sceneIndexPath = Join-Path $copyRoot '01_Кампания\00_Индекс_сцен.md'
+    $decisionLogPath = Join-Path $copyRoot '01_Кампания\02_Журнал_решений.md'
+    $openQuestionsPath = Join-Path $copyRoot '01_Кампания\03_Нерешенные_вопросы.md'
+    $currentContextPath = Join-Path $copyRoot '01_Кампания\00_Текущий_контекст.md'
 
     Invoke-Step 'Принять входящее с источником' {
         & (Join-Path $toolsRoot 'Принять_сообщение.ps1') `
@@ -112,6 +137,49 @@ try {
             -SkipCheck
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'FRONT-TOOL-TEST'
+    }
+
+    Invoke-Step 'Закрыть pending-решение без порчи журнала' {
+        $decisionLogBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+        $pendingMatch = [regex]::Match($decisionLogBefore, '(?m)^###\s+(DEC-PENDING-\d{3})\s*$')
+        if (-not $pendingMatch.Success) {
+            throw 'No DEC-PENDING entry found for Закрыть_решение.ps1 test.'
+        }
+
+        $pendingId = $pendingMatch.Groups[1].Value
+        $acceptedId = Get-NextAcceptedDecisionId -DecisionLogPath $decisionLogPath
+        $choice = "Тестовое закрытие $pendingId"
+        $effect = "Тестовый эффект закрытия $pendingId"
+
+        & (Join-Path $toolsRoot 'Закрыть_решение.ps1') `
+            -PendingId $pendingId `
+            -AcceptedId $acceptedId `
+            -Choice $choice `
+            -Effect $effect `
+            -SkipCheck
+
+        $decisionLogAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $currentContextAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentContextPath
+
+        Assert-TextContains -Path $decisionLogPath -Expected "### $acceptedId"
+        Assert-TextContains -Path $decisionLogPath -Expected "Выбор: $choice"
+        Assert-TextContains -Path $decisionLogPath -Expected "Немедленный эффект: $effect"
+        Assert-TextNotContains -Path $decisionLogPath -Unexpected "### $pendingId"
+        Assert-TextNotContains -Path $openQuestionsPath -Unexpected 'resolved${4}'
+        Assert-TextNotContains -Path $openQuestionsPath -Unexpected $pendingId
+
+        if ($currentContextAfter -match "\b$([regex]::Escape($pendingId))\b") {
+            throw "Current context still contains closed pending decision $pendingId."
+        }
+
+        if ($decisionLogAfter -notmatch '(?ms)## Формат записи.+?Выбор:\s*\r?\n.+?Немедленный эффект:\s*\r?\n') {
+            throw 'Decision log format block was unexpectedly changed.'
+        }
+
+        if (([regex]::Matches($decisionLogAfter, [regex]::Escape($choice))).Count -ne 1) {
+            throw 'Choice replacement touched more than the accepted decision block.'
+        }
     }
 
     Invoke-Step 'Создать сцену' {
