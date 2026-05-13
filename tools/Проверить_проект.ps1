@@ -250,6 +250,9 @@ foreach ($requiredPath in @(
     'tools\Новая_локация.ps1',
     'tools\Новая_сцена.ps1',
     'tools\Принять_сообщение.ps1',
+    'tools\Обработать_входящее.ps1',
+    'tools\Сцена_из_входящего.ps1',
+    'tools\Новый_фронт.ps1',
     'tools\Закрыть_решение.ps1',
     'tools\Проверить_портреты.ps1',
     'tools\README.md'
@@ -789,6 +792,10 @@ if ($filesByType.ContainsKey('scene')) {
         }
 
         if ($frontId -eq '-') {
+            if ($text -match '(?m)^status:\s*active\s*$') {
+                Add-Problem Warning "Active scene has front_id '-': $relativeFile"
+            }
+
             continue
         }
 
