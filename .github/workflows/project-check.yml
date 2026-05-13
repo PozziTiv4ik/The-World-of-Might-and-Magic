@@ -1,0 +1,21 @@
+name: Project Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  project-check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check project
+        shell: pwsh
+        run: .\tools\Проверить_проект.ps1
+
+      - name: Check tools
+        shell: pwsh
+        run: .\tools\Проверить_инструменты.ps1

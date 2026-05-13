@@ -138,15 +138,17 @@ if (-not [string]::IsNullOrWhiteSpace($Timer)) {
 
 Set-Content -LiteralPath $frontTrackerPath -Encoding UTF8 -Value $frontTracker
 
+$global:LASTEXITCODE = 0
 & (Join-Path $root 'tools\Собрать_панель_хода.ps1') -SkipCheck
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+if (-not $? -or $LASTEXITCODE -ne 0) {
+    exit 1
 }
 
 if (-not $SkipCheck) {
+    $global:LASTEXITCODE = 0
     & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        exit 1
     }
 }
 

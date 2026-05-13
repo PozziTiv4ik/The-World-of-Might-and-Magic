@@ -110,9 +110,10 @@ if ($hasInlineMessage) {
         $acceptArgs.Text = $Text
     }
 
+    $global:LASTEXITCODE = 0
     & (Join-Path $root 'tools\Принять_сообщение.ps1') @acceptArgs
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        exit 1
     }
 }
 
@@ -146,9 +147,10 @@ $sceneArgs = @{
     SkipCheck = $true
 }
 
+$global:LASTEXITCODE = 0
 $sceneOutput = & (Join-Path $root 'tools\Новая_сцена.ps1') @sceneArgs
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+if (-not $? -or $LASTEXITCODE -ne 0) {
+    exit 1
 }
 
 $createdScene = $null
@@ -173,15 +175,17 @@ $processArgs = @{
     SkipCheck = $true
 }
 
+$global:LASTEXITCODE = 0
 & (Join-Path $root 'tools\Обработать_входящее.ps1') @processArgs
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+if (-not $? -or $LASTEXITCODE -ne 0) {
+    exit 1
 }
 
 if (-not $SkipCheck) {
+    $global:LASTEXITCODE = 0
     & (Join-Path $root 'tools\Завершить_ход.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        exit 1
     }
 }
 

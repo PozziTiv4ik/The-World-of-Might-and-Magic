@@ -3,7 +3,9 @@
 
     [switch]$SkipArchive,
 
-    [switch]$SkipSceneIndex
+    [switch]$SkipSceneIndex,
+
+    [switch]$SkipSourceIndex
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,6 +31,12 @@ function Invoke-Step {
 if (-not $SkipSceneIndex) {
     Invoke-Step 'Сборка индекса сцен' {
         & (Join-Path $root 'tools\Собрать_индекс_сцен.ps1') -SkipCheck
+    }
+}
+
+if (-not $SkipSourceIndex) {
+    Invoke-Step 'Сборка индекса источников' {
+        & (Join-Path $root 'tools\Собрать_индекс_источников.ps1') -SkipCheck
     }
 }
 

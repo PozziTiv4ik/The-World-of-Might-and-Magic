@@ -171,15 +171,17 @@ $Summary
 
 Set-Content -LiteralPath $targetPath -Encoding UTF8 -Value $content
 
+$global:LASTEXITCODE = 0
 & (Join-Path $root 'tools\Собрать_индекс_сцен.ps1') -SkipCheck
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+if (-not $? -or $LASTEXITCODE -ne 0) {
+    exit 1
 }
 
 if (-not $SkipCheck) {
+    $global:LASTEXITCODE = 0
     & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        exit 1
     }
 }
 

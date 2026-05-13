@@ -121,9 +121,10 @@ $inbox = [regex]::Replace(
 Set-Content -LiteralPath $inboxPath -Encoding UTF8 -Value $inbox
 
 if (-not $SkipCheck) {
+    $global:LASTEXITCODE = 0
     & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        exit 1
     }
 }
 
