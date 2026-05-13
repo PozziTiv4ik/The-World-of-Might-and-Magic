@@ -80,6 +80,9 @@ Set-Content -LiteralPath $contextPath -Encoding UTF8 -Value $renumbered
 
 if (-not $SkipCheck) {
     & (Join-Path $root 'tools\Проверить_проект.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 }
 
 "Closed decision: $PendingId -> $AcceptedId"
