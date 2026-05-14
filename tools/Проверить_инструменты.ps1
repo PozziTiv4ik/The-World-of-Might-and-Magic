@@ -67,6 +67,26 @@ function Get-NextAcceptedDecisionId {
     return ('DEC-{0:D3}' -f ($max + 1))
 }
 
+function Invoke-ExpectedFailure {
+    param(
+        [string]$Name,
+        [scriptblock]$Action
+    )
+
+    $failed = $false
+    try {
+        & $Action
+    } catch {
+        $failed = $true
+    }
+
+    if (-not $failed) {
+        throw "Expected failure did not happen: $Name"
+    }
+
+    $global:LASTEXITCODE = 0
+}
+
 try {
     New-Item -ItemType Directory -Path $copyRoot -Force | Out-Null
 
@@ -99,6 +119,7 @@ try {
     $sceneIndexPath = Join-Path $copyRoot '01_Кампания\00_Индекс_сцен.md'
     $decisionLogPath = Join-Path $copyRoot '01_Кампания\02_Журнал_решений.md'
     $openQuestionsPath = Join-Path $copyRoot '01_Кампания\03_Нерешенные_вопросы.md'
+    $closedQuestionsPath = Join-Path $copyRoot '01_Кампания\03_Закрытые_вопросы.md'
     $currentContextPath = Join-Path $copyRoot '01_Кампания\00_Текущий_контекст.md'
 
     Invoke-Step 'Принять входящее с источником' {
@@ -137,6 +158,41 @@ try {
             -SkipCheck
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'FRONT-TOOL-TEST'
+    }
+
+    Invoke-Step 'Закрыть pending-решение не портит вопросы при ошибке журнала' {
+        $decisionLogBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $pendingMatch = [regex]::Match($decisionLogBefore, '(?m)^###\s+(DEC-PENDING-\d{3})\s*$')
+        if (-not $pendingMatch.Success) {
+            throw 'No DEC-PENDING entry found for rollback test.'
+        }
+
+        $pendingId = $pendingMatch.Groups[1].Value
+        $escapedPendingId = [regex]::Escape($pendingId)
+        $brokenDecisionLog = [regex]::Replace(
+            $decisionLogBefore,
+            "(?ms)^###\s+$escapedPendingId\s*\r?\n.*?(?=^###\s+|^##\s+|\z)",
+            '',
+            1
+        )
+        Set-Content -LiteralPath $decisionLogPath -Encoding UTF8 -Value $brokenDecisionLog
+
+        Invoke-ExpectedFailure -Name 'Закрыть_решение.ps1 without decision block' -Action {
+            & (Join-Path $toolsRoot 'Закрыть_решение.ps1') `
+                -PendingId $pendingId `
+                -AcceptedId (Get-NextAcceptedDecisionId -DecisionLogPath $decisionLogPath) `
+                -Choice "Тестовое закрытие $pendingId" `
+                -Effect "Тестовый эффект закрытия $pendingId" `
+                -SkipCheck
+        }
+
+        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        if ($openQuestionsAfter -ne $openQuestionsBefore) {
+            throw 'Закрыть_решение.ps1 changed open questions before failing.'
+        }
+
+        Set-Content -LiteralPath $decisionLogPath -Encoding UTF8 -Value $decisionLogBefore
     }
 
     Invoke-Step 'Закрыть pending-решение без порчи журнала' {
@@ -179,6 +235,69 @@ try {
 
         if (([regex]::Matches($decisionLogAfter, [regex]::Escape($choice))).Count -ne 1) {
             throw 'Choice replacement touched more than the accepted decision block.'
+        }
+    }
+
+    Invoke-Step 'Закрыть вопрос не портит открытые вопросы при ошибке архива' {
+        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $closedQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        $questionMatch = [regex]::Match($openQuestionsBefore, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|(?:[^|]*\|){3}\s*(?:active|waiting|later)\s*\|\s*$')
+        if (-not $questionMatch.Success) {
+            throw 'No open Q-C2/Q-WORLD entry found for rollback test.'
+        }
+
+        $questionId = $questionMatch.Groups[1].Value
+        $targetHeading = if ($questionId -like 'Q-C2-*') { 'Вопросы главы 2' } else { 'Вопросы по миру' }
+        $brokenClosedQuestions = $closedQuestionsBefore -replace "(?m)^## $([regex]::Escape($targetHeading))\s*$", '## Сломанный раздел'
+        Set-Content -LiteralPath $closedQuestionsPath -Encoding UTF8 -Value $brokenClosedQuestions
+
+        Invoke-ExpectedFailure -Name 'Закрыть_вопрос.ps1 with broken closed question archive' -Action {
+            & (Join-Path $toolsRoot 'Закрыть_вопрос.ps1') `
+                -QuestionId $questionId `
+                -Resolution "Тестовое закрытие $questionId" `
+                -SkipCheck
+        }
+
+        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        if ($openQuestionsAfter -ne $openQuestionsBefore) {
+            throw 'Закрыть_вопрос.ps1 changed open questions before failing.'
+        }
+
+        Set-Content -LiteralPath $closedQuestionsPath -Encoding UTF8 -Value $closedQuestionsBefore
+    }
+
+    Invoke-Step 'Закрыть открытый вопрос без порчи истории' {
+        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $questionMatch = [regex]::Match($openQuestionsBefore, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|(?:[^|]*\|){3}\s*(?:active|waiting|later)\s*\|\s*$')
+        if (-not $questionMatch.Success) {
+            throw 'No open Q-C2/Q-WORLD entry found for Закрыть_вопрос.ps1 test.'
+        }
+
+        $questionId = $questionMatch.Groups[1].Value
+        $resolution = "Тестовое закрытие $questionId"
+        $today = Get-Date -Format 'yyyy-MM-dd'
+        $historyExpected = '- {0} - `{1}`: {2}' -f $today, $questionId, $resolution
+
+        & (Join-Path $toolsRoot 'Закрыть_вопрос.ps1') `
+            -QuestionId $questionId `
+            -Resolution $resolution `
+            -SkipCheck
+
+        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        Assert-TextNotContains -Path $openQuestionsPath -Unexpected '$QuestionId'
+        Assert-TextNotContains -Path $openQuestionsPath -Unexpected 'resolved${'
+
+        Assert-TextContains -Path $closedQuestionsPath -Expected $historyExpected
+        Assert-TextNotContains -Path $closedQuestionsPath -Unexpected '$QuestionId'
+        Assert-TextNotContains -Path $closedQuestionsPath -Unexpected 'resolved${'
+
+        if ($openQuestionsAfter -match "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|") {
+            throw "Closed question row still exists in open questions: $questionId"
+        }
+
+        if ($closedQuestionsAfter -notmatch "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|(?:[^|]*\|){3}\s*resolved\s*\|\s*$") {
+            throw "Question row was not moved to closed questions as resolved: $questionId"
         }
     }
 

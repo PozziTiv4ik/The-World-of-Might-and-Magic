@@ -420,6 +420,7 @@ foreach ($requiredType in @(
     'active_chapter',
     'decision_log',
     'open_questions',
+    'closed_questions',
     'world_state',
     'front_tracker',
     'source_index',
@@ -733,12 +734,16 @@ if ($filesByType.ContainsKey('decision_log')) {
 }
 
 $activePendingDecisionIds = @()
+$openQuestionIds = @()
 
 if ($filesByType.ContainsKey('open_questions')) {
     $openQuestionsPath = $filesByType['open_questions'][0].FullName
     $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-    $questionIds = [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|') |
-        ForEach-Object { $_.Groups[1].Value }
+    $questionIds = @(
+        [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|') |
+            ForEach-Object { $_.Groups[1].Value }
+    )
+    $openQuestionIds = $questionIds
 
     $openQuestionRowsWithIds = [regex]::Matches($openQuestions, '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C2|WORLD))-\d{3})\s*\|') |
         ForEach-Object { $_.Value }
@@ -756,7 +761,7 @@ if ($filesByType.ContainsKey('open_questions')) {
         Add-Problem Error "Duplicate open question ID: $id"
     }
 
-    $validQuestionStatuses = @('active', 'waiting', 'later', 'resolved')
+    $validQuestionStatuses = @('active', 'waiting', 'later')
     $questionRowsWithStatus = [regex]::Matches(
         $openQuestions,
         '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C2|WORLD))-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
@@ -769,6 +774,11 @@ if ($filesByType.ContainsKey('open_questions')) {
     foreach ($row in $questionRowsWithStatus) {
         $id = $row.Groups[1].Value.Trim()
         $questionStatus = $row.Groups[2].Value.Trim()
+
+        if ($id -match '^Q-(?:C2|WORLD)-\d{3}$' -and $questionStatus -eq 'resolved') {
+            Add-Problem Error "Resolved question $id must be moved to closed_questions."
+            continue
+        }
 
         if ($validQuestionStatuses -notcontains $questionStatus) {
             Add-Problem Error "Invalid open question status for ${id}: $questionStatus"
@@ -801,6 +811,54 @@ if ($filesByType.ContainsKey('open_questions')) {
             ForEach-Object { $_.Value }
 
         Compare-IdSets 'current context pending decisions' $contextPendingIds 'open_questions pending decisions' $pendingQuestionIds
+    }
+}
+
+if ($filesByType.ContainsKey('closed_questions')) {
+    $closedQuestionsPath = $filesByType['closed_questions'][0].FullName
+    $closedQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+    $closedQuestionRowsWithStatus = [regex]::Matches(
+        $closedQuestions,
+        '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
+    )
+    $closedQuestionIds = @(
+        $closedQuestionRowsWithStatus |
+            ForEach-Object { $_.Groups[1].Value.Trim() }
+    )
+
+    if ($closedQuestionIds.Count -eq 0) {
+        Add-Problem Warning 'No Q-C2/Q-WORLD IDs found in closed_questions.'
+    }
+
+    $duplicateClosedQuestionIds = $closedQuestionIds |
+        Group-Object |
+        Where-Object { $_.Count -gt 1 } |
+        ForEach-Object { $_.Name }
+
+    foreach ($id in $duplicateClosedQuestionIds) {
+        Add-Problem Error "Duplicate closed question ID: $id"
+    }
+
+    foreach ($row in $closedQuestionRowsWithStatus) {
+        $id = $row.Groups[1].Value.Trim()
+        $questionStatus = $row.Groups[2].Value.Trim()
+        if ($questionStatus -ne 'resolved') {
+            Add-Problem Error "Invalid closed question status for ${id}: $questionStatus"
+        }
+    }
+
+    foreach ($id in ($closedQuestionIds | Sort-Object -Unique)) {
+        if ($openQuestionIds -contains $id) {
+            Add-Problem Error "Question ID exists in both open_questions and closed_questions: $id"
+        }
+    }
+
+    if ($closedQuestions.Contains('$QuestionId')) {
+        Add-Problem Error 'closed_questions contains an unexpanded $QuestionId marker.'
+    }
+
+    if ($closedQuestions.Contains('resolved${')) {
+        Add-Problem Error 'closed_questions contains a malformed resolved replacement marker.'
     }
 }
 
