@@ -245,7 +245,7 @@ if ($relativeImage) {
     $portraitIndex = [regex]::Replace(
         $portraitIndex,
         $availableTablePattern,
-        "`${1}`r`n$portraitRow",
+        "`${1}`r`n$portraitRow`r`n",
         [System.Text.RegularExpressions.RegexOptions]::Multiline,
         [TimeSpan]::FromSeconds(1)
     )
