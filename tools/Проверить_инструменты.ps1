@@ -67,6 +67,72 @@ function Get-NextAcceptedDecisionId {
     return ('DEC-{0:D3}' -f ($max + 1))
 }
 
+function Ensure-ToolTestPendingDecision {
+    param(
+        [string]$DecisionLogPath,
+        [string]$OpenQuestionsPath
+    )
+
+    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionLogPath
+    if ($decisionLog -match '(?m)^###\s+DEC-PENDING-\d{3}\s*$') {
+        return
+    }
+
+    $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $OpenQuestionsPath
+    $pendingNumbers = @(
+        [regex]::Matches(($decisionLog + "`n" + $openQuestions), 'DEC-PENDING-(\d{3})') |
+            ForEach-Object { [int]$_.Groups[1].Value }
+    )
+
+    $nextNumber = 1
+    if ($pendingNumbers.Count -gt 0) {
+        $nextNumber = [int](($pendingNumbers | Measure-Object -Maximum).Maximum) + 1
+    }
+
+    $pendingId = 'DEC-PENDING-{0:D3}' -f $nextNumber
+    $pendingBlock = @"
+### $pendingId
+
+Дата в реальности: ожидает решения
+Дата в сюжете: тест инструментов
+Игрок / персонаж: Тест / Инструменты
+Сцена: Проверка инструментов
+Выбор: ожидает решения
+Дополнение игрока: временная запись, созданная только в копии проекта для проверки инструментов.
+Немедленный эффект: ожидает решения
+Долгосрочные последствия: тестовая запись должна закрыться инструментом.
+Связанные файлы: `tools/Проверить_инструменты.ps1`
+Статус: ожидает решения.
+"@
+
+    $waitingSectionMatch = [regex]::Match($decisionLog, '(?ms)^## Ожидают решения\s*\r?\n.*?(?=^##\s+|\z)')
+    if (-not $waitingSectionMatch.Success) {
+        throw 'Cannot find pending decisions section in decision log.'
+    }
+
+    $insertIndex = $waitingSectionMatch.Index + $waitingSectionMatch.Length
+    $beforeInsert = $decisionLog.Substring(0, $insertIndex).TrimEnd()
+    $afterInsert = $decisionLog.Substring($insertIndex).TrimStart()
+    $decisionLog = "$beforeInsert`r`n`r`n$pendingBlock"
+    if (-not [string]::IsNullOrWhiteSpace($afterInsert)) {
+        $decisionLog += "`r`n`r`n$afterInsert"
+    }
+
+    $pendingRow = "| $pendingId | высокий | Тестовое pending-решение для проверки инструментов | Инструменты | active |"
+    $activeSectionMatch = [regex]::Match($openQuestions, '(?ms)^## Активные решения\s*\r?\n.*?(?=^##\s+|\z)')
+    if (-not $activeSectionMatch.Success) {
+        throw 'Cannot find active decisions section in open questions.'
+    }
+
+    $activeSection = $activeSectionMatch.Value.TrimEnd()
+    $updatedActiveSection = "$activeSection`r`n$pendingRow`r`n"
+    $openQuestions = $openQuestions.Remove($activeSectionMatch.Index, $activeSectionMatch.Length)
+    $openQuestions = $openQuestions.Insert($activeSectionMatch.Index, $updatedActiveSection)
+
+    Set-Content -LiteralPath $DecisionLogPath -Encoding UTF8 -Value $decisionLog
+    Set-Content -LiteralPath $OpenQuestionsPath -Encoding UTF8 -Value $openQuestions
+}
+
 function Invoke-ExpectedFailure {
     param(
         [string]$Name,
@@ -159,6 +225,8 @@ try {
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'FRONT-TOOL-TEST'
     }
+
+    Ensure-ToolTestPendingDecision -DecisionLogPath $decisionLogPath -OpenQuestionsPath $openQuestionsPath
 
     Invoke-Step 'Закрыть pending-решение не портит вопросы при ошибке журнала' {
         $decisionLogBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
