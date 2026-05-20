@@ -229,7 +229,7 @@ function Render-DecisionLog {
     Add-RawLine -Lines $lines -Line 'source_registry: 09_Реестры/Решения.json'
     Add-RawLine -Lines $lines -Line '---'
     Add-RawLine -Lines $lines
-    Add-RawLine -Lines $lines -Line 'Этот файл пересобирается из `09_Реестры/Решения.json`. Для закрытия `DEC-PENDING-*` используй `.\tools\Закрыть_решение.ps1`.'
+    Add-RawLine -Lines $lines -Line 'Этот файл пересобирается из `09_Реестры/Решения.json`. Для создания `DEC-PENDING-*` используй `.\tools\Новое_решение.ps1`, для закрытия - `.\tools\Закрыть_решение.ps1`.'
     Add-RawLine -Lines $lines
     Add-RawLine -Lines $lines -Line '## Формат записи'
     Add-RawLine -Lines $lines

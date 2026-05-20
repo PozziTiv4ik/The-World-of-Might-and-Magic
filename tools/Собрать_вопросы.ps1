@@ -300,7 +300,7 @@ function Render-OpenQuestions {
     Add-RawLine -Lines $lines -Line 'decision_registry: 09_Реестры/Решения.json'
     Add-RawLine -Lines $lines -Line '---'
     Add-RawLine -Lines $lines
-    Add-RawLine -Lines $lines -Line 'Этот файл пересобирается из `09_Реестры/Вопросы.json`; активные `DEC-PENDING-*` берутся из `09_Реестры/Решения.json`. Для закрытия вопросов используй `.\tools\Закрыть_вопрос.ps1`; для ручного добавления нового `Q-C2-*` или `Q-WORLD-*` сначала добавь запись в JSON-реестр, затем запусти `.\tools\Собрать_вопросы.ps1`.'
+    Add-RawLine -Lines $lines -Line 'Этот файл пересобирается из `09_Реестры/Вопросы.json`; активные `DEC-PENDING-*` берутся из `09_Реестры/Решения.json`. Для создания вопросов используй `.\tools\Новый_вопрос.ps1`, для закрытия вопросов - `.\tools\Закрыть_вопрос.ps1`.'
     Add-RawLine -Lines $lines
     Add-RawLine -Lines $lines -Line 'Новый `Q-C2-*` или `Q-WORLD-*` всегда получает следующий свободный номер по максимуму из `09_Реестры/Вопросы.json`. Не переиспользуй ID закрытого вопроса.'
     Add-RawLine -Lines $lines
@@ -357,7 +357,7 @@ function Render-ClosedQuestions {
     Add-RawLine -Lines $lines
     Add-RawLine -Lines $lines -Line 'Этот файл пересобирается из `09_Реестры/Вопросы.json` и хранит вопросы, которые уже получили канонический ответ. Открытые вопросы и pending-решения остаются в `01_Кампания/03_Нерешенные_вопросы.md`.'
     Add-RawLine -Lines $lines
-    Add-RawLine -Lines $lines -Line 'При создании нового `Q-C2-*` или `Q-WORLD-*` учитывай ID из JSON-реестра. Закрытый ID не переиспользуется.'
+    Add-RawLine -Lines $lines -Line 'Новые `Q-C2-*` и `Q-WORLD-*` создаются через `.\tools\Новый_вопрос.ps1`; закрытый ID не переиспользуется.'
     Add-RawLine -Lines $lines
     Add-RawLine -Lines $lines -Line '## Вопросы главы 2'
     Add-RawLine -Lines $lines

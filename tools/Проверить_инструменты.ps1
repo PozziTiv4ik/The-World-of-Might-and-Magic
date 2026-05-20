@@ -72,8 +72,6 @@ function Get-NextAcceptedDecisionId {
 
 function Ensure-ToolTestPendingDecision {
     param(
-        [string]$DecisionLogPath,
-        [string]$OpenQuestionsPath,
         [string]$DecisionRegistryPath,
         [string]$ToolsRoot
     )
@@ -83,45 +81,18 @@ function Ensure-ToolTestPendingDecision {
         return
     }
 
-    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionLogPath
-    $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $OpenQuestionsPath
-    $pendingNumbers = @(
-        [regex]::Matches(($decisionLog + "`n" + $openQuestions + "`n" + ($registry | ConvertTo-Json -Depth 8)), 'DEC-PENDING-(\d{3})') |
-            ForEach-Object { [int]$_.Groups[1].Value }
-    )
-
-    $nextNumber = 1
-    if ($pendingNumbers.Count -gt 0) {
-        $nextNumber = [int](($pendingNumbers | Measure-Object -Maximum).Maximum) + 1
-    }
-
-    $pendingId = 'DEC-PENDING-{0:D3}' -f $nextNumber
-    $decisions = @($registry.decisions)
-    $decisions += [pscustomobject][ordered]@{
-        id = $pendingId
-        state = 'pending'
-        real_date = 'ожидает решения'
-        story_date = 'тест инструментов'
-        player_character = 'Тест / Инструменты'
-        scene = 'Проверка инструментов'
-        choice = 'ожидает решения'
-        player_addition = 'временная запись, созданная только в копии проекта для проверки инструментов.'
-        immediate_effect = 'ожидает решения'
-        long_term_consequences = 'тестовая запись должна закрыться инструментом.'
-        links = '`tools/Проверить_инструменты.ps1`'
-        status_text = 'ожидает решения.'
-        priority = 'высокий'
-        question = 'Тестовое pending-решение для проверки инструментов'
-        owner = 'Инструменты'
-        panel_status = 'active'
-    }
-
-    $registry.decisions = @($decisions)
-    $json = ($registry | ConvertTo-Json -Depth 8).TrimEnd() + "`n"
-    $encoding = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($DecisionRegistryPath, $json, $encoding)
-
-    & (Join-Path $ToolsRoot 'Собрать_решения.ps1') -SkipCheck
+    & (Join-Path $ToolsRoot 'Новое_решение.ps1') `
+        -Question 'Тестовое pending-решение для проверки инструментов' `
+        -Owner 'Инструменты' `
+        -PlayerCharacter 'Тест / Инструменты' `
+        -Scene 'Проверка инструментов' `
+        -StoryDate 'тест инструментов' `
+        -Choice 'ожидает решения' `
+        -PlayerAddition 'временная запись, созданная только в копии проекта для проверки инструментов.' `
+        -ImmediateEffect 'ожидает решения' `
+        -LongTermConsequences 'тестовая запись должна закрыться инструментом.' `
+        -Links 'tools/Проверить_инструменты.ps1' `
+        -SkipCheck
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
@@ -251,11 +222,29 @@ try {
         }
     }
 
+    Invoke-Step 'Создать новый вопрос' {
+        & (Join-Path $toolsRoot 'Новый_вопрос.ps1') `
+            -Scope chapter `
+            -Text 'Тестовый вопрос инструментов' `
+            -Owner 'Инструменты' `
+            -Priority 'высокий' `
+            -Status waiting `
+            -SkipCheck
+
+        Assert-TextContains -Path $openQuestionsPath -Expected 'Тестовый вопрос инструментов'
+        $questionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
+        if (@($questionRegistryAfter.questions | Where-Object { $_.text -eq 'Тестовый вопрос инструментов' }).Count -ne 1) {
+            throw 'Новый_вопрос.ps1 did not add the test question to the question registry.'
+        }
+    }
+
     Ensure-ToolTestPendingDecision `
-        -DecisionLogPath $decisionLogPath `
-        -OpenQuestionsPath $openQuestionsPath `
         -DecisionRegistryPath $decisionRegistryPath `
         -ToolsRoot $toolsRoot
+
+    Assert-TextContains -Path $decisionLogPath -Expected 'временная запись, созданная только в копии проекта для проверки инструментов.'
+    Assert-TextContains -Path $openQuestionsPath -Expected 'Тестовое pending-решение для проверки инструментов'
+    Assert-TextContains -Path $currentContextPath -Expected 'Тестовое pending-решение для проверки инструментов'
 
     Invoke-Step 'Закрыть pending-решение не портит файлы при неизвестном ID' {
         $decisionRegistryBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath
