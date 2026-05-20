@@ -5,7 +5,11 @@
 
     [switch]$SkipSceneIndex,
 
-    [switch]$SkipSourceIndex
+    [switch]$SkipSourceIndex,
+
+    [switch]$SkipCharacterIndex,
+
+    [switch]$SkipLocationIndex
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +44,18 @@ if (-not $SkipSceneIndex) {
 if (-not $SkipSourceIndex) {
     Invoke-Step 'Сборка индекса источников' {
         & (Join-Path $root 'tools\Собрать_индекс_источников.ps1') -SkipCheck
+    }
+}
+
+if (-not $SkipCharacterIndex) {
+    Invoke-Step 'Сборка индекса персонажей' {
+        & (Join-Path $root 'tools\Собрать_индекс_персонажей.ps1') -SkipCheck
+    }
+}
+
+if (-not $SkipLocationIndex) {
+    Invoke-Step 'Сборка индекса локаций' {
+        & (Join-Path $root 'tools\Собрать_индекс_локаций.ps1') -SkipCheck
     }
 }
 

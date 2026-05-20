@@ -87,15 +87,6 @@ $Summary
 
 Set-Content -LiteralPath $targetPath -Encoding UTF8 -Value $content
 
-$locationIndexPath = Join-Path $root '04_Локации\00_Индекс_локаций.md'
-$locationIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $locationIndexPath
-$locationRow = "| $Name | active | $FrontId | ``$relativePath`` |"
-
-if ($locationIndex -notmatch [regex]::Escape($relativePath)) {
-    $locationIndex = $locationIndex.TrimEnd() + "`r`n$locationRow`r`n"
-    Set-Content -LiteralPath $locationIndexPath -Encoding UTF8 -Value $locationIndex
-}
-
 $mapPath = Join-Path $root '04_Локации\00_Карта_и_регионы.md'
 $mapText = Get-Content -Raw -Encoding UTF8 -LiteralPath $mapPath
 $row = "- ``$relativePath`` - $Summary"
@@ -115,6 +106,8 @@ $row
 
     Set-Content -LiteralPath $mapPath -Encoding UTF8 -Value $mapText
 }
+
+& (Join-Path $root 'tools\Собрать_индекс_локаций.ps1') -SkipCheck
 
 if (-not $SkipCheck) {
     & (Join-Path $root 'tools\Проверить_проект.ps1')
