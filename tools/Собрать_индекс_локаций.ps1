@@ -99,9 +99,6 @@ function Get-ExistingLocationRows {
         if ($cells[3] -match '`([^`]+)`') {
             $order++
             $rowsByFile[$Matches[1]] = [pscustomobject]@{
-                Name = $cells[0]
-                Status = $cells[1]
-                FrontId = $cells[2]
                 Order = $order
             }
         }
@@ -130,16 +127,10 @@ foreach ($file in Get-ChildItem -LiteralPath $locationRoot -File -Filter '*.md')
     }
 
     $status = Get-Meta -Text $text -Field 'status'
-    if ([string]::IsNullOrWhiteSpace($status) -and $existing) {
-        $status = $existing.Status
-    }
 
     $frontId = Get-Meta -Text $text -Field 'front_id'
-    if ([string]::IsNullOrWhiteSpace($frontId) -and $existing) {
-        $frontId = $existing.FrontId
-    }
     if ([string]::IsNullOrWhiteSpace($frontId)) {
-        $frontId = '-'
+        throw "Location card is missing front_id: $relativePath"
     }
 
     $order = 100000
@@ -169,7 +160,7 @@ $lines.Add("generated_real_date: $today") | Out-Null
 $lines.Add('generated_by: tools/Собрать_индекс_локаций.ps1') | Out-Null
 $lines.Add('---') | Out-Null
 $lines.Add('') | Out-Null
-$lines.Add('Этот файл генерируется автоматически из карточек локаций. Если карточка старого формата не содержит `front_id`, генератор временно использует прежнее значение из индекса как fallback.') | Out-Null
+$lines.Add('Этот файл генерируется автоматически из карточек локаций. Поле `front_id` хранится в front matter каждой карточки локации.') | Out-Null
 $lines.Add('') | Out-Null
 $lines.Add('## Служебные карты и обзоры') | Out-Null
 $lines.Add('') | Out-Null

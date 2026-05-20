@@ -1289,10 +1289,34 @@ if ($filesByType.ContainsKey('front_tracker')) {
         $locationFrontIds = @(
             $filesByType['location'] |
                 ForEach-Object {
+                    $relativeLocation = (Get-RelativePath $_.FullName) -replace '\\', '/'
                     $locationText = Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName
-                    if ($locationText -match '(?m)^front_id:\s*(FRONT-[A-Z0-9-]+)\s*$') {
-                        $Matches[1]
+                    if ($locationText -notmatch '(?m)^front_id:\s*(\S+)\s*$') {
+                        Add-Problem Error "Location has no front_id field: $relativeLocation"
+                        return
                     }
+
+                    $locationFrontId = $Matches[1].Trim()
+                    if ([string]::IsNullOrWhiteSpace($locationFrontId)) {
+                        Add-Problem Error "Location has empty front_id field: $relativeLocation"
+                        return
+                    }
+
+                    if ($locationFrontId -eq '-') {
+                        return
+                    }
+
+                    if ($locationFrontId -notmatch '^FRONT-[A-Z0-9-]+$') {
+                        Add-Problem Error "Location has invalid front_id format: $relativeLocation -> $locationFrontId"
+                        return
+                    }
+
+                    if ($declaredFrontIdSet -notcontains $locationFrontId) {
+                        Add-Problem Error "Location uses undeclared FRONT-ID: $relativeLocation -> $locationFrontId"
+                        return
+                    }
+
+                    $locationFrontId
                 } |
                 Sort-Object -Unique
         )
