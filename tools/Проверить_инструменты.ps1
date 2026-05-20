@@ -73,17 +73,20 @@ function Get-NextAcceptedDecisionId {
 function Ensure-ToolTestPendingDecision {
     param(
         [string]$DecisionLogPath,
-        [string]$OpenQuestionsPath
+        [string]$OpenQuestionsPath,
+        [string]$DecisionRegistryPath,
+        [string]$ToolsRoot
     )
 
-    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionLogPath
-    if ($decisionLog -match '(?m)^###\s+DEC-PENDING-\d{3}\s*$') {
+    $registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionRegistryPath) | ConvertFrom-Json
+    if (@($registry.decisions | Where-Object { $_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*' }).Count -gt 0) {
         return
     }
 
+    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionLogPath
     $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $OpenQuestionsPath
     $pendingNumbers = @(
-        [regex]::Matches(($decisionLog + "`n" + $openQuestions), 'DEC-PENDING-(\d{3})') |
+        [regex]::Matches(($decisionLog + "`n" + $openQuestions + "`n" + ($registry | ConvertTo-Json -Depth 8)), 'DEC-PENDING-(\d{3})') |
             ForEach-Object { [int]$_.Groups[1].Value }
     )
 
@@ -93,47 +96,35 @@ function Ensure-ToolTestPendingDecision {
     }
 
     $pendingId = 'DEC-PENDING-{0:D3}' -f $nextNumber
-    $pendingBlock = @"
-### $pendingId
-
-Дата в реальности: ожидает решения
-Дата в сюжете: тест инструментов
-Игрок / персонаж: Тест / Инструменты
-Сцена: Проверка инструментов
-Выбор: ожидает решения
-Дополнение игрока: временная запись, созданная только в копии проекта для проверки инструментов.
-Немедленный эффект: ожидает решения
-Долгосрочные последствия: тестовая запись должна закрыться инструментом.
-Связанные файлы: `tools/Проверить_инструменты.ps1`
-Статус: ожидает решения.
-"@
-
-    $waitingSectionMatch = [regex]::Match($decisionLog, '(?ms)^## Ожидают решения\s*\r?\n.*?(?=^##\s+|\z)')
-    if (-not $waitingSectionMatch.Success) {
-        throw 'Cannot find pending decisions section in decision log.'
+    $decisions = @($registry.decisions)
+    $decisions += [pscustomobject][ordered]@{
+        id = $pendingId
+        state = 'pending'
+        real_date = 'ожидает решения'
+        story_date = 'тест инструментов'
+        player_character = 'Тест / Инструменты'
+        scene = 'Проверка инструментов'
+        choice = 'ожидает решения'
+        player_addition = 'временная запись, созданная только в копии проекта для проверки инструментов.'
+        immediate_effect = 'ожидает решения'
+        long_term_consequences = 'тестовая запись должна закрыться инструментом.'
+        links = '`tools/Проверить_инструменты.ps1`'
+        status_text = 'ожидает решения.'
+        priority = 'высокий'
+        question = 'Тестовое pending-решение для проверки инструментов'
+        owner = 'Инструменты'
+        panel_status = 'active'
     }
 
-    $insertIndex = $waitingSectionMatch.Index + $waitingSectionMatch.Length
-    $beforeInsert = $decisionLog.Substring(0, $insertIndex).TrimEnd()
-    $afterInsert = $decisionLog.Substring($insertIndex).TrimStart()
-    $decisionLog = "$beforeInsert`r`n`r`n$pendingBlock"
-    if (-not [string]::IsNullOrWhiteSpace($afterInsert)) {
-        $decisionLog += "`r`n`r`n$afterInsert"
+    $registry.decisions = @($decisions)
+    $json = ($registry | ConvertTo-Json -Depth 8).TrimEnd() + "`n"
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($DecisionRegistryPath, $json, $encoding)
+
+    & (Join-Path $ToolsRoot 'Собрать_решения.ps1') -SkipCheck
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
-
-    $pendingRow = "| $pendingId | высокий | Тестовое pending-решение для проверки инструментов | Инструменты | active |"
-    $activeSectionMatch = [regex]::Match($openQuestions, '(?ms)^## Активные решения\s*\r?\n.*?(?=^##\s+|\z)')
-    if (-not $activeSectionMatch.Success) {
-        throw 'Cannot find active decisions section in open questions.'
-    }
-
-    $activeSection = $activeSectionMatch.Value.TrimEnd()
-    $updatedActiveSection = "$activeSection`r`n$pendingRow`r`n"
-    $openQuestions = $openQuestions.Remove($activeSectionMatch.Index, $activeSectionMatch.Length)
-    $openQuestions = $openQuestions.Insert($activeSectionMatch.Index, $updatedActiveSection)
-
-    Set-Content -LiteralPath $DecisionLogPath -Encoding UTF8 -Value $decisionLog
-    Set-Content -LiteralPath $OpenQuestionsPath -Encoding UTF8 -Value $openQuestions
 }
 
 function Invoke-ExpectedFailure {
@@ -189,6 +180,8 @@ try {
     $decisionLogPath = Join-Path $copyRoot '01_Кампания\02_Журнал_решений.md'
     $openQuestionsPath = Join-Path $copyRoot '01_Кампания\03_Нерешенные_вопросы.md'
     $closedQuestionsPath = Join-Path $copyRoot '01_Кампания\03_Закрытые_вопросы.md'
+    $decisionRegistryPath = Join-Path $copyRoot '09_Реестры\Решения.json'
+    $questionRegistryPath = Join-Path $copyRoot '09_Реестры\Вопросы.json'
     $currentContextPath = Join-Path $copyRoot '01_Кампания\00_Текущий_контекст.md'
 
     Invoke-Step 'Принять входящее с источником' {
@@ -243,41 +236,50 @@ try {
         Assert-TextContains -Path $frontTrackerPath -Expected 'активен: тестовый таймер обновлен'
     }
 
-    Ensure-ToolTestPendingDecision -DecisionLogPath $decisionLogPath -OpenQuestionsPath $openQuestionsPath
+    Ensure-ToolTestPendingDecision `
+        -DecisionLogPath $decisionLogPath `
+        -OpenQuestionsPath $openQuestionsPath `
+        -DecisionRegistryPath $decisionRegistryPath `
+        -ToolsRoot $toolsRoot
 
-    Invoke-Step 'Закрыть pending-решение не портит вопросы при ошибке журнала' {
+    Invoke-Step 'Закрыть pending-решение не портит файлы при неизвестном ID' {
+        $decisionRegistryBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath
         $decisionLogBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
         $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $pendingMatch = [regex]::Match($decisionLogBefore, '(?m)^###\s+(DEC-PENDING-\d{3})\s*$')
-        if (-not $pendingMatch.Success) {
-            throw 'No DEC-PENDING entry found for rollback test.'
+        $missingPendingId = 'DEC-PENDING-999'
+        $registryBefore = $decisionRegistryBefore | ConvertFrom-Json
+        $registryIds = @($registryBefore.decisions | ForEach-Object { $_.id })
+        if ($registryIds -contains $missingPendingId) {
+            $missingPendingId = 'DEC-PENDING-998'
         }
 
-        $pendingId = $pendingMatch.Groups[1].Value
-        $escapedPendingId = [regex]::Escape($pendingId)
-        $brokenDecisionLog = [regex]::Replace(
-            $decisionLogBefore,
-            "(?ms)^###\s+$escapedPendingId\s*\r?\n.*?(?=^###\s+|^##\s+|\z)",
-            '',
-            1
-        )
-        Set-Content -LiteralPath $decisionLogPath -Encoding UTF8 -Value $brokenDecisionLog
+        if ($registryIds -contains $missingPendingId) {
+            throw 'Cannot find unused DEC-PENDING-* ID for failure test.'
+        }
 
-        Invoke-ExpectedFailure -Name 'Закрыть_решение.ps1 without decision block' -Action {
+        Invoke-ExpectedFailure -Name 'Закрыть_решение.ps1 with unknown pending decision ID' -Action {
             & (Join-Path $toolsRoot 'Закрыть_решение.ps1') `
-                -PendingId $pendingId `
-                -AcceptedId (Get-NextAcceptedDecisionId -DecisionLogPath $decisionLogPath) `
-                -Choice "Тестовое закрытие $pendingId" `
-                -Effect "Тестовый эффект закрытия $pendingId" `
+                -PendingId $missingPendingId `
+                -AcceptedId 'DEC-999' `
+                -Choice "Тестовое закрытие $missingPendingId" `
+                -Effect "Тестовый эффект закрытия $missingPendingId" `
                 -SkipCheck
         }
 
+        $decisionRegistryAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath
+        $decisionLogAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
         $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        if ($decisionRegistryAfter -ne $decisionRegistryBefore) {
+            throw 'Закрыть_решение.ps1 changed decision registry before failing.'
+        }
+
+        if ($decisionLogAfter -ne $decisionLogBefore) {
+            throw 'Закрыть_решение.ps1 changed decision log before failing.'
+        }
+
         if ($openQuestionsAfter -ne $openQuestionsBefore) {
             throw 'Закрыть_решение.ps1 changed open questions before failing.'
         }
-
-        Set-Content -LiteralPath $decisionLogPath -Encoding UTF8 -Value $decisionLogBefore
     }
 
     Invoke-Step 'Закрыть pending-решение без порчи журнала' {
@@ -302,6 +304,8 @@ try {
         $decisionLogAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
         $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
         $currentContextAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentContextPath
+        $decisionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath) | ConvertFrom-Json
+        $acceptedRegistryDecision = @($decisionRegistryAfter.decisions | Where-Object { $_.id -eq $acceptedId })[0]
 
         Assert-TextContains -Path $decisionLogPath -Expected "### $acceptedId"
         Assert-TextContains -Path $decisionLogPath -Expected "Выбор: $choice"
@@ -321,34 +325,54 @@ try {
         if (([regex]::Matches($decisionLogAfter, [regex]::Escape($choice))).Count -ne 1) {
             throw 'Choice replacement touched more than the accepted decision block.'
         }
-    }
 
-    Invoke-Step 'Закрыть вопрос не портит открытые вопросы при ошибке архива' {
-        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $closedQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
-        $questionMatch = [regex]::Match($openQuestionsBefore, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|(?:[^|]*\|){3}\s*(?:active|waiting|later)\s*\|\s*$')
-        if (-not $questionMatch.Success) {
-            throw 'No open Q-C2/Q-WORLD entry found for rollback test.'
+        if ($null -eq $acceptedRegistryDecision -or $acceptedRegistryDecision.state -ne 'accepted') {
+            throw "Decision registry was not updated as accepted: $acceptedId"
         }
 
-        $questionId = $questionMatch.Groups[1].Value
-        $targetHeading = if ($questionId -like 'Q-C2-*') { 'Вопросы главы 2' } else { 'Вопросы по миру' }
-        $brokenClosedQuestions = $closedQuestionsBefore -replace "(?m)^## $([regex]::Escape($targetHeading))\s*$", '## Сломанный раздел'
-        Set-Content -LiteralPath $closedQuestionsPath -Encoding UTF8 -Value $brokenClosedQuestions
+        if (@($decisionRegistryAfter.decisions | Where-Object { $_.id -eq $pendingId }).Count -ne 0) {
+            throw "Decision registry still contains pending decision: $pendingId"
+        }
+    }
 
-        Invoke-ExpectedFailure -Name 'Закрыть_вопрос.ps1 with broken closed question archive' -Action {
+    Invoke-Step 'Закрыть вопрос не портит файлы при неизвестном ID' {
+        $questionRegistryBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath
+        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $closedQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+
+        $missingQuestionId = 'Q-C2-999'
+        $registryBefore = $questionRegistryBefore | ConvertFrom-Json
+        $registryIds = @($registryBefore.questions | ForEach-Object { $_.id })
+        if ($registryIds -contains $missingQuestionId) {
+            $missingQuestionId = 'Q-WORLD-999'
+        }
+
+        if ($registryIds -contains $missingQuestionId) {
+            throw 'Cannot find unused Q-* ID for failure test.'
+        }
+
+        Invoke-ExpectedFailure -Name 'Закрыть_вопрос.ps1 with unknown question ID' -Action {
             & (Join-Path $toolsRoot 'Закрыть_вопрос.ps1') `
-                -QuestionId $questionId `
-                -Resolution "Тестовое закрытие $questionId" `
+                -QuestionId $missingQuestionId `
+                -Resolution "Тестовое закрытие $missingQuestionId" `
                 -SkipCheck
         }
 
+        $questionRegistryAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath
         $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+
+        if ($questionRegistryAfter -ne $questionRegistryBefore) {
+            throw 'Закрыть_вопрос.ps1 changed the question registry before failing.'
+        }
+
         if ($openQuestionsAfter -ne $openQuestionsBefore) {
             throw 'Закрыть_вопрос.ps1 changed open questions before failing.'
         }
 
-        Set-Content -LiteralPath $closedQuestionsPath -Encoding UTF8 -Value $closedQuestionsBefore
+        if ($closedQuestionsAfter -ne $closedQuestionsBefore) {
+            throw 'Закрыть_вопрос.ps1 changed closed questions before failing.'
+        }
     }
 
     Invoke-Step 'Закрыть открытый вопрос без порчи истории' {
@@ -370,6 +394,10 @@ try {
 
         $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
         $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        $questionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
+        $registryQuestion = @($questionRegistryAfter.questions | Where-Object { $_.id -eq $questionId })[0]
+        $registryHistory = @($questionRegistryAfter.history | Where-Object { $_.id -eq $questionId -and $_.resolution -eq $resolution })
+
         Assert-TextNotContains -Path $openQuestionsPath -Unexpected '$QuestionId'
         Assert-TextNotContains -Path $openQuestionsPath -Unexpected 'resolved${'
 
@@ -383,6 +411,14 @@ try {
 
         if ($closedQuestionsAfter -notmatch "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|(?:[^|]*\|){3}\s*resolved\s*\|\s*$") {
             throw "Question row was not moved to closed questions as resolved: $questionId"
+        }
+
+        if ($null -eq $registryQuestion -or $registryQuestion.status -ne 'resolved') {
+            throw "Question registry was not updated as resolved: $questionId"
+        }
+
+        if ($registryHistory.Count -ne 1) {
+            throw "Question registry history was not updated once for: $questionId"
         }
     }
 
@@ -427,6 +463,7 @@ try {
 
         $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
         $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        $questionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
         foreach ($questionId in $questionIds) {
             if ($openQuestionsAfter -match "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|") {
                 throw "Parallel close left question in open table: $questionId"
@@ -434,6 +471,11 @@ try {
 
             if ($closedQuestionsAfter -notmatch "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|(?:[^|]*\|){3}\s*resolved\s*\|\s*$") {
                 throw "Parallel close did not move question to closed table: $questionId"
+            }
+
+            $registryQuestion = @($questionRegistryAfter.questions | Where-Object { $_.id -eq $questionId })[0]
+            if ($null -eq $registryQuestion -or $registryQuestion.status -ne 'resolved') {
+                throw "Parallel close did not resolve registry question: $questionId"
             }
         }
     }
@@ -508,6 +550,8 @@ try {
 
     Invoke-Step 'Финальная проверка временной копии' {
         & (Join-Path $toolsRoot 'Собрать_индекс_сцен.ps1') -SkipCheck
+        & (Join-Path $toolsRoot 'Собрать_решения.ps1') -SkipCheck
+        & (Join-Path $toolsRoot 'Собрать_вопросы.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_панель_хода.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Проверить_проект.ps1')
     }

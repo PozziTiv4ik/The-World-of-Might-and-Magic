@@ -268,6 +268,8 @@ $filesByType = @{}
 foreach ($requiredPath in @(
     'AGENTS.md',
     '.githooks\pre-commit',
+    '09_Реестры\Вопросы.json',
+    '09_Реестры\Решения.json',
     'tools\_lib.ps1',
     'tools\Завершить_ход.ps1',
     'tools\Закрыть_вопрос.ps1',
@@ -275,6 +277,8 @@ foreach ($requiredPath in @(
     'tools\Обновить_фронт.ps1',
     'tools\Проверить_архив.ps1',
     'tools\Проверить_инструменты.ps1',
+    'tools\Собрать_вопросы.ps1',
+    'tools\Собрать_решения.ps1',
     'tools\Собрать_индекс_источников.ps1',
     'tools\Собрать_индекс_сцен.ps1',
     'tools\Собрать_панель_хода.ps1',
@@ -703,9 +707,15 @@ if (-not $filesByType.ContainsKey('character_portrait_index')) {
     }
 }
 
+$decisionIds = @()
+
 if ($filesByType.ContainsKey('decision_log')) {
     $decisionLogPath = $filesByType['decision_log'][0].FullName
     $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+    if ($decisionLog -notmatch '(?m)^source_registry:\s*09_Реестры/Решения\.json\s*$') {
+        Add-Problem Warning "decision_log should be generated from 09_Реестры/Решения.json: $(Get-RelativePath $decisionLogPath)"
+    }
+
     $decisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+(DEC(?:-PENDING)?-\d{3})\s*$') |
         ForEach-Object { $_.Groups[1].Value }
 
@@ -739,10 +749,15 @@ if ($filesByType.ContainsKey('decision_log')) {
 
 $activePendingDecisionIds = @()
 $openQuestionIds = @()
+$closedQuestionIds = @()
 
 if ($filesByType.ContainsKey('open_questions')) {
     $openQuestionsPath = $filesByType['open_questions'][0].FullName
     $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+    if ($openQuestions -notmatch '(?m)^source_registry:\s*09_Реестры/Вопросы\.json\s*$') {
+        Add-Problem Warning "open_questions should be generated from 09_Реестры/Вопросы.json: $(Get-RelativePath $openQuestionsPath)"
+    }
+
     $questionIds = @(
         [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|') |
             ForEach-Object { $_.Groups[1].Value }
@@ -818,9 +833,83 @@ if ($filesByType.ContainsKey('open_questions')) {
     }
 }
 
+$decisionRegistryPath = Join-Path $root '09_Реестры\Решения.json'
+if (Test-Path -LiteralPath $decisionRegistryPath) {
+    $decisionRegistry = $null
+    try {
+        $decisionRegistry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath) | ConvertFrom-Json
+    } catch {
+        Add-Problem Error "Decision registry is not valid JSON: 09_Реестры\Решения.json - $($_.Exception.Message)"
+    }
+
+    if ($null -ne $decisionRegistry) {
+        if ($decisionRegistry.type -ne 'decision_registry') {
+            Add-Problem Error "Decision registry has invalid type: $($decisionRegistry.type)"
+        }
+
+        $registryDecisions = @($decisionRegistry.decisions)
+        if ($registryDecisions.Count -eq 0) {
+            Add-Problem Error 'Decision registry contains no decisions.'
+        }
+
+        $registryDecisionIds = @(
+            $registryDecisions |
+                ForEach-Object { $_.id }
+        )
+
+        $duplicateRegistryDecisionIds = $registryDecisionIds |
+            Group-Object |
+            Where-Object { $_.Count -gt 1 } |
+            ForEach-Object { $_.Name }
+
+        foreach ($id in $duplicateRegistryDecisionIds) {
+            Add-Problem Error "Duplicate decision ID in registry: $id"
+        }
+
+        foreach ($decision in $registryDecisions) {
+            if ($decision.id -notmatch '^DEC(?:-PENDING)?-\d{3}$') {
+                Add-Problem Error "Invalid decision ID in registry: $($decision.id)"
+            }
+
+            if ($decision.state -notin @('pending', 'accepted')) {
+                Add-Problem Error "Invalid decision state in registry for $($decision.id): $($decision.state)"
+            }
+
+            if ($decision.id -like 'DEC-PENDING-*' -and $decision.state -ne 'pending') {
+                Add-Problem Error "Pending decision has non-pending state in registry: $($decision.id)"
+            }
+
+            if ($decision.id -match '^DEC-\d{3}$' -and $decision.state -ne 'accepted') {
+                Add-Problem Error "Accepted decision has non-accepted state in registry: $($decision.id)"
+            }
+
+            if ($decision.state -eq 'pending') {
+                foreach ($field in @('priority', 'question', 'owner', 'panel_status')) {
+                    if ([string]::IsNullOrWhiteSpace($decision.$field)) {
+                        Add-Problem Error "Pending decision $($decision.id) has empty registry field: $field"
+                    }
+                }
+            }
+        }
+
+        $registryPendingDecisionIds = @(
+            $registryDecisions |
+                Where-Object { $_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*' } |
+                ForEach-Object { $_.id }
+        )
+
+        Compare-IdSets 'decision registry decisions' $registryDecisionIds 'decision_log headings' $decisionIds
+        Compare-IdSets 'decision registry pending decisions' $registryPendingDecisionIds 'open_questions pending decisions' $activePendingDecisionIds
+    }
+}
+
 if ($filesByType.ContainsKey('closed_questions')) {
     $closedQuestionsPath = $filesByType['closed_questions'][0].FullName
     $closedQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+    if ($closedQuestions -notmatch '(?m)^source_registry:\s*09_Реестры/Вопросы\.json\s*$') {
+        Add-Problem Warning "closed_questions should be generated from 09_Реестры/Вопросы.json: $(Get-RelativePath $closedQuestionsPath)"
+    }
+
     $closedQuestionRowsWithStatus = [regex]::Matches(
         $closedQuestions,
         '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
@@ -863,6 +952,92 @@ if ($filesByType.ContainsKey('closed_questions')) {
 
     if ($closedQuestions.Contains('resolved${')) {
         Add-Problem Error 'closed_questions contains a malformed resolved replacement marker.'
+    }
+}
+
+$questionRegistryPath = Join-Path $root '09_Реестры\Вопросы.json'
+if (Test-Path -LiteralPath $questionRegistryPath) {
+    $questionRegistry = $null
+    try {
+        $questionRegistry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
+    } catch {
+        Add-Problem Error "Question registry is not valid JSON: 09_Реестры\Вопросы.json - $($_.Exception.Message)"
+    }
+
+    if ($null -ne $questionRegistry) {
+        if ($questionRegistry.type -ne 'question_registry') {
+            Add-Problem Error "Question registry has invalid type: $($questionRegistry.type)"
+        }
+
+        $registryQuestions = @($questionRegistry.questions)
+        if ($registryQuestions.Count -eq 0) {
+            Add-Problem Error 'Question registry contains no questions.'
+        }
+
+        $registryIds = @(
+            $registryQuestions |
+                ForEach-Object { $_.id }
+        )
+
+        $duplicateRegistryIds = $registryIds |
+            Group-Object |
+            Where-Object { $_.Count -gt 1 } |
+            ForEach-Object { $_.Name }
+
+        foreach ($id in $duplicateRegistryIds) {
+            Add-Problem Error "Duplicate question ID in registry: $id"
+        }
+
+        $validRegistryStatuses = @('active', 'waiting', 'later', 'resolved')
+        foreach ($question in $registryQuestions) {
+            if ($question.id -notmatch '^Q-(?:C2|WORLD)-\d{3}$') {
+                Add-Problem Error "Invalid question ID in registry: $($question.id)"
+            }
+
+            if ($validRegistryStatuses -notcontains $question.status) {
+                Add-Problem Error "Invalid question status in registry for $($question.id): $($question.status)"
+            }
+
+            if ($question.scope -notin @('chapter', 'world')) {
+                Add-Problem Error "Invalid question scope in registry for $($question.id): $($question.scope)"
+            }
+
+            if ($question.id -like 'Q-C2-*' -and $question.scope -ne 'chapter') {
+                Add-Problem Error "Chapter question has non-chapter scope in registry: $($question.id)"
+            }
+
+            if ($question.id -like 'Q-WORLD-*' -and $question.scope -ne 'world') {
+                Add-Problem Error "World question has non-world scope in registry: $($question.id)"
+            }
+        }
+
+        $registryOpenQuestionIds = @(
+            $registryQuestions |
+                Where-Object { $_.status -ne 'resolved' } |
+                ForEach-Object { $_.id }
+        )
+        $registryClosedQuestionIds = @(
+            $registryQuestions |
+                Where-Object { $_.status -eq 'resolved' } |
+                ForEach-Object { $_.id }
+        )
+
+        Compare-IdSets 'question registry open questions' $registryOpenQuestionIds 'open_questions question rows' $openQuestionIds
+        Compare-IdSets 'question registry resolved questions' $registryClosedQuestionIds 'closed_questions question rows' $closedQuestionIds
+
+        $historyItems = @($questionRegistry.history)
+        $historyIds = @($historyItems | ForEach-Object { $_.id })
+        foreach ($historyId in ($historyIds | Sort-Object -Unique)) {
+            if ($registryClosedQuestionIds -notcontains $historyId) {
+                Add-Problem Error "Question registry history references a missing or unresolved question: $historyId"
+            }
+        }
+
+        foreach ($id in ($registryClosedQuestionIds | Sort-Object -Unique)) {
+            if ($historyIds -notcontains $id) {
+                Add-Problem Warning "Resolved question has no history entry in registry: $id"
+            }
+        }
     }
 }
 

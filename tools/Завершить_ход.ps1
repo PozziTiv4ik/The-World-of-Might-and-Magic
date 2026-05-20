@@ -43,6 +43,14 @@ if (-not $SkipSourceIndex) {
     }
 }
 
+Invoke-Step 'Сборка решений' {
+    & (Join-Path $root 'tools\Собрать_решения.ps1') -SkipCheck
+}
+
+Invoke-Step 'Сборка вопросов' {
+    & (Join-Path $root 'tools\Собрать_вопросы.ps1') -SkipCheck
+}
+
 Invoke-Step 'Сборка панели следующего хода' {
     & (Join-Path $root 'tools\Собрать_панель_хода.ps1') -SkipCheck
 }
