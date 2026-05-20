@@ -19,6 +19,8 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 function Convert-ToProjectFileName {
     param([string]$Value)
 
@@ -34,6 +36,7 @@ function Convert-ToProjectFileName {
 }
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $fileName = Convert-ToProjectFileName -Value $Name
 $relativePath = "03_Персонажи/$fileName.md"
 $targetPath = Join-Path $root ($relativePath -replace '/', '\')
@@ -133,4 +136,4 @@ if (-not $SkipCheck) {
 }
 
 "Created character: $relativePath"
-
+}

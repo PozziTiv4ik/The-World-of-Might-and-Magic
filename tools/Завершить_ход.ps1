@@ -13,8 +13,11 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 function Invoke-Step {
     param(
         [string]$Name,
@@ -61,6 +64,4 @@ Invoke-Step 'Общая проверка проекта' {
 }
 
 "`nTurn workspace is ready."
-
-
-
+}

@@ -20,7 +20,10 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
 
 $openQuestionsPath = Join-Path $root '01_Кампания\03_Нерешенные_вопросы.md'
@@ -109,4 +112,4 @@ if (-not $SkipCheck) {
 }
 
 "Closed decision: $PendingId -> $AcceptedId"
-
+}

@@ -11,8 +11,11 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 function Get-SectionText {
     param(
         [string]$Text,
@@ -147,3 +150,4 @@ if (-not $SkipCheck) {
 }
 
 "Updated next turn panel: 01_Кампания/07_Следующий_ход.md"
+}

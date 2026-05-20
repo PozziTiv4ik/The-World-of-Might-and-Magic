@@ -7,7 +7,10 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("wmma_tool_test_" + [guid]::NewGuid().ToString('N'))
 $copyRoot = Join-Path $tempRoot 'project'
 
@@ -226,6 +229,20 @@ try {
         Assert-TextContains -Path $frontTrackerPath -Expected 'FRONT-TOOL-TEST'
     }
 
+    Invoke-Step 'Обновить фронт' {
+        & (Join-Path $toolsRoot 'Обновить_фронт.ps1') `
+            -FrontId FRONT-TOOL-TEST `
+            -State 'Тестовое состояние после обновления фронта' `
+            -Risk 'Тестовый риск после обновления фронта' `
+            -NextTrigger 'Тестовый триггер после обновления фронта' `
+            -TimerStatus 'активен: тестовый таймер обновлен' `
+            -TimerTrigger 'Тестовое срабатывание таймера после обновления' `
+            -SkipCheck
+
+        Assert-TextContains -Path $frontTrackerPath -Expected 'Тестовое состояние после обновления фронта'
+        Assert-TextContains -Path $frontTrackerPath -Expected 'активен: тестовый таймер обновлен'
+    }
+
     Ensure-ToolTestPendingDecision -DecisionLogPath $decisionLogPath -OpenQuestionsPath $openQuestionsPath
 
     Invoke-Step 'Закрыть pending-решение не портит вопросы при ошибке журнала' {
@@ -369,6 +386,58 @@ try {
         }
     }
 
+    Invoke-Step 'Параллельное закрытие вопросов не портит таблицы' {
+        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $questionIds = @(
+            [regex]::Matches($openQuestionsBefore, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|(?:[^|]*\|){3}\s*(?:active|waiting|later)\s*\|\s*$') |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -First 2
+        )
+
+        if ($questionIds.Count -lt 2) {
+            'Skipped parallel close test: not enough open questions in temporary copy.'
+            return
+        }
+
+        $jobs = foreach ($questionId in $questionIds) {
+            Start-Job -ScriptBlock {
+                param(
+                    [string]$ToolsRoot,
+                    [string]$QuestionId
+                )
+
+                & (Join-Path $ToolsRoot 'Закрыть_вопрос.ps1') `
+                    -QuestionId $QuestionId `
+                    -Resolution "Параллельное тестовое закрытие $QuestionId" `
+                    -SkipCheck
+            } -ArgumentList $toolsRoot, $questionId
+        }
+
+        try {
+            Wait-Job -Job $jobs | Out-Null
+            foreach ($job in $jobs) {
+                $output = Receive-Job -Job $job -ErrorAction Stop
+                if ($job.State -ne 'Completed') {
+                    throw "Parallel close job failed: $($job.State) $output"
+                }
+            }
+        } finally {
+            Remove-Job -Job $jobs -Force -ErrorAction SilentlyContinue
+        }
+
+        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        foreach ($questionId in $questionIds) {
+            if ($openQuestionsAfter -match "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|") {
+                throw "Parallel close left question in open table: $questionId"
+            }
+
+            if ($closedQuestionsAfter -notmatch "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|(?:[^|]*\|){3}\s*resolved\s*\|\s*$") {
+                throw "Parallel close did not move question to closed table: $questionId"
+            }
+        }
+    }
+
     Invoke-Step 'Создать сцену' {
         & (Join-Path $toolsRoot 'Новая_сцена.ps1') `
             -Branch 'Тестовая_ветка_инструментов' `
@@ -393,6 +462,44 @@ try {
         Assert-TextContains -Path $inboxPath -Expected 'Создана новая сцена'
     }
 
+    Invoke-Step 'Создать персонажа и локацию' {
+        & (Join-Path $toolsRoot 'Новый_персонаж.ps1') `
+            -Name 'Тестовый Персонаж Инструментов' `
+            -Role 'тест инструментов' `
+            -SkipCheck
+
+        & (Join-Path $toolsRoot 'Новая_локация.ps1') `
+            -Name 'Тестовая Локация Инструментов' `
+            -Summary 'тестовая локация инструментов' `
+            -FrontId FRONT-TOOL-TEST `
+            -SkipCheck
+
+        Assert-TextContains -Path (Join-Path $copyRoot '03_Персонажи\00_Индекс_персонажей.md') -Expected 'Тестовый Персонаж Инструментов'
+        Assert-TextContains -Path (Join-Path $copyRoot '04_Локации\00_Индекс_локаций.md') -Expected 'Тестовая Локация Инструментов'
+    }
+
+    Invoke-Step 'Закрепить тестовый портрет' {
+        Add-Type -AssemblyName System.Drawing
+        $testPortraitPath = Join-Path $tempRoot 'portrait_test.png'
+        $bitmap = [System.Drawing.Bitmap]::new(300, 400)
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $graphics.Clear([System.Drawing.Color]::FromArgb(40, 60, 90))
+            $bitmap.Save($testPortraitPath, [System.Drawing.Imaging.ImageFormat]::Png)
+        } finally {
+            $graphics.Dispose()
+            $bitmap.Dispose()
+        }
+
+        & (Join-Path $toolsRoot 'Новый_портрет.ps1') `
+            -Character 'Тестовый Персонаж Инструментов' `
+            -ImagePath $testPortraitPath `
+            -SkipCheck
+
+        Assert-TextContains -Path (Join-Path $copyRoot '03_Персонажи\Тестовый_Персонаж_Инструментов.md') -Expected 'portrait_status: available'
+        Assert-TextContains -Path (Join-Path $copyRoot '11_Медиа\Портреты_персонажей\Индекс_портретов.md') -Expected 'Тестовый Персонаж Инструментов'
+    }
+
     Invoke-Step 'Собрать индекс источников' {
         & (Join-Path $toolsRoot 'Собрать_индекс_источников.ps1') -SkipCheck
         Assert-TextContains -Path $sourceIndexPath -Expected 'Тестовое входящее инструментов'
@@ -412,4 +519,5 @@ try {
     } elseif (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force
     }
+}
 }

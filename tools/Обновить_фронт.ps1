@@ -28,7 +28,10 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $frontPath = Join-Path $root '01_Кампания\06_Фронты_и_таймеры.md'
 $fronts = Get-Content -Raw -Encoding UTF8 -LiteralPath $frontPath
 
@@ -114,5 +117,4 @@ if (-not $SkipCheck) {
 }
 
 "Updated front: $FrontId"
-
-
+}

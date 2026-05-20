@@ -3,7 +3,10 @@
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $errors = New-Object 'System.Collections.Generic.List[string]'
 $warnings = New-Object 'System.Collections.Generic.List[string]'
 
@@ -265,6 +268,7 @@ $filesByType = @{}
 foreach ($requiredPath in @(
     'AGENTS.md',
     '.githooks\pre-commit',
+    'tools\_lib.ps1',
     'tools\Завершить_ход.ps1',
     'tools\Закрыть_вопрос.ps1',
     'tools\Новый_портрет.ps1',
@@ -1165,4 +1169,4 @@ if ($errors.Count -gt 0) {
 }
 
 "`nProject check completed successfully."
-
+}

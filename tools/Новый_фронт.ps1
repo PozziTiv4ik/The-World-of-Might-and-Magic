@@ -37,6 +37,8 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
+
+. (Join-Path $PSScriptRoot '_lib.ps1')
 function Format-ProjectReference {
     param([string]$Value)
 
@@ -80,6 +82,7 @@ function Add-RowBeforeHeading {
 }
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $frontTrackerPath = Join-Path $root '01_Кампания\06_Фронты_и_таймеры.md'
 $frontTracker = Get-Content -Raw -Encoding UTF8 -LiteralPath $frontTrackerPath
 $today = Get-Date -Format 'yyyy-MM-dd'
@@ -153,3 +156,4 @@ if (-not $SkipCheck) {
 }
 
 "Created front: $Id"
+}
