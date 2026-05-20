@@ -270,6 +270,7 @@ foreach ($requiredPath in @(
     '.githooks\pre-commit',
     '09_Реестры\Вопросы.json',
     '09_Реестры\Решения.json',
+    '09_Реестры\Фронты.json',
     'tools\_lib.ps1',
     'tools\Завершить_ход.ps1',
     'tools\Закрыть_вопрос.ps1',
@@ -279,6 +280,7 @@ foreach ($requiredPath in @(
     'tools\Проверить_инструменты.ps1',
     'tools\Собрать_вопросы.ps1',
     'tools\Собрать_решения.ps1',
+    'tools\Собрать_фронты.ps1',
     'tools\Собрать_индекс_источников.ps1',
     'tools\Собрать_индекс_сцен.ps1',
     'tools\Собрать_панель_хода.ps1',
@@ -1177,6 +1179,10 @@ $declaredFrontIdSet = @()
 if ($filesByType.ContainsKey('front_tracker')) {
     $frontTrackerPath = $filesByType['front_tracker'][0].FullName
     $frontTracker = Get-Content -Raw -Encoding UTF8 -LiteralPath $frontTrackerPath
+    if ($frontTracker -notmatch '(?m)^source_registry:\s*09_Реестры/Фронты\.json\s*$') {
+        Add-Problem Warning "front_tracker should be generated from 09_Реестры/Фронты.json: $(Get-RelativePath $frontTrackerPath)"
+    }
+
     $frontIdSection = Get-SectionText -Text $frontTracker -Heading 'Справочник FRONT-ID'
     $declaredFrontIds = [regex]::Matches($frontIdSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
         ForEach-Object { $_.Groups[1].Value }
@@ -1210,6 +1216,22 @@ if ($filesByType.ContainsKey('front_tracker')) {
     $activeFrontIds = [regex]::Matches($activeFrontSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
         ForEach-Object { $_.Groups[1].Value } |
         Sort-Object -Unique
+
+    $urgentFrontSection = Get-SectionText -Text $frontTracker -Heading 'Срочные развилки'
+    $urgentFrontIds = [regex]::Matches($urgentFrontSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique
+
+    $timerSection = Get-SectionText -Text $frontTracker -Heading 'Таймеры угроз'
+    $timerRows = @(
+        $timerSection -split "\r?\n" |
+            ForEach-Object { Convert-MarkdownTableRow -Line $_ } |
+            Where-Object { $null -ne $_ -and $_.Count -ge 2 -and $_[0] -match '^FRONT-[A-Z0-9-]+$' }
+    )
+    $timerKeys = @(
+        $timerRows |
+            ForEach-Object { "$($_[0])|$($_[1])" }
+    )
 
     $sceneFrontIds = @()
     if ($filesByType.ContainsKey('scene')) {
@@ -1283,6 +1305,58 @@ if ($filesByType.ContainsKey('front_tracker')) {
 
         if (-not ($hasDirectLink -or $hasTrackerProjectLink)) {
             Add-Problem Warning "Active FRONT-ID has no scene/question/decision/location link: $id"
+        }
+    }
+
+    $frontRegistryPath = Join-Path $root '09_Реестры\Фронты.json'
+    if (Test-Path -LiteralPath $frontRegistryPath) {
+        $frontRegistry = $null
+        try {
+            $frontRegistry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $frontRegistryPath) | ConvertFrom-Json
+        } catch {
+            Add-Problem Error "Front registry is not valid JSON: 09_Реестры\Фронты.json - $($_.Exception.Message)"
+        }
+
+        if ($null -ne $frontRegistry) {
+            if ($frontRegistry.type -ne 'front_registry') {
+                Add-Problem Error "Front registry has invalid type: $($frontRegistry.type)"
+            }
+
+            $registryFrontIds = @($frontRegistry.fronts | ForEach-Object { $_.id })
+            $registryUrgentIds = @($frontRegistry.urgent_forks | ForEach-Object { $_.id })
+            $registryActiveIds = @($frontRegistry.active_fronts | ForEach-Object { $_.id })
+            $registryTimerKeys = @($frontRegistry.timers | ForEach-Object { "$($_.id)|$($_.timer)" })
+
+            if ($registryFrontIds.Count -eq 0) {
+                Add-Problem Error 'Front registry contains no FRONT-ID declarations.'
+            }
+
+            foreach ($id in ($registryFrontIds | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })) {
+                Add-Problem Error "Duplicate FRONT-ID in registry: $id"
+            }
+
+            foreach ($id in $registryFrontIds) {
+                if ($id -notmatch '^FRONT-[A-Z0-9-]+$') {
+                    Add-Problem Error "Invalid FRONT-ID in registry: $id"
+                }
+            }
+
+            foreach ($id in ($registryUrgentIds + $registryActiveIds + (@($frontRegistry.timers) | ForEach-Object { $_.id }) | Sort-Object -Unique)) {
+                if ($registryFrontIds -notcontains $id) {
+                    Add-Problem Error "Front registry uses undeclared FRONT-ID: $id"
+                }
+            }
+
+            foreach ($priority in @($frontRegistry.urgent_forks | ForEach-Object { $_.priority })) {
+                if ($priority -notin @('критический', 'высокий', 'средний', 'низкий')) {
+                    Add-Problem Error "Invalid front priority in registry: $priority"
+                }
+            }
+
+            Compare-IdSets 'front registry declarations' $registryFrontIds 'front_tracker declarations' $declaredFrontIds
+            Compare-IdSets 'front registry urgent forks' $registryUrgentIds 'front_tracker urgent forks' $urgentFrontIds
+            Compare-IdSets 'front registry active fronts' $registryActiveIds 'front_tracker active fronts' $activeFrontIds
+            Compare-IdSets 'front registry timers' $registryTimerKeys 'front_tracker timers' $timerKeys
         }
     }
 }

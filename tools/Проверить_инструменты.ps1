@@ -175,6 +175,7 @@ try {
     $toolsRoot = Join-Path $copyRoot 'tools'
     $inboxPath = Join-Path $copyRoot '07_Черновики_и_идеи\Входящие_сообщения.md'
     $frontTrackerPath = Join-Path $copyRoot '01_Кампания\06_Фронты_и_таймеры.md'
+    $frontRegistryPath = Join-Path $copyRoot '09_Реестры\Фронты.json'
     $sourceIndexPath = Join-Path $copyRoot '08_Источники\00_Индекс_источников.md'
     $sceneIndexPath = Join-Path $copyRoot '01_Кампания\00_Индекс_сцен.md'
     $decisionLogPath = Join-Path $copyRoot '01_Кампания\02_Журнал_решений.md'
@@ -220,6 +221,10 @@ try {
             -SkipCheck
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'FRONT-TOOL-TEST'
+        $frontRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $frontRegistryPath) | ConvertFrom-Json
+        if (@($frontRegistryAfter.fronts | Where-Object { $_.id -eq 'FRONT-TOOL-TEST' }).Count -ne 1) {
+            throw 'Новый_фронт.ps1 did not add FRONT-TOOL-TEST to the front registry.'
+        }
     }
 
     Invoke-Step 'Обновить фронт' {
@@ -234,6 +239,16 @@ try {
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'Тестовое состояние после обновления фронта'
         Assert-TextContains -Path $frontTrackerPath -Expected 'активен: тестовый таймер обновлен'
+        $frontRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $frontRegistryPath) | ConvertFrom-Json
+        $updatedFront = @($frontRegistryAfter.active_fronts | Where-Object { $_.id -eq 'FRONT-TOOL-TEST' })[0]
+        $updatedTimer = @($frontRegistryAfter.timers | Where-Object { $_.id -eq 'FRONT-TOOL-TEST' })[0]
+        if ($updatedFront.state -ne 'Тестовое состояние после обновления фронта') {
+            throw 'Обновить_фронт.ps1 did not update active front state in registry.'
+        }
+
+        if ($updatedTimer.status -ne 'активен: тестовый таймер обновлен') {
+            throw 'Обновить_фронт.ps1 did not update timer status in registry.'
+        }
     }
 
     Ensure-ToolTestPendingDecision `
@@ -552,6 +567,7 @@ try {
         & (Join-Path $toolsRoot 'Собрать_индекс_сцен.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_решения.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_вопросы.ps1') -SkipCheck
+        & (Join-Path $toolsRoot 'Собрать_фронты.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_панель_хода.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Проверить_проект.ps1')
     }
