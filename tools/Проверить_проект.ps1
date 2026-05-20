@@ -278,6 +278,7 @@ foreach ($requiredPath in @(
     'tools\Обновить_фронт.ps1',
     'tools\Проверить_архив.ps1',
     'tools\Проверить_инструменты.ps1',
+    'tools\Проверить_реестры.ps1',
     'tools\Собрать_вопросы.ps1',
     'tools\Собрать_решения.ps1',
     'tools\Собрать_фронты.ps1',
@@ -421,6 +422,30 @@ foreach ($script in Get-ChildItem -LiteralPath (Join-Path $root 'tools') -File -
     [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
     foreach ($parseError in $parseErrors) {
         Add-Problem Error "PowerShell syntax error in $(Get-RelativePath $script.FullName): line $($parseError.Extent.StartLineNumber): $($parseError.Message)"
+    }
+}
+
+$registryCheckPath = Join-Path $root 'tools\Проверить_реестры.ps1'
+if (Test-Path -LiteralPath $registryCheckPath) {
+    try {
+        $registryCheck = & $registryCheckPath -Quiet -PassThru
+        if ($null -eq $registryCheck) {
+            Add-Problem Error 'Registry check returned no result.'
+        } else {
+            foreach ($warning in @($registryCheck.Warnings)) {
+                if (-not [string]::IsNullOrWhiteSpace($warning)) {
+                    Add-Problem Warning $warning
+                }
+            }
+
+            foreach ($error in @($registryCheck.Errors)) {
+                if (-not [string]::IsNullOrWhiteSpace($error)) {
+                    Add-Problem Error $error
+                }
+            }
+        }
+    } catch {
+        Add-Problem Error "Registry check failed to run: $($_.Exception.Message)"
     }
 }
 

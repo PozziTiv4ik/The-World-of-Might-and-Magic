@@ -569,6 +569,7 @@ try {
         & (Join-Path $toolsRoot 'Собрать_вопросы.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_фронты.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_панель_хода.ps1') -SkipCheck
+        & (Join-Path $toolsRoot 'Проверить_реестры.ps1')
         & (Join-Path $toolsRoot 'Проверить_проект.ps1')
     }
 
