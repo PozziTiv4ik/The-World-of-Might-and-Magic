@@ -2,7 +2,7 @@
     "type":  "question_registry",
     "status":  "active",
     "canon_level":  "support",
-    "current_chapter":  2,
+    "current_chapter":  3,
     "updated_real_date":  "2026-05-25",
     "generated_from":  [
                            "01_Кампания/03_Нерешенные_вопросы.md",

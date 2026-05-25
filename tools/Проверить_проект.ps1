@@ -798,16 +798,16 @@ if ($filesByType.ContainsKey('open_questions')) {
     }
 
     $questionIds = @(
-        [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|') |
+        [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|') |
             ForEach-Object { $_.Groups[1].Value }
     )
     $openQuestionIds = $questionIds
 
-    $openQuestionRowsWithIds = [regex]::Matches($openQuestions, '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C2|WORLD))-\d{3})\s*\|') |
+    $openQuestionRowsWithIds = [regex]::Matches($openQuestions, '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C\d+|WORLD))-\d{3})\s*\|') |
         ForEach-Object { $_.Value }
 
     if ($questionIds.Count -eq 0) {
-        Add-Problem Warning 'No Q-C2/Q-WORLD IDs found in open_questions.'
+        Add-Problem Warning 'No Q-C*/Q-WORLD IDs found in open_questions.'
     }
 
     $duplicateQuestionIds = $questionIds |
@@ -822,7 +822,7 @@ if ($filesByType.ContainsKey('open_questions')) {
     $validQuestionStatuses = @('active', 'waiting', 'later')
     $questionRowsWithStatus = [regex]::Matches(
         $openQuestions,
-        '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C2|WORLD))-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
+        '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C\d+|WORLD))-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
     )
 
     if ($questionRowsWithStatus.Count -ne $openQuestionRowsWithIds.Count) {
@@ -833,7 +833,7 @@ if ($filesByType.ContainsKey('open_questions')) {
         $id = $row.Groups[1].Value.Trim()
         $questionStatus = $row.Groups[2].Value.Trim()
 
-        if ($id -match '^Q-(?:C2|WORLD)-\d{3}$' -and $questionStatus -eq 'resolved') {
+        if ($id -match '^Q-(?:C\d+|WORLD)-\d{3}$' -and $questionStatus -eq 'resolved') {
             Add-Problem Error "Resolved question $id must be moved to closed_questions."
             continue
         }
@@ -951,7 +951,7 @@ if ($filesByType.ContainsKey('closed_questions')) {
 
     $closedQuestionRowsWithStatus = [regex]::Matches(
         $closedQuestions,
-        '(?m)^\|\s*(Q-(?:C2|WORLD)-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
+        '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
     )
     $closedQuestionIds = @(
         $closedQuestionRowsWithStatus |
@@ -959,7 +959,7 @@ if ($filesByType.ContainsKey('closed_questions')) {
     )
 
     if ($closedQuestionIds.Count -eq 0) {
-        Add-Problem Warning 'No Q-C2/Q-WORLD IDs found in closed_questions.'
+        Add-Problem Warning 'No Q-C*/Q-WORLD IDs found in closed_questions.'
     }
 
     $duplicateClosedQuestionIds = $closedQuestionIds |
@@ -1029,7 +1029,7 @@ if (Test-Path -LiteralPath $questionRegistryPath) {
 
         $validRegistryStatuses = @('active', 'waiting', 'later', 'resolved')
         foreach ($question in $registryQuestions) {
-            if ($question.id -notmatch '^Q-(?:C2|WORLD)-\d{3}$') {
+            if ($question.id -notmatch '^Q-(?:C\d+|WORLD)-\d{3}$') {
                 Add-Problem Error "Invalid question ID in registry: $($question.id)"
             }
 
@@ -1041,7 +1041,7 @@ if (Test-Path -LiteralPath $questionRegistryPath) {
                 Add-Problem Error "Invalid question scope in registry for $($question.id): $($question.scope)"
             }
 
-            if ($question.id -like 'Q-C2-*' -and $question.scope -ne 'chapter') {
+            if ($question.id -match '^Q-C\d+-' -and $question.scope -ne 'chapter') {
                 Add-Problem Error "Chapter question has non-chapter scope in registry: $($question.id)"
             }
 
