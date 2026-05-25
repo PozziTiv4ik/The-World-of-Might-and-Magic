@@ -475,6 +475,80 @@ foreach ($requiredType in @(
     }
 }
 
+$chapterDir = Join-Path $root '01_Кампания\Главы'
+if (Test-Path -LiteralPath $chapterDir) {
+    $chapterFiles = @(Get-ChildItem -LiteralPath $chapterDir -File -Filter '*.md' | Sort-Object Name)
+    $activeChapterFiles = New-Object 'System.Collections.Generic.List[object]'
+
+    foreach ($file in $chapterFiles) {
+        $chapterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+        $relativeFile = Get-RelativePath $file.FullName
+        $type = Get-MetaField -Text $chapterText -Field 'type'
+        $chapter = Get-MetaField -Text $chapterText -Field 'chapter'
+        $status = Get-MetaField -Text $chapterText -Field 'status'
+        $canonLevel = Get-MetaField -Text $chapterText -Field 'canon_level'
+        $dateInStory = Get-MetaField -Text $chapterText -Field 'date_in_story'
+        $openedRealDate = Get-MetaField -Text $chapterText -Field 'opened_real_date'
+        $closedRealDate = Get-MetaField -Text $chapterText -Field 'closed_real_date'
+        $titleField = Get-MetaField -Text $chapterText -Field 'title'
+        $previousChapter = Get-MetaField -Text $chapterText -Field 'previous_chapter'
+
+        if ($type -ne 'chapter') {
+            Add-Problem Error "Chapter file must have type: chapter: $relativeFile"
+        }
+
+        if ($file.Name -match '^Глава_(\d+)_') {
+            $fileChapter = [int]$Matches[1]
+            if ($chapter -notmatch '^\d+$' -or [int]$chapter -ne $fileChapter) {
+                Add-Problem Error "Chapter number mismatch in ${relativeFile}: front matter chapter '$chapter' does not match file name $fileChapter"
+            }
+        } elseif ($chapter -notmatch '^\d+$') {
+            Add-Problem Error "Chapter file has non-numeric chapter field: $relativeFile"
+        }
+
+        if ($status -notin @('active', 'closed')) {
+            Add-Problem Error "Chapter file has invalid status '$status': $relativeFile"
+        }
+
+        if ([string]::IsNullOrWhiteSpace($canonLevel)) {
+            Add-Problem Error "Chapter file is missing canon_level: $relativeFile"
+        }
+
+        if ([string]::IsNullOrWhiteSpace($dateInStory)) {
+            Add-Problem Error "Chapter file is missing date_in_story: $relativeFile"
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($titleField)) {
+            Add-Problem Error "Chapter file must not use front matter title; keep the title in H1 and filename: $relativeFile"
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($previousChapter)) {
+            Add-Problem Error "Chapter file must not use previous_chapter; chapter order is defined by chapter number: $relativeFile"
+        }
+
+        if ($status -eq 'active') {
+            $activeChapterFiles.Add($file) | Out-Null
+            if ([string]::IsNullOrWhiteSpace($openedRealDate)) {
+                Add-Problem Error "Active chapter is missing opened_real_date: $relativeFile"
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($closedRealDate)) {
+                Add-Problem Error "Active chapter must not have closed_real_date: $relativeFile"
+            }
+        }
+
+        if ($status -eq 'closed' -and [string]::IsNullOrWhiteSpace($closedRealDate)) {
+            Add-Problem Error "Closed chapter is missing closed_real_date: $relativeFile"
+        }
+    }
+
+    if ($activeChapterFiles.Count -ne 1) {
+        Add-Problem Error "Expected exactly one active chapter file in 01_Кампания/Главы, found $($activeChapterFiles.Count)."
+    }
+} else {
+    Add-Problem Error 'Chapter directory is missing: 01_Кампания\Главы'
+}
+
 if (-not $filesByType.ContainsKey('location_index')) {
     Add-Problem Error 'location_index file not found.'
 } else {
