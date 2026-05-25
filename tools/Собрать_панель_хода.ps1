@@ -83,6 +83,10 @@ function Add-Table {
         return
     }
 
+    if ($Rows[0] -is [string]) {
+        $Rows = ,$Rows
+    }
+
     $Lines.Add('| ' + ($Header -join ' | ') + ' |') | Out-Null
     $Lines.Add('| ' + (($Header | ForEach-Object { '---' }) -join ' | ') + ' |') | Out-Null
     foreach ($row in $Rows) {
