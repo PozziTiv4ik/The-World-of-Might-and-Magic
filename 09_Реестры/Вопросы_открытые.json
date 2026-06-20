@@ -3,14 +3,14 @@
     "status":  "active",
     "canon_level":  "support",
     "current_chapter":  3,
-    "updated_real_date":  "2026-06-19",
+    "updated_real_date":  "2026-06-20",
     "generated_from":  [
                            "09_Реестры/Вопросы.json"
                        ],
-    "count":  78,
+    "count":  79,
     "counts":  {
-                   "total":  78,
-                   "active":  26,
+                   "total":  79,
+                   "active":  27,
                    "waiting":  31,
                    "later":  21
                },
@@ -638,6 +638,14 @@
                           "owner":  "Александрос / Виктор Рейвз / Багровый Пик / Рейнбургская академия / гномьи мастера",
                           "scope":  "chapter",
                           "status":  "waiting"
+                      },
+                      {
+                          "id":  "Q-C3-022",
+                          "priority":  "критический",
+                          "text":  "Кто такой плененный падший рыцарь Ордена дракона, что он знает о сети порталов культа падших и кто помог культу почти завершить портал под Тол-Меналасом?",
+                          "owner":  "Харрингтон / Орден дракона / культ падших",
+                          "scope":  "chapter",
+                          "status":  "active"
                       }
                   ]
 }
