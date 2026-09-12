@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Title = '',
 
     [string]$Summary = 'Обработано и перенесено в профильные файлы.',
@@ -222,6 +222,7 @@ $entries = Get-InboxEntries -NewBody $newBody
 $selected = Select-InboxEntry -Entries $entries -Needle $Title -UseFirst:$First
 $selectedHeading = $selected.Groups[1].Value.Trim()
 $selectedBody = $selected.Groups[2].Value.Trim()
+$requestId=if($selectedBody -match '(?m)^Request-ID:\s*(\S+)'){$Matches[1]}else{''}
 
 if (-not [string]::IsNullOrWhiteSpace($SourcePath)) {
     $sourceLine = Format-ProjectReference -Value $SourcePath
@@ -255,6 +256,7 @@ $processedLines.Add("### $selectedHeading") | Out-Null
 $processedLines.Add('') | Out-Null
 $processedLines.Add("Статус: $Status.") | Out-Null
 $processedLines.Add("Источник: $sourceLine") | Out-Null
+if($requestId){$processedLines.Add("Request-ID: $requestId")|Out-Null}
 
 if ($relatedLinks.Count -gt 0) {
     $processedLines.Add("Связано: $($relatedLinks -join ', ')") | Out-Null
@@ -291,15 +293,16 @@ if (-not [string]::IsNullOrWhiteSpace($processedRest)) {
 
 $updatedInbox += "`r`n"
 
-Set-Content -LiteralPath $inboxPath -Encoding UTF8 -Value $updatedInbox
+Write-WmmaText $inboxPath $updatedInbox
 Set-SourceLifecycleStatus -Root $root -SourceLine $sourceLine -LifecycleStatus $sourceLifecycleStatus
+if($requestId){
+    $receipt=Get-WmmaReceipt $root $requestId
+    if($receipt){$receipt.state=if($Status -eq 'обработано'){'processed'}else{'archived'};if($ScenePath){$receipt.scene_path=$ScenePath};Save-WmmaReceipt $root $receipt}
+}
 
 if (-not $SkipCheck) {
-    $global:LASTEXITCODE = 0
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if (-not $? -or $LASTEXITCODE -ne 0) {
-        exit 1
-    }
+    & (Join-Path $root 'tools/Завершить_ход.ps1')
+    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
 }
 
 "Processed inbox message: $selectedHeading"

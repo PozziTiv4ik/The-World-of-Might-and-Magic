@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$SkipPortraits,
 
     [switch]$SkipArchive,
@@ -31,12 +31,16 @@ function Invoke-Step {
     )
 
     "`n== $Name =="
+    $global:LASTEXITCODE=0
     & $Action
-    if (-not $?) {
-        exit 1
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        throw "Turn step failed: $Name"
     }
 }
 
+Invoke-Step 'Сборка связей и назначение недостающих ID' {
+    & (Join-Path $root 'tools/Собрать_связи.ps1') -AssignMissingIds -SkipCheck
+}
 if (-not $SkipSceneIndex) {
     Invoke-Step 'Сборка индекса сцен' {
         & (Join-Path $root 'tools\Собрать_индекс_сцен.ps1') -SkipCheck
@@ -87,6 +91,10 @@ Invoke-Step 'Сборка панели следующего хода' {
     & (Join-Path $root 'tools\Собрать_панель_хода.ps1') -SkipCheck
 }
 
+Invoke-Step 'Сборка текущего контекста и пакетов веток' {
+    & (Join-Path $root 'tools/Собрать_контекст.ps1') -SkipCheck
+    & (Join-Path $root 'tools/Собрать_память.ps1')
+}
 if (-not $SkipArchive) {
     Invoke-Step 'Проверка архива' {
         & (Join-Path $root 'tools\Проверить_архив.ps1')

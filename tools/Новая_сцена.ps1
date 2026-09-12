@@ -1,11 +1,11 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$Branch,
 
     [Parameter(Mandatory = $true)]
     [string]$Title,
 
-    [int]$Chapter = 3,
+    [int]$Chapter = 0,
 
     [int]$Number = 0,
 
@@ -21,6 +21,14 @@
     [string]$FrontId = '-',
 
     [string]$Summary = 'Краткое описание сцены.',
+
+    [string]$RequestId = '',
+
+    [string[]]$SourceIds = @(),
+
+    [string[]]$ParticipantIds = @(),
+
+    [string[]]$FrontIds = @(),
 
     [switch]$Force,
 
@@ -67,6 +75,12 @@ function Get-DeclaredFrontIds {
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+if ($Chapter -le 0) { $Chapter = Get-WmmaCurrentChapter $root }
+if($RequestId){
+    $prior=@(Get-ChildItem -LiteralPath (Join-Path $root '01_Кампания/Ветки') -Recurse -Filter 'Сцена*.md' | Where-Object {(Get-WmmaMeta (Read-WmmaText $_.FullName) 'request_id') -eq $RequestId})
+    if($prior.Count -gt 1){throw 'Duplicate scene request ID.'}
+    if($prior.Count -eq 1){'Created scene: '+(Get-WmmaRelativePath $root $prior[0].FullName);return}
+}
 $frontTrackerPath = Join-Path $root '01_Кампания\06_Фронты_и_таймеры.md'
 $declaredFrontIds = Get-DeclaredFrontIds -FrontTrackerPath $frontTrackerPath
 
@@ -117,6 +131,11 @@ $content = @"
 
 ---
 type: scene
+id: SCENE-$([guid]::NewGuid().ToString('N'))
+request_id: $RequestId
+source_ids: $([string](ConvertTo-Json -InputObject @($SourceIds) -Compress))
+participant_ids: $([string](ConvertTo-Json -InputObject @($ParticipantIds) -Compress))
+front_ids: $([string](ConvertTo-Json -InputObject @($FrontIds) -Compress))
 branch: $Branch
 chapter: $Chapter
 status: $Status
@@ -133,6 +152,14 @@ front_id: $FrontId
 ## Событие
 
 $Summary
+
+## Интересы участников
+
+Уточнить по подтверждённым сценам и карточкам; не придумывать скрытые мотивы.
+
+## Незавершённые обещания
+
+Связанные решения и условия продолжения. Обещание не означает исполнение.
 
 ## Что известно персонажу
 
@@ -182,11 +209,8 @@ if (-not $? -or $LASTEXITCODE -ne 0) {
 }
 
 if (-not $SkipCheck) {
-    $global:LASTEXITCODE = 0
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if (-not $? -or $LASTEXITCODE -ne 0) {
-        exit 1
-    }
+    & (Join-Path $root 'tools/Завершить_ход.ps1')
+    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
 }
 
 "Created scene: $relativePath"

@@ -19,3 +19,7 @@ jobs:
       - name: Check tools
         shell: pwsh
         run: .\tools\Проверить_инструменты.ps1
+
+      - name: Check context and turn recovery
+        shell: pwsh
+        run: .\tools\Проверить_систему_v2.ps1

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$SkipCheck
 )
 
@@ -21,25 +21,9 @@ function Get-RelativeProjectPath {
     return (($Path.Substring($root.Length).TrimStart('\', '/')) -replace '\\', '/')
 }
 
-function Read-Text {
-    param([string]$Path)
 
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return ''
-    }
 
-    return Get-Content -Raw -Encoding UTF8 -LiteralPath $Path
-}
 
-function Write-Utf8NoBom {
-    param(
-        [string]$Path,
-        [string]$Text
-    )
-
-    $encoding = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($Path, $Text, $encoding)
-}
 
 function Get-Meta {
     param(

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$Title,
 
@@ -8,6 +8,8 @@
 
     [ValidateSet('inbox', 'source')]
     [string]$Mode = 'inbox',
+
+    [string]$RequestId = '',
 
     [switch]$SkipCheck
 )
@@ -55,14 +57,27 @@ if ([string]::IsNullOrWhiteSpace($Text)) {
 }
 
 $sourceReference = 'вручную через `tools/Принять_сообщение.ps1`'
+$messageHash=Get-WmmaHash ($Text.Replace("`r`n","`n").Trim())
+if(-not $RequestId){$RequestId='MSG-'+$messageHash.Substring(0,24)}
+if($RequestId -notmatch '^[A-Za-z0-9-]+$'){throw 'Invalid request ID.'}
+$receipt=Get-WmmaReceipt $root $RequestId
+if($receipt){
+    if($receipt.content_sha256 -cne $messageHash){throw 'Request ID already belongs to different content.'}
+    "Accepted message into inbox: $($receipt.title) (already recorded: $RequestId)"
+    return
+}
+$receipt=[pscustomobject]@{request_id=$RequestId;content_sha256=$messageHash;title=$Title;source_path=$null;scene_path=$null;state='accepted'}
 
 if ($Mode -eq 'source') {
     $sourceRoot = Join-Path $root '08_Источники'
     $sourceFileName = "$today`_$(Convert-ToProjectFileName -Value $Title).md"
     $sourcePath = Join-Path $sourceRoot $sourceFileName
 
+    $reuseSource=$false
     if (Test-Path -LiteralPath $sourcePath) {
-        throw "Source file already exists: $(Get-RelativeProjectPath $sourcePath)"
+        $existingSource=Read-WmmaText $sourcePath
+        if((Get-WmmaMeta $existingSource 'request_id') -ne $RequestId -or (Get-WmmaMeta $existingSource 'content_sha256') -cne $messageHash){throw "Source file already exists for another message: $(Get-RelativeProjectPath $sourcePath)"}
+        $reuseSource=$true
     }
 
     $sourceContent = @"
@@ -73,6 +88,9 @@ type: source_note
 status: new
 canon_level: draft
 received_real_date: $today
+id: SRC-$([guid]::NewGuid().ToString('N'))
+request_id: $RequestId
+content_sha256: $messageHash
 ---
 
 ${codeFence}text
@@ -80,16 +98,22 @@ $Text
 ${codeFence}
 "@
 
-    Set-Content -LiteralPath $sourcePath -Encoding UTF8 -Value $sourceContent
+    if(-not $reuseSource){Write-WmmaText $sourcePath $sourceContent}
     $sourceReference = "``$(Get-RelativeProjectPath $sourcePath)``"
+    $receipt.source_path=Get-RelativeProjectPath $sourcePath
 }
 
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
 $inbox = Get-Content -Raw -Encoding UTF8 -LiteralPath $inboxPath
+if($inbox -match ('(?m)^Request-ID:\s*'+[regex]::Escape($RequestId)+'\s*$')){
+    Save-WmmaReceipt $root $receipt
+    "Accepted message into inbox: $Title (recovered: $RequestId)";return
+}
 $entry = @"
 ### $today. $Title
 
 Статус: новое.
+Request-ID: $RequestId
 Источник: $sourceReference
 
 ${codeFence}text
@@ -121,14 +145,12 @@ $inbox = [regex]::Replace(
     1
 )
 
-Set-Content -LiteralPath $inboxPath -Encoding UTF8 -Value $inbox
+Write-WmmaText $inboxPath $inbox
+Save-WmmaReceipt $root $receipt
 
 if (-not $SkipCheck) {
-    $global:LASTEXITCODE = 0
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if (-not $? -or $LASTEXITCODE -ne 0) {
-        exit 1
-    }
+    & (Join-Path $root 'tools/Завершить_ход.ps1')
+    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
 }
 
 "Accepted message into inbox: $Title"

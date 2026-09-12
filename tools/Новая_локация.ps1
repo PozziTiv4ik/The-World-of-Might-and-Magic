@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$Name,
 
@@ -110,10 +110,8 @@ $row
 & (Join-Path $root 'tools\Собрать_индекс_локаций.ps1') -SkipCheck
 
 if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    & (Join-Path $root 'tools/Завершить_ход.ps1')
+    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
 }
 
 "Created location: $relativePath"

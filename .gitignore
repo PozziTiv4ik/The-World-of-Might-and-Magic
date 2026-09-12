@@ -13,3 +13,6 @@ desktop.ini
 # Local Obsidian workspace state, if the vault is opened there.
 .obsidian/workspace*.json
 .obsidian/cache/
+
+# Local transaction journals and test workspaces (never campaign canon).
+.wmma/

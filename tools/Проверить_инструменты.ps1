@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$KeepTemp
 )
 
@@ -154,6 +154,7 @@ try {
             '/E',
             '/XD',
             '.git',
+            '.wmma',
             '/NFL',
             '/NDL',
             '/NJH',
@@ -586,12 +587,15 @@ try {
     }
 
     Invoke-Step 'Финальная проверка временной копии' {
+        & (Join-Path $toolsRoot 'Собрать_связи.ps1') -AssignMissingIds -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_индекс_сцен.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_индекс_активов.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_решения.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_вопросы.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_фронты.ps1') -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_панель_хода.ps1') -SkipCheck
+        & (Join-Path $toolsRoot 'Собрать_контекст.ps1') -SkipCheck
+        & (Join-Path $toolsRoot 'Собрать_память.ps1')
         & (Join-Path $toolsRoot 'Проверить_реестры.ps1')
         & (Join-Path $toolsRoot 'Проверить_проект.ps1')
     }

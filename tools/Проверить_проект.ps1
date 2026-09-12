@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
@@ -198,19 +198,7 @@ function Get-MarkdownTitle {
     return 'Без названия'
 }
 
-function Get-SectionText {
-    param(
-        [string]$Text,
-        [string]$Heading
-    )
 
-    $escapedHeading = [regex]::Escape($Heading)
-    if ($Text -match "(?ms)^##\s+$escapedHeading\s*\r?\n(.+?)(?:\r?\n##\s+|\z)") {
-        return $Matches[1]
-    }
-
-    return ''
-}
 
 function Convert-MarkdownTableRow {
     param([string]$Line)
@@ -248,13 +236,13 @@ function Compare-IdSets {
 
 $mdFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File -Filter '*.md' |
     Where-Object {
-        $_.FullName -notmatch '\\.git\\' -and
+        $_.FullName.Substring($root.Length) -notmatch '\\(?:\.git|\.wmma)\\' -and
         $_.FullName -notmatch '\\[^\\]*_MD_[^\\]*\\'
     }
 
 $imageFiles = Get-ChildItem -LiteralPath $root -Recurse -Force -File |
     Where-Object {
-        $_.FullName -notmatch '\\.git\\' -and
+        $_.FullName.Substring($root.Length) -notmatch '\\(?:\.git|\.wmma)\\' -and
         $_.FullName -notmatch '\\[^\\]*_MD_[^\\]*\\' -and
         $_.Extension -match '^\.(jpg|jpeg|png|webp)$'
     }
@@ -267,7 +255,7 @@ $legacyScannerPaths = @(
 
 $textFilesForLegacyScan = Get-ChildItem -LiteralPath $root -Recurse -Force -File |
     Where-Object {
-        $_.FullName -notmatch '\\.git\\' -and
+        $_.FullName.Substring($root.Length) -notmatch '\\(?:\.git|\.wmma)\\' -and
         $_.FullName -notmatch '\\[^\\]*_MD_[^\\]*\\' -and
         $legacyScannerPaths -notcontains $_.FullName -and
         ($legacyScanExtensions -contains $_.Extension -or $legacyScanExtensions -contains $_.Name)
@@ -1704,6 +1692,12 @@ if ($filesByType.ContainsKey('scene')) {
             Add-Problem Error "Scene uses undeclared FRONT-ID: $relativeFile -> $frontId"
         }
     }
+}
+
+if(Test-Path -LiteralPath (Join-Path $root '09_Реестры/Контекст.json')) {
+    $contextResult=& (Join-Path $root 'tools/Проверить_контекст.ps1') -AsObject
+    foreach($problem in $contextResult.Errors){Add-Problem Error $problem}
+    foreach($problem in $contextResult.Warnings){Add-Problem Warning $problem}
 }
 
 $result = [pscustomobject]@{

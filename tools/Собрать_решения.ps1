@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$ImportFromMarkdown,
 
     [switch]$SkipCheck
@@ -20,39 +20,11 @@ $registryPath = Join-Path $registryDir 'Решения.json'
 $decisionLogPath = Join-Path $root '01_Кампания\02_Журнал_решений.md'
 $openQuestionsPath = Join-Path $root '01_Кампания\03_Нерешенные_вопросы.md'
 
-function Read-Text {
-    param([string]$Path)
 
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return ''
-    }
 
-    return Get-Content -Raw -Encoding UTF8 -LiteralPath $Path
-}
 
-function Write-Utf8NoBom {
-    param(
-        [string]$Path,
-        [string]$Text
-    )
 
-    $encoding = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($Path, $Text, $encoding)
-}
 
-function Get-SectionText {
-    param(
-        [string]$Text,
-        [string]$Heading
-    )
-
-    $escapedHeading = [regex]::Escape($Heading)
-    if ($Text -match "(?ms)^##\s+$escapedHeading\s*\r?\n(.+?)(?:\r?\n##\s+|\z)") {
-        return $Matches[1]
-    }
-
-    return ''
-}
 
 function Convert-MarkdownTableRow {
     param([string]$Line)
@@ -272,13 +244,15 @@ function Render-DecisionLog {
 }
 
 if ($ImportFromMarkdown) {
+    $existingPath=Join-Path $root '09_Реестры/Решения.json'
+    if((Test-Path -LiteralPath $existingPath) -and (Read-WmmaJson $existingPath).schema_version -ge 2){throw 'Legacy Markdown import would discard v2 identities. Use the authoritative registry or an explicit migration.'}
     $registry = Import-DecisionRegistry
     Save-DecisionRegistry -Registry $registry
 } else {
     $registry = Read-DecisionRegistry
 }
 
-$registry.updated_real_date = $today
+
 Render-DecisionLog -Registry $registry
 Save-DecisionRegistry -Registry $registry
 
