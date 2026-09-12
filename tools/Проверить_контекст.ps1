@@ -18,6 +18,20 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         }catch{$errors.Add("Schema mismatch: $name — $($_.Exception.Message)")}
     }
     $byId=@{};$uids=@{}
+    try{
+        $expectedGraph=New-WmmaGraph -Root $root
+        if(($expectedGraph|ConvertTo-Json -Depth 50 -Compress) -cne ($graph|ConvertTo-Json -Depth 50 -Compress)){$errors.Add('Entity graph differs from documents, explicit sources or preserved history.')}
+    }catch{$errors.Add('Cannot rebuild expected graph: '+$_.Exception.Message)}
+    try{
+        $memory=Read-WmmaJson (Join-Path $root '09_Реестры/Память_персонажей.json')
+        if(($memory|ConvertTo-Json -Depth 50 -Compress) -cne ((New-WmmaCharacterMemory $root)|ConvertTo-Json -Depth 50 -Compress)){$errors.Add('Character memory is stale or differs from its evidence.')}
+    }catch{$errors.Add('Cannot validate character memory: '+$_.Exception.Message)}
+    $receiptIds=[Collections.Generic.HashSet[string]]::new()
+    foreach($receipt in (Read-WmmaJson (Join-Path $root '09_Реестры/Входящие.json')).receipts){
+        if(-not $receiptIds.Add($receipt.request_id)){$errors.Add("Duplicate intake request ID: $($receipt.request_id)")}
+        if($receipt.state -notin @('accepted','deferred','scene_created','processed','archived')){$errors.Add("Invalid intake state: $($receipt.request_id)")}
+        try{Assert-WmmaReceiptPayload $root $receipt}catch{$errors.Add("Invalid receipt $($receipt.request_id): $($_.Exception.Message)")}
+    }
     foreach($e in $graph.entities){
         if($byId.ContainsKey($e.id)){$errors.Add("Duplicate entity ID: $($e.id)")}
         $byId[$e.id]=$e
@@ -32,11 +46,13 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     }
     foreach($edge in $graph.edges){
         if(-not $byId.ContainsKey($edge.from) -or -not $byId.ContainsKey($edge.to)){$errors.Add("Dangling graph edge: $($edge.from) -> $($edge.to)")}
-        if($edge.kind -eq 'sourced_from' -and $byId.ContainsKey($edge.to) -and $byId[$edge.to].type -notlike 'source*'){$errors.Add("Non-source provenance target: $($edge.to)")}
+        if($edge.kind -in @('sourced_from','source_reference') -and $byId.ContainsKey($edge.to) -and $byId[$edge.to].type -notlike 'source*'){$errors.Add("Non-source provenance target: $($edge.to)")}
+        if($edge.kind -eq 'participant' -and $byId.ContainsKey($edge.to) -and $byId[$edge.to].type -ne 'character'){$errors.Add("Participant is not a character: $($edge.to)")}
     }
     foreach($d in $decisions.decisions){
         if(-not $d.uid){$errors.Add("Missing decision UID: $($d.id)")}elseif($uids.ContainsKey($d.uid)){$errors.Add("Duplicate decision UID: $($d.uid)")}else{$uids[$d.uid]=$true}
         if($d.resolved_from -and $d.state -ne 'accepted'){$errors.Add("Invalid decision transition: $($d.id)")}
+        if($d.resolved_from -and @($d.transitions|Where-Object {$_.from -eq $d.resolved_from -and $_.to -eq $d.id}).Count -eq 0){$errors.Add("Missing decision transition record: $($d.id)")}
     }
     $chapterFile=Resolve-WmmaPath $root $state.chapter_file
     if((Get-WmmaMeta (Read-WmmaText $chapterFile) 'status') -ne 'active'){$errors.Add('Context points to an inactive chapter.')}
@@ -50,8 +66,23 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
             if(-not $byId.ContainsKey($id)){$errors.Add("Unknown entity in fact $($fact.id): $id")}
         }
         foreach($id in $fact.known_to){if($byId.ContainsKey($id) -and $byId[$id].type -ne 'character'){$errors.Add("Knowledge holder is not a character: $id")}}
+        if($fact.reported_by -and (-not $byId.ContainsKey($fact.reported_by) -or $byId[$fact.reported_by].type -ne 'character')){$errors.Add("Unknown reporting character: $($fact.id)")}
+        foreach($id in $fact.known_to){
+            $proof=@($fact.knowledge_evidence|Where-Object {$_.character_id -eq $id})
+            if(-not $proof.Count){$errors.Add("Knowledge holder has no evidence annotation: $($fact.id) -> $id")}
+            foreach($record in $proof){if(-not @($record.evidence_ids).Count -or -not $record.basis){$errors.Add("Empty knowledge evidence annotation: $($fact.id) -> $id")}}
+            foreach($record in $proof){foreach($evidenceId in $record.evidence_ids){if(-not $byId.ContainsKey($evidenceId)){$errors.Add("Unknown knowledge evidence: $evidenceId")}}}
+        }
     }
+    $frontIds=@((Read-WmmaJson (Join-Path $root '09_Реестры/Фронты.json')).fronts|ForEach-Object {$_.id})
+    $focusIds=@($questions.questions|ForEach-Object {$_.id})+@($decisions.decisions|ForEach-Object {$_.id;$_.resolved_from}|Where-Object {$_})+$frontIds
+    foreach($id in $state.fact_ids){if(-not $factIds.ContainsKey($id)){$errors.Add("Unknown global fact: $id")}}
+    foreach($id in $state.scene_ids){if(-not $byId.ContainsKey($id) -or $byId[$id].type -ne 'scene'){$errors.Add("Unknown global scene: $id")}}
+    foreach($id in $state.focus_ids){if($focusIds -notcontains $id){$errors.Add("Unknown global focus: $id")}}
+    foreach($e in $graph.entities){foreach($id in $e.front_ids){if($frontIds -notcontains $id){$errors.Add("Unknown entity front: $($e.id) -> $id")}}}
     foreach($branch in $state.branches){
+        if(-not $byId.ContainsKey($branch.character_id) -or $byId[$branch.character_id].type -ne 'character'){$errors.Add("Unknown branch character: $($branch.name)")}
+        foreach($id in $branch.focus_ids){if($focusIds -notcontains $id){$errors.Add("Unknown branch focus: $id")}}
         foreach($id in $branch.scene_ids){if(-not $byId.ContainsKey($id) -or $byId[$id].type -ne 'scene'){$errors.Add("Unknown branch scene: $id")}}
         foreach($id in $branch.fact_ids){if(-not $factIds.ContainsKey($id)){$errors.Add("Unknown branch fact: $id")}}
         $profile=Read-WmmaText (Join-Path $root "01_Кампания/Ветки/$($branch.name)/00_Профиль_ветки.md")
@@ -67,7 +98,9 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     foreach($event in $events.relations){
         if(-not $byId.ContainsKey($event.from) -or -not $byId.ContainsKey($event.to)){$errors.Add('Unknown event endpoint.')}
         if($event.relation -notin @('after','overlaps','learned_after')){$errors.Add('Unknown temporal relation.')}
-        if($event.relation -eq 'after'){$after[$event.from]=@($after[$event.from])+@($event.to)}
+        foreach($id in $event.evidence_ids){if(-not $byId.ContainsKey($id)){$errors.Add("Unknown chronology evidence: $id")}}
+        if($event.from -eq $event.to){$errors.Add('An event cannot reference itself in chronology.')}
+        if($event.relation -in @('after','learned_after')){$after[$event.from]=@($after[$event.from])+@($event.to)}
     }
     function Visit-Event([string]$Id,[string[]]$Trail){
         if($Trail -contains $Id){$errors.Add("Cyclic event order: $Id");return}

@@ -55,7 +55,7 @@ function Get-WmmaMeta {
     param([string]$Text, [string]$Field)
     $block = [regex]::Match($Text, '(?s)\A(?:\uFEFF)?# [^\r\n]+\r?\n\s*---\r?\n(.*?)\r?\n---')
     if ($block.Success) {
-        $entry = [regex]::Match($block.Groups[1].Value, '(?m)^' + [regex]::Escape($Field) + ':\s*([^\r\n]*)')
+        $entry = [regex]::Match($block.Groups[1].Value, '(?m)^' + [regex]::Escape($Field) + ':[ \t]*([^\r\n]*)')
         if ($entry.Success) { return $entry.Groups[1].Value.Trim() }
     }
     return ''
@@ -74,9 +74,102 @@ function Set-WmmaMeta {
 
 function Get-WmmaSection {
     param([string]$Text, [string]$Heading)
-    $match = [regex]::Match($Text, '(?ms)^## ' + [regex]::Escape($Heading) + '\s*\r?\n(.*?)(?=^## |\z)')
-    if ($match.Success) { return $match.Groups[1].Value.Trim() }
+    $section=@(Get-WmmaMarkdownSections $Text 2 | Where-Object {$_.heading -ceq $Heading})|Select-Object -First 1
+    if ($section) { return $section.text.Trim() }
     return ''
+}
+
+function Get-WmmaMarkdownSections {
+    param([string]$Text,[int]$Level=2)
+    $headings=[Collections.Generic.List[object]]::new();$fenceChar='';$fenceLength=0
+    foreach($line in [regex]::Matches($Text,'(?m)^[^\r\n]*(?:\r?\n|$)')){
+        if(-not $line.Length){continue}
+        $value=$line.Value.TrimEnd([char]13,[char]10)
+        $fence=[regex]::Match($value,'^ {0,3}(`{3,}|~{3,})(.*)$')
+        if($fence.Success){
+            $marker=$fence.Groups[1].Value
+            if(-not $fenceChar){$fenceChar=[string]$marker[0];$fenceLength=$marker.Length}
+            elseif([string]$marker[0] -eq $fenceChar -and $marker.Length -ge $fenceLength -and -not $fence.Groups[2].Value.Trim()){$fenceChar='';$fenceLength=0}
+            continue
+        }
+        if($fenceChar){continue}
+        $h=[regex]::Match($value,'^(#{1,6})[ \t]+(.+?)[ \t]*$')
+        if($h.Success){$headings.Add([pscustomobject]@{level=$h.Groups[1].Value.Length;heading=$h.Groups[2].Value;index=$line.Index;body_start=$line.Index+$line.Length})}
+    }
+    for($i=0;$i -lt $headings.Count;$i++){
+        $h=$headings[$i];if($h.level -ne $Level){continue}
+        $end=$Text.Length
+        for($j=$i+1;$j -lt $headings.Count;$j++){if($headings[$j].level -le $Level){$end=$headings[$j].index;break}}
+        [pscustomobject]@{heading=$h.heading;index=$h.index;body_start=$h.body_start;end=$end;text=$Text.Substring($h.body_start,$end-$h.body_start)}
+    }
+}
+
+function Get-WmmaInboxEntries {
+    param([string]$Text)
+    foreach($section in @(Get-WmmaMarkdownSections $Text 3)){
+        $value=$Text.Substring($section.index,$section.end-$section.index)
+        [pscustomobject]@{Value=$value;Index=$section.index;Length=$value.Length;Groups=@([pscustomobject]@{Value=$value},[pscustomobject]@{Value=$section.heading},[pscustomobject]@{Value=$section.text})}
+    }
+}
+
+function Get-WmmaEntryField {
+    param([string]$Text,[string]$Field)
+    $fence=[regex]::Match($Text,'(?m)^ {0,3}(?:`{3,}|~{3,})')
+    $header=if($fence.Success){$Text.Substring(0,$fence.Index)}else{$Text}
+    $match=[regex]::Match($header,'(?m)^'+[regex]::Escape($Field)+':[ \t]*([^\r\n]*)')
+    if($match.Success){return $match.Groups[1].Value.Trim()}
+    return ''
+}
+
+function Get-WmmaTextFence {
+    param([string]$Text)
+    $max=2;foreach($run in [regex]::Matches($Text,'`+')){$max=[Math]::Max($max,$run.Length)}
+    return ('`'*($max+1))
+}
+
+function Get-WmmaRawMessage {
+    param([string]$Text)
+    $match=[regex]::Match($Text,'(?ms)^ {0,3}(?<fence>`{3,}|~{3,})text[ \t]*\r?\n(?<body>.*?)\r?\n {0,3}\k<fence>[ \t]*(?:\r?\n|$)')
+    if(-not $match.Success){return $null}
+    return $match.Groups['body'].Value
+}
+
+function Test-WmmaSourcePayload {
+    param([string]$Text,[string]$Hash)
+    $raw=Get-WmmaRawMessage $Text
+    return $null -ne $raw -and (Get-WmmaHash ($raw.Replace("`r`n","`n").Trim())) -ceq $Hash
+}
+
+function Assert-WmmaSingleLine {
+    param([string]$Value,[string]$Name,[switch]$AllowEmpty)
+    if($Value -match '[\r\n]' -or (-not $AllowEmpty -and [string]::IsNullOrWhiteSpace($Value))){throw "$Name must be a single nonempty line."}
+}
+
+function Assert-WmmaReceiptPayload {
+    param([string]$Root,[object]$Receipt)
+    if($Receipt.source_path){
+        $source=Read-WmmaText (Resolve-WmmaPath $Root $Receipt.source_path)
+        if((Get-WmmaMeta $source 'request_id') -cne $Receipt.request_id -or -not (Test-WmmaSourcePayload $source $Receipt.content_sha256)){throw 'Receipt source payload is missing or changed.'}
+    }else{
+        $inbox=Read-WmmaText (Join-Path $Root '07_Черновики_и_идеи/Входящие_сообщения.md')
+        $entries=@(Get-WmmaInboxEntries $inbox|Where-Object {(Get-WmmaEntryField $_.Value 'Request-ID') -ceq $Receipt.request_id})
+        if($entries.Count -ne 1 -or -not (Test-WmmaSourcePayload $entries[0].Value $Receipt.content_sha256)){throw 'Receipt inbox payload is missing, duplicated or changed.'}
+    }
+    if($Receipt.scene_path){
+        $scene=Read-WmmaText (Resolve-WmmaPath $Root $Receipt.scene_path)
+        if((Get-WmmaMeta $scene 'request_id') -cne $Receipt.request_id){throw 'Receipt points to another scene.'}
+    }
+}
+
+function Get-WmmaImageSize {
+    param([string]$Path)
+    $stream=$null;$image=$null
+    try{
+        Add-Type -AssemblyName System.Drawing
+        $stream=[IO.File]::OpenRead($Path)
+        $image=[Drawing.Image]::FromStream($stream)
+        return [pscustomobject]@{Width=$image.Width;Height=$image.Height}
+    }catch{return $null}finally{if($image){$image.Dispose()};if($stream){$stream.Dispose()}}
 }
 
 function Get-WmmaArrayMeta {

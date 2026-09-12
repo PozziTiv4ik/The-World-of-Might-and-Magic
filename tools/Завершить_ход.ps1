@@ -94,6 +94,7 @@ Invoke-Step 'Сборка панели следующего хода' {
 Invoke-Step 'Сборка текущего контекста и пакетов веток' {
     & (Join-Path $root 'tools/Собрать_контекст.ps1') -SkipCheck
     & (Join-Path $root 'tools/Собрать_память.ps1')
+    & (Join-Path $root 'tools/Собрать_аудит_данных.ps1')
 }
 if (-not $SkipArchive) {
     Invoke-Step 'Проверка архива' {

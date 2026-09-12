@@ -41,20 +41,7 @@ function Get-RelativeProjectPath {
     return (($Path.Substring($root.Length).TrimStart('\', '/')) -replace '\\', '/')
 }
 
-function Get-ImageSize {
-    param([string]$Path)
-
-    Add-Type -AssemblyName System.Drawing
-    $image = [System.Drawing.Image]::FromFile($Path)
-    try {
-        return [pscustomobject]@{
-            Width = $image.Width
-            Height = $image.Height
-        }
-    } finally {
-        $image.Dispose()
-    }
-}
+function Get-ImageSize { param([string]$Path) return Get-WmmaImageSize $Path }
 
 function Test-PortraitRatio {
     param(

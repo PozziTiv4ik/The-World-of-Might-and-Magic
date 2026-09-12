@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'lib/Core.ps1')
+. (Join-Path $PSScriptRoot 'lib/Graph.ps1')
 . (Join-Path $PSScriptRoot 'lib/Context.ps1')
 . (Join-Path $PSScriptRoot 'lib/Transactions.ps1')
 

@@ -75,11 +75,20 @@ function Get-DeclaredFrontIds {
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Assert-WmmaSingleLine $Branch 'Branch'
+Assert-WmmaSingleLine $Title 'Title'
+if($Branch -match '[\\/]' -or $Branch -in @('.','..')){throw 'Branch must be a single directory name.'}
+foreach($value in @($DateInStory,$Location,$CanonLevel)){Assert-WmmaSingleLine $value 'Scene metadata'}
+if($RequestId -and $RequestId -notmatch '^[A-Za-z0-9-]+$'){throw 'Invalid request ID.'}
 if ($Chapter -le 0) { $Chapter = Get-WmmaCurrentChapter $root }
 if($RequestId){
     $prior=@(Get-ChildItem -LiteralPath (Join-Path $root '01_Кампания/Ветки') -Recurse -Filter 'Сцена*.md' | Where-Object {(Get-WmmaMeta (Read-WmmaText $_.FullName) 'request_id') -eq $RequestId})
     if($prior.Count -gt 1){throw 'Duplicate scene request ID.'}
-    if($prior.Count -eq 1){'Created scene: '+(Get-WmmaRelativePath $root $prior[0].FullName);return}
+    if($prior.Count -eq 1){
+        $old=Read-WmmaText $prior[0].FullName
+        if((Get-WmmaMeta $old 'branch') -cne $Branch -or (Get-WmmaMeta $old 'chapter') -ne [string]$Chapter){throw 'Request ID belongs to another scene branch or chapter.'}
+        'Created scene: '+(Get-WmmaRelativePath $root $prior[0].FullName);return
+    }
 }
 $frontTrackerPath = Join-Path $root '01_Кампания\06_Фронты_и_таймеры.md'
 $declaredFrontIds = Get-DeclaredFrontIds -FrontTrackerPath $frontTrackerPath
@@ -87,6 +96,14 @@ $declaredFrontIds = Get-DeclaredFrontIds -FrontTrackerPath $frontTrackerPath
 if ($FrontId -ne '-' -and $declaredFrontIds -notcontains $FrontId) {
     throw "Unknown FRONT-ID: $FrontId. Add it to 01_Кампания/06_Фронты_и_таймеры.md first."
 }
+foreach($id in $FrontIds){if($declaredFrontIds -notcontains $id){throw "Unknown front: $id"}}
+$entityGraph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
+$sources=@($entityGraph.entities|Where-Object {$_.type -like 'source*'}|ForEach-Object {$_.id})
+# A source may have just been accepted before the next graph build.
+$sources+=@(Get-ChildItem -LiteralPath (Join-Path $root '08_Источники') -Filter '*.md'|ForEach-Object {Get-WmmaMeta (Read-WmmaText $_.FullName) 'id'})
+$characters=@($entityGraph.entities|Where-Object type -eq 'character'|ForEach-Object {$_.id})
+foreach($id in $SourceIds){if(-not $id -or $sources -notcontains $id){throw "Unknown source ID: $id"}}
+foreach($id in $ParticipantIds){if(-not $id -or $characters -notcontains $id){throw "Unknown character ID: $id"}}
 
 $branchRoot = Join-Path $root (Join-Path '01_Кампания\Ветки' $Branch)
 if (-not (Test-Path -LiteralPath $branchRoot)) {
@@ -122,8 +139,8 @@ $fileName = "Сцена_${sceneNumber}_$fileTitle.md"
 $targetPath = Join-Path $branchRoot $fileName
 $relativePath = Get-RelativeProjectPath $targetPath
 
-if ((Test-Path -LiteralPath $targetPath) -and -not $Force) {
-    throw "Scene file already exists: $relativePath"
+if (Test-Path -LiteralPath $targetPath) {
+    throw "Scene file already exists: $relativePath. Edit the existing document to preserve its ID and history; -Force cannot replace a scene."
 }
 
 $content = @"
@@ -200,7 +217,7 @@ $Summary
 Черновик / ожидает решения / решение принято / закрыто.
 "@
 
-Set-Content -LiteralPath $targetPath -Encoding UTF8 -Value $content
+Write-WmmaText $targetPath $content
 
 $global:LASTEXITCODE = 0
 & (Join-Path $root 'tools\Собрать_индекс_сцен.ps1') -SkipCheck
