@@ -1,0 +1,1607 @@
+{
+  "document": {
+    "arcs": {},
+    "background": "#18374D",
+    "features": {},
+    "height": 3000,
+    "id": "MAP-138B144B-D780-4055-837A-7CEFB8BDB6C2",
+    "import": {
+      "file_name": "map.pdn",
+      "pdn": {
+        "height": 3000,
+        "layers": [
+          {
+            "blend_mode": 0,
+            "index": 0,
+            "name": "Фон",
+            "opacity": 255,
+            "visible": true
+          },
+          {
+            "blend_mode": 0,
+            "index": 1,
+            "name": "Границы государств",
+            "opacity": 255,
+            "visible": true
+          },
+          {
+            "blend_mode": 0,
+            "index": 2,
+            "name": "Гильдия Михаэля",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 3,
+            "name": "Имперские Торговые Маршруты",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 4,
+            "name": "Наименование Городов",
+            "opacity": 255,
+            "visible": true
+          },
+          {
+            "blend_mode": 0,
+            "index": 5,
+            "name": "Надписи",
+            "opacity": 255,
+            "visible": true
+          },
+          {
+            "blend_mode": 0,
+            "index": 6,
+            "name": "Границы регионов империи",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 7,
+            "name": "Оккупационные зоны",
+            "opacity": 255,
+            "visible": true
+          },
+          {
+            "blend_mode": 0,
+            "index": 8,
+            "name": "Лорд Герхард",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 9,
+            "name": "Лорд Герхард",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 10,
+            "name": "Багровый Пик",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 11,
+            "name": "Капитан Лоуренс",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 12,
+            "name": "Граф Виктор Рейвз",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 13,
+            "name": "Капитан Ольгерд",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 14,
+            "name": "Капитан Сигизмунд",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 15,
+            "name": "Капитан Мейкор",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 16,
+            "name": "Лорд Петр",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 17,
+            "name": "Оливия",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 18,
+            "name": "Аларон",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 19,
+            "name": "Лорд Ван Даркхольм",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 20,
+            "name": "Лорд Арчибальд",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 21,
+            "name": "Имперская Армия",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 22,
+            "name": "Верховный Совет",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 23,
+            "name": "Гарнизон Порт-Вингард",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 24,
+            "name": "Принц Михаэль",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 25,
+            "name": "Гарнизон Уайтбург",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 26,
+            "name": "Графиня Анариетта",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 27,
+            "name": "Ордо Малеос",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 28,
+            "name": "Лорд Болдуин Лев",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 29,
+            "name": "Флот Белой Гавани",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 30,
+            "name": "Рагдус",
+            "opacity": 255,
+            "visible": false
+          },
+          {
+            "blend_mode": 0,
+            "index": 31,
+            "name": "Имперский ВМФ",
+            "opacity": 255,
+            "visible": false
+          }
+        ],
+        "saved_with": "5.112.9563.32325",
+        "width": 4000
+      },
+      "recorded_at": "2026-09-13T13:48:50Z",
+      "sha256": "604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf",
+      "story_time": null
+    },
+    "layers": [
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-0",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Фон",
+        "opacity": 1,
+        "pdn_layer": 0,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-1",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Границы государств",
+        "opacity": 1,
+        "pdn_layer": 1,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-2",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Гильдия Михаэля",
+        "opacity": 1,
+        "pdn_layer": 2,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-3",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Имперские Торговые Маршруты",
+        "opacity": 1,
+        "pdn_layer": 3,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-4",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Наименование Городов",
+        "opacity": 1,
+        "pdn_layer": 4,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-5",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Надписи",
+        "opacity": 1,
+        "pdn_layer": 5,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-6",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Границы регионов империи",
+        "opacity": 1,
+        "pdn_layer": 6,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-7",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Оккупационные зоны",
+        "opacity": 1,
+        "pdn_layer": 7,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-8",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Лорд Герхард",
+        "opacity": 1,
+        "pdn_layer": 8,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-9",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Лорд Герхард",
+        "opacity": 1,
+        "pdn_layer": 9,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-10",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Багровый Пик",
+        "opacity": 1,
+        "pdn_layer": 10,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-11",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Капитан Лоуренс",
+        "opacity": 1,
+        "pdn_layer": 11,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-12",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Граф Виктор Рейвз",
+        "opacity": 1,
+        "pdn_layer": 12,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-13",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Капитан Ольгерд",
+        "opacity": 1,
+        "pdn_layer": 13,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-14",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Капитан Сигизмунд",
+        "opacity": 1,
+        "pdn_layer": 14,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-15",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Капитан Мейкор",
+        "opacity": 1,
+        "pdn_layer": 15,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-16",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Лорд Петр",
+        "opacity": 1,
+        "pdn_layer": 16,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-17",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Оливия",
+        "opacity": 1,
+        "pdn_layer": 17,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-18",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Аларон",
+        "opacity": 1,
+        "pdn_layer": 18,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-19",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Лорд Ван Даркхольм",
+        "opacity": 1,
+        "pdn_layer": 19,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-20",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Лорд Арчибальд",
+        "opacity": 1,
+        "pdn_layer": 20,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-21",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Имперская Армия",
+        "opacity": 1,
+        "pdn_layer": 21,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-22",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Верховный Совет",
+        "opacity": 1,
+        "pdn_layer": 22,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-23",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Гарнизон Порт-Вингард",
+        "opacity": 1,
+        "pdn_layer": 23,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-24",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Принц Михаэль",
+        "opacity": 1,
+        "pdn_layer": 24,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-25",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Гарнизон Уайтбург",
+        "opacity": 1,
+        "pdn_layer": 25,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-26",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Графиня Анариетта",
+        "opacity": 1,
+        "pdn_layer": 26,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-27",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Ордо Малеос",
+        "opacity": 1,
+        "pdn_layer": 27,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-28",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Лорд Болдуин Лев",
+        "opacity": 1,
+        "pdn_layer": 28,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-29",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Флот Белой Гавани",
+        "opacity": 1,
+        "pdn_layer": 29,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-30",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Рагдус",
+        "opacity": 1,
+        "pdn_layer": 30,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-PDN-604d8b76109b-31",
+        "image": "assets/604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf.pdn",
+        "kind": "raster",
+        "known_to": [],
+        "locked": true,
+        "name": "Имперский ВМФ",
+        "opacity": 1,
+        "pdn_layer": 31,
+        "source_type": "pdn",
+        "visibility": "gm",
+        "visible": false
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-087BDC6C-ECFE-4147-AB88-B13FDB812C9A",
+        "kind": "vector",
+        "locked": false,
+        "name": "Территории",
+        "opacity": 1,
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-1D07C26A-B74D-48F9-9020-22F76E0C6456",
+        "kind": "vector",
+        "locked": false,
+        "name": "Маршруты",
+        "opacity": 1,
+        "visible": true
+      },
+      {
+        "blend_mode": 0,
+        "id": "LAYER-EFB705CA-A0FB-42D2-9BB0-E665C5318F1F",
+        "kind": "vector",
+        "locked": false,
+        "name": "Места и подписи",
+        "opacity": 1,
+        "visible": true
+      }
+    ],
+    "name": "Карта мира",
+    "nodes": {},
+    "parent_version": null,
+    "schema_version": 1,
+    "status": "draft",
+    "story_anchor": null,
+    "style": "atlas",
+    "symbols": {
+      "army": {
+        "name": "Армия",
+        "paths": [
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.75,
+                -0.8
+              ],
+              [
+                0.75,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.75,
+                -0.8
+              ],
+              [
+                -0.75,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.95,
+                -0.5
+              ],
+              [
+                -0.5,
+                -0.95
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.5,
+                -0.95
+              ],
+              [
+                0.95,
+                -0.5
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "camp": {
+        "name": "Лагерь",
+        "paths": [
+          {
+            "closed": true,
+            "points": [
+              [
+                -1,
+                0.8
+              ],
+              [
+                0,
+                -0.85
+              ],
+              [
+                1,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0,
+                -0.85
+              ],
+              [
+                0,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.25,
+                0.8
+              ],
+              [
+                0,
+                0.25
+              ],
+              [
+                0.25,
+                0.8
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "capital": {
+        "name": "Столица",
+        "paths": [
+          {
+            "closed": true,
+            "points": [
+              [
+                4.8965888601467475e-12,
+                -1
+              ],
+              [
+                0.2468698059645025,
+                -0.3397871376362691
+              ],
+              [
+                0.9510565162966667,
+                -0.30901699437029057
+              ],
+              [
+                0.399443736843329,
+                0.12978713763943378
+              ],
+              [
+                0.5877852522885118,
+                0.8090169943778255
+              ],
+              [
+                -2.05651588609607e-12,
+                0.42
+              ],
+              [
+                -0.5877852522964344,
+                0.8090169943720694
+              ],
+              [
+                -0.3994437368446,
+                0.12978713763552208
+              ],
+              [
+                -0.9510565162936405,
+                -0.30901699437960417
+              ],
+              [
+                -0.24686980596117497,
+                -0.3397871376386867
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "city": {
+        "name": "Город",
+        "paths": [
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.75,
+                0.8
+              ],
+              [
+                -0.75,
+                -0.2
+              ],
+              [
+                -0.2,
+                -0.2
+              ],
+              [
+                -0.2,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.2,
+                0.8
+              ],
+              [
+                -0.2,
+                -0.85
+              ],
+              [
+                0.35,
+                -0.85
+              ],
+              [
+                0.35,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.35,
+                0.8
+              ],
+              [
+                0.35,
+                -0.4
+              ],
+              [
+                0.8,
+                -0.4
+              ],
+              [
+                0.8,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -1,
+                0.8
+              ],
+              [
+                1,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0,
+                -0.6
+              ],
+              [
+                0.12,
+                -0.6
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0,
+                -0.3
+              ],
+              [
+                0.12,
+                -0.3
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "fleet": {
+        "name": "Флот",
+        "paths": [
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.95,
+                0.45
+              ],
+              [
+                -0.6,
+                0.9
+              ],
+              [
+                0.65,
+                0.9
+              ],
+              [
+                1,
+                0.4
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0,
+                0.4
+              ],
+              [
+                0,
+                -1
+              ]
+            ]
+          },
+          {
+            "closed": true,
+            "points": [
+              [
+                0.1,
+                -0.8
+              ],
+              [
+                0.8,
+                0.15
+              ],
+              [
+                0.1,
+                0.15
+              ]
+            ]
+          },
+          {
+            "closed": true,
+            "points": [
+              [
+                -0.1,
+                -0.7
+              ],
+              [
+                -0.75,
+                0.15
+              ],
+              [
+                -0.1,
+                0.15
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.95,
+                1
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "forest": {
+        "name": "Лес",
+        "paths": [
+          {
+            "closed": true,
+            "points": [
+              [
+                0,
+                -1
+              ],
+              [
+                -0.7,
+                0
+              ],
+              [
+                -0.3,
+                0
+              ],
+              [
+                -0.9,
+                0.65
+              ],
+              [
+                -0.12,
+                0.65
+              ],
+              [
+                -0.12,
+                1
+              ],
+              [
+                0.12,
+                1
+              ],
+              [
+                0.12,
+                0.65
+              ],
+              [
+                0.9,
+                0.65
+              ],
+              [
+                0.3,
+                0
+              ],
+              [
+                0.7,
+                0
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "fortress": {
+        "name": "Крепость",
+        "paths": [
+          {
+            "closed": true,
+            "points": [
+              [
+                -0.85,
+                0.8
+              ],
+              [
+                -0.85,
+                -0.6
+              ],
+              [
+                -0.6,
+                -0.6
+              ],
+              [
+                -0.6,
+                -0.3
+              ],
+              [
+                -0.4,
+                -0.3
+              ],
+              [
+                -0.4,
+                -0.6
+              ],
+              [
+                -0.2,
+                -0.6
+              ],
+              [
+                -0.2,
+                0.1
+              ],
+              [
+                0.2,
+                0.1
+              ],
+              [
+                0.2,
+                -0.6
+              ],
+              [
+                0.4,
+                -0.6
+              ],
+              [
+                0.4,
+                -0.3
+              ],
+              [
+                0.6,
+                -0.3
+              ],
+              [
+                0.6,
+                -0.6
+              ],
+              [
+                0.85,
+                -0.6
+              ],
+              [
+                0.85,
+                0.8
+              ],
+              [
+                0.25,
+                0.8
+              ],
+              [
+                0.25,
+                0.3
+              ],
+              [
+                -0.25,
+                0.3
+              ],
+              [
+                -0.25,
+                0.8
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "mountain": {
+        "name": "Горы",
+        "paths": [
+          {
+            "closed": false,
+            "points": [
+              [
+                -1,
+                0.8
+              ],
+              [
+                -0.25,
+                -0.8
+              ],
+              [
+                0.2,
+                0.2
+              ],
+              [
+                0.5,
+                -0.5
+              ],
+              [
+                1,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.55,
+                -0.15
+              ],
+              [
+                -0.25,
+                0.05
+              ],
+              [
+                -0.05,
+                -0.1
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "port": {
+        "name": "Порт",
+        "paths": [
+          {
+            "closed": false,
+            "points": [
+              [
+                0,
+                -0.9
+              ],
+              [
+                0,
+                0.75
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.3,
+                -0.45
+              ],
+              [
+                0.3,
+                -0.45
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.8,
+                0
+              ],
+              [
+                -0.75,
+                0.45
+              ],
+              [
+                -0.35,
+                0.8
+              ],
+              [
+                0,
+                0.9
+              ],
+              [
+                0.35,
+                0.8
+              ],
+              [
+                0.75,
+                0.45
+              ],
+              [
+                0.8,
+                0
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.8,
+                0
+              ],
+              [
+                -0.4,
+                0.25
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.8,
+                0
+              ],
+              [
+                0.4,
+                0.25
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "ruins": {
+        "name": "Руины",
+        "paths": [
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.8,
+                0.8
+              ],
+              [
+                -0.8,
+                -0.6
+              ],
+              [
+                -0.55,
+                -0.3
+              ],
+              [
+                -0.3,
+                -0.5
+              ],
+              [
+                -0.3,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.3,
+                0.8
+              ],
+              [
+                0.3,
+                -0.7
+              ],
+              [
+                0.55,
+                -0.4
+              ],
+              [
+                0.8,
+                -0.65
+              ],
+              [
+                0.8,
+                0.8
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -1,
+                0.9
+              ],
+              [
+                1,
+                0.9
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "temple": {
+        "name": "Храм",
+        "paths": [
+          {
+            "closed": true,
+            "points": [
+              [
+                -1,
+                -0.45
+              ],
+              [
+                0,
+                -1
+              ],
+              [
+                1,
+                -0.45
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.8,
+                -0.3
+              ],
+              [
+                -0.8,
+                0.7
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.3,
+                -0.3
+              ],
+              [
+                -0.3,
+                0.7
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.3,
+                -0.3
+              ],
+              [
+                0.3,
+                0.7
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0.8,
+                -0.3
+              ],
+              [
+                0.8,
+                0.7
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -1,
+                0.85
+              ],
+              [
+                1,
+                0.85
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      },
+      "tower": {
+        "name": "Башня",
+        "paths": [
+          {
+            "closed": true,
+            "points": [
+              [
+                -0.55,
+                0.9
+              ],
+              [
+                -0.55,
+                -0.75
+              ],
+              [
+                -0.25,
+                -0.75
+              ],
+              [
+                -0.25,
+                -0.4
+              ],
+              [
+                0.25,
+                -0.4
+              ],
+              [
+                0.25,
+                -0.75
+              ],
+              [
+                0.55,
+                -0.75
+              ],
+              [
+                0.55,
+                0.9
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                -0.8,
+                0.9
+              ],
+              [
+                0.8,
+                0.9
+              ]
+            ]
+          },
+          {
+            "closed": false,
+            "points": [
+              [
+                0,
+                0.6
+              ],
+              [
+                0,
+                0.2
+              ]
+            ]
+          }
+        ],
+        "stroke_width": 0.075
+      }
+    },
+    "width": 4000
+  },
+  "document_hash": "f0dcb36a99ed29d38d37c1ca0a62ad95cbc69c96760def555b0e0e8bf8e7f2e2",
+  "id": "MAPVER-BC415ADA-7E46-499F-9A7C-DA14C5B71346",
+  "label": "Импорт исходной карты",
+  "parent": null,
+  "recorded_at": "2026-09-13T13:48:50Z",
+  "status": "draft"
+}

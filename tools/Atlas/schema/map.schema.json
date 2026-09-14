@@ -1,0 +1,408 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Atlas map state, version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16384
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16384
+    },
+    "status": {
+      "type": "string"
+    },
+    "story_anchor": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "scene_id": {
+              "type": "string"
+            },
+            "chapter": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "relation": {
+              "enum": [
+                "before",
+                "after"
+              ]
+            },
+            "branch": {
+              "type": "string"
+            },
+            "evidence_ids": {
+              "$ref": "#/$defs/ids"
+            },
+            "front_ids": {
+              "$ref": "#/$defs/ids"
+            }
+          },
+          "required": [
+            "scene_id",
+            "chapter",
+            "relation"
+          ]
+        }
+      ]
+    },
+    "nodes": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/point"
+      }
+    },
+    "arcs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "string"
+            }
+          },
+          "control_nodes": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered subset of nodes including endpoints; closed rings repeat the first endpoint."
+          }
+        },
+        "required": [
+          "nodes"
+        ]
+      }
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "raster",
+              "vector"
+            ]
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "blend_mode": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 13
+          },
+          "image": {
+            "type": "string"
+          },
+          "source_type": {
+            "enum": [
+              "pdn",
+              "png"
+            ]
+          },
+          "pdn_layer": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visibility": {
+            "enum": [
+              "gm",
+              "public",
+              "restricted"
+            ]
+          },
+          "known_to": {
+            "$ref": "#/$defs/ids"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "visible",
+          "locked",
+          "opacity"
+        ]
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "region",
+              "route",
+              "river",
+              "stroke",
+              "symbol",
+              "label",
+              "zone"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "layer_id": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "$ref": "#/$defs/point"
+          },
+          "label_offset": {
+            "$ref": "#/$defs/point"
+          },
+          "arcs": {
+            "$ref": "#/$defs/refs"
+          },
+          "rings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/refs"
+            }
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "fill": {
+            "$ref": "#/$defs/color"
+          },
+          "stroke": {
+            "$ref": "#/$defs/color"
+          },
+          "stroke_width": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "visibility": {
+            "enum": [
+              "gm",
+              "public",
+              "restricted"
+            ]
+          },
+          "known_to": {
+            "$ref": "#/$defs/ids"
+          },
+          "evidence_ids": {
+            "$ref": "#/$defs/ids"
+          },
+          "knowledge_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "character_id": {
+                  "type": "string"
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "basis": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "character_id",
+                "evidence_ids",
+                "basis"
+              ]
+            }
+          },
+          "territory_scope": {
+            "enum": [
+              "land",
+              "land_sea"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "layer_id"
+        ]
+      }
+    },
+    "symbols": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "stroke_width": {
+            "type": "number",
+            "minimum": 0
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/point"
+                  }
+                },
+                "closed": {
+                  "type": "boolean"
+                },
+                "fill": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "$ref": "#/$defs/symbolPaint"
+                    }
+                  ]
+                },
+                "stroke": {
+                  "$ref": "#/$defs/symbolPaint"
+                },
+                "stroke_width": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "points"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "paths"
+        ]
+      }
+    },
+    "land_state_separated": {
+      "type": "boolean",
+      "description": "Physical land coordinates are independent of political topology; state fills are clipped to land."
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "width",
+    "height",
+    "layers",
+    "features",
+    "nodes",
+    "arcs",
+    "symbols"
+  ],
+  "$defs": {
+    "symbolPaint": {
+      "type": "string",
+      "pattern": "^(none|currentColor|#[0-9a-fA-F]{6})$"
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^(none|#[0-9a-fA-F]{6})$"
+    },
+    "refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reverse": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "reverse"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true
+}

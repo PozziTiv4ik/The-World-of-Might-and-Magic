@@ -1,0 +1,4 @@
+{"backend":"Direct2D software / WIC 1280x900","features":2019,"load_ms":62.5581}
+{"cold_ms":106.4094,"max_ms":90.7244,"median_ms":88.045,"scenario":"hover"}
+{"cold_ms":92.2113,"max_ms":94.2382,"median_ms":89.5943,"scenario":"pan"}
+{"cold_ms":92.2825,"max_ms":330.0236,"median_ms":292.7008,"scenario":"zoom"}

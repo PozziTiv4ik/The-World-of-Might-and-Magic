@@ -1,0 +1,41 @@
+{
+  "type": "map_concept_source_manifest",
+  "status": "draft",
+  "recorded_on": "2026-09-13",
+  "campaign_git_commit_at_analysis": "2da5b63eec26bb8922cf26199e8b68dcddfdbc24",
+  "canon_changed": false,
+  "chronology_binding": null,
+  "actuality_basis": "User described this as probably the current map; no story date, chapter, scene or accepted map revision was supplied.",
+  "generation": {
+    "mode": "built_in_image_gen",
+    "requested_model_label": "GPT Image 2.5",
+    "model_selection_available": false
+  },
+  "sources": [
+    {
+      "id": "IMPORT-ATLAS-PDN-20260913",
+      "original_path": "C:/Users/Mikhael/Downloads/map.pdn",
+      "local_path": "map.pdn",
+      "byte_length": 4108077,
+      "sha256": "604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf",
+      "format": "PDN3",
+      "width": 4000,
+      "height": 3000,
+      "layers": 32,
+      "visible_layers": 5,
+      "hidden_layers": 27,
+      "inspection": "Header and complete layer metadata, not full layer pixel decoding."
+    },
+    {
+      "id": "IMPORT-ATLAS-PNG-20260913",
+      "original_path": "C:/Users/Mikhael/AppData/Local/Temp/codex-clipboard-97acece8-62dd-48c5-aff6-594ad207afef.png",
+      "local_path": "Карта_пользователя.png",
+      "byte_length": 3444081,
+      "sha256": "6234300efab2c5248e3ff8af38305588409dacfdc1e02964412eafb497981876",
+      "format": "PNG",
+      "width": 2560,
+      "height": 1920,
+      "inspection": "Viewed supplied PNG and compared composition with embedded PDN thumbnail; not a pixel-equivalence test."
+    }
+  ]
+}

@@ -5,3 +5,7 @@
 *.jpeg binary
 *.png binary
 *.webp binary
+*.exe binary
+*.pdn binary
+*.zip binary
+*.cmd text eol=crlf

@@ -1,0 +1,79 @@
+АТЛАС · полный набор промптов · 2026-09-13
+Режим: встроенный image_gen. Выбор модели с номером 2.5 не предоставляется.
+Каждый основной промпт использует исходную карту как географический референс. Уточнения редактируют соответствующий сгенерированный макет.
+
+01. Main screen
+
+Use case: ui-mockup.
+Asset type: high fidelity desktop Windows application design concept, screen 1 of a coherent fantasy map editor. A single extremely polished realistic full application screenshot, landscape 16:10, highest available detail. Straight-on flat screenshot, no monitor, no perspective, no presentation board.
+Primary request: Design a powerful, understandable Russian-language map editor named "АТЛАС" for "The World of Might and Magic". Paint.NET-inspired familiarity with a modern professional cartography workflow. It must look practical to implement using native Windows desktop controls and custom 2D vector drawing.
+Input images: Image 1 is ONLY a geographic and label reference. Use the actual provided world map in the large central canvas. Preserve the recognizable continent silhouettes, island arrangement, relative positions, and major political borders; do not substitute a generic fantasy continent. Restyle its harsh bright-blue ocean into a muted deep desaturated blue; harmonize existing state colors into legible parchment yellow, sage, lilac, rose, ochre and ice blue. No new story events or new territories. This is an illustrative UI concept, not a canonical geography update.
+Composition: dark graphite Windows titlebar and tool panels, subtle warm-white text, small teal selection accents, fine separators, crisp readable Russian Segoe UI-like sans serif. Minimal corner rounding. No glass, no glow, no ornamental fantasy chrome. Rich, generous central map canvas takes most of screen. Dense but orderly editor, excellent hierarchy. Full window edges visible, Windows minimize/maximize/close at top right.
+Top: compact title "АТЛАС" and "Карта мира"; menu row "Файл  Правка  Карта  Слои  Объекты  История  Вид"; unobtrusive search "Найти место или объект"; buttons "Сохранить" and "Экспорт". Beneath menu: contextual toolbar with undo/redo icons, "Выбор", "Граница", "Регион", "Маршрут", "Подпись", "Привязка".
+Left: narrow vertical tools with recognizable pointer, nodes pen, polygon, river, road, brush, stamp, text, eraser, hand icons. Adjacent slim panel "Библиотека" with search, tabs "Места  Рельеф  Силы". A compact 3-column icon stencil grid with readable labels: "Столица", "Город", "Крепость", "Порт", "Руины", "Храм", "Горы", "Лес", "Флот". All icons are coherent simple linework and reusable symbols, not emojis. Lower left miniature navigator of exactly this map and a tidy country color swatch palette.
+Center map: retain the specific source geography, render delicate crisp border lines, repeated small mountain glyphs, city and castle symbols, very clear country labels. Main labels include "Империя Света", "Королевство Бездны", "Ланикейская республика", "Империя Вечного Солнца", "Бронзовая Орда". Show "Бронзовая Орда" selected with thin teal contour and a few white square edit handles, keeping its shape from the reference. Add a small floating context bar adjacent to the selected border, no diagram arrows. Do not invent new trade lines, armies, or disputed areas on this overview.
+Right: "Свойства" inspector with selected "Бронзовая Орда", discreet "LOC-0008", type "Территория", controls "Заливка", "Граница", "Подпись", a color chip and line width slider, button "Открыть карточку". A small source row "Геометрия: из карты". Beneath, a separate "Слои" panel with eye and lock icons and clear rows: "Подписи", "Города", "Границы государств", "Регионы Империи", "Торговые маршруты", "Оккупационные зоны", "Армии и флот", "Подложка PDN". Bottom original PDN row locked. The names represent future logical layers, not an exact list of all original 32 layers.
+Bottom: restrained full width horizontal "Версии карты" strip. Small chapter tabs "Глава 1", "Глава 2", "Глава 3", "Глава 4"; history currently has only "Импорт карты" and "Рабочая копия". No invented saved versions of chapters. Small text "Событие не привязано". Action buttons "Сравнить" and "Привязать к сцене". A discreet visible "КОНЦЕПТ" badge. Status bar "4000 × 3000" and zoom "48%".
+Typography accuracy: major Russian labels must be spelled accurately and highly readable. Reduce tiny filler text if necessary. Every visible control must have a clear purpose. Make the editor sophisticated and inviting, with the beautiful but readable map as the main focus.
+
+----------------------------------------
+
+01. Targeted correction
+
+Use case: precise-object-edit.
+Input image 1 is the edit target: the existing ATLAS Windows map-editor UI concept. Keep the entire interface layout, all panel sizes, all main labels, all map outlines and geography, palette, selected Bronze Horde territory, controls, type quality and composition unchanged. Only correct these specific mockup errors:
+1. In the bottom version-history strip, REMOVE both invented date/time strings "19.06.2024 10:24". Under "Импорт карты" write "Дата не задана", and under "Рабочая копия" write "Не закреплена".
+2. The chapter filter buttons "Глава 1", "Глава 2", "Глава 3", "Глава 4" must all be neutral unselected grey; keep "Рабочая копия" teal. The imported map has not been tied to a chapter.
+3. Remove ALL decorative ocean and sea names added over the water: "Море Дракона", "Северные Льды", "Восточный Океан", "Великое Западное Море", "Южное Море". Fill the removed lettering seamlessly with the same blue water. Preserve the countries, island labels, map compass, geography and all terrain.
+4. In the right Layers panel, only "Подложка PDN" has a closed lock icon. The selected "Границы государств" layer and all other logical layers show unlocked icons; the editable selected territory must not appear locked.
+5. In "Библиотека", keep the existing capital crown icon but add a small five-pointed star motif to it, consistent with the project's capital legend. Do not change other stencils.
+This remains a polished concept screenshot with "КОНЦЕПТ" badge. Make only these targeted corrections, preserve everything else.
+
+----------------------------------------
+
+02. Drawing and symbols
+
+Use case: ui-mockup.
+Asset: screen 2 in an excellent native Windows Russian-language map editor "АТЛАС". A single high-detail flat application screenshot, landscape 16:10, not a presentation board.
+Input image 1 is the interface style reference. Match its graphite native desktop panels, teal active controls, warm-white Russian typography, spacing, tools, line icons and sophisticated practical feeling. Input image 2 is the source GEOGRAPHY reference. Use its real shapes, not generic fantasy land.
+Primary request: demonstrate how the map is drawn and edited as objects. Most screen space is a beautifully clean zoomed map canvas centered on the exact shared border between "Империя Вечного Солнца" and "Бронзовая Орда" from image 2. The Empire is above, Bronze Horde below; preserve the reference boundary's overall curve and the east-side sea shape. Do not add new political names or historical events. Render geography as sharp flat vector shapes with quiet warm yellow and sand fills, fine coastlines, blue rivers and elegant repeated small mountain glyphs. The result looks attractive at close zoom and straightforward to draw with code. No oil-paint texture, no photographic terrain, no 3D.
+Interface top matches image 1: title "АТЛАС — Редактирование карты"; menu "Файл  Правка  Карта  Слои  Объекты  История  Вид"; save/export controls. Context toolbar with active "Граница", "Узлы", "Сгладить", "Привязка", "Разделить", "Объединить".
+Left narrow tool rail as reference, adjacent panel "Библиотека символов". Tabs "Места", "Рельеф", "Силы". A useful clean grid of castle, city, port-anchor, ruins, shrine, mountain, forest and fleet stencils, with short readable Russian labels. Below, the heading "Кисть рельефа" with several simple tree and mountain pattern thumbnails and sliders "Размер", "Интервал", "Поворот". All glyphs belong to one coherent thin-line icon family. No emoji.
+Center: huge zoomed canvas. Show the selected shared boundary as a thin bright teal vector path, with white square anchor nodes and one active round teal node. A single mouse cursor is dragging the active node a small amount. Only this short segment is moving, with a faint dashed previous position to clarify editing. Neighbor fills meet exactly along the same new line, without gap and without overlap. A small contextual tooltip reads "Общая граница". A quiet canvas badge reads "Демонстрация инструмента". Preserve small city and mountain symbols from the reference in approximate positions; no made-up towns, numeric troops, distances or dates.
+Right panel "Общая граница": list the two neighboring territories, a link icon between them, readable fields "Толщина", "Сглаживание", "Привязка к узлам"; checkbox "Двигать обе стороны" visibly checked; buttons "Добавить узел", "Удалить узел". Below a concise "Свойства символа" section with a fortress symbol preview, a color chip, size and label controls, button "Сохранить шаблон".
+Bottom dock across canvas width, modest height: "Оформление карты" with three small thumbnail tabs "Политическая", "Атлас", "Исходная". Each thumbnail shows the EXACT SAME sample shapes with different presentation, no changes in geography. Active "Политическая". Short caption "Одна геометрия · разные стили".
+Status bar: "КОНЦЕПТ", "Граница соседних территорий", zoom "200%". No timeline dates, no code snippets, no giant explanatory callout arrows, no decorative sea names. High polish, legible Russian labels, practical dense control hierarchy, map is the focus.
+
+----------------------------------------
+
+02. Targeted correction
+
+Use case: precise-object-edit. Input image is the edit target, the ATLAS drawing editor mockup. Preserve the entire image, all geography, layout, typography, color and symbols exactly. Change ONE toolbar label only: there are two adjacent buttons called "Привязка" in the top contextual toolbar. The LEFT of these two buttons, the one with connected node icon immediately after "Сгладить", must be renamed "Соединить". The RIGHT button with the hash/grid icon remains "Привязка". Do not change anything else.
+
+----------------------------------------
+
+03. Versions and scenes
+
+Use case: ui-mockup.
+Asset: screen 3 in the same native Windows Russian-language map editor "АТЛАС", focused on version comparison and linking a map snapshot to an existing campaign scene. Single polished full-window screenshot, landscape 16:10, very high detail.
+Input image 1 is a style reference for the graphite panels, thin-line controls, teal accents, simple sans-serif Russian typography and real Windows titlebar. Input image 2 is the source geographic reference. Preserve its map geography.
+Primary request: build a very understandable version-history workspace. This is a DEMONSTRATION, not a statement that these map revisions or chapter links already exist. Show a visible small badge "КОНЦЕПТ · пример привязки".
+Top app title "АТЛАС — История карты", menus and save/export same as style reference. Secondary toolbar "Сравнение версий", mode buttons "Рядом", "Наложение", "Изменения"; "Рядом" active.
+Left slim pane "Версии" with two entries only: "Импорт карты" and "Рабочая копия". The imported image is marked "Дата в сюжете не задана", current working copy "Демонстрация правки". No fabricated dates or historical versions.
+Center takes most screen width: two equally sized synchronized map viewports side by side, labeled "Исходная карта" and "Рабочая копия". Both show the same close-up of "Бронзовая Орда" from the provided original, along with adjacent yellow "Империя Вечного Солнца" above, the relevant coast and southern border. A subtle cyan selection around one shared boundary segment in the working copy and a moved title label show an illustrative geometry/label cleanup. Keep land ownership colors identical in both views; no invented conquest or story. Thin orange old edge versus teal new edge can indicate tiny tracing correction. A discreet row below viewports says "Синхронный масштаб" with a linked-chain toggle and zoom "125%".
+Right pane wide enough for clear text: "Привязать версию". A compact badge "Пример" indicates these are illustrative form choices. Dropdown "Глава" with "3 · Победа без мира". Dropdown "Ветка" with "Александрос". Scene selector "Уайтбургская ставка и карта Орды", discreet ID "SCENE-0039". Source chip "SRC-0151". Timing selector "До сцены" / "После сцены" with "После сцены" active. A text field "Описание изменения" containing "Уточнение обводки и подписи". Below, checkboxes for "Черновик" and a separate disabled-looking action "Закрепить версию". Primary button "Сохранить черновик". Show the existing scene as a candidate association, not a historical claim.
+Bottom full-width restrained history bar: heading "Главы кампании", four evenly spaced labeled tabs "1", "2", "3", "4"; first three have small closed-lock icons, fourth an open circle. No dates and no claim that snapshots of those chapters exist. Selected filter "3" corresponds only to the sample association form. Beside this show a short summary "Изменения" with two rows "Граница · уточнение контура", "Подпись · новое положение", and a calm line "Сюжетные изменения не внесены". No exact invented change counts or named military events.
+Make this feel like a mature useful design tool: sharp map linework, precise aligned controls, readable Cyrillic, ample central map space, informative compact panels, no promotional heading, no fake desktop wallpaper, no code or JSON on screen.
+
+----------------------------------------
+
+03. Targeted correction
+
+Use case: precise-object-edit. Input image is the edit target: ATLAS version comparison UI. Preserve the entire layout, two map viewports, line comparison, colors, selection and all controls. Correct ONLY these factual mockup labels:
+1. In bottom "Главы кампании" boxes: under 1 replace "Пролог" with "Закрыта"; under 2 replace "Раскол" with "Закрыта"; under 3 keep "Победа без мира"; under 4 replace "Новый порядок" with "Врата преисподней". Keep first three lock icons and fourth open-circle marker. No other chapter names.
+2. Bottom status bar dimensions must read "4000 × 3000", NOT "4000 × 2500".
+3. Remove the invented blue-water text "Великое Западное Море" from BOTH map viewports and replace only that lettering with matching blue water texture.
+4. The pink hatched territory at the right edge of EACH map viewport must have the legible label "Республика Морских Эльфов" over three lines, not the invented word "Моссикон".
+5. All existing "КОНЦЕПТ · пример привязки", "SCENE-0039", "SRC-0151", "Уайтбургская ставка и карта Орды", and "Сюжетные изменения не внесены" labels must remain unchanged.
+Keep everything else precisely as is; this is a targeted typography correction.
+

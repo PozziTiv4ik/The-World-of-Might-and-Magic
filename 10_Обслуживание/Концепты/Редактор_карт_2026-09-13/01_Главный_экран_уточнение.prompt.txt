@@ -1,0 +1,8 @@
+Use case: precise-object-edit.
+Input image 1 is the edit target: the existing ATLAS Windows map-editor UI concept. Keep the entire interface layout, all panel sizes, all main labels, all map outlines and geography, palette, selected Bronze Horde territory, controls, type quality and composition unchanged. Only correct these specific mockup errors:
+1. In the bottom version-history strip, REMOVE both invented date/time strings "19.06.2024 10:24". Under "Импорт карты" write "Дата не задана", and under "Рабочая копия" write "Не закреплена".
+2. The chapter filter buttons "Глава 1", "Глава 2", "Глава 3", "Глава 4" must all be neutral unselected grey; keep "Рабочая копия" teal. The imported map has not been tied to a chapter.
+3. Remove ALL decorative ocean and sea names added over the water: "Море Дракона", "Северные Льды", "Восточный Океан", "Великое Западное Море", "Южное Море". Fill the removed lettering seamlessly with the same blue water. Preserve the countries, island labels, map compass, geography and all terrain.
+4. In the right Layers panel, only "Подложка PDN" has a closed lock icon. The selected "Границы государств" layer and all other logical layers show unlocked icons; the editable selected territory must not appear locked.
+5. In "Библиотека", keep the existing capital crown icon but add a small five-pointed star motif to it, consistent with the project's capital legend. Do not change other stencils.
+This remains a polished concept screenshot with "КОНЦЕПТ" badge. Make only these targeted corrections, preserve everything else.

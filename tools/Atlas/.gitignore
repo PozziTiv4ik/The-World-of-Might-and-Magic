@@ -1,0 +1,6 @@
+bin/*
+!bin/Atlas.exe
+!bin/Atlas.Cli.exe
+Atlas-portable.zip
+__pycache__/
+*.pyc

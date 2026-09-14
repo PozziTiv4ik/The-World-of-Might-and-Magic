@@ -1,0 +1,269 @@
+{
+  "format": "PDN3",
+  "width": 4000,
+  "height": 3000,
+  "layer_count": 32,
+  "saved_with_version": "5.112.9563.32325",
+  "sha256": "604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf",
+  "metadata_end_offset": 93495,
+  "file_bytes": 4108077,
+  "method": "Static bounded NRBF record parsing; no .NET type deserialization; pixel payload not decoded.",
+  "layers": [
+    {
+      "index_bottom_to_top": 0,
+      "name": "Фон",
+      "visible": true,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 1,
+      "name": "Границы государств",
+      "visible": true,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 2,
+      "name": "Гильдия Михаэля",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 3,
+      "name": "Имперские Торговые Маршруты",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 4,
+      "name": "Наименование Городов",
+      "visible": true,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 5,
+      "name": "Надписи",
+      "visible": true,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 6,
+      "name": "Границы регионов империи",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 7,
+      "name": "Оккупационные зоны",
+      "visible": true,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 8,
+      "name": "Лорд Герхард",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 9,
+      "name": "Лорд Герхард",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 10,
+      "name": "Багровый Пик",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 11,
+      "name": "Капитан Лоуренс",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 12,
+      "name": "Граф Виктор Рейвз",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 13,
+      "name": "Капитан Ольгерд",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 14,
+      "name": "Капитан Сигизмунд",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 15,
+      "name": "Капитан Мейкор",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 16,
+      "name": "Лорд Петр",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 17,
+      "name": "Оливия",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 18,
+      "name": "Аларон",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 19,
+      "name": "Лорд Ван Даркхольм",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 20,
+      "name": "Лорд Арчибальд",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 21,
+      "name": "Имперская Армия",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 22,
+      "name": "Верховный Совет",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 23,
+      "name": "Гарнизон Порт-Вингард",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 24,
+      "name": "Принц Михаэль",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 25,
+      "name": "Гарнизон Уайтбург",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 26,
+      "name": "Графиня Анариетта",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 27,
+      "name": "Ордо Малеос",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 28,
+      "name": "Лорд Болдуин Лев",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 29,
+      "name": "Флот Белой Гавани",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 30,
+      "name": "Рагдус",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    },
+    {
+      "index_bottom_to_top": 31,
+      "name": "Имперский ВМФ",
+      "visible": false,
+      "opacity": 255,
+      "width": 4000,
+      "height": 3000
+    }
+  ]
+}

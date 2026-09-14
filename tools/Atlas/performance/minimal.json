@@ -1,0 +1,46 @@
+{
+  "backend": "Direct2D software / WIC",
+  "document_unchanged": true,
+  "features": 2019,
+  "height": 900,
+  "load_ms": 68.8321,
+  "scenarios": [
+    {
+      "cold_ms": 90.6131,
+      "max_ms": 0.4745,
+      "median_ms": 0.3426,
+      "name": "hover"
+    },
+    {
+      "cold_ms": 84.3369,
+      "max_ms": 0.3291,
+      "median_ms": 0.2257,
+      "name": "pan"
+    },
+    {
+      "cold_ms": 81.0404,
+      "max_ms": 0.9338,
+      "median_ms": 0.4562,
+      "name": "zoom_gesture"
+    },
+    {
+      "cold_ms": 79.8204,
+      "max_ms": 72.8596,
+      "median_ms": 66.0767,
+      "name": "zoom_settled"
+    },
+    {
+      "cold_ms": 83.5476,
+      "max_ms": 108.0675,
+      "median_ms": 83.3868,
+      "name": "edit"
+    },
+    {
+      "cold_ms": 80.3756,
+      "max_ms": 0.9778,
+      "median_ms": 0.8468,
+      "name": "country_drag"
+    }
+  ],
+  "width": 1280
+}

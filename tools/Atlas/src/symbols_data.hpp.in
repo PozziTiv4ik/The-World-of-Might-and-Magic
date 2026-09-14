@@ -1,0 +1,4 @@
+#pragma once
+namespace atlas {
+inline constexpr char symbolsData[] = R"atlas_symbols(@ATLAS_SYMBOLS_JSON@)atlas_symbols";
+}

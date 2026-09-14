@@ -1,0 +1,7 @@
+Use case: precise-object-edit. Input image is the edit target: ATLAS version comparison UI. Preserve the entire layout, two map viewports, line comparison, colors, selection and all controls. Correct ONLY these factual mockup labels:
+1. In bottom "Главы кампании" boxes: under 1 replace "Пролог" with "Закрыта"; under 2 replace "Раскол" with "Закрыта"; under 3 keep "Победа без мира"; under 4 replace "Новый порядок" with "Врата преисподней". Keep first three lock icons and fourth open-circle marker. No other chapter names.
+2. Bottom status bar dimensions must read "4000 × 3000", NOT "4000 × 2500".
+3. Remove the invented blue-water text "Великое Западное Море" from BOTH map viewports and replace only that lettering with matching blue water texture.
+4. The pink hatched territory at the right edge of EACH map viewport must have the legible label "Республика Морских Эльфов" over three lines, not the invented word "Моссикон".
+5. All existing "КОНЦЕПТ · пример привязки", "SCENE-0039", "SRC-0151", "Уайтбургская ставка и карта Орды", and "Сюжетные изменения не внесены" labels must remain unchanged.
+Keep everything else precisely as is; this is a targeted typography correction.

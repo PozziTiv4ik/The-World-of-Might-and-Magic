@@ -1,0 +1,31 @@
+{
+  "backend": "UI-side asynchronous renderer / Direct2D WIC 1600x1000",
+  "document_unchanged": true,
+  "initial_ready_ms": 235,
+  "scenarios": [
+    {
+      "frames": 180,
+      "max_main_thread_ms": 2.4835,
+      "median_main_thread_ms": 0.5021,
+      "name": "large_pan",
+      "p95_main_thread_ms": 1.9619,
+      "refinement_ms": 15
+    },
+    {
+      "frames": 180,
+      "max_main_thread_ms": 2.4392,
+      "median_main_thread_ms": 0.6096,
+      "name": "zoom_out",
+      "p95_main_thread_ms": 1.4119,
+      "refinement_ms": 79
+    },
+    {
+      "frames": 180,
+      "max_main_thread_ms": 2.0234,
+      "median_main_thread_ms": 0.5727,
+      "name": "zoom_in",
+      "p95_main_thread_ms": 1.4609,
+      "refinement_ms": 31
+    }
+  ]
+}
