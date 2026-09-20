@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 10,
+  "document_hash": "19c028f4c78b99e822148f951cd05965001d5727f85305ca532a403c2d94ee51",
+  "document_ref": "history/documents/fb4720c9902aa246e54d5bee619d3a89055300691fee950bf29c9310f8f223f1.json",
+  "format": 2,
+  "id": "MAPVER-CE4C5026-5849-4E51-AC7C-09D95C147D9B",
+  "integrity": "59c106f3e4714bfb45fffe2c69f7376a80ef647332ac5a06de67fcd54315050b",
+  "label": "Михаэль · Саванна, Одинарог и выбор писем в Порт-Мантикоре",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-340B596A-9FDE-4838-8232-0DA59244D012",
+  "recorded_at": "2026-09-20T14:02:31.451Z",
+  "sequence": 93,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "После почти двух недель скитаний по пустыне Михаэль и Хенги наконец вышли к саванне. Смена песков на травянистые просторы заметно подняла настроение Принца: вокруг были невиданные для него звери — полосатые лошади, грозные речные ящеры, стаи саванных рапторов, королевские львы и другие существа. Хенги привел Михаэля к пещере, которую называл домом.",
+    "evidence_ids": [
+      "SRC-0197"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0096",
+    "story_date": "спустя почти две недели скитаний Михаэля",
+    "story_order": 93184
+  }
+}

@@ -34,6 +34,8 @@ class Map {
     Json doc;
     fs::path directory;
     std::string diskHash;
+    std::string sessionId;
+    mutable std::string timelineHash;
     Map();
     void create(int width, int height, const std::string &name);
     void load(const fs::path &path);
@@ -41,6 +43,16 @@ class Map {
     void autosave() const;
     bool hasRecovery() const;
     void recover();
+    std::vector<Json> recoveries() const;
+    void recoverSession(const std::string &id);
+    void clearSessionRecovery() const;
+    Json timeline() const;
+    void updateTimeline(const Json &value, const std::string &expected = "");
+    Json validateHistory(const Campaign *campaign = nullptr) const;
+    std::vector<Json> orderedVersions(const std::string &order = "story", const std::string &chain = "",
+                                     int chapter = 0, const std::string &query = "") const;
+    std::string stashDraft(const std::string &label);
+    void restoreDraft(const std::string &id);
     void importPdn(const fs::path &path, const fs::path &destination);
     void importRaster(const fs::path &path, const fs::path &destination);
     std::string addLayer(const std::string &name, const std::string &kind = "vector");
@@ -92,7 +104,7 @@ class Map {
     Json forCharacter(const std::string &id) const;
 };
 class History {
-    std::deque<std::pair<std::string, std::string>> undoStack, redoStack;
+    std::deque<std::pair<std::string, Json>> undoStack, redoStack;
 
   public:
     void push(const Json &before, const Json &after, const std::string &action);
@@ -101,6 +113,19 @@ class History {
     void clear();
     std::vector<std::string> labels() const;
 };
+Json documentDelta(const Json &, const Json &);
+void applyDocumentDelta(Json &, const Json &, bool forward = true);
+void recoverHistoryTransaction(const fs::path &);
+void validateTimeline(const Json &);
+// Narrative moments and the saved revisions of each moment are separate axes.
+struct StoryEvent {
+    std::string key;
+    Json moment;
+    std::vector<Json> revisions;
+};
+std::string storyEventKey(const Json &version);
+std::vector<StoryEvent> groupStoryEvents(const std::vector<Json> &ordered,
+                                       const std::vector<Json> &all);
 std::vector<Point> simplify(const std::vector<Point> &pts, double tolerance, bool closed = false);
 std::vector<std::vector<Point>> traceRegion(const Image &image, Point seed, int tolerance,
                                             size_t limit = 64000000);

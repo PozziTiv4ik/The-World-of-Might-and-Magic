@@ -1,0 +1,447 @@
+{
+  "base": "history/documents/d81f5ceddfd8cdc42350712f6ba64dd59e86c4b11fdd017378358cacf023d0d4.json",
+  "changes": [
+    {
+      "after": "после освобождения Уайтбурга",
+      "before": "первые недели после Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+      "before": "Сцена 009. Крепость Сокола",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Уайтбург",
+      "before": "Крепость Сокола",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0085"
+      ],
+      "before": [
+        "LOC-0038"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1903,
+        816
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0073",
+      "before": "SCENE-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_010_Уайтбург,_письмо_Вито_и_казна_войны.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_009_Крепость_Сокола.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "aa58d487fb052424f4528a8379f31adafebd6491360b723f7176014a78f642f1",
+      "before": "8f44057719d61c28620313c7859c9d76f18181a18508d558b7a3e492e65c4ec8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 22528,
+      "before": 21504,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 010. Уайтбург, письмо Вито и казна войны",
+      "before": "Сцена 009. Крепость Сокола",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0074"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0073",
+      "before": "SCENE-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0085",
+      "before": "LOC-0038",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2068,
+        785
+      ],
+      "before": [
+        1885,
+        794
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1903,
+        816
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+      "before": "Сцена 009. Крепость Сокола",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0085",
+      "before": "LOC-0038",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0074"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Уайтбург",
+      "before": "Крепость Сокола",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1903,
+        816
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0073",
+      "before": "SCENE-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Освобождён",
+      "before": "Флот Лордамера вошёл в город",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0074"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0073",
+      "before": "SCENE-0008",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "text_color"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0074"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0073",
+      "before": "SCENE-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1903,
+        816
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1903,
+        816
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-AF4EEA1B-1335-41C6-ACD2-D2274CE04109",
+      "before": "MAPVER-231A29D1-B934-4AC7-9AFB-42CF15C33623",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+      "before": "Сцена 009. Крепость Сокола",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0074"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WAR-TREASURY"
+      ],
+      "before": [
+        "FRONT-FALCON-FORTRESS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0073",
+      "before": "SCENE-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после освобождения Уайтбурга",
+      "before": "первые недели после Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 22528,
+      "before": 21504,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

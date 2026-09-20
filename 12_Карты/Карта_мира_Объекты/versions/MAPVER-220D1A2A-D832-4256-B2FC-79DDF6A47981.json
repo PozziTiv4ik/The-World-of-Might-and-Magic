@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 6,
+  "document_hash": "d3e249537f077cc6e07595879556fdf8fd0ec997f510cf73a38c3aed3488473c",
+  "document_ref": "history/documents/0b9538f80cdc242c3b61c70b01f69da61bdeea4de1abc5308792280ca916bdef.json",
+  "format": 2,
+  "id": "MAPVER-220D1A2A-D832-4256-B2FC-79DDF6A47981",
+  "integrity": "3d21f6af233d133068fab62e4d696a3cb2f4d6455d64b68dbffae44129832c02",
+  "label": "Александрос · Елена и железный шанс против Хельмара",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-48E9A98D-F8B5-465B-9B69-E95702D2EFDE",
+  "recorded_at": "2026-09-20T14:00:38.944Z",
+  "sequence": 41,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "На следующее утро после свадьбы Михаэля и Нилуфар Елена вызывает Александроса и представляет новый доклад. По сведениям разведки, железный флот Орды готов, и орки собираются бросить вызов морскому могуществу Торговой Компании. Елена сообщает, что имперские агенты уже плотно осели среди государства Хельмара.",
+    "evidence_ids": [
+      "SRC-0128"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0021",
+    "story_date": "на следующий день после свадьбы Михаэля и Нилуфар",
+    "story_order": 39936
+  }
+}

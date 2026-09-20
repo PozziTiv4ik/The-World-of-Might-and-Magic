@@ -1,0 +1,433 @@
+{
+  "base": "history/documents/5fb13642bb785e01e526cf5e89b786d0f3558ad7b209b931a91b393c410b3f22.json",
+  "changes": [
+    {
+      "after": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ],
+      "before": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0059",
+        "nodes"
+      ]
+    },
+    {
+      "after": "месяц спустя после распоряжений Александроса и Михаэля",
+      "before": "спустя несколько дней после ухода Эрин из Багрового Пика",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+      "before": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Хорнбург",
+      "before": "Багровый Пик; походная ставка Александроса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0089"
+      ],
+      "before": [
+        "LOC-0004"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0013",
+      "before": "SCENE-0012",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_013_Хорнбург,_Богдан_и_тень_Демитриоса.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_012_Эрин,_печати_Бездны_и_донесения_совета.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "401f935f0f8a35944423736fda462641aa91e5bfae396a0c97f5884a54f71360",
+      "before": "e0a9630e030f67cdd92b2367467aad1efe3abdcc34d4c43dea64b0a78d420022",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 24576,
+      "before": 23552,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 013. Хорнбург, Богдан и тень Демитриоса",
+      "before": "Сцена 012. Эрин, печати Бездны и донесения совета",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076",
+        "SRC-0080"
+      ],
+      "before": [
+        "SRC-0074"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0013",
+      "before": "SCENE-0012",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0004",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2100,
+        614
+      ],
+      "before": [
+        1888,
+        478
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+      "before": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0004",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076",
+        "SRC-0080"
+      ],
+      "before": [
+        "SRC-0074"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Хорнбург",
+      "before": "Багровый Пик",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0013",
+      "before": "SCENE-0012",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0076",
+          "SRC-0080"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0013",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        1870,
+        500
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1880,
+        582
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-2A360BC9-13B9-4184-821E-C2E88358CE1F",
+      "before": "MAPVER-DBD4276B-B7BB-4B5F-A44B-9C4E432017D8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+      "before": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076",
+        "SRC-0080"
+      ],
+      "before": [
+        "SRC-0074"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-GRIFFON-HOUSE"
+      ],
+      "before": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0013",
+      "before": "SCENE-0012",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "месяц спустя после распоряжений Александроса и Михаэля",
+      "before": "спустя несколько дней после ухода Эрин из Багрового Пика",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 24576,
+      "before": 23552,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

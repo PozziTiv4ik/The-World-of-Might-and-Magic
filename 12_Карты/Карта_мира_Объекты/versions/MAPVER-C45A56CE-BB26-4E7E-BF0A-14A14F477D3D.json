@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "582ed844f97a8c250a4f37b9fc7bd61d66bbbec8e88b64a120aeb8cdb6d796b5",
+  "document_ref": "history/documents/e3540fa51d4dfdb86d5eefdd19fe046ac24653f04e07091abded6c0c439dcf17.json",
+  "format": 2,
+  "id": "MAPVER-C45A56CE-BB26-4E7E-BF0A-14A14F477D3D",
+  "integrity": "30d0c3ea313ebac11392b919725d6832874dc2aa6fc34e62d4dea778e4c04fa7",
+  "label": "Александрос · Решение о Цитадели Солнца и возвращение Линдольфа",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-5948B6A2-2206-495B-A7B9-A327BFFD8FAB",
+  "recorded_at": "2026-09-20T14:02:25.112Z",
+  "sequence": 90,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Обдумав полученные в Белой Гавани донесения, Александрос объявил Харрингтону, что они вместе поплывут к Цитадели Солнца. Император поручил сыну готовить их элитные войска, а сам распорядился отправить в Рейнбург письмо с запросом грифонов для подкрепления. Отплытие назначено после прибытия этих сил; точная численность элиты и грифонов не названа. Воодушевленный Харрингтон немедленно отправился отдавать распоряжения.",
+    "evidence_ids": [
+      "SRC-0206"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0051",
+    "story_date": "через три дня после решения идти к Цитадели Солнца",
+    "story_order": 90112
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 6,
+  "document_hash": "f3c1ca76cf02be9fbe34f0ca1d58a4c0648ea3aca4ad9cdc785c513c002dab9b",
+  "document_ref": "history/documents/34a3d9e5ea31b1a641a0fe7095feb323ce87160d88be607c756126be18acb1f1.json",
+  "format": 2,
+  "id": "MAPVER-B74DEBBC-0991-476C-9AB7-2D973778D38A",
+  "integrity": "ba8c67949e04fa382c832d0d11fea772fec09d6e6d5e3d2bb186c2749204728e",
+  "label": "Никитосиос · Кровавая арена и встреча с Варианом",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-C4A16AD6-9FA7-4D19-8D21-0389DD1E3301",
+  "recorded_at": "2026-09-20T14:01:43.689Z",
+  "sequence": 73,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+    "evidence_ids": [
+      "SRC-0187"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0110",
+    "story_date": "через день после поражения у ущелья",
+    "story_order": 72704
+  }
+}

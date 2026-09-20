@@ -1,0 +1,240 @@
+{
+  "base": "history/documents/881bdb5179006c19aa8b6720a6d76f9307f19c0efbc445c70d189f3cf75cb22d.json",
+  "changes": [
+    {
+      "after": "за 3 дня до Дня Единения Империи",
+      "before": "от 5 до 3 дней до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Никитосиос прибыл в столицу на красном драконе.",
+      "before": "Михаэль выбирает тайное самостоятельное действие и утверждает проработанный план под рабочим названием \"Операция: Теневой Триумф\". План не раскрывается Александросу и Высшему совету заранее.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, столица; зал военной стратегии",
+      "before": "Цитадель Вечного Света, столица; личные покои Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0007",
+      "before": "SCENE-0068",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_007_Прибытие_Никитосиоса_и_красный_дракон.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_005_Возвращение_в_столицу_и_заговор.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "fe6a4f0b8f6d04ac2c9fe816207bdc0583d6bce2a4e7a3fdac7592dae4f4f4ac",
+      "before": "e7177e68351feb357b20271ca68bd604c8360b3ba64b73d8d780b635351ddda5",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 12288,
+      "before": 11264,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 007. Прибытие Никитосиоса и красный дракон",
+      "before": "Сцена 005. Возвращение в столицу и заговор",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0007",
+      "before": "SCENE-0006",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": {
+        "entity_id": "CHAR-0114",
+        "evidence_ids": [],
+        "font_size": 19,
+        "id": "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "kind": "symbol",
+        "known_to": [],
+        "label_offset": [
+          10,
+          -19
+        ],
+        "last_scene_id": "SCENE-0007",
+        "layer_id": "LAYER-CAMPAIGN-HEROES",
+        "location_id": "LOC-0094",
+        "name": "Никитосиос",
+        "opacity": 1,
+        "position": [
+          1938,
+          769
+        ],
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_actor",
+        "rotation": 0,
+        "show_label": true,
+        "size": 28,
+        "story_position": [
+          1920,
+          747
+        ],
+        "stroke": "#A44E56",
+        "symbol_id": "story-actor",
+        "text_color": "#A44E56",
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4502
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114"
+      ]
+    },
+    {
+      "after": "Никитосиос прибыл в столицу на красном драконе.",
+      "before": "Михаэль выбирает тайное самостоятельное действие и утверждает проработанный план под рабочим названием \"Операция: Теневой Триумф\". План не раскрывается Александросу и Высшему совету заранее.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0007",
+      "before": "SCENE-0068",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-E1BBBF9E-E3A0-477C-BA20-CBE92E109606",
+      "before": "MAPVER-4A0CBE57-8440-4A8B-A23A-F7775FCFAF21",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Никитосиос прибыл в столицу на красном драконе.",
+      "before": "Михаэль выбирает тайное самостоятельное действие и утверждает проработанный план под рабочим названием \"Операция: Теневой Триумф\". План не раскрывается Александросу и Высшему совету заранее.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "before": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0007",
+      "before": "SCENE-0068",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "за 3 дня до Дня Единения Империи",
+      "before": "от 5 до 3 дней до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 12288,
+      "before": 11264,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

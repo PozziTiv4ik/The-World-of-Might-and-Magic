@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "140ac51b04b1ae0262ed97b080b02bbee8c104aac4df9950251fa475cb0cdafd",
+  "document_ref": "history/documents/ac01e718add4cbe4818f5375d38f3309198909017b2901c44fa9e813bd0f1f79.json",
+  "format": 2,
+  "id": "MAPVER-ECE02B09-D8D7-4E3F-A44A-EE25E47CC99D",
+  "integrity": "85d42ad79f90677403a77902106b47bf82e1867917276657135b0cf28e1b9ced",
+  "label": "Михаэль · Руины Шантири и ранение Картоса",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-B74DEBBC-0991-476C-9AB7-2D973778D38A",
+  "recorded_at": "2026-09-20T14:01:45.642Z",
+  "sequence": 74,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+    "evidence_ids": [
+      "SRC-0176"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0089",
+    "story_date": "спустя неделю после совета Ордена затмения",
+    "story_order": 73728
+  }
+}

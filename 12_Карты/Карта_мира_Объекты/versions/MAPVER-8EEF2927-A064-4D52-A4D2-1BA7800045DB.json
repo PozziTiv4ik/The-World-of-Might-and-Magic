@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "c2c9c46ecbb82fe0d87e0d2dcc54660d27c8bc381bceb9b4dc126ba2662f946a",
+  "document_ref": "history/documents/c2c9c46ecbb82fe0d87e0d2dcc54660d27c8bc381bceb9b4dc126ba2662f946a.json",
+  "format": 2,
+  "id": "MAPVER-8EEF2927-A064-4D52-A4D2-1BA7800045DB",
+  "integrity": "0608174f1bc570558fae7755804052c7e458417574dbe54f6e7a6b4ba1307ade",
+  "label": "Александрос · Доклад Дариуса",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-5E550960-9B44-4870-B48B-EA6BCF26E1C9",
+  "recorded_at": "2026-09-20T13:55:05.564Z",
+  "sequence": 1,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Принц Харрингтон и верховный инквизитор Дариус начали подготовку к походу. Александрос испытал легкую тоску из-за того, что День Единения придется провести без любимого сына, но гордится благочестием Харрингтона и его готовностью спасать народ Империи.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-BLACK-MOUNTAIN"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0001",
+    "story_date": "за 2 недели до Дня Единения Империи",
+    "story_order": 1024
+  }
+}

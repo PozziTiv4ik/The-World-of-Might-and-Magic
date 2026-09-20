@@ -1,0 +1,900 @@
+{
+  "base": "history/documents/237a2dc85fe67038a417bfb44ed02bde3b0729915c41c9ec0ef9e85313692284.json",
+  "changes": [
+    {
+      "after": "на следующий день после военного совета Союза; начало высадки на Остров Алой Луны",
+      "before": "в первые недели главы 4; спустя несколько недель после открытия разломов на Архипелаге Древних",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Союз отступил с Алой Луны. Утер и Дариус погибли; Закхерон и Клинок Власти уничтожены. Выжившие вернулись на Серебряную Луну.",
+      "before": "### Ответ Нилуфар После разговора с Нилуфар Михаэль ответил спокойно и тепло: простил её, обнял и сказал, что она и будущий ребёнок стали для него главной причиной выжить. Супруги решили пока не разглашать весть о предполагаемой беременности. В узкий круг допускаются Александрос, личный лекарь Нилуфар и необходимая охрана; Вито может быть извещён позднее, когда это будет безопасно.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Остров Алой Луны",
+      "before": "Эривел",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0050",
+        "LOC-0101",
+        "LOC-0009"
+      ],
+      "before": [
+        "LOC-0106"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Общий мир/Сцена_002_Высадка_Союза_на_Острове_Алой_Луны.md",
+      "before": "01_Кампания/Ветки/Общий мир/Сцена_001_Союз_в_Эривеле_и_решения_перед_походом.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "4e04acfdaf629a79a09076ddd7343d6d86f006a5bea9e19f8fe2fd2a9a92e54e",
+      "before": "c6e79d41703e08c48789fe87967d9e462f4be47692c46a38967e529f6966f605",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 119808,
+      "before": 118784,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 002. Высадка Союза на Острове Алой Луны",
+      "before": "Сцена 001. Союз в Эривеле и решения перед походом",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0009",
+      "before": "LOC-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        873.33,
+        1504.5
+      ],
+      "before": [
+        853,
+        1418
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0009",
+      "before": "LOC-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        873.33,
+        1548.5
+      ],
+      "before": [
+        853,
+        1462
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "story_position"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0009",
+      "before": "LOC-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        837.33,
+        1504.5
+      ],
+      "before": [
+        817,
+        1418
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0009",
+      "before": "LOC-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        837.33,
+        1548.5
+      ],
+      "before": [
+        817,
+        1462
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Союз отступил с Алой Луны. Утер и Дариус погибли; Закхерон и Клинок Власти уничтожены. Выжившие вернулись на Серебряную Луну.",
+      "before": "### Ответ Нилуфар После разговора с Нилуфар Михаэль ответил спокойно и тепло: простил её, обнял и сказал, что она и будущий ребёнок стали для него главной причиной выжить. Супруги решили пока не разглашать весть о предполагаемой беременности. В узкий круг допускаются Александрос, личный лекарь Нилуфар и необходимая охрана; Вито может быть извещён позднее, когда это будет безопасно.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0009",
+      "before": "LOC-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Валантида",
+      "before": "Эривел",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Союз отступил на Серебряную Луну",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0009",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0009",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0009",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0009",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0009",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Высадка отбита; остров удерживают демоны",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0050",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0050",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0050",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#73694D",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0050",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0050",
+        "text_color"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0137",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0137",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        835,
+        1440
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": [
+        835,
+        1440
+      ],
+      "before": [
+        1218,
+        487.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-0"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-1"
+      ]
+    },
+    {
+      "after": [
+        835,
+        1440
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": [
+        835,
+        1440
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0137-0"
+      ]
+    },
+    {
+      "after": [
+        855.33,
+        1526.5
+      ],
+      "before": [
+        835,
+        1440
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0137-1"
+      ]
+    },
+    {
+      "after": "MAPVER-3492FAFD-47E5-449A-9247-A9FD291FDB30",
+      "before": "MAPVER-C4519058-C853-4AB4-9A1B-E105313B5A1F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Союз отступил с Алой Луны. Утер и Дариус погибли; Закхерон и Клинок Власти уничтожены. Выжившие вернулись на Серебряную Луну.",
+      "before": "### Ответ Нилуфар После разговора с Нилуфар Михаэль ответил спокойно и тепло: простил её, обнял и сказал, что она и будущий ребёнок стали для него главной причиной выжить. Супруги решили пока не разглашать весть о предполагаемой беременности. В узкий круг допускаются Александрос, личный лекарь Нилуфар и необходимая охрана; Вито может быть извещён позднее, когда это будет безопасно.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0234",
+        "SRC-0235",
+        "SRC-0240"
+      ],
+      "before": [
+        "SRC-0239"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0118",
+      "before": "SCENE-0117",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "на следующий день после военного совета Союза; начало высадки на Остров Алой Луны",
+      "before": "в первые недели главы 4; спустя несколько недель после открытия разломов на Архипелаге Древних",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 119808,
+      "before": 118784,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

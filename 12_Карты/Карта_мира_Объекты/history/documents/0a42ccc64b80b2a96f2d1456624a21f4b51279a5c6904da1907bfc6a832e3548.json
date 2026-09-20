@@ -1,0 +1,162 @@
+{
+  "base": "history/documents/c2c9c46ecbb82fe0d87e0d2dcc54660d27c8bc381bceb9b4dc126ba2662f946a.json",
+  "changes": [
+    {
+      "after": "Александрос решил отправить личное приглашение первенцу.",
+      "before": "Принц Харрингтон и верховный инквизитор Дариус начали подготовку к походу. Александрос испытал легкую тоску из-за того, что День Единения придется провести без любимого сына, но гордится благочестием Харрингтона и его готовностью спасать народ Империи.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, зал военной стратегии",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0002",
+      "before": "SCENE-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_002_Приглашение_Никитосиосу.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_001_Доклад_Дариуса.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "ae14cc3e2d2bfdc6a438ba2b56f5aa1217b9a001b367e45b880529f4571286d9",
+      "before": "7492533c417fc7ce8612ea6d8ecca71c285ac0eef863499fa029f8bc48ddbf4e",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 2048,
+      "before": 1024,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 002. Приглашение Никитосиосу",
+      "before": "Сцена 001. Доклад Дариуса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0002",
+      "before": "SCENE-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Александрос решил отправить личное приглашение первенцу.",
+      "before": "Принц Харрингтон и верховный инквизитор Дариус начали подготовку к походу. Александрос испытал легкую тоску из-за того, что День Единения придется провести без любимого сына, но гордится благочестием Харрингтона и его готовностью спасать народ Империи.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0002",
+      "before": "SCENE-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-8EEF2927-A064-4D52-A4D2-1BA7800045DB",
+      "before": "MAPVER-5E550960-9B44-4870-B48B-EA6BCF26E1C9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос решил отправить личное приглашение первенцу.",
+      "before": "Принц Харрингтон и верховный инквизитор Дариус начали подготовку к походу. Александрос испытал легкую тоску из-за того, что День Единения придется провести без любимого сына, но гордится благочестием Харрингтона и его готовностью спасать народ Империи.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "before": [
+        "FRONT-BLACK-MOUNTAIN"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0002",
+      "before": "SCENE-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": 2048,
+      "before": 1024,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

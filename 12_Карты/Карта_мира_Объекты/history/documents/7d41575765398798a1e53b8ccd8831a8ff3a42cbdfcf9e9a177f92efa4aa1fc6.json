@@ -1,0 +1,453 @@
+{
+  "base": "history/documents/764f440fd7ba14d13dce37449b2da0f28699adfaab56ebc40b327a568c3cdf6c.json",
+  "changes": [
+    {
+      "after": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-2"
+      ],
+      "before": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0136",
+        "nodes"
+      ]
+    },
+    {
+      "after": "следующий день после спасения Михаэля из Порт-Мантикоры",
+      "before": "спустя неделю после отбытия из Цитадели Солнца",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+      "before": "Спустя неделю после отбытия из Цитадели Солнца Александрос прибыл к Крепости Отваги и запросил отчет о состоянии фронта с Хорнбургом. Ему доложили, что город окружен имперскими силами. Осадные орудия должны пробить достаточную брешь примерно через неделю; после этого можно будет начинать штурм и зачистку города от демонов. Александрос, Харрингтон, Богдан и Линдольф поспешили в осадный лагерь у стен Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Башня у моря; руины замка Тикормана",
+      "before": "Крепость Отваги; осадный лагерь у стен Хорнбурга; путь к Хорнбургу; Башня Песков как разведывательный след",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0006",
+        "LOC-0072"
+      ],
+      "before": [
+        "LOC-0037"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        2155,
+        678
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0100",
+      "before": "SCENE-0057",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_037_Тикорман,_Гавейн_и_условие_Каролины.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_057_Прибытие_к_Крепости_Отваги_и_след_Башни_Песков.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "6221fc28c06e23250840a51b2a184686abfd46667263815d3f3210bac8ce2b6b",
+      "before": "1415f70e2ea61f513a6a0db008466695f9bf2bf61c2275705742e39a7554d3b7",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 101376,
+      "before": 100352,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 037. Тикорман, Гавейн и условие Каролины",
+      "before": "Сцена 057. Прибытие к Крепости Отваги и след Башни Песков",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0212"
+      ],
+      "before": [
+        "SRC-0213"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0100",
+      "before": "SCENE-0099",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0072",
+      "before": "LOC-0064",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1322,
+        1488
+      ],
+      "before": [
+        1577,
+        1688
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        1595,
+        1710
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+      "before": "Спустя неделю после отбытия из Цитадели Солнца Александрос прибыл к Крепости Отваги и запросил отчет о состоянии фронта с Хорнбургом. Ему доложили, что город окружен имперскими силами. Осадные орудия должны пробить достаточную брешь примерно через неделю; после этого можно будет начинать штурм и зачистку города от демонов. Александрос, Харрингтон, Богдан и Линдольф поспешили в осадный лагерь у стен Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0072",
+      "before": "LOC-0037",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0212"
+      ],
+      "before": [
+        "SRC-0217"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Руины замка Тикормана",
+      "before": "Крепость Отваги",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        2155,
+        678
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0100",
+      "before": "SCENE-0057",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0212"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0100",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1595,
+        1710
+      ],
+      "before": [
+        1490,
+        1735
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1290,
+        1490
+      ],
+      "before": [
+        1595,
+        1710
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-2"
+      ]
+    },
+    {
+      "after": "MAPVER-AE66D9E0-EC2A-4050-930A-5DCA11F2F371",
+      "before": "MAPVER-22C34328-E398-4994-8577-E77A36451705",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+      "before": "Спустя неделю после отбытия из Цитадели Солнца Александрос прибыл к Крепости Отваги и запросил отчет о состоянии фронта с Хорнбургом. Ему доложили, что город окружен имперскими силами. Осадные орудия должны пробить достаточную брешь примерно через неделю; после этого можно будет начинать штурм и зачистку города от демонов. Александрос, Харрингтон, Богдан и Линдольф поспешили в осадный лагерь у стен Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0212"
+      ],
+      "before": [
+        "SRC-0217"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-HORNBURG"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0100",
+      "before": "SCENE-0057",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "следующий день после спасения Михаэля из Порт-Мантикоры",
+      "before": "спустя неделю после отбытия из Цитадели Солнца",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 101376,
+      "before": 100352,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

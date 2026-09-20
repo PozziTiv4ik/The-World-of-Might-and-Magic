@@ -1,0 +1,322 @@
+{
+  "base": "history/documents/c7f049727c85cee7faf98835e09e9b0208a6c4b85784948fae00544725bd0394.json",
+  "changes": [
+    {
+      "after": "Сцена 008. Штурм Белой Гавани",
+      "before": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань; Великое море",
+      "before": "Черная гора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0102"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1785,
+        390
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0071",
+      "before": "SCENE-0119",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_008_Штурм_Белой_Гавани.md",
+      "before": "01_Кампания/Ветки/Харрингтон/Сцена_001_Черная_гора.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "08e823987657bfc65a8eaf68e0d7343869976ced42d3034e78b5636036662318",
+      "before": "0a33ee57232d0fa0d5c0f4e5eb055993db40a0bc2b603d5d609700ce43b0f12e",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 19456,
+      "before": 18432,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 008. Штурм Белой Гавани",
+      "before": "Сцена 001. Черная гора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0071",
+      "before": "SCENE-0070",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Сцена 008. Штурм Белой Гавани",
+      "before": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0102",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Черная гора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1785,
+        390
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0071",
+      "before": "SCENE-0119",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Штурм отбит",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0007",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0071",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0007",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0007",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0007",
+        "text_color"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0070",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-800D7560-7D89-42B5-8CA3-64FF6AAE6BF3",
+      "before": "MAPVER-DF86D481-0AED-4E3A-B19A-6E10601B373F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Харрингтон",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Сцена 008. Штурм Белой Гавани",
+      "before": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WHITE-HARBOR"
+      ],
+      "before": [
+        "FRONT-BLACK-MOUNTAIN"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0071",
+      "before": "SCENE-0119",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": 19456,
+      "before": 18432,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

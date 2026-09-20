@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 2,
+  "document_hash": "6a3ab138d53476bd6a1b9f2989ecd2b3a89f3c4a35201bb4579c7a6c59bb5c83",
+  "document_ref": "history/documents/f34342c4324c00db95e8f113a54db9f43f6900d94f110cf9c28764eb3ab3fa9a.json",
+  "format": 2,
+  "id": "MAPVER-60EAF3C5-41C8-4557-BFD2-C9EE1476F2A5",
+  "integrity": "72fa85240e3649c69b83f9eca6c73fc4a957cde0d279918c2d1c91099b58586b",
+  "label": "Александрос · Письмо Константиноса и гарантия Ланикейского альянса",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-546C1ACF-556C-4E1E-AE16-CBF27E625142",
+  "recorded_at": "2026-09-20T14:02:08.942Z",
+  "sequence": 85,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "После основных донесений Александрос получил отдельное послание из Ланикеи. Канцлер Константинос сообщил, что четыре барона Торговой Компании обратились к республике с просьбой защитить их независимость. Константинос назвал имперскую политику расширения агрессивной и заявил, что Ланикея не может оставить ее без внимания и осуждения.",
+    "evidence_ids": [
+      "SRC-0188"
+    ],
+    "front_ids": [
+      "FRONT-LANIKEA"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0048",
+    "story_date": "после получения донесений об успешной высадке и разорении столицы",
+    "story_order": 84992
+  }
+}

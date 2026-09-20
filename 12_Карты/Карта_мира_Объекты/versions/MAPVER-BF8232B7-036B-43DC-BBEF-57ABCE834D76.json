@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 2,
+  "document_hash": "2fc623d43ae15f8d9c1fe4b7fde852ccfaad96819e9009c232bf548b8808fe08",
+  "document_ref": "history/documents/27c01d871742d3cf3a94fe32d1dacbefecd8a42f49a37c05b50768e8a59a4310.json",
+  "format": 2,
+  "id": "MAPVER-BF8232B7-036B-43DC-BBEF-57ABCE834D76",
+  "integrity": "f572d31a04708112841d6686b2be99aa885fc633d44c87793a1555d2aae732eb",
+  "label": "Михаэль · Свадебные письма и предложение Нилуфар",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-007DBCA9-3933-48CE-B541-5750C2AAC098",
+  "recorded_at": "2026-09-20T14:00:30.961Z",
+  "sequence": 37,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Михаэль долго продумывает детали свадебной церемонии. Список гостей оказывается огромным: даже после отбора только лучших и наиболее достойных приглашенных он выходит длиннее рабочего стола Принца. Слуги и писцы Белой Гавани без остановки готовят сотни писем великим людям Империи, чтобы пригласить их на событие, которое должно стать не просто личным браком, а заметным династическим актом.",
+    "evidence_ids": [
+      "SRC-0121"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0079",
+    "story_date": "на следующий день после начала подготовки свадебной церемонии Михаэля и Нилуфар",
+    "story_order": 35840
+  }
+}

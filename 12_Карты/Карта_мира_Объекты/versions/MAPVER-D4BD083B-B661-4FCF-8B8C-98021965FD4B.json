@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "a9c01933878914940664833bdea367f87f20431522281fadb8dd26cc1598fa6a",
+  "document_ref": "history/documents/2c46d8ae6f8819f4ac8911ae4b37eff788544a49f14f87d916c760218422baee.json",
+  "format": 2,
+  "id": "MAPVER-D4BD083B-B661-4FCF-8B8C-98021965FD4B",
+  "integrity": "be378a89b9e0c89b16e765d05acb719a50039ff4157210b822b0e50aee17edf3",
+  "label": "Глава 3 · Войны, тайные ордена и разломы",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-DF35B70F-3B4D-4A8F-9AB6-53E915503350",
+  "recorded_at": "2026-09-20T14:09:49.517Z",
+  "sequence": 130,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Эпилог",
+    "chain_id": "chapters",
+    "chapter": 3,
+    "description": "Состояние мира после последней сцены главы 3. Все моменты главы доступны в цепочке «Вся история».",
+    "evidence_ids": [
+      "SRC-0231"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0120",
+    "story_date": "Остров Алой Луны, Архипелаг Древних; на следующий день после возвращения Михаэля в столицу и аудиенции Никитосиоса у Аразаила; финал главы 3",
+    "story_order": 3072
+  }
+}

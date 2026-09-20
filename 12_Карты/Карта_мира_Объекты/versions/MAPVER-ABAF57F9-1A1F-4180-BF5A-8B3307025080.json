@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 1,
+  "document_hash": "b4af99f868ad7f7d1a44201e8fa2c3db7c63296197a0f94357a4d535bef5092d",
+  "document_ref": "history/documents/0c6a038e8f4f8d12f9cd9dca53d908457e2eb7593f97fb05c296727a94fcd333.json",
+  "format": 2,
+  "id": "MAPVER-ABAF57F9-1A1F-4180-BF5A-8B3307025080",
+  "integrity": "179925a65d0a62504d0025fa46fce4f3465f5eb66e0ff41159fb663753e6bfbc",
+  "label": "Александрос · Уайтбургская ставка и карта Орды",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-5520BA3C-D1F7-4CC2-98FA-F73EB9E170A5",
+  "recorded_at": "2026-09-20T14:01:33.723Z",
+  "sequence": 68,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+    "evidence_ids": [
+      "SRC-0151"
+    ],
+    "front_ids": [
+      "FRONT-IRON-HORDE"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0039",
+    "story_date": "неделю спустя после отбытия Александроса из столицы",
+    "story_order": 67584
+  }
+}

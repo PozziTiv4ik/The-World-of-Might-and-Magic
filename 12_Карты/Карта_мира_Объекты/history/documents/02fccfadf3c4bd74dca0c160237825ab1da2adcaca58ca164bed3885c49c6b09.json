@@ -1,0 +1,251 @@
+{
+  "base": "history/documents/20c41e0c56c925ca69e898712642b229562c8e25b734596c9d6f3efda94d750d.json",
+  "changes": [
+    {
+      "after": "после получения докладов в Порт-Белене",
+      "before": "неделю спустя после дуэли чести",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Из Порт-Белена Александрос отдал новый пакет распоряжений (DEC-101). В Багровый Пик Император приказал отправить небольшой разведывательный отряд по следам Никитосиоса. Ход поисков должен регулярно докладываться лично Александросу. Султану Дарию через разведывательную сеть направлено тайное письмо. К нему приложены список имен предполагаемых культистов, собранные доказательства и жесты доброй воли.",
+      "before": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Порт-Белен; путь к Порт-Лаоду; другие направления через приказы",
+      "before": "Порт-Белен; другие направления через донесения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0046",
+      "before": "SCENE-0045",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_046_Приказы_из_Порт-Белена_и_марш_к_Порт-Лаоду.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_045_Падение_Порт-Белена_и_новые_доклады.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "0adef7419c3c91e01d4d551eba99e5bc9baa5b242fa41cb166f4986d462110c2",
+      "before": "b5775d6246737d1763cfb7336e6bad4b9d6f5b0e6765d85c68324f1f4cd7fef7",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 78848,
+      "before": 77824,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 046. Приказы из Порт-Белена и марш к Порт-Лаоду",
+      "before": "Сцена 045. Падение Порт-Белена и новые доклады",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0189"
+      ],
+      "before": [
+        "SRC-0185"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0046",
+      "before": "SCENE-0045",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Из Порт-Белена Александрос отдал новый пакет распоряжений (DEC-101). В Багровый Пик Император приказал отправить небольшой разведывательный отряд по следам Никитосиоса. Ход поисков должен регулярно докладываться лично Александросу. Султану Дарию через разведывательную сеть направлено тайное письмо. К нему приложены список имен предполагаемых культистов, собранные доказательства и жесты доброй воли.",
+      "before": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0189"
+      ],
+      "before": [
+        "SRC-0185"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0046",
+      "before": "SCENE-0045",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0185"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0045",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": "MAPVER-6EC2C52D-BD62-4425-AF13-8FD63C493976",
+      "before": "MAPVER-43D109F1-4C51-413B-B457-431990F83F6B",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Из Порт-Белена Александрос отдал новый пакет распоряжений (DEC-101). В Багровый Пик Император приказал отправить небольшой разведывательный отряд по следам Никитосиоса. Ход поисков должен регулярно докладываться лично Александросу. Султану Дарию через разведывательную сеть направлено тайное письмо. К нему приложены список имен предполагаемых культистов, собранные доказательства и жесты доброй воли.",
+      "before": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0189"
+      ],
+      "before": [
+        "SRC-0185"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0046",
+      "before": "SCENE-0045",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после получения докладов в Порт-Белене",
+      "before": "неделю спустя после дуэли чести",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 78848,
+      "before": 77824,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 12,
+  "document_hash": "01567cd55c628f9ce0ea8223e5b8942c3b1a96744b921ff40d062af4005bab90",
+  "document_ref": "history/documents/02fccfadf3c4bd74dca0c160237825ab1da2adcaca58ca164bed3885c49c6b09.json",
+  "format": 2,
+  "id": "MAPVER-E3B55F23-3B4A-47D2-B383-BFBAB8F64EE1",
+  "integrity": "6aa8b3b2151ca3a45637de2e7a900304febc9f3eec63aaf4c6bdeee017217ab7",
+  "label": "Александрос · Приказы из Порт-Белена и марш к Порт-Лаоду",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-6EC2C52D-BD62-4425-AF13-8FD63C493976",
+  "recorded_at": "2026-09-20T14:01:55.826Z",
+  "sequence": 79,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Из Порт-Белена Александрос отдал новый пакет распоряжений (DEC-101). В Багровый Пик Император приказал отправить небольшой разведывательный отряд по следам Никитосиоса. Ход поисков должен регулярно докладываться лично Александросу. Султану Дарию через разведывательную сеть направлено тайное письмо. К нему приложены список имен предполагаемых культистов, собранные доказательства и жесты доброй воли.",
+    "evidence_ids": [
+      "SRC-0189"
+    ],
+    "front_ids": [
+      "FRONT-IRON-HORDE"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0046",
+    "story_date": "после получения докладов в Порт-Белене",
+    "story_order": 78848
+  }
+}

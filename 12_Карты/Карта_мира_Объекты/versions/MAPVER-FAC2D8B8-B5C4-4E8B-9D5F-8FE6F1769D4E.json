@@ -1,0 +1,32 @@
+{
+  "asset_hashes": {},
+  "document_depth": 6,
+  "document_hash": "d72595a49cf318fc26c64fe4076e09396b6efc168ba0e8b28f53001db2a088c1",
+  "document_ref": "history/documents/ce28b88a89c37d9cdb3e35210ccefff920d57ec76fbd202810720840d5917fc9.json",
+  "format": 2,
+  "id": "MAPVER-FAC2D8B8-B5C4-4E8B-9D5F-8FE6F1769D4E",
+  "integrity": "654388a366cae950cf0bd7d5df9801df04e09b4a9782c4c37a2200f6a390167b",
+  "label": "Михаэль · Андрианаполис, помилование и сон Серагона",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-640400E0-486D-4CD6-8A84-6C8BEC8BC23D",
+  "recorded_at": "2026-09-20T14:09:58.861Z",
+  "sequence": 134,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 4,
+    "description": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+    "evidence_ids": [
+      "SRC-0232"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS",
+      "FRONT-WAR-TREASURY"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0107",
+    "story_date": "во время аудиенции лидеров Союза у Короля Авалона в Валантиде",
+    "story_order": 121856
+  }
+}

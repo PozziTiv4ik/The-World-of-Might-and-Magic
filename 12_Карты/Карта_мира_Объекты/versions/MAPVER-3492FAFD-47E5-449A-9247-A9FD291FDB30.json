@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "7079e2edafea54c89f5f8aad1d130b5a4cba72e228836b955ed1c9f3caa6cc00",
+  "document_ref": "history/documents/237a2dc85fe67038a417bfb44ed02bde3b0729915c41c9ec0ef9e85313692284.json",
+  "format": 2,
+  "id": "MAPVER-3492FAFD-47E5-449A-9247-A9FD291FDB30",
+  "integrity": "869e46ad60bdcca1853d31fce5a5d6779de5bf7ffa974c5d7b9faf5fe28b11ba",
+  "label": "Общий мир · Союз в Эривеле и решения перед походом",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-C4519058-C853-4AB4-9A1B-E105313B5A1F",
+  "recorded_at": "2026-09-20T14:03:27.648Z",
+  "sequence": 119,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Общий мир",
+    "chain_id": "main",
+    "chapter": 4,
+    "description": "### Ответ Нилуфар После разговора с Нилуфар Михаэль ответил спокойно и тепло: простил её, обнял и сказал, что она и будущий ребёнок стали для него главной причиной выжить. Супруги решили пока не разглашать весть о предполагаемой беременности. В узкий круг допускаются Александрос, личный лекарь Нилуфар и необходимая охрана; Вито может быть извещён позднее, когда это будет безопасно.",
+    "evidence_ids": [
+      "SRC-0239"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0117",
+    "story_date": "в первые недели главы 4; спустя несколько недель после открытия разломов на Архипелаге Древних",
+    "story_order": 118784
+  }
+}

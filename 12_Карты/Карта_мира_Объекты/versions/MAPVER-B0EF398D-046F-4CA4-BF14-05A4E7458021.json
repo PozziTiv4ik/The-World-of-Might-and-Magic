@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 6,
+  "document_hash": "093f6ccc183c05d1f0557fcca1fbde79f6ed5439871ca93b5829f2d2fcde192e",
+  "document_ref": "history/documents/7e26ceed9b087849e52b9be7628772527991bb18469d37f0a1a67adfa9642437.json",
+  "format": 2,
+  "id": "MAPVER-B0EF398D-046F-4CA4-BF14-05A4E7458021",
+  "integrity": "563fae9cfcc99d21851f42d47132a712253e1cfee0d541e9b803b5b211ab9d6c",
+  "label": "Никитосиос · Путь к Королевству Бездны",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-7A701982-0030-43B7-8C56-8E2A6D713BD8",
+  "recorded_at": "2026-09-20T14:01:11.124Z",
+  "sequence": 57,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+    "evidence_ids": [
+      "SRC-0147"
+    ],
+    "front_ids": [
+      "FRONT-CRIMSON-PEAK"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0108",
+    "story_date": "после письма Александроса о сне Ур-Серагона и Эрин",
+    "story_order": 56320
+  }
+}

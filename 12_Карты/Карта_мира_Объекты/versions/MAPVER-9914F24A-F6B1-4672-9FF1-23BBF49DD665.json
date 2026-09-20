@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 4,
+  "document_hash": "53d7987f77b7bf7c699917f2fbd84c3b21912e7a1a7f5a325604d051b66638b1",
+  "document_ref": "history/documents/8a515492e35f8759d0a0b23dc27a3c389d26121ba89786bd5b173e20a07eafaf.json",
+  "format": 2,
+  "id": "MAPVER-9914F24A-F6B1-4672-9FF1-23BBF49DD665",
+  "integrity": "73f975b5f5555fc475ebf6823b6f3644d21818cbe42dc9ab3eddbd597c0a81ed",
+  "label": "Михаэль · Сделка с Хенги и оазис сколопендроморфов",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-10FB6856-A4ED-4DB3-901A-2A9BDA0FB201",
+  "recorded_at": "2026-09-20T14:02:13.241Z",
+  "sequence": 87,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Положение было безысходным. Михаэль вытянул из Колчана мастера Шантири три магические стрелы про запас и отдал сам артефакт Хенги. В обмен гоблин передал ему бурдюк. Принц сразу начал пить, но быстро понял, что вкус у воды странный и отвратительный. На вопрос Михаэля Хенги объяснил, что больше не будет делать бурдюк из мошонки мантикоры.",
+    "evidence_ids": [
+      "SRC-0198"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0095",
+    "story_date": "несколько дней после встречи с Хенги в неизвестной пустыне",
+    "story_order": 87040
+  }
+}

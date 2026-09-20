@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "788110ea9c8075c84c2b3153a39ec73d6ed95f8e88a820f299177ed4f96eb915",
+  "document_ref": "history/documents/3c5529cc84364015125b21a9b386614e1f7adf570584a757cab027cbadcbd224.json",
+  "format": 2,
+  "id": "MAPVER-8DB790BB-3E28-4191-A948-124429A90E7D",
+  "integrity": "2b7fe71008a249e45f7f59a6c35caabb92bd51788c1140b8d6447496c662fb81",
+  "label": "Александрос · Валантида, подготовка Союза и угроза Сумеречной Луне",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-48C411F6-FEDC-47F7-AC90-5B6EE1693DD8",
+  "recorded_at": "2026-09-20T14:03:31.650Z",
+  "sequence": 121,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 4,
+    "description": "Союз восстанавливается в Валантиде. Механизмы находятся в Валантиде и Элирии; Никитосиос направляется к Элирии.",
+    "evidence_ids": [
+      "SRC-0233"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0062",
+    "story_date": "несколько дней после отхода Союза от Тар-Хиконы",
+    "story_order": 120832
+  }
+}

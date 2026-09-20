@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 8,
+  "document_hash": "1d98426ca9928517686589d9c427b5fa6cc4d1e69766f95df6c093599346b58e",
+  "document_ref": "history/documents/f1f0f2c3fe426d312ee3338cf2cd023f8f7385066af52deb03215ad4d4c919a7.json",
+  "format": 2,
+  "id": "MAPVER-94DB8829-839E-411B-96A2-0E4832BF7DC0",
+  "integrity": "a050b4b98af65b21245987af1601cea6b530c07730ee34ef11695e73b54de7ff",
+  "label": "Михаэль · Дугал и отъезд в столицу",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-930C8627-B4BC-4762-864E-44DE22387BDF",
+  "recorded_at": "2026-09-20T13:55:20.634Z",
+  "sequence": 9,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Сцена 004. Дугал и отъезд в столицу",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0067",
+    "story_date": "от 1 недели до 6 дней до Дня Единения Империи",
+    "story_order": 9216
+  }
+}

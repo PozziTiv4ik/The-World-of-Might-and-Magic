@@ -1,0 +1,424 @@
+{
+  "base": "history/documents/370156a98e2a5f4ebc93930de93e9f9fec79a87872584574e3573bac1126a83b.json",
+  "changes": [
+    {
+      "after": "тем же временем после Высшего совета и падения Лордамера",
+      "before": "через две недели после Высшего совета и несколько дней похода к столице Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+      "before": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Порт-Стокхолд; Порт-Торхард через донесение; столица Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0077",
+        "LOC-0078"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2227,
+        479
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0077",
+      "before": "SCENE-0016",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_014_Ответ_Вито_в_Белой_Гавани.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_016_Падение_Лордамера.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "69c5454dfe5eb39e85dd50ae72b4d096b4c5c1c199925ef85244d967f7bdeea9",
+      "before": "10d2fc0fdaf8096bf8c864eb673f0004ff60374d4cab8a33db770622a8a4e392",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 31744,
+      "before": 30720,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 014. Ответ Вито в Белой Гавани",
+      "before": "Сцена 016. Падение Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0089"
+      ],
+      "before": [
+        "SRC-0088"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0077",
+      "before": "SCENE-0076",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1807,
+        814
+      ],
+      "before": [
+        2064,
+        614
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+      "before": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0078",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0089"
+      ],
+      "before": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Столица Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2227,
+        479
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0077",
+      "before": "SCENE-0016",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0089"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0077",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        2086,
+        807
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-E69EAE70-875D-4E37-83CC-472F8D9AD603",
+      "before": "MAPVER-AE387128-ABC2-4FBB-8CBE-861781CFC0D5",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+      "before": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0089"
+      ],
+      "before": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-TAR-ELAM"
+      ],
+      "before": [
+        "FRONT-WHITEBURG"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0077",
+      "before": "SCENE-0016",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "тем же временем после Высшего совета и падения Лордамера",
+      "before": "через две недели после Высшего совета и несколько дней похода к столице Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 31744,
+      "before": 30720,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

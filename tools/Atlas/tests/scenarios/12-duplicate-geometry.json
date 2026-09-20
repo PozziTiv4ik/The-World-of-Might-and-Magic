@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "12-duplicate-geometry",
+  "viewport": {"width": 1280, "height": 800},
+  "steps": [
+    {"action":"camera","zoom":1,"offset":[0,0]},
+    {"action":"key","key":"G"},
+    {"action":"drag","space":"world","from":[400,300],"to":[550,420]},
+    {"action":"remember","name":"original","pointer":"/selection/0"},
+    {"action":"remember","name":"before_duplicate","target":"document"},
+    {"action":"key","key":"Ctrl+D"},
+    {"action":"assert","pointer":"/features","equals":2},
+    {"action":"remember","name":"copy","pointer":"/selection/0"},
+    {"action":"assert","target":"document","pointer":"/features/${copy}/position","exists":false},
+    {"action":"assert","target":"document","pointer":"/features/${copy}/parent_id","exists":false},
+    {"action":"capture","capture":"duplicated-contour"},
+    {"action":"key","key":"Ctrl+Z"},
+    {"action":"assert","target":"document","equals_ref":"before_duplicate"},
+    {"action":"key","key":"Ctrl+Y"},
+    {"action":"key","key":"Ctrl+S"},
+    {"action":"restart"},
+    {"action":"assert","pointer":"/features","equals":2},
+    {"action":"key","key":"R"},
+    {"action":"click","space":"world","at":[720,350]},
+    {"action":"click","space":"world","at":[920,480]},
+    {"action":"key","key":"Enter"},
+    {"action":"key","key":"Ctrl+D"},
+    {"action":"assert","pointer":"/features","equals":4},
+    {"action":"key","key":"Ctrl+S"},
+    {"action":"restart"},
+    {"action":"assert","pointer":"/features","equals":4}
+  ]
+}

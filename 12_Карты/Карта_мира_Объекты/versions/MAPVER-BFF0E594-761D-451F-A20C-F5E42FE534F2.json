@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 15,
+  "document_hash": "ff537152c022a236008a9a7aeb0d113f4f10bcd2624cb6fb02d0bd97861e45ab",
+  "document_ref": "history/documents/c26968c1689b29d9042a0d4a4a682459a0b8616c867102da89ac4395d7666649.json",
+  "format": 2,
+  "id": "MAPVER-BFF0E594-761D-451F-A20C-F5E42FE534F2",
+  "integrity": "c24d333343662d7f10c832c3af7122b921ed7fc6784c3bc222210370c618772f",
+  "label": "Александрос · Возвращение победителя и совет примирения",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-B3982E1D-9BE6-4C8F-BE3C-CFDCB0E9F241",
+  "recorded_at": "2026-09-20T14:00:23.760Z",
+  "sequence": 33,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Война с Лордамером окончена. Александрос возвращается в столицу как победоносный Император: жители встречают его радостными криками, совет принимает подобающим образом, а образ спасителя государства закрепляется публично. Сразу после встречи Михаэль отводит отца для личного разговора.",
+    "evidence_ids": [
+      "SRC-0117"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0017",
+    "story_date": "после падения Лордамера, возвращение Александроса в столицу",
+    "story_order": 32768
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "180530e24f55669e60806eadab7a70a846bf7211c43a69352ce0f73fe07bd04c",
+  "document_ref": "history/documents/787d4a86aef54b5b76ac19810d9b6056d24f8b4fcf886e75604e26b50d1d995e.json",
+  "format": 2,
+  "id": "MAPVER-289F5D35-79A6-4558-9E00-DF0DA9A4CDA7",
+  "integrity": "2f7e6e901a6dd49257fda52db6d0f001ab5311b3b3dd4bf69de0ada8c68ce95f",
+  "label": "Александрос · Сон о затмении и поручения перед Рейнбургом",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-BF8232B7-036B-43DC-BBEF-57ABCE834D76",
+  "recorded_at": "2026-09-20T14:00:33.098Z",
+  "sequence": 38,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+    "evidence_ids": [
+      "SRC-0122"
+    ],
+    "front_ids": [
+      "FRONT-FLEET-COUNCIL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0019",
+    "story_date": "раннее утро после письма Михаэля о назначенной дате свадьбы",
+    "story_order": 36864
+  }
+}

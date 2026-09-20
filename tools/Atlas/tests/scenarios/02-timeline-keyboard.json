@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "name": "02-timeline-keyboard",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 1",
+          "Глава": "1",
+          "Дата / момент мира": "День 1",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 2",
+          "Глава": "1",
+          "Дата / момент мира": "День 2",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 3",
+          "Глава": "1",
+          "Дата / момент мира": "День 3",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 4",
+          "Глава": "2",
+          "Дата / момент мира": "День 4",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 5",
+          "Глава": "2",
+          "Дата / момент мира": "День 5",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 6",
+          "Глава": "2",
+          "Дата / момент мира": "День 6",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 7",
+          "Глава": "2",
+          "Дата / момент мира": "День 7",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 8",
+          "Глава": "2",
+          "Дата / момент мира": "День 8",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Момент 9",
+          "Глава": "2",
+          "Дата / момент мира": "День 9",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "history"
+    },
+    {
+      "action": "command",
+      "command": "chapter",
+      "data": "0"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 9
+    },
+    {
+      "action": "key",
+      "key": "Home"
+    },
+    {
+      "action": "assert",
+      "pointer": "/event_scroll",
+      "equals": 0
+    },
+    {
+      "action": "key",
+      "key": "End"
+    },
+    {
+      "action": "assert",
+      "pointer": "/event_scroll",
+      "gt": 0
+    },
+    {
+      "action": "key",
+      "key": "Home"
+    },
+    {
+      "action": "key",
+      "key": "PageDown"
+    },
+    {
+      "action": "assert",
+      "pointer": "/event_scroll",
+      "gt": 0
+    },
+    {
+      "action": "key",
+      "key": "PageUp"
+    },
+    {
+      "action": "assert",
+      "pointer": "/event_scroll",
+      "equals": 0
+    },
+    {
+      "action": "key",
+      "key": "Tab"
+    },
+    {
+      "action": "assert",
+      "pointer": "/keyboard_focus",
+      "gt": -1
+    },
+    {
+      "action": "key",
+      "key": "Enter"
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "map"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "history"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+F"
+    },
+    {
+      "action": "assert",
+      "pointer": "/search_visible",
+      "equals": true
+    },
+    {
+      "action": "search",
+      "text": "Момент 3"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 1
+    },
+    {
+      "action": "capture",
+      "capture": "search-result"
+    },
+    {
+      "action": "search",
+      "text": "Не существующее событие"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "pointer": "/selected_version",
+      "equals": null
+    },
+    {
+      "action": "search",
+      "text": ""
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 9
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "menu",
+        "label": "Глава 1"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "chapter"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 3
+    },
+    {
+      "action": "command",
+      "command": "chapter",
+      "data": "0"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 9
+    },
+    {
+      "action": "resize",
+      "width": 800,
+      "height": 500,
+      "dpi": 2
+    },
+    {
+      "action": "assert_ui"
+    },
+    {
+      "action": "capture",
+      "capture": "small-hidpi-history"
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "map"
+    }
+  ]
+}

@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "name": "08-border-controls",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "camera",
+      "zoom": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": "key",
+      "key": "J"
+    },
+    {
+      "action": "click",
+      "at": [
+        300,
+        200
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        1100,
+        200
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        1100,
+        650
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        300,
+        650
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Enter"
+    },
+    {
+      "action": "remember",
+      "name": "land",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "remember",
+      "name": "land_shape",
+      "pointer": "",
+      "target": "geometry",
+      "feature": "${land}"
+    },
+    {
+      "action": "key",
+      "key": "P"
+    },
+    {
+      "action": "click",
+      "at": [
+        350,
+        250
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        650,
+        250
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        650,
+        600
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        350,
+        600
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Enter"
+    },
+    {
+      "action": "remember",
+      "name": "country_a",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "key",
+      "key": "P"
+    },
+    {
+      "action": "click",
+      "at": [
+        650,
+        250
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        1050,
+        250
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        1050,
+        600
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        650,
+        600
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Enter"
+    },
+    {
+      "action": "remember",
+      "name": "country_b",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "key",
+      "key": "K"
+    },
+    {
+      "action": "click",
+      "at": [
+        650,
+        400
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "/selected_border",
+      "contains": "ARC-"
+    },
+    {
+      "action": "double_click",
+      "at": [
+        650,
+        400
+      ],
+      "space": "world"
+    },
+    {
+      "action": "remember",
+      "name": "control",
+      "pointer": "/selected_control"
+    },
+    {
+      "action": "assert",
+      "pointer": "/nodes/${control}",
+      "equals": [
+        650,
+        400
+      ],
+      "target": "document",
+      "epsilon": 0.1
+    },
+    {
+      "action": "drag",
+      "space": "world",
+      "from": [
+        650,
+        400
+      ],
+      "to": [
+        690,
+        400
+      ],
+      "preview": true
+    },
+    {
+      "action": "assert",
+      "pointer": "/nodes/${control}",
+      "equals": [
+        690,
+        400
+      ],
+      "target": "document",
+      "epsilon": 0.1
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "geometry",
+      "feature": "${land}",
+      "equals_ref": "land_shape"
+    },
+    {
+      "action": "capture",
+      "capture": "moved-boundary"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Z"
+    },
+    {
+      "action": "assert",
+      "pointer": "/nodes/${control}",
+      "equals": [
+        650,
+        400
+      ],
+      "target": "document",
+      "epsilon": 0.1
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Y"
+    },
+    {
+      "action": "assert",
+      "pointer": "/nodes/${control}",
+      "equals": [
+        690,
+        400
+      ],
+      "target": "document",
+      "epsilon": 0.1
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "geometry",
+      "feature": "${land}",
+      "equals_ref": "land_shape"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "geometry",
+      "feature": "${land}",
+      "equals_ref": "land_shape"
+    }
+  ]
+}

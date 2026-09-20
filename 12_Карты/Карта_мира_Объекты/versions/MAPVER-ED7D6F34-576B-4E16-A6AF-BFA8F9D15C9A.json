@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 14,
+  "document_hash": "556d6f8bbd1caddde29a0cd72a37ef977d0dcda5cf4334ddffb662de7094ee21",
+  "document_ref": "history/documents/2913fd8f5e3f6b7e85afafc06793a653a6da1261e702e7625726546e3d18b397.json",
+  "format": 2,
+  "id": "MAPVER-ED7D6F34-576B-4E16-A6AF-BFA8F9D15C9A",
+  "integrity": "e72082f90f891563bbd38580ae79804af5537a58911c8d4aad65951dad98fc1f",
+  "label": "Михаэль · Алиманджад, коронация Вито и письмо Аругала",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-6CAA45A8-B328-419F-B0A6-793D0A57D667",
+  "recorded_at": "2026-09-20T14:03:16.022Z",
+  "sequence": 113,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Михаэль и Роксана спасены. В Алиманджаде Урион коронует Вито Императором возрождённого Вечного Солнца.",
+    "evidence_ids": [
+      "SRC-0224"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0104",
+    "story_date": "неделю спустя после побега от Тикормана; шесть дней после встречи с войсками Тар-Элама",
+    "story_order": 113664
+  }
+}

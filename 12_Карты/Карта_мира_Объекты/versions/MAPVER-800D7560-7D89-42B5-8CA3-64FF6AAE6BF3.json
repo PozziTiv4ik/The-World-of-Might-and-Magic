@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 1,
+  "document_hash": "6b225b05d2a52587ac6e3b3204a049262d49a0c54555f4539491ec6a740adfd6",
+  "document_ref": "history/documents/c7f049727c85cee7faf98835e09e9b0208a6c4b85784948fae00544725bd0394.json",
+  "format": 2,
+  "id": "MAPVER-800D7560-7D89-42B5-8CA3-64FF6AAE6BF3",
+  "integrity": "a7effc95d86dc9c6823e5211699a07992797f6c56c02640064c84a5f7d86614f",
+  "label": "Харрингтон · Черная гора",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-DF86D481-0AED-4E3A-B19A-6E10601B373F",
+  "recorded_at": "2026-09-20T13:55:41.602Z",
+  "sequence": 19,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Харрингтон",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-BLACK-MOUNTAIN"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0119",
+    "story_date": "первые недели после Дня Единения Империи",
+    "story_order": 18432
+  }
+}

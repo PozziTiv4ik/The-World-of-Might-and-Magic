@@ -1,0 +1,305 @@
+{
+  "base": "history/documents/27c01d871742d3cf3a94fe32d1dacbefecd8a42f49a37c05b50768e8a59a4310.json",
+  "changes": [
+    {
+      "after": "раннее утро после письма Михаэля о назначенной дате свадьбы",
+      "before": "на следующий день после начала подготовки свадебной церемонии Михаэля и Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+      "before": "Михаэль долго продумывает детали свадебной церемонии. Список гостей оказывается огромным: даже после отбора только лучших и наиболее достойных приглашенных он выходит длиннее рабочего стола Принца. Слуги и писцы Белой Гавани без остановки готовят сотни писем великим людям Империи, чтобы пригласить их на событие, которое должно стать не просто личным браком, а заметным династическим актом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "столица Империи; путь в Рейнбург",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0007"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0019",
+      "before": "SCENE-0079",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_019_Сон_о_затмении_и_поручения_перед_Рейнбургом.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_016_Свадебные_письма_и_предложение_Нилуфар.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "061f86151c5e44dac4050160a89d0c57aa3e81ffa4de8294cfdeeeefff039640",
+      "before": "01f7c410ba39b73b6ac114917124fab6880d94ba741870d87baf62ea951d6926",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 36864,
+      "before": 35840,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 019. Сон о затмении и поручения перед Рейнбургом",
+      "before": "Сцена 016. Свадебные письма и предложение Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0122"
+      ],
+      "before": [
+        "SRC-0115"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0019",
+      "before": "SCENE-0018",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+      "before": "Михаэль долго продумывает детали свадебной церемонии. Список гостей оказывается огромным: даже после отбора только лучших и наиболее достойных приглашенных он выходит длиннее рабочего стола Принца. Слуги и писцы Белой Гавани без остановки готовят сотни писем великим людям Империи, чтобы пригласить их на событие, которое должно стать не просто личным браком, а заметным династическим актом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0122"
+      ],
+      "before": [
+        "SRC-0121"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0019",
+      "before": "SCENE-0079",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-BF8232B7-036B-43DC-BBEF-57ABCE834D76",
+      "before": "MAPVER-007DBCA9-3933-48CE-B541-5750C2AAC098",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+      "before": "Михаэль долго продумывает детали свадебной церемонии. Список гостей оказывается огромным: даже после отбора только лучших и наиболее достойных приглашенных он выходит длиннее рабочего стола Принца. Слуги и писцы Белой Гавани без остановки готовят сотни писем великим людям Империи, чтобы пригласить их на событие, которое должно стать не просто личным браком, а заметным династическим актом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0122"
+      ],
+      "before": [
+        "SRC-0121"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-FLEET-COUNCIL"
+      ],
+      "before": [
+        "FRONT-TAR-ELAM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0019",
+      "before": "SCENE-0079",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "раннее утро после письма Михаэля о назначенной дате свадьбы",
+      "before": "на следующий день после начала подготовки свадебной церемонии Михаэля и Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 36864,
+      "before": 35840,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

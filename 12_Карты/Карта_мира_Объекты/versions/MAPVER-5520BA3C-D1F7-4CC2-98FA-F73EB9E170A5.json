@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "b831c4adec906f47b752eabcbf4be689cfd064b79279844444afe5fd02952308",
+  "document_ref": "history/documents/b831c4adec906f47b752eabcbf4be689cfd064b79279844444afe5fd02952308.json",
+  "format": 2,
+  "id": "MAPVER-5520BA3C-D1F7-4CC2-98FA-F73EB9E170A5",
+  "integrity": "6097225ba799933f9937ad7a5047976ea29819af095837055db6a6ba8545a4a0",
+  "label": "Михаэль · Испытание Ордена затмения",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-46A6F3D4-B994-403E-B47D-CA2F95F6AC1F",
+  "recorded_at": "2026-09-20T14:01:31.710Z",
+  "sequence": 67,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Наутро после разговора с Нилуфар Михаэль сообщает жене, что согласен стать частью Ордена затмения. Остаток дня Нилуфар готовит мужа к представлению и подбирает ему одеяния, достойные тайного собрания людей, давно влияющих на судьбы государств. На следующий день перед заседанием Михаэль сильно нервничает.",
+    "evidence_ids": [
+      "SRC-0173"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0088",
+    "story_date": "через два дня после прибытия в Алиманджад; заседание Ордена затмения",
+    "story_order": 66560
+  }
+}

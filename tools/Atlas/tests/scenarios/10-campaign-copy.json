@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "name": "10-campaign-copy",
+  "viewport": {
+    "width": 1680,
+    "height": 945,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "gt": 1000
+    },
+    {
+      "action": "remember",
+      "name": "original_events",
+      "pointer": "/events"
+    },
+    {
+      "action": "remember",
+      "name": "original_parent",
+      "pointer": "/parent_version"
+    },
+    {
+      "action": "remember",
+      "name": "original_hash",
+      "pointer": "",
+      "target": "file_hash",
+      "file": "map/versions/${original_parent}.json"
+    },
+    {
+      "action": "command",
+      "command": "symbol",
+      "data": "city"
+    },
+    {
+      "action": "click",
+      "at": [
+        1800,
+        1200
+      ],
+      "space": "world"
+    },
+    {
+      "action": "remember",
+      "name": "probe",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Свойства объекта",
+        "values": {
+          "Название": "Проверочная метка — только копия",
+          "Размер значка": "24"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "F2"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "remember",
+      "name": "new_parent",
+      "pointer": "/parent_version"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals_ref": "original_events"
+    },
+    {
+      "action": "assert",
+      "pointer": "/revisions",
+      "gt": 1
+    },
+    {
+      "action": "capture",
+      "capture": "real-history"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "select_revision",
+        "data": "${original_parent}"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "open_moment"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/features/${probe}",
+      "target": "document",
+      "exists": false
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "select_revision",
+        "data": "${new_parent}"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "open_moment"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/features/${probe}/name",
+      "equals": "Проверочная метка — только копия",
+      "target": "document"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "file_hash",
+      "file": "map/versions/${original_parent}.json",
+      "equals_ref": "original_hash"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "compare"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/diff_count",
+      "gt": 0
+    },
+    {
+      "action": "capture",
+      "capture": "real-diff"
+    },
+    {
+      "action": "command",
+      "command": "compare_overlay"
+    },
+    {
+      "action": "capture",
+      "capture": "real-overlay"
+    },
+    {
+      "action": "command",
+      "command": "history"
+    },
+    {
+      "action": "resize",
+      "width": 800,
+      "height": 500,
+      "dpi": 2
+    },
+    {
+      "action": "pointer_move",
+      "control": {
+        "command": "select_version",
+        "data": "${new_parent}"
+      }
+    },
+    {
+      "action": "assert_ui"
+    },
+    {
+      "action": "capture",
+      "capture": "real-hidpi"
+    },
+    {
+      "action": "command",
+      "command": "editor"
+    },
+    {
+      "action": "wait",
+      "milliseconds": 16000,
+      "autosave": true
+    },
+    {
+      "action": "validate_history"
+    }
+  ],
+  "requires_map": true
+}

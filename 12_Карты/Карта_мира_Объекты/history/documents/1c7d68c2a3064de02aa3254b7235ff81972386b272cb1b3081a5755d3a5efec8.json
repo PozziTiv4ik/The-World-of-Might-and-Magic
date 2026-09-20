@@ -1,0 +1,434 @@
+{
+  "base": "history/documents/5d9187e41f92dfc76bea62f6b577aa3c1b2c9ff6c851234c1f825eb10c93eb0a.json",
+  "changes": [
+    {
+      "after": "день свадьбы Михаэля и Нилуфар в Белой Гавани",
+      "before": "через несколько дней после сна о затмении; приезд Александроса в Рейнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "День свадьбы Михаэля и Нилуфар наступает. Белая Гавань ликует и украшена торжественнее, чем когда-либо прежде. Утром в гавань входит флот Тар-Элама, и Вито возглавляет процессию к цитадели: чародеи, элементали, боевые слоны и горгульи показывают гостям и жителям города мощь юга. Перед женихом и невестой Вито объявляет дары от Великого Императора Тар-Элама.",
+      "before": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Рейнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0070"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1721.5,
+        691.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0080",
+      "before": "SCENE-0020",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_017_Свадьба_Михаэля_и_Нилуфар.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_020_Королевский_грифон_и_демигрифы_Рейнбурга.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "21c1fdcaea07d3e43deaf703bd78f70f6a6643d7b57121f5ea05c7af39e05ae5",
+      "before": "a40b5fa9e7e50da1c43d0820ccd36dfe963173b9710a3d7caa47b6214fedd73b",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 38912,
+      "before": 37888,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 017. Свадьба Михаэля и Нилуфар",
+      "before": "Сцена 020. Королевский грифон и демигрифы Рейнбурга",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0124"
+      ],
+      "before": [
+        "SRC-0123"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0080",
+      "before": "SCENE-0020",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0070",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1843,
+        814
+      ],
+      "before": [
+        1739.5,
+        669.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1721.5,
+        691.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0124"
+      ],
+      "before": [
+        "SRC-0121"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0080",
+      "before": "SCENE-0079",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "День свадьбы Михаэля и Нилуфар наступает. Белая Гавань ликует и украшена торжественнее, чем когда-либо прежде. Утром в гавань входит флот Тар-Элама, и Вито возглавляет процессию к цитадели: чародеи, элементали, боевые слоны и горгульи показывают гостям и жителям города мощь юга. Перед женихом и невестой Вито объявляет дары от Великого Императора Тар-Элама.",
+      "before": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0070",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0124"
+      ],
+      "before": [
+        "SRC-0123"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Рейнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1721.5,
+        691.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0080",
+      "before": "SCENE-0020",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0124"
+      ],
+      "before": [
+        "SRC-0123"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0080",
+      "before": "SCENE-0020",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1721.5,
+        691.33
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1721.5,
+        691.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-B8FD2BCF-9468-4215-85F1-36B25D155DFB",
+      "before": "MAPVER-289F5D35-79A6-4558-9E00-DF0DA9A4CDA7",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "День свадьбы Михаэля и Нилуфар наступает. Белая Гавань ликует и украшена торжественнее, чем когда-либо прежде. Утром в гавань входит флот Тар-Элама, и Вито возглавляет процессию к цитадели: чародеи, элементали, боевые слоны и горгульи показывают гостям и жителям города мощь юга. Перед женихом и невестой Вито объявляет дары от Великого Императора Тар-Элама.",
+      "before": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0124"
+      ],
+      "before": [
+        "SRC-0123"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-TAR-ELAM"
+      ],
+      "before": [
+        "FRONT-BERTRAM-LEGACY"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0080",
+      "before": "SCENE-0020",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "день свадьбы Михаэля и Нилуфар в Белой Гавани",
+      "before": "через несколько дней после сна о затмении; приезд Александроса в Рейнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 38912,
+      "before": 37888,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

@@ -1,0 +1,471 @@
+{
+  "base": "history/documents/529d350c60b941d83a2729b743f990dfa3ad0445ee21cf3472def659d5a51866.json",
+  "changes": [
+    {
+      "after": "от 3 дней до Дня Единения до Дня Единения Империи",
+      "before": "за 3 дня до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "\"Операция: Теневой Триумф\" не провалилась полностью: именно действия Михаэля, Картоса и Никитосиоса помогли раскрыть значительную часть заговора и уничтожить большую массу наемников в столице. Но главная цель Михаэля - контролируемый триумф и личный политический взлет - была сорвана. Заговор оказался глубже, чем он думал, а Петир использовал расследование, аресты и ложные направления как часть более крупного удара.",
+      "before": "Никитосиос прибыл в столицу на красном драконе.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "катакомбы столицы; Цитадель Вечного Света; имение Барона Ривертона; южные ворота столицы",
+      "before": "Цитадель Вечного Света, столица; зал военной стратегии",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0069",
+      "before": "SCENE-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_006_Катакомбы_и_провал_Теневого_Триумфа.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_007_Прибытие_Никитосиоса_и_красный_дракон.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "af078ebe4fc5c278fb4093d7acbd0ec32c8acdfa6f03737d562f187a3b268ffc",
+      "before": "fe6a4f0b8f6d04ac2c9fe816207bdc0583d6bce2a4e7a3fdac7592dae4f4f4ac",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 13312,
+      "before": 12288,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 006. Катакомбы и провал Теневого Триумфа",
+      "before": "Сцена 007. Прибытие Никитосиоса и красный дракон",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0069",
+      "before": "SCENE-0068",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "\"Операция: Теневой Триумф\" не провалилась полностью: именно действия Михаэля, Картоса и Никитосиоса помогли раскрыть значительную часть заговора и уничтожить большую массу наемников в столице. Но главная цель Михаэля - контролируемый триумф и личный политический взлет - была сорвана. Заговор оказался глубже, чем он думал, а Петир использовал расследование, аресты и ложные направления как часть более крупного удара.",
+      "before": "Никитосиос прибыл в столицу на красном драконе.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0069",
+      "before": "SCENE-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0068",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-10",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-11",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-12",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-13",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-14",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-15",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-16",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-17",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-18",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-19",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-20",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-21",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-22",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-23",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-24",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-25",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-26",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-27",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-28",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-30",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-8",
+        "parent_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-SOURCE-NOTE-9",
+        "parent_id"
+      ]
+    },
+    {
+      "after": "MAPVER-E9125E76-168C-43AB-9847-4C21B782147E",
+      "before": "MAPVER-E1BBBF9E-E3A0-477C-BA20-CBE92E109606",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "\"Операция: Теневой Триумф\" не провалилась полностью: именно действия Михаэля, Картоса и Никитосиоса помогли раскрыть значительную часть заговора и уничтожить большую массу наемников в столице. Но главная цель Михаэля - контролируемый триумф и личный политический взлет - была сорвана. Заговор оказался глубже, чем он думал, а Петир использовал расследование, аресты и ложные направления как часть более крупного удара.",
+      "before": "Никитосиос прибыл в столицу на красном драконе.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "before": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0069",
+      "before": "SCENE-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "от 3 дней до Дня Единения до Дня Единения Империи",
+      "before": "за 3 дня до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 13312,
+      "before": 12288,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

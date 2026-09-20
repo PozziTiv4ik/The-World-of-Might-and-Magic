@@ -1,0 +1,355 @@
+{
+  "base": "history/documents/2f82f6e8b5c07bb847559aa6b62d516e73c2e537fe9efd057df3c98c0b729bde.json",
+  "changes": [
+    {
+      "after": "Сцена 007. Осада Белой Гавани",
+      "before": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань; Великое море; подступы к Уайтбургу",
+      "before": "Цитадель Вечного Света; Вестфолд; земли Хорнбурга; фронты Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0094",
+        "LOC-0011",
+        "LOC-0089"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0070",
+      "before": "SCENE-0009",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_007_Осада_Белой_Гавани.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_009_Первые_недели_войны.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e7c8649cf60be9244246ab789185b00d7cf00b63b246beed79cdc13f78692a9b",
+      "before": "523a915aee9be6ed3cb6ac5e90c086272d200567def2c1b7a329ed1db240875f",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 16384,
+      "before": 15360,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 007. Осада Белой Гавани",
+      "before": "Сцена 009. Первые недели войны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0070",
+      "before": "SCENE-0008",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1807,
+        814
+      ],
+      "before": [
+        1902,
+        725
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Сцена 007. Осада Белой Гавани",
+      "before": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Хорнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0070",
+      "before": "SCENE-0009",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0070",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-161BA5C4-F65B-499F-BB97-717059A56ED4",
+      "before": "MAPVER-E19195AE-DCF6-4501-B287-7735730AD06B",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Сцена 007. Осада Белой Гавани",
+      "before": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WHITE-HARBOR"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0070",
+      "before": "SCENE-0009",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": 16384,
+      "before": 15360,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

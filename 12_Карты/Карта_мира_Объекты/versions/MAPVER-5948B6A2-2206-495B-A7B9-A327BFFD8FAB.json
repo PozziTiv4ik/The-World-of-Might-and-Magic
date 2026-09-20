@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 6,
+  "document_hash": "bd7ea1d2b3e339ac97d2b2a1389ab1e9c7a770629b0b1e2a12c85c31f98f8c67",
+  "document_ref": "history/documents/a59f39688bcf3bd95ac9f89b4446a25aaad1aaad51773dbfe0169c5c1490caed.json",
+  "format": 2,
+  "id": "MAPVER-5948B6A2-2206-495B-A7B9-A327BFFD8FAB",
+  "integrity": "fb346fe96dcbb2237254ba847718e0158b7468d9ca9740fd8d1c5d772eced279",
+  "label": "Александрос · Донесения в Белой Гавани и просьба Харрингтона",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-09140B3D-9AC8-4FF0-B589-D27408025318",
+  "recorded_at": "2026-09-20T14:02:23.113Z",
+  "sequence": 89,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Тар-Обсидиан и Тар-Иматрис пали. Обсидиановое королевство капитулировало перед Тар-Эламом.",
+    "evidence_ids": [
+      "SRC-0195"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0050",
+    "story_date": "через неделю после отбытия с континента Шантири",
+    "story_order": 89088
+  }
+}

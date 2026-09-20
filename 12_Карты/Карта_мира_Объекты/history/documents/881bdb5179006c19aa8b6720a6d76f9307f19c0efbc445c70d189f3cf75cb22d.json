@@ -1,0 +1,313 @@
+{
+  "base": "history/documents/c5f9d6264e38560e3f4567eda4f34957757be8519ead04b02580a8039a9aaad1.json",
+  "changes": [
+    {
+      "after": {
+        "nodes": [
+          "NODE-MAPOBJ-ROUTE-CHAR-0136-0",
+          "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+        ]
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "от 5 до 3 дней до Дня Единения Империи",
+      "before": "за 5 дней до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Михаэль выбирает тайное самостоятельное действие и утверждает проработанный план под рабочим названием \"Операция: Теневой Триумф\". План не раскрывается Александросу и Высшему совету заранее.",
+      "before": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, столица; личные покои Михаэля",
+      "before": "Цитадель Вечного Света, столица",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0068",
+      "before": "SCENE-0006",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_005_Возвращение_в_столицу_и_заговор.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_006_Маска_сокрытого_облика.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e7177e68351feb357b20271ca68bd604c8360b3ba64b73d8d780b635351ddda5",
+      "before": "fb23266342779b4341dde0402a9356ae799d231714c553285d7269413d4a6b41",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 11264,
+      "before": 10240,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 005. Возвращение в столицу и заговор",
+      "before": "Сцена 006. Маска сокрытого облика",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0068",
+      "before": "SCENE-0067",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1902,
+        725
+      ],
+      "before": [
+        1807,
+        814
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Михаэль выбирает тайное самостоятельное действие и утверждает проработанный план под рабочим названием \"Операция: Теневой Триумф\". План не раскрывается Александросу и Высшему совету заранее.",
+      "before": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0068",
+      "before": "SCENE-0006",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0068",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-4A0CBE57-8440-4A8B-A23A-F7775FCFAF21",
+      "before": "MAPVER-94DB8829-839E-411B-96A2-0E4832BF7DC0",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Михаэль выбирает тайное самостоятельное действие и утверждает проработанный план под рабочим названием \"Операция: Теневой Триумф\". План не раскрывается Александросу и Высшему совету заранее.",
+      "before": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0068",
+      "before": "SCENE-0006",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "от 5 до 3 дней до Дня Единения Империи",
+      "before": "за 5 дней до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 11264,
+      "before": 10240,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

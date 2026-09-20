@@ -34,6 +34,14 @@
         {
           "type": "object",
           "properties": {
+            "event_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Stable narrative event shared by its map editing revisions."
+            },
+            "revision_note": {
+              "type": "string"
+            },
             "scene_id": {
               "type": "string"
             },
@@ -55,12 +63,47 @@
             },
             "front_ids": {
               "$ref": "#/$defs/ids"
+            },
+            "story_date": {
+              "type": "string"
+            },
+            "sort_date": {
+              "type": "string"
+            },
+            "chain_id": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "reference_scene_id": {
+              "type": "string"
+            },
+            "story_order": {
+              "type": "number"
             }
           },
           "required": [
-            "scene_id",
-            "chapter",
-            "relation"
+            "chapter"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "scene_id"
+                ],
+                "properties": {
+                  "scene_id": {
+                    "minLength": 1
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "relation"
+                ]
+              }
+            }
           ]
         }
       ]

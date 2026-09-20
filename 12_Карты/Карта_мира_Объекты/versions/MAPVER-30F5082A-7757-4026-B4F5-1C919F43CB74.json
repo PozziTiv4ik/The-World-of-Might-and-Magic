@@ -1,0 +1,32 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "30f275b63efa615bd59be1bcfac2534e995d53982e0f6b8bfd9150def79b5795",
+  "document_ref": "history/documents/cfe5c35dfabee50fbd1a06ddb63e7498ba82dacc56848d9942ed75ad4e68e05f.json",
+  "format": 2,
+  "id": "MAPVER-30F5082A-7757-4026-B4F5-1C919F43CB74",
+  "integrity": "d71dcbb009972d5da068fad068dc34f1a40ac28559aa11aba51c489880c9245d",
+  "label": "Александрос · Хорнбург, Богдан и тень Демитриоса",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-2A360BC9-13B9-4184-821E-C2E88358CE1F",
+  "recorded_at": "2026-09-20T14:00:08.531Z",
+  "sequence": 25,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+    "evidence_ids": [
+      "SRC-0076",
+      "SRC-0080"
+    ],
+    "front_ids": [
+      "FRONT-GRIFFON-HOUSE"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0013",
+    "story_date": "месяц спустя после распоряжений Александроса и Михаэля",
+    "story_order": 24576
+  }
+}

@@ -1,79 +1,75 @@
+param([string]$MapDirectory,[string]$OutputFile)
 $ErrorActionPreference = 'Stop'
 $atlasRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
-$atlasMap = Join-Path $atlasRoot '12_Карты/Карта_мира'
-if(Test-Path -LiteralPath (Join-Path $atlasRoot '12_Карты/Карта_мира_Объекты/map.json')) {
-    $atlasMap=Join-Path $atlasRoot '12_Карты/Карта_мира_Объекты'
-}
+$atlasMap = if ($MapDirectory) { [IO.Path]::GetFullPath($MapDirectory) } else { Join-Path $atlasRoot '12_Карты/Карта_мира_Объекты' }
 $atlasCli = Join-Path $PSScriptRoot 'bin/Atlas.Cli.exe'
-& $atlasCli validate $atlasMap --project $atlasRoot
-if ($LASTEXITCODE -ne 0) { throw 'Map validation failed' }
-$atlasManifestFile = Join-Path $atlasMap 'map.json'
-$atlasBeforeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasManifestFile).Hash
-$atlasStage = Join-Path $atlasRoot ('.wmma/atlas-packages/' + [guid]::NewGuid().ToString() + '/Атлас')
+& $atlasCli validate $atlasMap --project $atlasRoot --history
+if ($LASTEXITCODE -ne 0) { throw 'Map or history validation failed' }
+$atlasFilesBefore = @{}
+foreach ($atlasFile in Get-ChildItem -LiteralPath $atlasMap -File -Recurse) {
+    $atlasRelative = [IO.Path]::GetRelativePath($atlasMap,$atlasFile.FullName)
+    if ($atlasRelative.StartsWith('.atlas' + [IO.Path]::DirectorySeparatorChar)) { continue }
+    $atlasFilesBefore[$atlasRelative] = (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasFile.FullName).Hash
+}
+$atlasStage = Join-Path $atlasRoot ('.wmma/pkg-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '/Атлас')
 $atlasStageMap = Join-Path $atlasStage 'Карта'
 New-Item -ItemType Directory -Path $atlasStageMap -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin/Atlas.exe'),$atlasCli -Destination $atlasStage
-Copy-Item -LiteralPath $atlasManifestFile -Destination (Join-Path $atlasStageMap 'map.json')
-$atlasDocuments = @((Get-Content -Raw -Encoding UTF8 -LiteralPath $atlasManifestFile | ConvertFrom-Json))
-$atlasVersions = Join-Path $atlasMap 'versions'
-if (Test-Path -LiteralPath $atlasVersions) {
-    New-Item -ItemType Directory -Path (Join-Path $atlasStageMap 'versions') -Force | Out-Null
-    foreach ($atlasVersion in Get-ChildItem -LiteralPath $atlasVersions -File -Filter '*.json') {
-        $atlasSnapshot = Get-Content -Raw -Encoding UTF8 -LiteralPath $atlasVersion.FullName | ConvertFrom-Json
-        $atlasDocuments += $atlasSnapshot.document
-        Copy-Item -LiteralPath $atlasVersion.FullName -Destination (Join-Path $atlasStageMap 'versions')
-    }
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'bin/build-info.json')) {
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin/build-info.json') -Destination $atlasStage
 }
-$atlasAssetPaths = @($atlasDocuments | ForEach-Object { $_.layers } | Where-Object image | ForEach-Object image | Sort-Object -Unique)
-foreach ($atlasRelative in $atlasAssetPaths) {
+# Transfer the whole project, including compact documents and named drafts.
+# Cached views and per-session recovery stay with the local editor.
+foreach ($atlasRelative in $atlasFilesBefore.Keys) {
     $atlasSource = [IO.Path]::GetFullPath((Join-Path $atlasMap $atlasRelative))
     $atlasDestination = [IO.Path]::GetFullPath((Join-Path $atlasStageMap $atlasRelative))
-    if (-not $atlasSource.StartsWith($atlasMap + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Asset escapes source map directory' }
-    if (-not $atlasDestination.StartsWith($atlasStageMap + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Asset escapes package directory' }
+    if (-not $atlasDestination.StartsWith($atlasStageMap + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Package path escapes map directory' }
     New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($atlasDestination)) -Force | Out-Null
     Copy-Item -LiteralPath $atlasSource -Destination $atlasDestination
-    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $atlasSource).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasDestination).Hash) { throw 'Asset copy mismatch' }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $atlasDestination).Hash -ne $atlasFilesBefore[$atlasRelative]) { throw 'Map changed during packaging; run again' }
 }
-New-Item -ItemType Directory -Path (Join-Path $atlasStage 'licenses') -Force | Out-Null
-Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'licenses') -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $atlasStage 'licenses') }
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'licenses') -Destination $atlasStage -Recurse
 $atlasHelp = @'
-АТЛАС 4 — редактор карт на C++ для Windows
+Открой «Atlas.exe».
 
-Распакуй всю папку и запусти Atlas.exe. Установка не требуется.
-Папка «Карта» содержит мир с отдельной сушей и государствами, а также сохранённые версии.
-В рабочем изображении нет растровых подложек: страны, воды, горы и поселения — геометрические объекты.
+Карта занимает всё окно. F11 — полный экран / обычное окно.
+Кнопка главы сверху или Ctrl+H — отдельный экран истории.
+На линии выбирается событие, внизу — редакция его карты. «Открыть карту» начинает работу.
+«К карте» и Esc возвращают прежнюю карту. Колесо листает хронологию, Ctrl+колесо меняет плотность.
+Ctrl+F — поиск, «Все главы» — фильтр, настройки — порядок и подборки.
 
-Для связи с карточками и сценами выбери:
-Файл → Выбрать папку кампании → папка «The World of Might and Magic».
+Ctrl+S сохраняет новую редакцию текущего события; Ctrl+Shift+S добавляет комментарий.
+«+ Событие» добавляет новый момент, в том числе между прошлыми событиями.
+Старые снимки сохраняются. Предыдущая работа доступна в именованных черновиках.
+«Сравнить» показывает редакции рядом или наложением.
 
-Основные клавиши:
-V — выбор; N — узлы; P — территория; R — маршрут; U — река.
-S — символ; T — подпись; B — кисть; E — ластик; F — заливка.
-W — обводка по цвету; G — прямоугольник; L — лассо.
-Колесо — масштаб; пробел / средняя кнопка — перемещение полотна.
-Enter — закончить контур; Esc — отменить; Home — весь лист.
-Ctrl+S — сохранить; Ctrl+Z/Y — отменить / повторить.
+V — выбор, H/пробел/средняя кнопка — перемещение, колесо — масштаб, Home — вся карта.
+J — суша, P — государство, K — точки границы, R — маршрут, S — символ, T — подпись.
+Enter — закончить контур, Esc — отменить жест. Ctrl+Z/Y — отмена/повтор до 250 действий.
+F2 — свойства, F6 — панель, Tab — переход по кнопкам. Дополнительные инструменты — через «…».
 
-Ctrl+F открывает список стран справа. Клик в списке приближает территорию; K включает контрольные точки границы.
-J — суша; P — государство; K — общая граница.
-Сверху слева: «Границы», «Суша», «Объекты». В границах выбери линию и перемещай круглые точки.
-Двойной клик / + — добавить точку; Delete — удалить; Shift — движение по оси.
-Кнопка «Море» включает морскую заливку. Берега остаются на месте.
-Клик по названию слоя включает выбор только этого слоя; плашка «Только слой» снимает изоляцию.
-После движения камеры детализация уточняется в фоне.
-Режим «Объекты» позволяет отдельно выбрать подпись. Ctrl+F открывает поиск, F2 — свойства.
-Торговые пути и заметки старого PDN находятся в скрытых слоях архива.
-Названия из OCR отмечены как требующие проверки. Изображение не подтверждает литературный канон.
-Новые объекты, узлы и связи хранятся в читаемом map.json.
-«Сохранить версию» связывает снимок с выбранной сценой; литературный канон не меняется автоматически.
-
-Atlas.Cli.exe help показывает команды для ИИ и автоматизации.
-
-Исходники и документация находятся в папке tools/Atlas основного проекта.
+Для исходных сцен: меню → Выбрать папку кампании → The World of Might and Magic.
+Вся карта и история находятся в папке «Карта». Переноси её целиком.
+Atlas.Cli.exe help показывает команды для работы из кода.
+build-info.json связывает сборку с хешами исходников и компилятора.
 '@
 [IO.File]::WriteAllText((Join-Path $atlasStage 'Прочитай.txt'),$atlasHelp,[Text.UTF8Encoding]::new($false))
-if ($atlasBeforeHash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasManifestFile).Hash) { throw 'Map changed during packaging; rerun packaging' }
-$atlasArchive = Join-Path $PSScriptRoot 'Atlas-portable.zip'
-Compress-Archive -LiteralPath $atlasStage -DestinationPath $atlasArchive -Force
+& (Join-Path $atlasStage 'Atlas.Cli.exe') validate $atlasStageMap --history
+if ($LASTEXITCODE -ne 0) { throw 'Portable map does not validate independently' }
+$atlasCache = Join-Path $atlasStageMap '.atlas/versions-cache.json'
+if (Test-Path -LiteralPath $atlasCache) { Remove-Item -LiteralPath $atlasCache }
+$atlasManifest = [ordered]@{ application='Atlas'; version='5.2.0'; files=[ordered]@{} }
+foreach ($atlasFile in Get-ChildItem -LiteralPath $atlasStage -Recurse -File | Sort-Object FullName) {
+    $atlasManifest.files[[IO.Path]::GetRelativePath($atlasStage,$atlasFile.FullName).Replace('\','/')] = (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasFile.FullName).Hash.ToLowerInvariant()
+}
+$atlasManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $atlasStage 'package-manifest.json') -Encoding utf8
+foreach ($atlasRelative in $atlasFilesBefore.Keys) {
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $atlasMap $atlasRelative)).Hash -ne $atlasFilesBefore[$atlasRelative]) { throw 'Source map changed during packaging; run again' }
+}
+$atlasArchive = if ($OutputFile) { [IO.Path]::GetFullPath($OutputFile) } else { Join-Path $PSScriptRoot 'Atlas-portable.zip' }
+$atlasTemporaryArchive = $atlasArchive + '.new'
+if (Test-Path -LiteralPath $atlasTemporaryArchive) { Remove-Item -LiteralPath $atlasTemporaryArchive }
+[IO.Compression.ZipFile]::CreateFromDirectory($atlasStage,$atlasTemporaryArchive,[IO.Compression.CompressionLevel]::Optimal,$true)
+Move-Item -LiteralPath $atlasTemporaryArchive -Destination $atlasArchive -Force
 Write-Output ('Portable package: ' + $atlasArchive)
-Write-Output ('Package source: ' + $atlasStage)
+Write-Output ('Package SHA256: ' + (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasArchive).Hash)

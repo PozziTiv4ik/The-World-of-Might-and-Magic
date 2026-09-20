@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 2,
+  "document_hash": "57b0403815e973cae38372a73698c841643bd59d316f846a48bac41e20f9fe3d",
+  "document_ref": "history/documents/f006bdf96af3c737f7e25b1f10bf6d2f027969ad371651c1c4a0a2e3ca6e2463.json",
+  "format": 2,
+  "id": "MAPVER-DF35B70F-3B4D-4A8F-9AB6-53E915503350",
+  "integrity": "503890c72a7477244e9f5115ca82e25917b46ef261a4199302f8335ceb0ebb5d",
+  "label": "Эпилог · Разломы на Архипелаге Древних",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-46037A80-A780-41B0-9411-6EB568F9D1A4",
+  "recorded_at": "2026-09-20T14:09:48.558Z",
+  "sequence": 129,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Эпилог",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Разломы Архипелага открыты. Аватар Ур-Серагона появился у Тар-Хиконы; Онсераг погиб, первый механизм разрушен.",
+    "evidence_ids": [
+      "SRC-0231"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0120",
+    "story_date": "Остров Алой Луны, Архипелаг Древних; на следующий день после возвращения Михаэля в столицу и аудиенции Никитосиоса у Аразаила; финал главы 3",
+    "story_order": 117760
+  }
+}

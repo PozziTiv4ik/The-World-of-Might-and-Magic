@@ -1,0 +1,421 @@
+{
+  "base": "history/documents/b831c4adec906f47b752eabcbf4be689cfd064b79279844444afe5fd02952308.json",
+  "changes": [
+    {
+      "after": "неделю спустя после отбытия Александроса из столицы",
+      "before": "через два дня после прибытия в Алиманджад; заседание Ордена затмения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+      "before": "Наутро после разговора с Нилуфар Михаэль сообщает жене, что согласен стать частью Ордена затмения. Остаток дня Нилуфар готовит мужа к представлению и подбирает ему одеяния, достойные тайного собрания людей, давно влияющих на судьбы государств. На следующий день перед заседанием Михаэль сильно нервничает.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Уайтбург",
+      "before": "Алиманджад, тайный зал Ордена затмения в глубине храма вечного закона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0085"
+      ],
+      "before": [
+        "LOC-0001"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0039",
+      "before": "SCENE-0088",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_039_Уайтбургская_ставка_и_карта_Орды.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_025_Испытание_Ордена_затмения.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "3fd8d4927315d4668d181715471d858d773aab7b99522c4d50e4b5052c01ef39",
+      "before": "5ea346690ed800b660a04a6b65dfa519959e1047310c9349017eededc079e6bf",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 67584,
+      "before": 66560,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 039. Уайтбургская ставка и карта Орды",
+      "before": "Сцена 025. Испытание Ордена затмения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0151"
+      ],
+      "before": [
+        "SRC-0152"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0039",
+      "before": "SCENE-0038",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0085",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2104,
+        785
+      ],
+      "before": [
+        1938,
+        725
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+      "before": "Наутро после разговора с Нилуфар Михаэль сообщает жене, что согласен стать частью Ордена затмения. Остаток дня Нилуфар готовит мужа к представлению и подбирает ему одеяния, достойные тайного собрания людей, давно влияющих на судьбы государств. На следующий день перед заседанием Михаэль сильно нервничает.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0085",
+      "before": "LOC-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0151"
+      ],
+      "before": [
+        "SRC-0173"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Уайтбург",
+      "before": "Алиманджад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0039",
+      "before": "SCENE-0088",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0151"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0039",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-5520BA3C-D1F7-4CC2-98FA-F73EB9E170A5",
+      "before": "MAPVER-46A6F3D4-B994-403E-B47D-CA2F95F6AC1F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+      "before": "Наутро после разговора с Нилуфар Михаэль сообщает жене, что согласен стать частью Ордена затмения. Остаток дня Нилуфар готовит мужа к представлению и подбирает ему одеяния, достойные тайного собрания людей, давно влияющих на судьбы государств. На следующий день перед заседанием Михаэль сильно нервничает.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0151"
+      ],
+      "before": [
+        "SRC-0173"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-IRON-HORDE"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0039",
+      "before": "SCENE-0088",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "неделю спустя после отбытия Александроса из столицы",
+      "before": "через два дня после прибытия в Алиманджад; заседание Ордена затмения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 67584,
+      "before": 66560,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

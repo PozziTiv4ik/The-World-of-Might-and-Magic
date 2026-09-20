@@ -1,0 +1,336 @@
+{
+  "base": "history/documents/58340b0ace263d03509fb3ddd44937df4c7233ed9c726316b127fc29be0712aa.json",
+  "changes": [
+    {
+      "after": "Остров Алой Луны, Архипелаг Древних; на следующий день после возвращения Михаэля в столицу и аудиенции Никитосиоса у Аразаила; финал главы 3",
+      "before": "после прибытия Михаэля в столицу; на следующий день после прибытия Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Разломы Архипелага открыты. Аватар Ур-Серагона появился у Тар-Хиконы; Онсераг погиб, первый механизм разрушен.",
+      "before": "### Разговор отца и сына После прибытия в столицу Михаэль встретился с Александросом. Император тепло принял сына и не скрывал радости от того, что тот оказался жив. Михаэль подробно рассказал отцу о своих приключениях, пребывании в Ордене затмения, предательстве Онсерага и спасении. Александрос подтвердил заключение Эрин: Михаэль не является его кровным сыном, тогда как Харагорн принадлежит к роду Александроса.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Остров Алой Луны, Архипелаг Древних; цитадель Тар-Хикона",
+      "before": "Цитадель Вечного Света, столица Империи Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0101"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        923,
+        1408
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0120",
+      "before": "SCENE-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Эпилог/Сцена_001_Разломы_на_Архипелаге_Древних.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_043_Правда_о_происхождении_и_возвращение_Нилуфар.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e74910c28b9c08761db460f6d730f06752df7f98d1511c53b299c4e2ef2139f2",
+      "before": "d40421870cd6dc4bfc0d8dba76991d674302325dffbcac167ada8cd695befaa2",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 117760,
+      "before": 116736,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 001. Разломы на Архипелаге Древних",
+      "before": "Сцена 043. Правда о происхождении и возвращение Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "Разломы Архипелага открыты. Аватар Ур-Серагона появился у Тар-Хиконы; Онсераг погиб, первый механизм разрушен.",
+      "before": "### Разговор отца и сына После прибытия в столицу Михаэль встретился с Александросом. Император тепло принял сына и не скрывал радости от того, что тот оказался жив. Михаэль подробно рассказал отцу о своих приключениях, пребывании в Ордене затмения, предательстве Онсерага и спасении. Александрос подтвердил заключение Эрин: Михаэль не является его кровным сыном, тогда как Харагорн принадлежит к роду Александроса.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0101",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0231"
+      ],
+      "before": [
+        "SRC-0230"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Тар-Хикона",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        923,
+        1408
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0120",
+      "before": "SCENE-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Разломы открыты; первый механизм разрушен",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0101",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0231"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0101",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0120",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0101",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0101",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0101",
+        "text_color"
+      ]
+    },
+    {
+      "after": "MAPVER-46037A80-A780-41B0-9411-6EB568F9D1A4",
+      "before": "MAPVER-1B70D50B-3AEE-4EAC-B233-17C649A7387A",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Эпилог",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Разломы Архипелага открыты. Аватар Ур-Серагона появился у Тар-Хиконы; Онсераг погиб, первый механизм разрушен.",
+      "before": "### Разговор отца и сына После прибытия в столицу Михаэль встретился с Александросом. Император тепло принял сына и не скрывал радости от того, что тот оказался жив. Михаэль подробно рассказал отцу о своих приключениях, пребывании в Ордене затмения, предательстве Онсерага и спасении. Александрос подтвердил заключение Эрин: Михаэль не является его кровным сыном, тогда как Харагорн принадлежит к роду Александроса.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0231"
+      ],
+      "before": [
+        "SRC-0230"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-THREE-MOONS"
+      ],
+      "before": [
+        "FRONT-TAR-ELAM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0120",
+      "before": "SCENE-0106",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Остров Алой Луны, Архипелаг Древних; на следующий день после возвращения Михаэля в столицу и аудиенции Никитосиоса у Аразаила; финал главы 3",
+      "before": "после прибытия Михаэля в столицу; на следующий день после прибытия Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 117760,
+      "before": 116736,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

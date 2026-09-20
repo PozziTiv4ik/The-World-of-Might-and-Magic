@@ -1,0 +1,414 @@
+{
+  "base": "history/documents/328a0627fb64bdd3a5ab5fc5aaf408e862b35a876242f49cbeca6cfd0806eb2c.json",
+  "changes": [
+    {
+      "after": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ],
+      "before": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0059",
+        "nodes"
+      ]
+    },
+    {
+      "after": "после падения Лордамера, возвращение Александроса в столицу",
+      "before": "тем же временем после Высшего совета и падения Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Война с Лордамером окончена. Александрос возвращается в столицу как победоносный Император: жители встречают его радостными криками, совет принимает подобающим образом, а образ спасителя государства закрепляется публично. Сразу после встречи Михаэль отводит отца для личного разговора.",
+      "before": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "столица Империи",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0007"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0017",
+      "before": "SCENE-0077",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_017_Возвращение_победителя_и_совет_примирения.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_014_Ответ_Вито_в_Белой_Гавани.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "b1ffaefc54a467af9bfe3e119c6b32b293e204d40d4dba9d9a6d4ae1ee89910a",
+      "before": "69c5454dfe5eb39e85dd50ae72b4d096b4c5c1c199925ef85244d967f7bdeea9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 32768,
+      "before": 31744,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 017. Возвращение победителя и совет примирения",
+      "before": "Сцена 014. Ответ Вито в Белой Гавани",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0117"
+      ],
+      "before": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0017",
+      "before": "SCENE-0016",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0078",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1938,
+        725
+      ],
+      "before": [
+        2245,
+        457
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        2227,
+        479
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Война с Лордамером окончена. Александрос возвращается в столицу как победоносный Император: жители встречают его радостными криками, совет принимает подобающим образом, а образ спасителя государства закрепляется публично. Сразу после встречи Михаэль отводит отца для личного разговора.",
+      "before": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0117"
+      ],
+      "before": [
+        "SRC-0089"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0017",
+      "before": "SCENE-0077",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0117"
+      ],
+      "before": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0017",
+      "before": "SCENE-0016",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        2227,
+        479
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        2208.17,
+        530.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-B3982E1D-9BE6-4C8F-BE3C-CFDCB0E9F241",
+      "before": "MAPVER-E69EAE70-875D-4E37-83CC-472F8D9AD603",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Война с Лордамером окончена. Александрос возвращается в столицу как победоносный Император: жители встречают его радостными криками, совет принимает подобающим образом, а образ спасителя государства закрепляется публично. Сразу после встречи Михаэль отводит отца для личного разговора.",
+      "before": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0117"
+      ],
+      "before": [
+        "SRC-0089"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0017",
+      "before": "SCENE-0077",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после падения Лордамера, возвращение Александроса в столицу",
+      "before": "тем же временем после Высшего совета и падения Лордамера",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 32768,
+      "before": 31744,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

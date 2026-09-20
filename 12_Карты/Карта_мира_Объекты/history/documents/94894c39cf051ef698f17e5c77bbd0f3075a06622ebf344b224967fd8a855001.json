@@ -1,0 +1,430 @@
+{
+  "base": "history/documents/83905b371119f3cf297510582b114da423426a6ac9194942d007d1f001c7075f.json",
+  "changes": [
+    {
+      "after": {
+        "nodes": [
+          "NODE-MAPOBJ-ROUTE-CHAR-0114-0",
+          "NODE-MAPOBJ-ROUTE-CHAR-0114-1"
+        ]
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0114"
+      ]
+    },
+    {
+      "after": "спустя две недели после боя с темной гидрой",
+      "before": "вечер следующего дня после спасения Михаэля из Порт-Мантикоры",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+      "before": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Великая арена Либриария",
+      "before": "руины замка Тикормана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0010"
+      ],
+      "before": [
+        "LOC-0072"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1338,
+        628
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0112",
+      "before": "SCENE-0101",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Никитосиос/Сцена_005_Первый_раунд_турнира_на_Великой_арене.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_038_Отказ_Каролине_и_поручение_Онсерага.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "ea4d923fc514d9247fee2cf1981d9a8ebe9c4b6b736cec2b2488f9f9d524f388",
+      "before": "aa49103c806b139e9e6943ed657c808255527cd6924e930cae7080252dd94f50",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 103424,
+      "before": 102400,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 005. Первый раунд турнира на Великой арене",
+      "before": "Сцена 038. Отказ Каролине и поручение Онсерага",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0214"
+      ],
+      "before": [
+        "SRC-0199"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0112",
+      "before": "SCENE-0111",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0010",
+      "before": "LOC-0039",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1356,
+        650
+      ],
+      "before": [
+        1378,
+        692
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1338,
+        628
+      ],
+      "before": [
+        1360,
+        670
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+      "before": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0010",
+      "before": "LOC-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0214"
+      ],
+      "before": [
+        "SRC-0215"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Великая арена Либриария",
+      "before": "Руины замка Тикормана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1338,
+        628
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0112",
+      "before": "SCENE-0101",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0114",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0214"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0114",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Никитосиос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0112",
+        "stroke": "#A44E56",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-0"
+      ]
+    },
+    {
+      "after": [
+        1338,
+        628
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-1"
+      ]
+    },
+    {
+      "after": "MAPVER-00A78932-01C3-4963-8CA0-B4539AFE52DC",
+      "before": "MAPVER-68CC32B4-87DA-4941-8CEB-6AB3EB89E905",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Никитосиос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+      "before": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0214"
+      ],
+      "before": [
+        "SRC-0215"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0112",
+      "before": "SCENE-0101",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя две недели после боя с темной гидрой",
+      "before": "вечер следующего дня после спасения Михаэля из Порт-Мантикоры",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 103424,
+      "before": 102400,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

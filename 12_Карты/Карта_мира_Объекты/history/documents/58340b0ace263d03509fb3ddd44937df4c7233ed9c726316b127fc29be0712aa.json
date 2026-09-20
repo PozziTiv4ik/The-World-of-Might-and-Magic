@@ -1,0 +1,447 @@
+{
+  "base": "history/documents/8a6252e26efb070971c11bea02c2411ceae616a2dd8cda25d9690fce2ffc98ae.json",
+  "changes": [
+    {
+      "after": "после прибытия Михаэля в столицу; на следующий день после прибытия Нилуфар",
+      "before": "сразу после завершения последнего испытания в Цитадели Бездны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "### Разговор отца и сына После прибытия в столицу Михаэль встретился с Александросом. Император тепло принял сына и не скрывал радости от того, что тот оказался жив. Михаэль подробно рассказал отцу о своих приключениях, пребывании в Ордене затмения, предательстве Онсерага и спасении. Александрос подтвердил заключение Эрин: Михаэль не является его кровным сыном, тогда как Харагорн принадлежит к роду Александроса.",
+      "before": "### Свобода победителей Никитосиос вернулся из последнего лабиринта с теневым аметистом и официально завершил испытания, хотя заплатил за победу левой рукой до локтя. Полуэльф получил свободу и был признан полноправным гражданином Королевства Бездны. Из прежней Багровой гидры испытание также прошли Эгвин Темная Лилия и Роган Варвар. Бейн Черный Страж к завершению испытания так и не вернулся из лабиринта;",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, столица Империи Света",
+      "before": "Цитадель Бездны, тронный зал Аразаила",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0093"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1218,
+        487.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0106",
+      "before": "SCENE-0116",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_043_Правда_о_происхождении_и_возвращение_Нилуфар.md",
+      "before": "01_Кампания/Ветки/Никитосиос/Сцена_009_Свобода,_Аразаил_и_Архипелаг_Древних.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "d40421870cd6dc4bfc0d8dba76991d674302325dffbcac167ada8cd695befaa2",
+      "before": "360518a444f76a8f4bb860cf21075f8104ba4033ab381f3217974e3331e82303",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 116736,
+      "before": 115712,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 043. Правда о происхождении и возвращение Нилуфар",
+      "before": "Сцена 009. Свобода, Аразаил и Архипелаг Древних",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0230"
+      ],
+      "before": [
+        "SRC-0227"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0106",
+      "before": "SCENE-0061",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0230"
+      ],
+      "before": [
+        "SRC-0228"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0106",
+      "before": "SCENE-0105",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1902,
+        725
+      ],
+      "before": [
+        1359,
+        1542.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "### Разговор отца и сына После прибытия в столицу Михаэль встретился с Александросом. Император тепло принял сына и не скрывал радости от того, что тот оказался жив. Михаэль подробно рассказал отцу о своих приключениях, пребывании в Ордене затмения, предательстве Онсерага и спасении. Александрос подтвердил заключение Эрин: Михаэль не является его кровным сыном, тогда как Харагорн принадлежит к роду Александроса.",
+      "before": "### Свобода победителей Никитосиос вернулся из последнего лабиринта с теневым аметистом и официально завершил испытания, хотя заплатил за победу левой рукой до локтя. Полуэльф получил свободу и был признан полноправным гражданином Королевства Бездны. Из прежней Багровой гидры испытание также прошли Эгвин Темная Лилия и Роган Варвар. Бейн Черный Страж к завершению испытания так и не вернулся из лабиринта;",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0093",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0230"
+      ],
+      "before": [
+        "SRC-0229"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Цитадель Бездны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1218,
+        487.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0106",
+      "before": "SCENE-0116",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0230"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0106",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1377,
+        1564.5
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-1B70D50B-3AEE-4EAC-B233-17C649A7387A",
+      "before": "MAPVER-1153E659-34B0-478F-8623-20BCE3050A68",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Никитосиос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "### Разговор отца и сына После прибытия в столицу Михаэль встретился с Александросом. Император тепло принял сына и не скрывал радости от того, что тот оказался жив. Михаэль подробно рассказал отцу о своих приключениях, пребывании в Ордене затмения, предательстве Онсерага и спасении. Александрос подтвердил заключение Эрин: Михаэль не является его кровным сыном, тогда как Харагорн принадлежит к роду Александроса.",
+      "before": "### Свобода победителей Никитосиос вернулся из последнего лабиринта с теневым аметистом и официально завершил испытания, хотя заплатил за победу левой рукой до локтя. Полуэльф получил свободу и был признан полноправным гражданином Королевства Бездны. Из прежней Багровой гидры испытание также прошли Эгвин Темная Лилия и Роган Варвар. Бейн Черный Страж к завершению испытания так и не вернулся из лабиринта;",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0230"
+      ],
+      "before": [
+        "SRC-0229"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-TAR-ELAM"
+      ],
+      "before": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0106",
+      "before": "SCENE-0116",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после прибытия Михаэля в столицу; на следующий день после прибытия Нилуфар",
+      "before": "сразу после завершения последнего испытания в Цитадели Бездны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 116736,
+      "before": 115712,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

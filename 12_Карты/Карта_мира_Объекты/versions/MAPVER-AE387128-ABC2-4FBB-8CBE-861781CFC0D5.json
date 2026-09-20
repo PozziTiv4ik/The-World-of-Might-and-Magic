@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 12,
+  "document_hash": "bd53e60bd6bb4e0799fc0396f74559dee085aa591754388c45543a6cacfc3766",
+  "document_ref": "history/documents/d0616d9938b8c26e286a932a26b3ac24a7fe238b4cf4dfb11bc52a44e4768e77.json",
+  "format": 2,
+  "id": "MAPVER-AE387128-ABC2-4FBB-8CBE-861781CFC0D5",
+  "integrity": "95471f5479c717262254268433aeefc2a5d5600b6a5587279b01eabd1f7bf4f3",
+  "label": "Михаэль · Письмо Вито после совета",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-49807696-4582-46FC-8797-523DFF4D33A9",
+  "recorded_at": "2026-09-20T14:00:17.582Z",
+  "sequence": 30,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "На следующий день после Высшего совета Михаэль не стал публично спорить с условием Александроса, но выбрал личный ход через Вито. Принц написал другу письмо, в котором признал его победы и новый имперский статус Тар-Элама, а союз с Нилуфар назвал будущим, способным изменить обе Империи.",
+    "evidence_ids": [
+      "SRC-0088"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0076",
+    "story_date": "на следующий день после Высшего совета",
+    "story_order": 29696
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 8,
+  "document_hash": "9df1e573d4583c660d3dc82ad879fe4b7280698de0a5e596691c2898068a58f3",
+  "document_ref": "history/documents/80fccc3724cd638ac0754bbdf89748c170e4cb577215c077df56aca5b8c00191.json",
+  "format": 2,
+  "id": "MAPVER-E10A5DCE-1CDD-4860-B0B4-7509F0A4FBE2",
+  "integrity": "14c102ec01aad3bf3467161ba8401f789a204c6fc5f238cf82a3dc7e2c2eb7f9",
+  "label": "Глава 4 · Союз и Архипелаг Древних",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-0538CF3F-CA8E-4212-A139-331F67A600B5",
+  "recorded_at": "2026-09-20T14:03:36.694Z",
+  "sequence": 124,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "chapters",
+    "chapter": 4,
+    "description": "Состояние мира после последней сцены главы 4. Все моменты главы доступны в цепочке «Вся история».",
+    "evidence_ids": [
+      "SRC-0242"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0063",
+    "story_date": "сразу после аудиенции у Короля Авалона в Валантиде",
+    "story_order": 4096
+  }
+}

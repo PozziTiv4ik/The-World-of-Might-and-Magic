@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "fc265e22376141e6b47e18a4cf7b16674e55e275f825cbd0df71d6b1cd0f3033",
+  "document_ref": "history/documents/1d51b3c920dbb6f392a869e3d678b6e99c2794a267e268cf98c6798fbea01133.json",
+  "format": 2,
+  "id": "MAPVER-231A29D1-B934-4AC7-9AFB-42CF15C33623",
+  "integrity": "1b13cba86ca266c1d7fc63d92e7f085405abd048b6f89d957611afee7cf13236",
+  "label": "Александрос · Багровый Пик и возвращение Эрин",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-B04C85B0-7E35-474A-B7BB-37DC82A6AFDB",
+  "recorded_at": "2026-09-20T14:00:00.216Z",
+  "sequence": 21,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Победа у Багрового Пика и возвращение Эрин. Шахибдия и Шамат-Ракшас вошли в Тар-Элам.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-CRIMSON-PEAK"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0011",
+    "story_date": "первые недели после Дня Единения Империи",
+    "story_order": 20480
+  }
+}

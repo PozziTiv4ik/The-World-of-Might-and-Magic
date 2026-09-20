@@ -1,0 +1,32 @@
+{
+  "asset_hashes": {},
+  "document_depth": 9,
+  "document_hash": "988a1e33669c2d18ecb0d1188e8ac5325fb158f57f066acd298c715c905b6e01",
+  "document_ref": "history/documents/726779255a6546dc59edf728e844f228b9e94414219f351ea177157cbb87cab5.json",
+  "format": 2,
+  "id": "MAPVER-96DC1C11-CAE7-444F-A677-055DC7109E08",
+  "integrity": "48d01bd4087f54e27c85b4dd23d4e22d5f55079900707adcd18daa899b1b9a60",
+  "label": "Михаэль · Испытание Роксаной и прибытие Закхерона",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-3FACA741-30CC-4737-B71C-35175D6268D1",
+  "recorded_at": "2026-09-20T14:02:59.102Z",
+  "sequence": 108,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "За две недели после инцидента с подслушиванием Михаэль успел серьезно отработать скорость и ловкость на тренировках с ассасинами Ретипа. Он помнил, что именно сегодня Онсераг обещал устроить окончательное испытание. Лагерь у руин Тикормана за это время превратился в точку сбора сил Ордена затмения.",
+    "evidence_ids": [
+      "SRC-0220",
+      "SRC-0225"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0102",
+    "story_date": "две недели спустя после отказа Михаэля от шантажа Каролины",
+    "story_order": 108544
+  }
+}

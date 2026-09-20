@@ -1,6 +1,7 @@
 #pragma once
 #include "dialogs.hpp"
 #include "render.hpp"
+#include <future>
 
 namespace atlas {
 enum class Tool {
@@ -115,7 +116,13 @@ enum Command {
     AddControl,
     RemoveControl,
     ToggleSea,
-    ShowArchiveLayers
+    ShowArchiveLayers,
+    EditorView, CompareView, CompareOverlay, ChooseCompareA, ChooseCompareB,
+    EditVersion, NewChain, DraftsDialog, RecoveryDialog, PreviousVersion, NextVersion,
+    OpenVersionSource, FocusDiff, ToggleDiff, SaveNamedDraft, FocusScene,
+    OpenMoment, NewEvent, NewRevision, CompareRevisions, HistoryFilter, HistoryOptions,
+    HistoryCollection, HistorySort, HistorySearch, HistoryPage, HistoryScale,
+    SelectRevision, FullScreen
 };
 struct Hit {
     D2D1_RECT_F rect;
@@ -124,7 +131,15 @@ struct Hit {
     std::string tip;
 };
 class App {
+    friend int workspaceSelfTest(const fs::path &);
+    friend class EditorScenario;
+    bool headless = false;
+    ULONGLONG replayTime = 100000;
+    ULONGLONG now() const {return headless?replayTime:GetTickCount64();}
+    std::set<int> replayKeys;
+    SHORT keyState(int key) const {return headless?(replayKeys.contains(key)?SHORT(0x8000):0):GetKeyState(key);}
     HWND window = nullptr, searchBox = nullptr, nameBox = nullptr;
+    HWND chainBox=nullptr,chapterBox=nullptr,sortBox=nullptr;
     HFONT font = nullptr;
     Com<ID2D1HwndRenderTarget> target;
     Map map;
@@ -132,14 +147,25 @@ class App {
     History history;
     MapRenderer renderer;
     std::unique_ptr<MapRenderer> comparisonRenderer;
+    std::unique_ptr<MapRenderer> comparisonBRenderer;
     TextCache uiTextCache;
     ULONGLONG lastPointerPaint = 0;
     ULONGLONG cameraMovingUntil = 0;
     bool pointerPaintPending = false;
     std::unique_ptr<Map> comparison;
+    std::unique_ptr<Map> comparisonB;
     fs::path initialMap, projectRoot;
     std::vector<Hit> hits;
     std::vector<Json> versions;
+    std::vector<StoryEvent> storyEvents;
+    struct Thumbnail {
+        std::future<Image> pending;
+        std::shared_ptr<Image> image;
+        Com<ID2D1Bitmap> bitmap;
+        ID2D1RenderTarget *owner = nullptr;
+        std::string error;
+    };
+    std::map<std::string, std::unique_ptr<Thumbnail>> thumbnails;
     std::set<std::string> selected;
     std::string activeLayer, activeSymbol = "fleet", stroke = "#635D4D",
                              status = "Выбери страну на карте или в списке слева", query;
@@ -150,9 +176,24 @@ class App {
     float dpi = 1, width = 1500, height = 950, left = 252, right = 298;
     D2D1_RECT_F canvas{};
     bool dirty = false, snap = true, grid = false, down = false, panning = false, historyView = false,
-         selectionBox = false, syncName = false, showPanels = true;
+         selectionBox = false, syncName = false, showPanels = false;
     bool refreshing = false;
     int panel = 0;
+    int compareMode=0,historyChapter=0,diffScroll=0,keyboardHit=-1,detailScroll=0;
+    bool syncHistory=false,diffVisible=false;
+    std::string historyOrder="story",historyChain="main";
+    bool historySearch = false, timelineDragging = false, fullscreen = false;
+    float eventSpacing = 232;
+    int timelineDragStart = 0, revisionScroll = 0;
+    double editorZoom = .25;
+    Point editorOffset{};
+    bool editorCameraSaved = false;
+    WINDOWPLACEMENT normalPlacement{sizeof(WINDOWPLACEMENT)};
+    D2D1_RECT_F timelineArea{}, drawerArea{};
+    std::vector<std::string> chainIds;
+    std::vector<int> chapterIds;
+    Json versionDetails,diffRows;
+    std::set<std::string> comparisonFocus;
     bool mapLabels = true, dragPreview = false;
     Point dragDelta{};
     std::set<std::string> dragObjects;
@@ -166,7 +207,7 @@ class App {
     std::string movingBorder;
     Point borderGrab{};
     double borderRadius = 160;
-    SelectionDomain editScope = SelectionDomain::Borders;
+    SelectionDomain editScope = SelectionDomain::Objects;
     bool isolateLayer = false, allowSea = true, draggingControl = false;
     bool showArchiveLayers = false;
     std::string activeBorder, activeControl;
@@ -186,11 +227,27 @@ class App {
     LRESULT message(UINT, WPARAM, LPARAM);
     void layout();
     void paint();
-    void paintTools(Painter &);
+    void drawFrame(ID2D1RenderTarget *, bool live);
+    Image captureFrame(float scale = 1);
+    void setQuery(const std::string &);
+    void wheel(Point, int);
+    void rollbackInteraction();
     void paintSidebar(Painter &);
     void paintProperties(Painter &);
-    void paintTimeline(Painter &);
     void paintChrome(Painter &);
+    void computeLayout();
+    void paintHistoryScreen(Painter &);
+    void paintMapChrome(Painter &);
+    void paintComparisonChrome(Painter &);
+    void paintThumbnail(Painter &, const Json &, D2D1_RECT_F);
+    int visibleEvents() const;
+    void revealVersion(const std::string &);
+    const StoryEvent *selectedEvent() const;
+    void openMoment();
+    void revisionDialog(bool askName = true);
+    void compareRevisions();
+    void historyMenu(int);
+    void toggleFullscreen();
     void iconButton(Painter &, D2D1_RECT_F, const std::string &, const std::string &, int,
                     const std::string &data = "", bool active = false);
     void button(Painter &, D2D1_RECT_F, const std::string &, int, const std::string &data = "",
@@ -212,6 +269,16 @@ class App {
     void properties();
     void bindEntity();
     void versionDialog();
+    void refreshVersions(bool filters=false);
+    void showVersion(const std::string &,bool second=false);
+    void editVersion();
+    void newChain();
+    void draftsDialog();
+    void recoveryDialog();
+    void chooseComparison(bool second);
+    void buildDiff();
+    void focusDiff(size_t);
+    void drawHistoryMaps(Painter &);
     void open();
     void save(bool as = false);
     void exportMap(bool svg = false);
@@ -229,7 +296,13 @@ class App {
     Image preview(const fs::path &, int state = 0);
 };
 int runCli(int argc, wchar_t **argv);
+int historyCli(Map &,const Campaign &,const std::string &,
+               const std::function<std::string(const std::string &)> &,
+               const std::function<bool(const std::string &)> &);
 int selfTest(const fs::path &temporary, const fs::path &pdn, const fs::path &objectMap = {});
+int workspaceSelfTest(const fs::path &temporary);
+Json runEditorScenario(const fs::path &scenario, const fs::path &output,
+                       const fs::path &source = {}, const fs::path &project = {});
 Json benchmarkMap(const fs::path &path);
 Json benchmarkCamera(const fs::path &path, bool borders = true);
 } // namespace atlas

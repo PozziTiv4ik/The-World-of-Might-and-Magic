@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "name": "11-file-lifecycle",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "camera",
+      "zoom": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": "key",
+      "key": "T"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Подпись",
+        "values": {
+          "Текст": "До смены файла"
+        }
+      }
+    },
+    {
+      "action": "click",
+      "at": [
+        440,
+        340
+      ],
+      "space": "world"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "confirm",
+        "value": "no"
+      }
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новая карта",
+        "values": {
+          "Название": "Новый документ",
+          "Ширина в пикселях": "900",
+          "Высота в пикселях": "700"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+N"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "pointer": "/name",
+      "equals": "Новый документ",
+      "target": "document"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "folder",
+        "value": "saved"
+      }
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Сохранить карту",
+        "values": {
+          "Имя новой папки": "second"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": false
+    },
+    {
+      "action": "assert",
+      "file": "saved/second/map.json",
+      "contains": "Новый документ"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "open_file",
+        "value": "map/map.json"
+      }
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+O"
+    },
+    {
+      "action": "assert",
+      "pointer": "/name",
+      "equals": "Проверка Atlas",
+      "target": "document"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 0
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "folder",
+        "value": "../must-not-escape"
+      }
+    },
+    {
+      "action": "command",
+      "command": "save_as",
+      "expect_error": "escapes"
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": false
+    }
+  ]
+}

@@ -1,0 +1,384 @@
+{
+  "base": "history/documents/3ee20b7748c5cc53075a2a45bff514ad690ae78eabf0e1f21ba60f69481e12aa.json",
+  "changes": [
+    {
+      "after": "в тот же день после Тикормана; прибытие Михаэля и Нилуфар в Алиманджад",
+      "before": "утро после испытательного договора в Порт-Лабаде; путь к руинам замка Тикормана и выход к столице Кланов Закона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "В тот же день после похода к Тикорману Михаэль прибывает в Алиманджад, столицу Кланов Закона. Город поражает его строгим порядком, симметрией и центральной сине-золотой пирамидой - храмом вечного закона. У входов в храм стоят статуи легендарных сфинксов с коронами закона, а ярусы пирамиды украшены висячими садами. Внутри храма Михаэль, Нилуфар и имперская делегация предстают перед Владыкой законов Урионом.",
+      "before": "На следующее утро после вечернего собрания Михаэль пишет Картосу письмо. Он признает, что Картос сохранил Белую Гавань, но вводит новое правило: каждая закрытая операция теперь должна иметь отчет для Елены и Императора. Публично Картос должен показать порядок, потери, задержанных и меры восстановления; тайную часть раскрывать нельзя.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Алиманджад",
+      "before": "Порт-Лабад; руины замка Тикормана; дорога к столице Кланов Закона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0001"
+      ],
+      "before": [
+        "LOC-0072"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1377,
+        1564.5
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0087",
+      "before": "SCENE-0086",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_024_Алиманджад_и_круг_Ордена_затмения.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_023_Тикорман_и_обещанный_принц.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "58e1218bf2877109a6a7f197d25aadc2132f03c9684df383b2936b18d0b00921",
+      "before": "acf6cf1305f0d5741c725d0b02d2d73d2431b0fb4d698d3dd84a299ee9940158",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 65536,
+      "before": 64512,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 024. Алиманджад и круг Ордена затмения",
+      "before": "Сцена 023. Тикорман и обещанный принц",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0153"
+      ],
+      "before": [
+        "SRC-0154"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0087",
+      "before": "SCENE-0086",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0001",
+      "before": "LOC-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1359,
+        1542.5
+      ],
+      "before": [
+        1322,
+        1488
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1377,
+        1564.5
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "В тот же день после похода к Тикорману Михаэль прибывает в Алиманджад, столицу Кланов Закона. Город поражает его строгим порядком, симметрией и центральной сине-золотой пирамидой - храмом вечного закона. У входов в храм стоят статуи легендарных сфинксов с коронами закона, а ярусы пирамиды украшены висячими садами. Внутри храма Михаэль, Нилуфар и имперская делегация предстают перед Владыкой законов Урионом.",
+      "before": "На следующее утро после вечернего собрания Михаэль пишет Картосу письмо. Он признает, что Картос сохранил Белую Гавань, но вводит новое правило: каждая закрытая операция теперь должна иметь отчет для Елены и Императора. Публично Картос должен показать порядок, потери, задержанных и меры восстановления; тайную часть раскрывать нельзя.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0001",
+      "before": "LOC-0072",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0153"
+      ],
+      "before": [
+        "SRC-0154"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Алиманджад",
+      "before": "Руины замка Тикормана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1377,
+        1564.5
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0087",
+      "before": "SCENE-0086",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0153"
+      ],
+      "before": [
+        "SRC-0154"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0087",
+      "before": "SCENE-0086",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        1277,
+        1536
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1377,
+        1564.5
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-031C30A6-2325-4261-8B53-FC8358E1DB64",
+      "before": "MAPVER-543B78F7-369F-4C9C-BBAB-FE40B49A0836",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "В тот же день после похода к Тикорману Михаэль прибывает в Алиманджад, столицу Кланов Закона. Город поражает его строгим порядком, симметрией и центральной сине-золотой пирамидой - храмом вечного закона. У входов в храм стоят статуи легендарных сфинксов с коронами закона, а ярусы пирамиды украшены висячими садами. Внутри храма Михаэль, Нилуфар и имперская делегация предстают перед Владыкой законов Урионом.",
+      "before": "На следующее утро после вечернего собрания Михаэль пишет Картосу письмо. Он признает, что Картос сохранил Белую Гавань, но вводит новое правило: каждая закрытая операция теперь должна иметь отчет для Елены и Императора. Публично Картос должен показать порядок, потери, задержанных и меры восстановления; тайную часть раскрывать нельзя.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0153"
+      ],
+      "before": [
+        "SRC-0154"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0087",
+      "before": "SCENE-0086",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "в тот же день после Тикормана; прибытие Михаэля и Нилуфар в Алиманджад",
+      "before": "утро после испытательного договора в Порт-Лабаде; путь к руинам замка Тикормана и выход к столице Кланов Закона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 65536,
+      "before": 64512,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

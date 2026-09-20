@@ -1,0 +1,421 @@
+{
+  "base": "history/documents/c0feaf94fd5aa1dc2551460bd715d7b28ee769828f98afd7107aedf7fce2711f.json",
+  "changes": [
+    {
+      "after": "утро после испытательного договора в Порт-Лабаде; путь к руинам замка Тикормана и выход к столице Кланов Закона",
+      "before": "после письма Вито и первых ударов Орды; перед отбытием Александроса в Уайтбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "На следующее утро после вечернего собрания Михаэль пишет Картосу письмо. Он признает, что Картос сохранил Белую Гавань, но вводит новое правило: каждая закрытая операция теперь должна иметь отчет для Елены и Императора. Публично Картос должен показать порядок, потери, задержанных и меры восстановления; тайную часть раскрывать нельзя.",
+      "before": "Обдумав доклады Елены, письмо Вито, первые удары Железной Орды и свои последние сны, Александрос принимает пакет решений перед отъездом из столицы. Первое распоряжение получает Елена. Император приказывает усилить агентурные силы вокруг Тол-Меналаса и приложить все усилия, чтобы Петир снова не избежал поимки.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Порт-Лабад; руины замка Тикормана; дорога к столице Кланов Закона",
+      "before": "столица Империи; Цитадель Вечного Света; связь через видящий камень; путь к Уайтбургу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0072"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0086",
+      "before": "SCENE-0038",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_023_Тикорман_и_обещанный_принц.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_038_Решения_перед_походом_в_Уайтбург.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "acf6cf1305f0d5741c725d0b02d2d73d2431b0fb4d698d3dd84a299ee9940158",
+      "before": "06d03ce35ecafa49c4b446c5429258d3975c7ad33df5d8b14eeec556c8e4feb9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 64512,
+      "before": 63488,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 023. Тикорман и обещанный принц",
+      "before": "Сцена 038. Решения перед походом в Уайтбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0154"
+      ],
+      "before": [
+        "SRC-0155"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0086",
+      "before": "SCENE-0085",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0072",
+      "before": "LOC-0061",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1322,
+        1488
+      ],
+      "before": [
+        1259,
+        1514
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        1277,
+        1536
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "На следующее утро после вечернего собрания Михаэль пишет Картосу письмо. Он признает, что Картос сохранил Белую Гавань, но вводит новое правило: каждая закрытая операция теперь должна иметь отчет для Елены и Императора. Публично Картос должен показать порядок, потери, задержанных и меры восстановления; тайную часть раскрывать нельзя.",
+      "before": "Обдумав доклады Елены, письмо Вито, первые удары Железной Орды и свои последние сны, Александрос принимает пакет решений перед отъездом из столицы. Первое распоряжение получает Елена. Император приказывает усилить агентурные силы вокруг Тол-Меналаса и приложить все усилия, чтобы Петир снова не избежал поимки.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0072",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0154"
+      ],
+      "before": [
+        "SRC-0152"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Руины замка Тикормана",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0086",
+      "before": "SCENE-0038",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0154"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0086",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1277,
+        1536
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1340,
+        1510
+      ],
+      "before": [
+        1277,
+        1536
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-543B78F7-369F-4C9C-BBAB-FE40B49A0836",
+      "before": "MAPVER-696F1EA4-384C-4A8F-939C-966694EF08E1",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "На следующее утро после вечернего собрания Михаэль пишет Картосу письмо. Он признает, что Картос сохранил Белую Гавань, но вводит новое правило: каждая закрытая операция теперь должна иметь отчет для Елены и Императора. Публично Картос должен показать порядок, потери, задержанных и меры восстановления; тайную часть раскрывать нельзя.",
+      "before": "Обдумав доклады Елены, письмо Вито, первые удары Железной Орды и свои последние сны, Александрос принимает пакет решений перед отъездом из столицы. Первое распоряжение получает Елена. Император приказывает усилить агентурные силы вокруг Тол-Меналаса и приложить все усилия, чтобы Петир снова не избежал поимки.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0154"
+      ],
+      "before": [
+        "SRC-0152"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-IRON-HORDE"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0086",
+      "before": "SCENE-0038",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "утро после испытательного договора в Порт-Лабаде; путь к руинам замка Тикормана и выход к столице Кланов Закона",
+      "before": "после письма Вито и первых ударов Орды; перед отбытием Александроса в Уайтбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 64512,
+      "before": 63488,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

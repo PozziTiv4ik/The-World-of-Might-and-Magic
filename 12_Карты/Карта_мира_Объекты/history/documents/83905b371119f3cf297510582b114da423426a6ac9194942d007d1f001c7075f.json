@@ -1,0 +1,266 @@
+{
+  "base": "history/documents/7d41575765398798a1e53b8ccd8831a8ff3a42cbdfcf9e9a177f92efa4aa1fc6.json",
+  "changes": [
+    {
+      "after": "вечер следующего дня после спасения Михаэля из Порт-Мантикоры",
+      "before": "следующий день после спасения Михаэля из Порт-Мантикоры",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+      "before": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "руины замка Тикормана",
+      "before": "Башня у моря; руины замка Тикормана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0072"
+      ],
+      "before": [
+        "LOC-0006",
+        "LOC-0072"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0101",
+      "before": "SCENE-0100",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_038_Отказ_Каролине_и_поручение_Онсерага.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_037_Тикорман,_Гавейн_и_условие_Каролины.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "aa49103c806b139e9e6943ed657c808255527cd6924e930cae7080252dd94f50",
+      "before": "6221fc28c06e23250840a51b2a184686abfd46667263815d3f3210bac8ce2b6b",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 102400,
+      "before": 101376,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 038. Отказ Каролине и поручение Онсерага",
+      "before": "Сцена 037. Тикорман, Гавейн и условие Каролины",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0215"
+      ],
+      "before": [
+        "SRC-0212"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0101",
+      "before": "SCENE-0100",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+      "before": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0215"
+      ],
+      "before": [
+        "SRC-0212"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0101",
+      "before": "SCENE-0100",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0212"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0100",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-68CC32B4-87DA-4941-8CEB-6AB3EB89E905",
+      "before": "MAPVER-AE66D9E0-EC2A-4050-930A-5DCA11F2F371",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+      "before": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0215"
+      ],
+      "before": [
+        "SRC-0212"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0101",
+      "before": "SCENE-0100",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "вечер следующего дня после спасения Михаэля из Порт-Мантикоры",
+      "before": "следующий день после спасения Михаэля из Порт-Мантикоры",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 102400,
+      "before": 101376,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

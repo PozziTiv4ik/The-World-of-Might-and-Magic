@@ -1,0 +1,11 @@
+{
+  "profile_id": "campaign-atlas-5-20260920",
+  "scene_count": 120,
+  "chapter_count": 4,
+  "location_count": 106,
+  "original_snapshots_unchanged": true,
+  "validation": {
+    "errors": [],
+    "warnings": []
+  }
+}

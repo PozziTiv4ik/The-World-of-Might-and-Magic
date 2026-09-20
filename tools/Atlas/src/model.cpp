@@ -75,6 +75,7 @@ std::vector<const Entity *> Campaign::search(const std::string &q, const std::st
     return result;
 }
 Map::Map() {
+    sessionId=newId("SESSION-");
     create(4000, 3000, "Карта мира");
 }
 void Map::create(int w, int h, const std::string &name) {
@@ -118,7 +119,9 @@ void Map::clearCache() {
     edgeIndexCount = 0;
 }
 void Map::load(const fs::path &path) {
-    auto dir = fs::is_directory(path) ? path : path.parent_path();
+    auto resolved=fs::absolute(path).lexically_normal();
+    auto dir = fs::is_directory(resolved) ? resolved : resolved.parent_path();
+    recoverHistoryTransaction(dir);
     auto text = readText(dir / L"map.json");
     auto value = Json::parse(text);
     if (value["schema_version"].num() != 1)
@@ -132,12 +135,15 @@ void Map::load(const fs::path &path) {
     doc = std::move(candidate.doc);
     directory = dir;
     diskHash = hashText(text);
+    timelineHash.clear();
+    try { timeline(); } catch (...) { timelineHash.clear(); }
     clearCache();
 }
 void Map::save(const fs::path &path) {
     auto target = path.empty() ? directory : (path.extension() == L".json" ? path.parent_path() : path);
     if (target.empty())
         throw std::runtime_error("Choose a map directory first");
+    target=fs::absolute(target).lexically_normal();
     auto report = validate();
     if (report["errors"].size())
         throw std::runtime_error(report["errors"].dump());
@@ -165,14 +171,14 @@ void Map::save(const fs::path &path) {
                 atomicWrite(dst, bytes);
         }
         // Versions may reference earlier raster revisions, so Save As carries their assets too.
-        for (auto section : {L"assets", L"versions"}) {
+        for (auto section : {L"assets", L"versions", L"history"}) {
             auto source = directory / section;
             if (!fs::exists(source))
                 continue;
-            for (auto &entry : fs::directory_iterator(source)) {
+            for (auto &entry : fs::recursive_directory_iterator(source)) {
                 if (!entry.is_regular_file())
                     continue;
-                auto relative = pathText(fs::path(section) / entry.path().filename());
+                auto relative = pathText(fs::path(section) / entry.path().lexically_relative(source));
                 auto src = safeChild(directory, relative), dst = safeChild(target, relative);
                 auto bytes = readBytes(src);
                 if (fs::exists(dst) && hashBytes(readBytes(dst)) != hashBytes(bytes))
@@ -183,44 +189,16 @@ void Map::save(const fs::path &path) {
         }
     }
     auto text = doc.dump() + "\n";
-    if (same && hashText(text) == diskHash)
+    if (same && hashText(text) == diskHash) {
+        clearSessionRecovery();
         return;
+    }
     if (fs::exists(manifest))
         atomicText(target / L".atlas" / L"last-save.json", readText(manifest));
     atomicText(manifest, text);
     directory = target;
     diskHash = hashText(text);
-}
-void Map::autosave() const {
-    if (directory.empty())
-        return;
-    auto data = fields({{"base_hash", diskHash}, {"recorded_at", nowUtc()}, {"document", doc}});
-    atomicText(directory / L".atlas" / L"autosave.json", data.dump() + "\n");
-}
-bool Map::hasRecovery() const {
-    if (directory.empty())
-        return false;
-    auto p = directory / L".atlas" / L"autosave.json";
-    if (!fs::exists(p))
-        return false;
-    try {
-        return !(Json::parse(readText(p))["document"] == doc);
-    } catch (...) {
-        return false;
-    }
-}
-void Map::recover() {
-    auto j = Json::parse(readText(directory / L".atlas" / L"autosave.json"));
-    if (j["base_hash"].str() != diskHash)
-        throw std::runtime_error(
-            "Recovery belongs to a different disk revision. Open its JSON separately to merge.");
-    Map candidate;
-    candidate.directory = directory;
-    candidate.doc = j["document"];
-    if (candidate.validate()["errors"].size())
-        throw std::runtime_error("Recovery document is invalid");
-    doc = std::move(candidate.doc);
-    clearCache();
+    clearSessionRecovery();
 }
 void Map::importPdn(const fs::path &path, const fs::path &target) {
     PdnSource source(path);
@@ -889,81 +867,27 @@ Json Map::validate(const Campaign *campaign) const {
                     error("Invalid symbol stroke: " + id);
             }
         }
-    if (campaign && doc["story_anchor"].isObject()) {
+    if (!validColor(doc["background"])) error("Invalid background color");
+    if(doc["id"].str().empty() || !doc["name"].isString())error("Map identity/name is missing");
+    if(!doc["symbols"].isObject())error("Missing symbols collection");
+    if(!doc["story_anchor"].null() && !doc["story_anchor"].isObject())error("Invalid story anchor");
+    if(doc["story_anchor"].isObject()) {
+        const auto &a=doc["story_anchor"];
+        if(a["chapter"].num()<1 || std::floor(a["chapter"].num())!=a["chapter"].num())error("Story chapter must be a positive integer");
+        if(!a["scene_id"].str().empty() && a["relation"].str()!="before" && a["relation"].str()!="after")error("Invalid scene relation");
+    }
+    if (campaign && doc["story_anchor"].isObject() && !doc["story_anchor"]["scene_id"].str().empty()) {
         auto &a = doc["story_anchor"];
         auto s = campaign->find(a["scene_id"].str());
         if (!s || s->type != "scene")
             error("Unknown story scene");
         else if (a["chapter"].num() != std::strtod(s->chapter.c_str(), nullptr))
             error("Scene/chapter mismatch");
+        else if(!a["branch"].str().empty() && a["branch"].str()!=s->branch)error("Scene/branch mismatch");
+        if(a["evidence_ids"].isArray())for(const auto &e:a["evidence_ids"].arr())
+            if(!campaign->find(e.str()))error("Unknown story evidence: "+e.str());
     }
     return result;
-}
-std::string Map::snapshot(const std::string &label, const Json &anchor, bool accepted) {
-    if (directory.empty())
-        throw std::runtime_error("Save the map before creating a version");
-    if (label.empty())
-        throw std::runtime_error("Version name is required");
-    FileLock lock(directory);
-    if (fs::exists(directory / L"map.json") && hashText(readText(directory / L"map.json")) != diskHash)
-        throw std::runtime_error("Map changed on disk before snapshot. Reload or save to another directory.");
-    auto id = newId("MAPVER-");
-    Json state = doc;
-    state["story_anchor"] = anchor;
-    auto snap = fields({{"id", id},
-                        {"label", label},
-                        {"recorded_at", nowUtc()},
-                        {"status", accepted ? "accepted" : "draft"},
-                        {"parent", doc["parent_version"]},
-                        {"document_hash", hashText(state.dump())},
-                        {"document", state}});
-    snap["asset_hashes"] = Json::object();
-    for (auto &l : state["layers"].arr())
-        if (l["image"].isString()) {
-            auto asset = l["image"].str();
-            if (!snap["asset_hashes"].contains(asset))
-                snap["asset_hashes"][asset] = hashBytes(readBytes(safeChild(directory, asset)));
-        }
-    atomicText(directory / L"versions" / pathOf(id + ".json"), snap.dump() + "\n");
-    doc["parent_version"] = id;
-    doc["story_anchor"] = anchor;
-    return id;
-}
-std::vector<Json> Map::versions() const {
-    std::vector<Json> list;
-    auto dir = directory / L"versions";
-    if (directory.empty() || !fs::exists(dir))
-        return list;
-    for (auto &f : fs::directory_iterator(dir))
-        if (f.path().extension() == L".json") {
-            auto j = Json::parse(readText(f.path()));
-            Json header = j;
-            header.obj().erase("document");
-            list.push_back(std::move(header));
-        }
-    std::sort(list.begin(), list.end(),
-              [](auto &a, auto &b) { return a["recorded_at"].str() < b["recorded_at"].str(); });
-    return list;
-}
-Json Map::version(const std::string &id) const {
-    if (id.empty() ||
-        id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-") !=
-            std::string::npos)
-        throw std::runtime_error("Invalid version ID");
-    auto snap = Json::parse(readText(directory / L"versions" / pathOf(id + ".json")));
-    if (hashText(snap["document"].dump()) != snap["document_hash"].str())
-        throw std::runtime_error("Version integrity check failed");
-    if (snap["asset_hashes"].isObject())
-        for (auto &[asset, hash] : snap["asset_hashes"].obj())
-            if (hashBytes(readBytes(safeChild(directory, asset))) != hash.str())
-                throw std::runtime_error("Version raster asset integrity check failed: " + asset);
-    return snap;
-}
-void Map::restore(const std::string &id) {
-    doc = version(id)["document"];
-    doc["status"] = "draft";
-    doc["parent_version"] = id;
-    clearCache();
 }
 Json Map::diff(const Json &old) const {
     Json out = fields({{"changes", Json::array()}});
@@ -980,9 +904,14 @@ Json Map::diff(const Json &old) const {
                 out["changes"].push(fields(
                     {{"collection", key}, {"id", id}, {"before", old[key][id]}, {"after", doc[key][id]}}));
     }
-    for (auto key : {"layers", "story_anchor", "name", "style"})
+    std::set<std::string> keys;
+    for(const auto &[key,value]:old.obj())keys.insert(key);
+    for(const auto &[key,value]:doc.obj())keys.insert(key);
+    for(const auto &key:keys) {
+        if(key=="nodes" || key=="arcs" || key=="features" || key=="symbols" || key=="_comparison_id")continue;
         if (!(old[key] == doc[key]))
             out["changes"].push(fields({{"field", key}, {"before", old[key]}, {"after", doc[key]}}));
+    }
     return out;
 }
 void Map::apply(const Json &patch) {
@@ -1027,6 +956,18 @@ void Map::apply(const Json &patch) {
                                           : "symbols"][id] = op["value"];
             else if (action == "set_anchor")
                 doc["story_anchor"] = op["value"];
+            else if(action=="add_layer") {
+                auto value=op["value"];
+                if(value["id"].str().empty() || layer(value["id"].str()))throw std::runtime_error("Duplicate or missing layer ID");
+                doc["layers"].push(value);
+            }
+            else if(action=="set_map") {
+                for(const auto &[key,value]:op["values"].obj()) {
+                    if(key=="id" || key=="schema_version" || key=="features" || key=="nodes" || key=="arcs" || key=="layers")
+                        throw std::runtime_error("Use typed operations for map collections and identity");
+                    doc[key]=value;
+                }
+            }
             else if (action == "set_layer") {
                 auto l = layer(id);
                 if (!l)
@@ -1099,47 +1040,6 @@ Json Map::forCharacter(const std::string &id) const {
                     add(ring);
         }
     return out;
-}
-void History::push(const Json &before, const Json &after, const std::string &action) {
-    if (before == after)
-        return;
-    undoStack.push_back({action, before.dump(0)});
-    redoStack.clear();
-    size_t n = 0;
-    for (auto &e : undoStack)
-        n += e.second.size();
-    while (undoStack.size() > 200 || (n > 32 * 1024 * 1024 && undoStack.size() > 1)) {
-        n -= undoStack.front().second.size();
-        undoStack.pop_front();
-    }
-}
-bool History::undo(Json &doc) {
-    if (undoStack.empty())
-        return false;
-    auto e = std::move(undoStack.back());
-    undoStack.pop_back();
-    redoStack.push_back({e.first, doc.dump(0)});
-    doc = Json::parse(e.second);
-    return true;
-}
-bool History::redo(Json &doc) {
-    if (redoStack.empty())
-        return false;
-    auto e = std::move(redoStack.back());
-    redoStack.pop_back();
-    undoStack.push_back({e.first, doc.dump(0)});
-    doc = Json::parse(e.second);
-    return true;
-}
-void History::clear() {
-    undoStack.clear();
-    redoStack.clear();
-}
-std::vector<std::string> History::labels() const {
-    std::vector<std::string> result;
-    for (auto it = undoStack.rbegin(); it != undoStack.rend(); ++it)
-        result.push_back(it->first);
-    return result;
 }
 std::vector<Point> simplify(const std::vector<Point> &input, double tol, bool closed) {
     if (input.size() < 3)

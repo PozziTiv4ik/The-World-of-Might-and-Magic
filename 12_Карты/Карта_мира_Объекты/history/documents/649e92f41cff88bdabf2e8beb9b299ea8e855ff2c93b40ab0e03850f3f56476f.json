@@ -1,0 +1,481 @@
+{
+  "base": "history/documents/92044051abeaa00591700c08ac20adafa3706d531a106f39b54ce6293e7b87ce.json",
+  "changes": [
+    {
+      "after": "спустя неделю после возвращения Александроса в столицу",
+      "before": "неделю спустя после первого раунда турнира Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "### Восстановление столицы и присяга Андуина Спустя неделю в столице полным ходом шли восстановительные работы. Средства и мастера-каменщики, присланные Тар-Эламом, стали существенным подспорьем и заметно ускорили восстановление города после налета Закхерона. В своем кабинете Александрос принял Андуина из рода Молотоглавов. Барон оказался суров и внешностью, и словом.",
+      "before": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, столица Империи",
+      "before": "Великая арена Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0010"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1338,
+        628
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0060",
+      "before": "SCENE-0113",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_060_Присяга_Андуина,_разоблачение_Онсерага_и_ультиматум_совета.md",
+      "before": "01_Кампания/Ветки/Никитосиос/Сцена_006_Последний_бой_турнира_и_смерть_Вариана.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "59d5f801dc844a6adea452939b8c6a1edff10741499320ec87b571652387897f",
+      "before": "3a18536b3970ecb31cc67d5e16f9ce16d0cadc02ff96b16addcbd70541580523",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 107520,
+      "before": 106496,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 060. Присяга Андуина, разоблачение Онсерага и ультиматум совета",
+      "before": "Сцена 006. Последний бой турнира и смерть Вариана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0222"
+      ],
+      "before": [
+        "SRC-0223"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0060",
+      "before": "SCENE-0059",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1938,
+        725
+      ],
+      "before": [
+        2100,
+        614
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "### Восстановление столицы и присяга Андуина Спустя неделю в столице полным ходом шли восстановительные работы. Средства и мастера-каменщики, присланные Тар-Эламом, стали существенным подспорьем и заметно ускорили восстановление города после налета Закхерона. В своем кабинете Александрос принял Андуина из рода Молотоглавов. Барон оказался суров и внешностью, и словом.",
+      "before": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0010",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0222"
+      ],
+      "before": [
+        "SRC-0216"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Великая арена Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1338,
+        628
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0060",
+      "before": "SCENE-0113",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Восстановление столицы при помощи Тар-Элама",
+      "before": "Столица разорена; Роксана и Петир похищены",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0094",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0190",
+        "SRC-0222"
+      ],
+      "before": [
+        "SRC-0190"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0094",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0060",
+      "before": "SCENE-0047",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0094",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0094",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0094",
+        "text_color"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0222"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0060",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        2155,
+        678
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-98C409DE-6DE8-487F-BEE7-2CE932B346AC",
+      "before": "MAPVER-11C101DF-E61F-4A1C-8118-3836E8FE3500",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Никитосиос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "### Восстановление столицы и присяга Андуина Спустя неделю в столице полным ходом шли восстановительные работы. Средства и мастера-каменщики, присланные Тар-Эламом, стали существенным подспорьем и заметно ускорили восстановление города после налета Закхерона. В своем кабинете Александрос принял Андуина из рода Молотоглавов. Барон оказался суров и внешностью, и словом.",
+      "before": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0222"
+      ],
+      "before": [
+        "SRC-0216"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "before": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0060",
+      "before": "SCENE-0113",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя неделю после возвращения Александроса в столицу",
+      "before": "неделю спустя после первого раунда турнира Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 107520,
+      "before": 106496,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

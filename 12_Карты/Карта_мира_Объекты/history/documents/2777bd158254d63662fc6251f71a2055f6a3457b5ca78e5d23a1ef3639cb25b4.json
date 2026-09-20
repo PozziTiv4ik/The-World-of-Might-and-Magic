@@ -1,0 +1,411 @@
+{
+  "base": "history/documents/186762633b48554bf7c0ad3482fd7a39f4ec99873855e4e6a7cecc1a17c0f896.json",
+  "changes": [
+    {
+      "after": "спустя некоторое время после отбытия Михаэля и Нилуфар; три дня спустя в столице",
+      "before": "утро отбытием Михаэля и Нилуфар в Порт-Лабад; после личного разговора Александроса с Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Некоторое время спустя после отбытия Михаэля и Нилуфар Александрос приглашает Графа Александроса Вингарда на обед. За трапезой Император говорит с ним об усилении флота и его развитии, а затем дает новое дополнительное поручение: произвести еще 50 кораблей флота и 3 линкора. Вечером, когда Александрос готовится ко сну, к нему приходит посыльный с вестью: один из кораблей Лорда Оберина вернулся.",
+      "before": "Позже, в порту Белой Гавани, все провожают Вито, Михаэля и Нилуфар. Праздничная и тревожная неделя наконец сходит к моменту отплытия: свадьба уже состоялась, срочный совет о культе падших прошел, Белая Гавань передана на время Картосу и Богдану, а миссия Михаэля и Нилуфар теперь становится реальным путешествием, а не только планом. Вито тепло желает Михаэлю и Нилуфар успеха.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "столица Империи, дворец и гавань",
+      "before": "Белая Гавань, порт",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0007"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0031",
+      "before": "SCENE-0030",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_031_Флотский_заказ,_письмо_Оберина_и_ответ_Гормаша.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_030_Проводы_Михаэля_и_Нилуфар_в_Порт-Лабад.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "65a132a434059b576f4356ad4327593e79e423db832c306f6b95345118850cda",
+      "before": "555cb2a8004e1845a7f3f173a67f270154d6b30e9c54fa8182a1135ed7397dff",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 52224,
+      "before": 51200,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 031. Флотский заказ, письмо Оберина и ответ Гормаша",
+      "before": "Сцена 030. Проводы Михаэля и Нилуфар в Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0136"
+      ],
+      "before": [
+        "SRC-0138"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0031",
+      "before": "SCENE-0030",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1938,
+        725
+      ],
+      "before": [
+        1843,
+        814
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Некоторое время спустя после отбытия Михаэля и Нилуфар Александрос приглашает Графа Александроса Вингарда на обед. За трапезой Император говорит с ним об усилении флота и его развитии, а затем дает новое дополнительное поручение: произвести еще 50 кораблей флота и 3 линкора. Вечером, когда Александрос готовится ко сну, к нему приходит посыльный с вестью: один из кораблей Лорда Оберина вернулся.",
+      "before": "Позже, в порту Белой Гавани, все провожают Вито, Михаэля и Нилуфар. Праздничная и тревожная неделя наконец сходит к моменту отплытия: свадьба уже состоялась, срочный совет о культе падших прошел, Белая Гавань передана на время Картосу и Богдану, а миссия Михаэля и Нилуфар теперь становится реальным путешествием, а не только планом. Вито тепло желает Михаэлю и Нилуфар успеха.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0136"
+      ],
+      "before": [
+        "SRC-0138"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0031",
+      "before": "SCENE-0030",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0136"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0031",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-BB872DBD-48B2-4883-87C5-D483E41B89AC",
+      "before": "MAPVER-5664ECDC-7496-42A1-B191-4E2B49A26A69",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Некоторое время спустя после отбытия Михаэля и Нилуфар Александрос приглашает Графа Александроса Вингарда на обед. За трапезой Император говорит с ним об усилении флота и его развитии, а затем дает новое дополнительное поручение: произвести еще 50 кораблей флота и 3 линкора. Вечером, когда Александрос готовится ко сну, к нему приходит посыльный с вестью: один из кораблей Лорда Оберина вернулся.",
+      "before": "Позже, в порту Белой Гавани, все провожают Вито, Михаэля и Нилуфар. Праздничная и тревожная неделя наконец сходит к моменту отплытия: свадьба уже состоялась, срочный совет о культе падших прошел, Белая Гавань передана на время Картосу и Богдану, а миссия Михаэля и Нилуфар теперь становится реальным путешествием, а не только планом. Вито тепло желает Михаэлю и Нилуфар успеха.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0136"
+      ],
+      "before": [
+        "SRC-0138"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0031",
+      "before": "SCENE-0030",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя некоторое время после отбытия Михаэля и Нилуфар; три дня спустя в столице",
+      "before": "утро отбытием Михаэля и Нилуфар в Порт-Лабад; после личного разговора Александроса с Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 52224,
+      "before": 51200,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

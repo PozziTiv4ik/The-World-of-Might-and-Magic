@@ -1,0 +1,405 @@
+{
+  "base": "history/documents/30d3bcea96db967f8c0413124f809a7c4ad37b958d41c96a04b19bb031064c3f.json",
+  "changes": [
+    {
+      "after": "после письма Александроса о сне Ур-Серагона и Эрин",
+      "before": "на следующий день после сна о стене",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+      "before": "На следующий день после сна о стене к Александросу приходит проситель из Белой Гавани. Молодой человек представляется Береном и рассказывает, что долгие годы работал на своего отца Белиора, одного из влиятельных торговцев города. Берен учился у него, и семейное дело процветало. Со временем Берен увидел, что торговая модель отца могла быть эффективнее, и предложил более жесткий способ ведения дела.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Багровый Пик; путь на запад к Ледяным хребтам",
+      "before": "столица Империи; дворец",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0004",
+        "LOC-0041"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1510,
+        470
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0108",
+      "before": "SCENE-0034",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Никитосиос/Сцена_001_Сюжет_-_Никитосиос_путь_к_Королевству_Бездны.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_034_Просьба_Берена_об_Имперском_союзе_торговцев.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "522457679c34eb9a5f0328b416039a6de6fc81ef443f8976617b7fe7c802f5fe",
+      "before": "b34095bf4cceaeb07f5fb15b7875a0a80db5e8c4126807f207da0c99390622e9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 56320,
+      "before": 55296,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 001. Путь к Королевству Бездны",
+      "before": "Сцена 034. Просьба Берена об Имперском союзе торговцев",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0147"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0108",
+      "before": "SCENE-0011",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0041",
+      "before": "LOC-0004",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1528,
+        492
+      ],
+      "before": [
+        1888,
+        522
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1510,
+        470
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+      "before": "На следующий день после сна о стене к Александросу приходит проситель из Белой Гавани. Молодой человек представляется Береном и рассказывает, что долгие годы работал на своего отца Белиора, одного из влиятельных торговцев города. Берен учился у него, и семейное дело процветало. Со временем Берен увидел, что торговая модель отца могла быть эффективнее, и предложил более жесткий способ ведения дела.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0041",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0147"
+      ],
+      "before": [
+        "SRC-0145"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Ледяные хребты",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1510,
+        470
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0108",
+      "before": "SCENE-0034",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0147"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0108",
+      "before": "SCENE-0011",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1870,
+        500
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-0"
+      ]
+    },
+    {
+      "after": [
+        1510,
+        470
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-1"
+      ]
+    },
+    {
+      "after": "MAPVER-7A701982-0030-43B7-8C56-8E2A6D713BD8",
+      "before": "MAPVER-FE2A91B0-6C00-47A1-9F7A-4F63447B43F8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Никитосиос",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+      "before": "На следующий день после сна о стене к Александросу приходит проситель из Белой Гавани. Молодой человек представляется Береном и рассказывает, что долгие годы работал на своего отца Белиора, одного из влиятельных торговцев города. Берен учился у него, и семейное дело процветало. Со временем Берен увидел, что торговая модель отца могла быть эффективнее, и предложил более жесткий способ ведения дела.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0147"
+      ],
+      "before": [
+        "SRC-0145"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "before": [
+        "FRONT-WHITE-HARBOR"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0108",
+      "before": "SCENE-0034",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после письма Александроса о сне Ур-Серагона и Эрин",
+      "before": "на следующий день после сна о стене",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 56320,
+      "before": 55296,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "name": "05-gestures-panels",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "camera",
+      "zoom": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": "remember",
+      "name": "initial",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "R"
+    },
+    {
+      "action": "click",
+      "at": [
+        400,
+        300
+      ],
+      "space": "world"
+    },
+    {
+      "action": "click",
+      "at": [
+        600,
+        420
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "assert",
+      "pointer": "/drawing_points",
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "initial"
+    },
+    {
+      "action": "key",
+      "key": "G"
+    },
+    {
+      "action": "pointer_down",
+      "at": [
+        400,
+        300
+      ],
+      "space": "world"
+    },
+    {
+      "action": "pointer_move",
+      "at": [
+        600,
+        430
+      ],
+      "space": "world"
+    },
+    {
+      "action": "capture",
+      "capture": "rectangle-preview"
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "pointer_up",
+      "at": [
+        600,
+        430
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "initial"
+    },
+    {
+      "action": "key",
+      "key": "G"
+    },
+    {
+      "action": "drag",
+      "space": "world",
+      "from": [
+        400,
+        300
+      ],
+      "to": [
+        600,
+        430
+      ]
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "remember",
+      "name": "rectangle",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "remember",
+      "name": "created",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "V"
+    },
+    {
+      "action": "pointer_down",
+      "at": [
+        500,
+        360
+      ],
+      "space": "world"
+    },
+    {
+      "action": "pointer_move",
+      "at": [
+        530,
+        380
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "assert",
+      "pointer": "/down",
+      "equals": false
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "history"
+    },
+    {
+      "action": "pointer_up",
+      "at": [
+        530,
+        380
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "created"
+    },
+    {
+      "action": "key",
+      "key": "F6"
+    },
+    {
+      "action": "assert",
+      "pointer": "/panels",
+      "equals": true
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "assert",
+      "pointer": "/panels",
+      "equals": false
+    },
+    {
+      "action": "remember",
+      "name": "camera",
+      "pointer": "/offset"
+    },
+    {
+      "action": "drag",
+      "from": [
+        700,
+        480
+      ],
+      "to": [
+        790,
+        520
+      ],
+      "button": "middle"
+    },
+    {
+      "action": "assert",
+      "pointer": "/offset",
+      "not_equals_ref": "camera"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "layers"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/panels",
+      "equals": true
+    },
+    {
+      "action": "assert_ui"
+    },
+    {
+      "action": "capture",
+      "capture": "layers"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "close_panel"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/panels",
+      "equals": false
+    },
+    {
+      "action": "resize",
+      "width": 800,
+      "height": 500,
+      "dpi": 1.5
+    },
+    {
+      "action": "assert_ui"
+    },
+    {
+      "action": "capture",
+      "capture": "small-map"
+    }
+  ]
+}

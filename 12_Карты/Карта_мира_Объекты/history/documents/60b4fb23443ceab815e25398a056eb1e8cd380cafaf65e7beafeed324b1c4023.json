@@ -1,0 +1,303 @@
+{
+  "base": "history/documents/0e8eb1e5343b761428d872728e91ce0ed5ed6dddac1253faeacb65c58ec4be56.json",
+  "changes": [
+    {
+      "after": "на следующий день после свадьбы Михаэля и Нилуфар; после срочного совета о культе падших",
+      "before": "следующий день после свадьбы Михаэля и Нилуфар; после срочного совета о культе падших",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Пока Александрос остается говорить с Реймондом, Михаэль сопровождает Аларика со стражей в выделенные покои цитадели Белой Гавани. Принц приказывает страже выйти и прямо предупреждает епископа: нынешние условия - подарок, но если обвинения подтвердятся, Михаэль уже не сможет помешать совету бросить Аларика в холодную камеру. Аларик в ужасе отрицает связь с культом, Ур-Серагоном и врагами Империи.",
+      "before": "Когда совет расходится, в зале остаются только Александрос и Реймонд. Император начинает с главного для будущей коалиции вопроса: кто правит орденом рыцарей дракона. Реймонд рассказывает, что великий магистр ордена - Улайрон Золотой. Он руководит рыцарями дракона уже три сотни лет, считается великим рыцарем, эталоном благородства и удостоен высшей чести Эльрата - Бессмертия Света.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Белой Гавани",
+      "before": "Цитадель Вечного Света, зал совета",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0082",
+      "before": "SCENE-0026",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_019_Аларик,_поручение_Картосу_и_решение_о_Порт-Лабаде.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_026_Личный_разговор_о_Закхероне_и_пророчестве_трех_лун.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "2937b9fae06be67d60d5096a7ef7c9493d562089ae5866cf477c8bdaae5d73ac",
+      "before": "70e627d5076b287883a9ef3d3e6def26feff992f598f01abe6089383b0b8cfaf",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 47104,
+      "before": 46080,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 019. Аларик, поручение Картосу и решение о Порт-Лабаде",
+      "before": "Сцена 026. Личный разговор о Закхероне и пророчестве трех лун",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0129"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0082",
+      "before": "SCENE-0081",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Пока Александрос остается говорить с Реймондом, Михаэль сопровождает Аларика со стражей в выделенные покои цитадели Белой Гавани. Принц приказывает страже выйти и прямо предупреждает епископа: нынешние условия - подарок, но если обвинения подтвердятся, Михаэль уже не сможет помешать совету бросить Аларика в холодную камеру. Аларик в ужасе отрицает связь с культом, Ур-Серагоном и врагами Империи.",
+      "before": "Когда совет расходится, в зале остаются только Александрос и Реймонд. Император начинает с главного для будущей коалиции вопроса: кто правит орденом рыцарей дракона. Реймонд рассказывает, что великий магистр ордена - Улайрон Золотой. Он руководит рыцарями дракона уже три сотни лет, считается великим рыцарем, эталоном благородства и удостоен высшей чести Эльрата - Бессмертия Света.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0129"
+      ],
+      "before": [
+        "SRC-0131"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0082",
+      "before": "SCENE-0026",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-32DAC497-849B-446B-9D61-AB94C0BF8AF6",
+      "before": "MAPVER-236D99BF-2ED5-40F6-B25D-5A155216EE34",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Пока Александрос остается говорить с Реймондом, Михаэль сопровождает Аларика со стражей в выделенные покои цитадели Белой Гавани. Принц приказывает страже выйти и прямо предупреждает епископа: нынешние условия - подарок, но если обвинения подтвердятся, Михаэль уже не сможет помешать совету бросить Аларика в холодную камеру. Аларик в ужасе отрицает связь с культом, Ур-Серагоном и врагами Империи.",
+      "before": "Когда совет расходится, в зале остаются только Александрос и Реймонд. Император начинает с главного для будущей коалиции вопроса: кто правит орденом рыцарей дракона. Реймонд рассказывает, что великий магистр ордена - Улайрон Золотой. Он руководит рыцарями дракона уже три сотни лет, считается великим рыцарем, эталоном благородства и удостоен высшей чести Эльрата - Бессмертия Света.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0129"
+      ],
+      "before": [
+        "SRC-0131"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-THREE-MOONS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0082",
+      "before": "SCENE-0026",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "на следующий день после свадьбы Михаэля и Нилуфар; после срочного совета о культе падших",
+      "before": "следующий день после свадьбы Михаэля и Нилуфар; после срочного совета о культе падших",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 47104,
+      "before": 46080,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

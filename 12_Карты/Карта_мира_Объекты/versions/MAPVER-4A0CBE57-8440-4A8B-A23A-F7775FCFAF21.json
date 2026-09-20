@@ -1,0 +1,27 @@
+{
+  "asset_hashes": {},
+  "document_depth": 9,
+  "document_hash": "b3bb8edba5e64a8be4f800144e22d7d231375637a7d0531dd1b9a0520a849329",
+  "document_ref": "history/documents/c5f9d6264e38560e3f4567eda4f34957757be8519ead04b02580a8039a9aaad1.json",
+  "format": 2,
+  "id": "MAPVER-4A0CBE57-8440-4A8B-A23A-F7775FCFAF21",
+  "integrity": "96dddd8e0cc22b03f6cce928e7e4d3bd662868b4433017253cda297029749f76",
+  "label": "Александрос · Маска сокрытого облика",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-94DB8829-839E-411B-96A2-0E4832BF7DC0",
+  "recorded_at": "2026-09-20T13:55:22.504Z",
+  "sequence": 10,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+    "evidence_ids": [],
+    "front_ids": [],
+    "relation": "after",
+    "scene_id": "SCENE-0006",
+    "story_date": "за 5 дней до Дня Единения Империи",
+    "story_order": 10240
+  }
+}

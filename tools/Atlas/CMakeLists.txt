@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(ATLAS_SOURCES
   src/platform.cpp src/pdn.cpp src/model.cpp src/render.cpp src/responsive.cpp src/land.cpp src/borders.cpp src/camera_test.cpp src/political.cpp src/controls.cpp src/boundary_render.cpp src/editor_controls.cpp
-  src/dialogs.cpp src/app.cpp src/ui.cpp src/actions.cpp src/cli.cpp src/tests.cpp src/performance.cpp src/preview.cpp)
+  src/history_delta.cpp src/history_store.cpp src/history_cli.cpp src/history_tests.cpp src/history_view.cpp src/timeline_model.cpp src/workspace.cpp src/workspace_tests.cpp src/editor_scenario.cpp src/recovery.cpp src/dialogs.cpp src/app.cpp src/ui.cpp src/actions.cpp src/cli.cpp src/tests.cpp src/performance.cpp src/preview.cpp)
 add_library(atlas_objects OBJECT ${ATLAS_SOURCES})
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/symbols.json" ATLAS_SYMBOLS_JSON)
 configure_file(src/symbols_data.hpp.in generated/symbols_data.hpp @ONLY)

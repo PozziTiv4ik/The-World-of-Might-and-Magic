@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 13,
+  "document_hash": "58b82badfd5fea5a11fb5dee43ea88d2ced6f9fbec921a32567b60f1f1701d5a",
+  "document_ref": "history/documents/379dc94c27a0f3f87fe9c50ece6d64344cc403454242d82b1d2de988c5ff2445.json",
+  "format": 2,
+  "id": "MAPVER-4BC68259-A6D0-4E05-9A0A-BE9601C21B39",
+  "integrity": "c6e843b9eef931489d81210388f4315b459ff1b40b87092901c9c5bdb13399b8",
+  "label": "Михаэль · Бой у входа в хранилище",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E3B55F23-3B4A-47D2-B383-BFBAB8F64EE1",
+  "recorded_at": "2026-09-20T14:01:57.925Z",
+  "sequence": 80,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Через неделю пути ориентиры привели экспедицию к огромному круглому входу в хранилище, скрытому за зарослями лиан и водопадом. Когда отряд приблизился, из окружающих коридоров его атаковали темные эльфы — стражи хранилища. Нилуфар возвела магический щит. Из-под его защиты она и Михаэль обстреливали противника, пока гвардейцы Принца и Харагорн сошлись со стражами в ближнем бою.",
+    "evidence_ids": [
+      "SRC-0177"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0091",
+    "story_date": "через неделю пути после выхода из Алиманджада",
+    "story_order": 79872
+  }
+}

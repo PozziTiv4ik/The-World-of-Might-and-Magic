@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 12,
+  "document_hash": "c063f1c99846c4ad1f6701142cdbc1141a3f6dafd2c7136151316bd8b7b283ac",
+  "document_ref": "history/documents/47ab19691d4160683367dd37a19241eea80630186422aabd5afd5ab2b509e841.json",
+  "format": 2,
+  "id": "MAPVER-A98D011D-9870-446C-A951-859F1889372F",
+  "integrity": "c9f3e13d04de45d61caa3cb360ea249a805fbc1d99b24e3aaca767e6c143a28d",
+  "label": "Никитосиос · Цитадель Бездны и метка темного дракона",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-D8585B05-36DF-4E3B-963D-E9CD2F249B89",
+  "recorded_at": "2026-09-20T14:03:05.046Z",
+  "sequence": 111,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Через неделю после смерти Вариана гладиаторов привезли в Цитадель Бездны. Столица Королевства Бездны поразила Никитосиоса величием: в сердце он признал ее даже прекраснее любимого Багрового Пика. В казармах гладиаторов под столичной ареной Ламия сняла со всех ошейники. Она объяснила, что последние испытания требуют полной отдачи, поэтому гладиаторам позволяют пользоваться всей доступной силой.",
+    "evidence_ids": [
+      "SRC-0221"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0114",
+    "story_date": "через неделю после смерти Вариана",
+    "story_order": 111616
+  }
+}

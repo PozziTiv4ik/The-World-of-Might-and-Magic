@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 11,
+  "document_hash": "c559ea8e2779f2f7490097c69f90b09ffec5130b02707971decd8aebd5f25da9",
+  "document_ref": "history/documents/c27fe46963c44835b18152dfa480068da2fccd2d2cba0356b21d2db37aa9d760.json",
+  "format": 2,
+  "id": "MAPVER-D8585B05-36DF-4E3B-963D-E9CD2F249B89",
+  "integrity": "a30303b889344765013bc0a4de4817bd9256d4268f19b6b03b73a7379c8616f5",
+  "label": "Александрос · Назначения совета и сын по крови",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E341B99E-C836-49D1-99B4-D1CEC061CDEB",
+  "recorded_at": "2026-09-20T14:03:03.066Z",
+  "sequence": 110,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "### Указы Императора Когда Конрад закончил излагать требования Высшего совета, Александрос приказал слуге передать Архимудрецу заранее подготовленные документы. Получив бумаги, Конрад услышал вопрос Императора: > «Здесь указы, заверенные мной, о назначениях на пустующие посты.",
+    "evidence_ids": [
+      "SRC-0227"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0061",
+    "story_date": "спустя неделю после возвращения Александроса в столицу; следующая неделя до прибытия Михаэля",
+    "story_order": 110592
+  }
+}

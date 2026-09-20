@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "3b76bf926232c13dbacc50ec4c0298c87cff4359078c3f1d5202a192b79123df",
+  "document_ref": "history/documents/0a2e605eb1fbc3a1e8aec92077a0d208779768c77262bcea87538bc727f532a2.json",
+  "format": 2,
+  "id": "MAPVER-A4BCF620-33A4-452E-BB3E-345B413E1875",
+  "integrity": "e21d1b2b5aef62cd8df436858ff0a69ba622ad6181c09af0f42a70ea62f7fc0d",
+  "label": "Александрос · След Владислава",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-FE79CE89-3862-4112-AD12-E68238563C0C",
+  "recorded_at": "2026-09-20T13:55:10.936Z",
+  "sequence": 4,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Александрос решил не вмешиваться немедленно и приказал пока наблюдать за ситуацией с Владиславом. Ответ Императора послу был однозначен: Империя будет следить за развитием событий, но пока прямой угрозы нет, Александрос не хочет рисковать своими людьми и отправлять их на проклятый север без действительно веской причины.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-ELVES-ITLINBURG"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0003",
+    "story_date": "за 1 неделю и 5 дней до Дня Единения Империи",
+    "story_order": 4096
+  }
+}

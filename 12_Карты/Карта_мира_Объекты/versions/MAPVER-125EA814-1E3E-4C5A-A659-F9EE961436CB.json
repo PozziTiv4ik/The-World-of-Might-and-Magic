@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "cfa2b496833b2b41d75adeb35b55179b0e084d766f26e5c863d637b7937f75ca",
+  "document_ref": "history/documents/07a1ff161ef08df605670ee6ae82874c9f2bb202214c38358ba438b26411a1f0.json",
+  "format": 2,
+  "id": "MAPVER-125EA814-1E3E-4C5A-A659-F9EE961436CB",
+  "integrity": "0a3cf5b8700429963535ffe7b6f665d8b51878e450613209a02ae17e9b663189",
+  "label": "Александрос · Письмо Имрахиля о пожарах в Белой Гавани",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-D784D851-A414-4B97-BCD2-E2EF089C22E2",
+  "recorded_at": "2026-09-20T14:01:04.510Z",
+  "sequence": 54,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Спустя день после доклада Боромира о готовности первых орденов Александрос получает письмо от Магистра Имрахиля из Белой Гавани. Имрахиль сообщает, что ночью в городе сожжены несколько складов торговой гильдии. Рыцари Ордена Лебедя помогали тушить пожары. Картос, временный наместник Михаэля в Белой Гавани, не дает знати никаких комментариев о виновниках происходящего.",
+    "evidence_ids": [
+      "SRC-0135"
+    ],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0032",
+    "story_date": "спустя день после доклада Боромира о первых орденах",
+    "story_order": 53248
+  }
+}

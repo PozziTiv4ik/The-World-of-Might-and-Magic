@@ -1,0 +1,422 @@
+{
+  "base": "history/documents/7e26ceed9b087849e52b9be7628772527991bb18469d37f0a1a67adfa9642437.json",
+  "changes": [
+    {
+      "after": "спустя неделю после отбытия из Белой Гавани",
+      "before": "после письма Александроса о сне Ур-Серагона и Эрин",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+      "before": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Порт-Лабад",
+      "before": "Багровый Пик; путь на запад к Ледяным хребтам",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0061"
+      ],
+      "before": [
+        "LOC-0004",
+        "LOC-0041"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1277,
+        1536
+      ],
+      "before": [
+        1510,
+        470
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0083",
+      "before": "SCENE-0108",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_020_Прибытие_в_Порт-Лабад_и_письмо_Картоса.md",
+      "before": "01_Кампания/Ветки/Никитосиос/Сцена_001_Сюжет_-_Никитосиос_путь_к_Королевству_Бездны.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "4ac0d925a9c45fb2e2e72b33338c9b05123ad168b4c9b9a3fe179cefb19aff2f",
+      "before": "522457679c34eb9a5f0328b416039a6de6fc81ef443f8976617b7fe7c802f5fe",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 57344,
+      "before": 56320,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 020. Прибытие в Порт-Лабад и письмо Картоса",
+      "before": "Сцена 001. Путь к Королевству Бездны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0137"
+      ],
+      "before": [
+        "SRC-0129"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0083",
+      "before": "SCENE-0082",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0061",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1259,
+        1514
+      ],
+      "before": [
+        1807,
+        814
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1277,
+        1536
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+      "before": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0061",
+      "before": "LOC-0041",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0137"
+      ],
+      "before": [
+        "SRC-0147"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Порт-Лабад",
+      "before": "Ледяные хребты",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1277,
+        1536
+      ],
+      "before": [
+        1510,
+        470
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0083",
+      "before": "SCENE-0108",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0137"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0083",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1277,
+        1536
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-B0EF398D-046F-4CA4-BF14-05A4E7458021",
+      "before": "MAPVER-7A701982-0030-43B7-8C56-8E2A6D713BD8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Никитосиос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+      "before": "Лорд Багрового Пика задумчиво стоит на балконе верхнего яруса своей цитадели, когда приходит письмо Александроса. Император открывает сыну последний сон Ур-Серагона, тревогу за Эрин и напоминает о том, что мать что-то оставила Никитосиосу. Прочитав письмо, Никитосиос понимает, что ждать нельзя. Сверток Эрин оказывается не вещью и не простым знаком, а указанием на тайный проход в Ледяных хребтах.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0137"
+      ],
+      "before": [
+        "SRC-0147"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0083",
+      "before": "SCENE-0108",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя неделю после отбытия из Белой Гавани",
+      "before": "после письма Александроса о сне Ур-Серагона и Эрин",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 57344,
+      "before": 56320,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

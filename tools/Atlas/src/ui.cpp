@@ -12,14 +12,14 @@ static bool matches(const std::string &s, const std::string &q) {
         CharLowerBuffW(b.data(), DWORD(b.size()));
     return a.find(b) != std::wstring::npos;
 }
-static constexpr auto surface = "#252F34", ink = "#E4EBEA", muted = "#96A8A9", accent = "#62C7C5";
+static constexpr auto surface = "#FAFBF8", ink = "#233432", muted = "#758480", accent = "#22685F";
 static void dock(Painter &p, D2D1_RECT_F r) {
     auto s = r;
     s.left += 2;
     s.right += 2;
     s.top += 3;
     s.bottom += 3;
-    p.rounded(s, "#9BAEAA", 8);
+    p.rounded(s, "#C7D4CE", 8);
     p.rounded(r, surface, 7);
 }
 // Deterministic, font-independent line icons.
@@ -189,6 +189,9 @@ static void icon(Painter &p, const std::string &n, D2D1_RECT_F r, const std::str
         path({{-4, -6}, {-4, -10}, {4, -10}, {4, -6}});
         line(-2, -2, -2, 6);
         line(2, -2, 2, 6);
+    } else if (n == "back" || n == "next") {
+        double s=n=="back"?-1:1;
+        line(-9,0,9,0);line(s*9,0,s*3,-6);line(s*9,0,s*3,6);
     } else if (n == "up" || n == "down") {
         double s = n == "up" ? 1 : -1;
         line(0, -9 * s, 0, 9 * s);
@@ -204,328 +207,221 @@ static void icon(Painter &p, const std::string &n, D2D1_RECT_F r, const std::str
 void App::iconButton(Painter &p, D2D1_RECT_F r, const std::string &glyph, const std::string &tip, int cmd,
                      const std::string &data, bool active) {
     if (active || over(r, mouse))
-        p.rounded(r, active ? "#285D62" : "#39474D", 5);
+        p.rounded(r, active ? "#DDEDE7" : "#EAF0EB", 5);
     icon(p, glyph, r, active ? accent : ink);
     hits.push_back({r, cmd, data, tip});
 }
 void App::button(Painter &p, D2D1_RECT_F r, const std::string &title, int cmd, const std::string &data,
                  bool active, bool subdued) {
-    p.rounded(r, active ? "#285D62" : over(r, mouse) ? "#3C4B50" : subdued ? surface : "#303D43", 5);
-    p.text(title, r, 12, active ? accent : ink, active, true);
+    p.rounded(r, active ? accent : over(r, mouse) ? "#E7EEEA" : subdued ? surface : "#EFF3EF", 5);
+    p.text(title, r, 13, active ? "#FFFFFF" : ink, active, true);
     hits.push_back({r, cmd, data, title});
 }
-void App::paintTools(Painter &p) {
-    p.fill({0, 0, width, 44}, surface);
-    iconButton(p, {8, 4, 44, 40}, "menu", "Файл и команды", FileMenu);
-    p.text("АТЛАС 4", {54, 0, 139, 44}, 17, ink, true);
-    p.line({142, 13}, {142, 31}, "#58676C");
-    p.text(map.doc["name"].str(), {157, 0, width - 255, 44}, 12, muted);
-    const char *gs[] = {"undo", "redo", "search", "save", "export"};
-    const char *ts[] = {"Отменить · Ctrl+Z", "Повторить · Ctrl+Y", "Объекты · Ctrl+F", "Сохранить · Ctrl+S",
-                        "Экспорт PNG"};
-    int cs[] = {Undo, Redo, ObjectsTab, Save, ExportPng};
-    for (int i = 0; i < 5; i++)
-        iconButton(p, {width - 220 + i * 43, 4, width - 184 + i * 43, 40}, gs[i], ts[i], cs[i], "",
-                   i == 3 && dirty);
-    dock(p, {84, 60, 424, 106});
-    hits.push_back({{84, 60, 424, 106}, 0, {}});
-    button(p, {90, 66, 198, 100}, "Границы", ScopeBorders, "", editScope == SelectionDomain::Borders);
-    button(p, {204, 66, 296, 100}, "Суша", ScopeLand, "", editScope == SelectionDomain::Land);
-    button(p, {302, 66, 418, 100}, "Объекты", ScopeObjects, "", editScope == SelectionDomain::Objects);
-    if (isolateLayer) {
-        const auto *l = map.layer(activeLayer);
-        if (l) {
-            p.rounded({84, 108, 424, 138}, "#29383D", 5);
-            hits.push_back({{84, 108, 424, 138}, IsolateLayer, {}});
-            p.text("Только слой: " + (*l)["name"].str(), {94, 109, 415, 137}, 11, "#B5D9D5");
-        }
+
+void App::paintMapChrome(Painter &p) {
+    float projectWidth=width<1150?216.f:324.f;
+    dock(p,{16,16,16+projectWidth,60});
+    iconButton(p,{22,20,58,56},"mountain","Проект и команды",FileMenu);
+    auto projectName=map.doc["name"].str("Карта");
+    if(auto separator=projectName.find(" · ");separator!=std::string::npos)projectName.resize(separator);
+    p.text(width<1150?"АТЛАС": "АТЛАС  ·  "+projectName,{66,24,projectWidth+6,52},14,ink,true);
+    hits.push_back({{62,16,16+projectWidth,60},FileMenu,{},"Проект и команды"});
+    const auto &a=map.doc["story_anchor"];
+    std::string moment="История карты";
+    auto id=map.doc["parent_version"].str();
+    for(const auto &v:versions)if(v["id"].str()==id) {moment=v["label"].str();break;}
+    if(moment=="История карты" && a["scene_id"].isString()) {
+        if(auto e=campaign.find(a["scene_id"].str()))moment=e->name;
     }
-    dock(p, {16, 60, 68, 527});
-    hits.push_back({{16, 60, 68, 527}, 0, {}});
-    int tools[] = {0, 9, 18, 17, 2, 6, 7};
-    const char *g[] = {"arrow", "hand", "node", "land", "flag", "mountain", "text"};
-    const char *t[] = {
-        "Выбор · V",   "Камера · H", "Перетянуть границу · K", "Новая земля · J", "Новое государство · P",
-        "Символы · S", "Подпись · T"};
-    for (int i = 0; i < 7; i++)
-        iconButton(p, {22, 66 + i * 50.f, 62, 106 + i * 50.f}, g[i], t[i], SetTool, std::to_string(tools[i]),
-                   int(tool) == tools[i]);
-    iconButton(p, {22, 416, 62, 456}, "castle", "Поселения", LibraryTab, "places");
-    iconButton(p, {22, 476, 62, 516}, "more", "Все инструменты", MoreTools);
-    dock(p, {width - 168, 60, width - 16, 108});
-    hits.push_back({{width - 168, 60, width - 16, 108}, 0, {}});
-    iconButton(p, {width - 163, 64, width - 119, 104}, "layers", "Слои", LayersPanel, "", panel == 4);
-    iconButton(p, {width - 115, 64, width - 71, 104}, "book", "Символы", LibraryTab, "", panel == 1);
-    iconButton(p, {width - 67, 64, width - 23, 104}, "gear", "Свойства", InspectorPanel, "", panel == 5);
+    if(a["chapter"].num()>0)moment="Глава "+std::to_string(int(a["chapter"].num()))+" · "+moment;
+    float x=16+projectWidth+20,w=std::min(470.f,width-x-206);
+    x=std::max(x,(width-w)/2);
+    dock(p,{x,16,x+w,60});
+    iconButton(p,{x+6,20,x+42,56},"history","Выбрать главу, событие и редакцию",HistoryView);
+    p.text(moment,{x+48,25,x+w-16,51},13,ink,true);
+    hits.push_back({{x+44,16,x+w,60},HistoryView,{},moment+" · Ctrl+H"});
+    dock(p,{width-188,16,width-68,60});
+    button(p,{width-186,18,width-70,58},dirty?"Сохранить":"✓ Сохранено",Save,"",dirty,true);
+    dock(p,{width-58,16,width-16,60});
+    iconButton(p,{width-55,20,width-19,56},"more","Все команды",FileMenu);
+
+    float railHeight=7*42.f+12,ry=std::clamp((height-railHeight)/2,82.f,std::max(82.f,height-railHeight-78));
+    dock(p,{16,ry,64,ry+railHeight});
+    hits.push_back({{16,ry,64,ry+railHeight},0,{},{}});
+    const char* glyphs[]={"arrow","node","pen","castle","text","layers","more"};
+    const char* tips[]={"Выбор · V","Точки границ · K","Маршрут · R","Символ · S","Подпись · T","Слои","Все инструменты"};
+    int tools[]={0,18,3,6,7};
+    for(int i=0;i<7;++i)iconButton(p,{21,ry+6+i*42,59,ry+44+i*42},glyphs[i],tips[i],
+        i<5?SetTool:i==5?LayersPanel:MoreTools,i<5?std::to_string(tools[i]):"",i<5&&int(tool)==tools[i]);
+    dock(p,{16,height-58,108,height-16});
+    iconButton(p,{20,height-55,60,height-19},"undo","Отменить · Ctrl+Z",Undo);
+    iconButton(p,{62,height-55,102,height-19},"redo","Повторить · Ctrl+Y",Redo);
+    dock(p,{width-214,height-58,width-16,height-16});
+    iconButton(p,{width-210,height-55,width-174,height-19},"minus","Отдалить",ZoomOut);
+    button(p,{width-172,height-54,width-110,height-20},std::to_string(int(zoom*100))+"%",Fit,"",false,true);
+    iconButton(p,{width-108,height-55,width-72,height-19},"plus","Приблизить",ZoomIn);
+    iconButton(p,{width-64,height-55,width-22,height-19},"fit","Вся карта · Home",Fit);
+    if(!drawing.empty()) {
+        float cx=width/2-122,y=height-64;
+        dock(p,{cx-5,y-5,cx+251,y+43});
+        button(p,{cx,y,cx+148,y+38},"Готово · Enter",FinishContour,"",true);
+        button(p,{cx+156,y,cx+246,y+38},"Отмена",CancelContour);
+    } else if(!activeBorder.empty()) {
+        float cx=(width-346)/2,y=height-112;
+        dock(p,{cx-6,y-6,cx+352,y+43});
+        button(p,{cx,y,cx+112,y+37},"+ Точка",AddControl);
+        button(p,{cx+118,y,cx+230,y+37},"− Точка",RemoveControl);
+        button(p,{cx+236,y,cx+346,y+37},"Море",ToggleSea,"",allowSea);
+    } else if(!selected.empty() && !(showPanels && panel==5)) {
+        const auto &f=static_cast<const Json&>(map.doc)["features"][*selected.begin()];
+        float cx=std::clamp(float(width/2-164),126.f,width-558.f),y=height-68;
+        dock(p,{cx,y,cx+328,y+52});
+        p.text(f["name"].str("Выбранный объект"),{cx+14,y+3,cx+244,y+29},13,ink,true);
+        p.text(selected.size()>1?std::to_string(selected.size())+" объектов":"Свойства объекта",{cx+14,y+27,cx+244,y+49},11,muted);
+        iconButton(p,{cx+246,y+7,cx+283,y+45},"pen","Изменить · F2",Properties);
+        iconButton(p,{cx+286,y+7,cx+322,y+45},"more","Действия с объектом",SelectionMenu);
+    }
+    if(isolateLayer)button(p,{width-246,76,width-16,110},"Изоляция слоя · снять",IsolateLayer,"",true);
+    if(tool!=Tool::Select && tool!=Tool::Pan && drawing.empty()) {
+        std::string hint=tool==Tool::Border?"Выбери границу · двойной клик добавит точку":
+            tool==Tool::Stamp?"Клик на карте · значки в библиотеке":tool==Tool::Label?"Клик на карте добавит подпись":
+            "Клики — точки · Enter — завершить · Esc — отменить";
+        if(!showPanels)p.text(hint,{84,76,width-270,102},12,ink);
+    }
 }
+
 void App::paintSidebar(Painter &p) {
-    if (!showPanels || panel < 1 || panel > 3 || historyView)
+    if(!showPanels || historyView || panel==5)return;
+    const auto r=drawerArea;float x=r.left,y=r.top,w=r.right-r.left,b=r.bottom;
+    dock(p,r);hits.push_back({r,0,{},{}});
+    p.text("Карта и объекты",{x+16,y+8,r.right-50,y+42},16,ink,true);
+    iconButton(p,{r.right-44,y+8,r.right-8,y+42},"x","Закрыть · Esc",ClosePanel);
+    button(p,{x+10,y+50,x+101,y+84},"Объекты",ObjectsTab,"",panel==2||panel==0,true);
+    button(p,{x+105,y+50,x+188,y+84},"Слои",LayersPanel,"",panel==4,true);
+    button(p,{x+192,y+50,r.right-10,y+84},"Значки",LibraryTab,"",panel==1,true);
+    if(panel==4) {
+        button(p,{x+12,y+96,x+98,y+127},"+ Слой",AddLayer);
+        button(p,{x+104,y+96,x+176,y+127},"Архив",ShowArchiveLayers,"",showArchiveLayers);
+        iconButton(p,{x+187,y+96,x+224,y+127},"up","Поднять слой",LayerUp);
+        iconButton(p,{x+231,y+96,x+268,y+127},"down","Опустить слой",LayerDown);
+        std::vector<const Json*> list;
+        for(const auto &l:map.doc["layers"].arr())if(showArchiveLayers || (!l["archived"].boolean()&&!l["name"].str().starts_with("Архив")))list.push_back(&l);
+        layerScroll=std::clamp(layerScroll,0,std::max(0,int(list.size())-int((b-y-147)/54)));
+        float row=y+142;
+        for(size_t i=layerScroll;i<list.size() && row+50<b-8;++i,row+=54) {
+            const auto &l=*list[i];auto id=l["id"].str();
+            if(id==activeLayer)p.rounded({x+8,row,r.right-8,row+48},"#E2EEE7",5);
+            iconButton(p,{x+10,row+7,x+42,row+41},l["visible"].boolean(true)?"eye":"eye_off","Видимость слоя",Visibility,id);
+            iconButton(p,{x+45,row+7,x+77,row+41},l["locked"].boolean()?"lock":"unlock","Защита слоя",Lock,id);
+            p.text(l["name"].str(),{x+84,row+2,r.right-12,row+45},12,l["visible"].boolean(true)?ink:muted);
+            hits.push_back({{x+80,row,r.right-8,row+48},SelectLayer,id,"Выбрать слой"});
+        }
         return;
-    float x = width - 340, y = 124, b = std::min(height - 78, panel == 1 ? 626.f : 720.f);
-    dock(p, {x, y, width - 16, b});
-    hits.push_back({{x, y, width - 16, b}, 0, {}});
-    p.text(panel == 1   ? "Символы"
-           : panel == 2 ? "Объекты"
-                        : "Кампания",
-           {x + 16, y + 6, width - 64, y + 44}, 15, ink, true);
-    iconButton(p, {width - 58, y + 4, width - 22, y + 40}, "x", "Закрыть", ClosePanel);
-    if (panel == 1) {
-        const char *labels[] = {"Все", "Рельеф", "Места", "Войска"};
-        const char *filters[] = {"", "Рельеф", "Поселения", "Войска и флот"};
-        for (int i = 0; i < 4; i++)
-            button(p, {x + 14 + i * 75, y + 90, x + 84 + i * 75, y + 118}, labels[i], FilterSymbols,
-                   filters[i], symbolFilter == filters[i], true);
-        std::vector<std::string> ids;
-        for (auto s :
-             {"mountain", "ridge", "forest", "castle", "fortress", "capital", "port", "ship", "fleet"})
-            if (map.doc["symbols"].contains(s))
-                ids.push_back(s);
-        for (auto &[id, d] : map.doc["symbols"].obj())
-            if (std::find(ids.begin(), ids.end(), id) == ids.end())
-                ids.push_back(id);
-        int n = 0, skip = 0;
-        for (auto &id : ids) {
-            const auto &d = map.doc["symbols"][id];
-            if (!matches(d["name"].str(), query) ||
-                (!symbolFilter.empty() && d["category"].str() != symbolFilter))
-                continue;
-            if (skip++ < objectScroll)
-                continue;
-            float tx = x + 14 + (n % 3) * 99.f, ty = y + 132 + (n / 3) * 91.f;
-            if (ty + 82 > b - 56)
-                break;
-            D2D1_RECT_F r{tx, ty, tx + 91, ty + 82};
-            p.rounded(r, activeSymbol == id ? "#DCE9DD" : "#EEE8D5", 5);
-            renderer.symbol(d, p.target, {tx + 45, ty + 41}, 64, 0, "#655E4D");
-            if (activeSymbol == id)
-                p.rect({tx + 1, ty + 1, tx + 90, ty + 81}, accent, 2);
-            hits.push_back({r, SetSymbol, id, d["name"].str()});
-            n++;
+    }
+    if(!searchBox)p.text(query.empty()?"Поиск по имени…":query,{x+16,y+96,r.right-16,y+124},13,muted);
+    if(panel==1) {
+        std::vector<std::pair<std::string,const Json*>> list;
+        for(const auto &[id,d]:map.doc["symbols"].obj())if(matches(d["name"].str(),query))list.push_back({id,&d});
+        int rows=std::max(1,int((b-y-197)/91));objectScroll=std::clamp(objectScroll,0,std::max(0,int(list.size())-rows*2));
+        int n=0;for(size_t i=objectScroll;i<list.size();++i) {
+            float px=x+12+(n%2)*(w-24)/2,py=y+142+(n/2)*91.f;++n;if(py+84>b-46)break;
+            auto &[id,def]=list[i];D2D1_RECT_F cell{px,py,px+(w-32)/2,py+84};
+            p.rounded(cell,id==activeSymbol?"#DCEDE4":"#F0F2EB",5);
+            renderer.symbol(*def,p.target,{(cell.left+cell.right)/2,py+33},42,0,"#536358");
+            p.text((*def)["name"].str(),{cell.left+4,py+59,cell.right-4,py+82},11,ink,false,true);
+            hits.push_back({cell,SetSymbol,id,(*def)["name"].str()});
         }
-        iconButton(p, {x + 16, b - 47, x + 52, b - 11}, "minus", "Уменьшить символ", Smaller);
-        p.text(std::to_string(int(brushSize * 3)), {x + 57, b - 47, x + 111, b - 11}, 12, ink, false, true);
-        iconButton(p, {x + 115, b - 47, x + 151, b - 11}, "plus", "Увеличить символ", Larger);
-        iconButton(p, {x + 167, b - 47, x + 203, b - 11}, "color", "Цвет символа", StrokeColor);
-        iconButton(p, {width - 104, b - 47, width - 68, b - 11}, "up", "Предыдущие символы", FilterSymbols,
-                   "@prev");
-        iconButton(p, {width - 58, b - 47, width - 22, b - 11}, "down", "Следующие символы", FilterSymbols,
-                   "@next");
-    } else if (panel == 2) {
-        const char *ns[] = {"Страны", "Места", "Все"};
-        const char *fs[] = {"country", "settlement", ""};
-        for (int i = 0; i < 3; i++)
-            button(p, {x + 14 + i * 99, y + 90, x + 106 + i * 99, y + 118}, ns[i], FilterObjects, fs[i],
-                   objectFilter == fs[i], true);
-        std::vector<const Json *> list;
-        for (const auto &[id, f] : map.doc["features"].obj()) {
-            if (!query.empty()) {
-                if (!matches(f["name"].str() + " " + id, query))
-                    continue;
-            } else if (!objectFilter.empty() && f["role"].str() != objectFilter &&
-                       !(objectFilter == "country" && f["kind"].str() == "region"))
-                continue;
-            list.push_back(&f);
-        }
-        std::sort(list.begin(), list.end(),
-                  [](auto a, auto b) { return (*a)["name"].str() < (*b)["name"].str(); });
-        objectScroll = std::clamp(objectScroll, 0, std::max(0, int(list.size()) - 1));
-        int n = 0;
-        for (size_t i = objectScroll; i < list.size(); i++) {
-            const auto &f = *list[i];
-            float yy = y + 130 + n++ * 42;
-            if (yy + 38 > b - 12)
-                break;
-            D2D1_RECT_F r{x + 10, yy, width - 26, yy + 38};
-            bool a = selected.contains(f["id"].str());
-            if (a || over(r, mouse))
-                p.rounded(r, a ? "#285D62" : "#34434A", 4);
-            p.circle({x + 25, yy + 19}, 5, f["fill"].str("#9BAEAB"));
-            p.text(f["name"].str("Без названия"), {x + 42, yy, width - 32, yy + 38}, 12, ink);
-            hits.push_back({r, SelectObject, f["id"].str(), f["name"].str()});
-        }
-    } else {
-        auto list = campaign.search(query);
-        int n = 0;
-        for (size_t i = objectScroll; i < list.size(); i++) {
-            float yy = y + 94 + n++ * 44;
-            if (yy + 40 > b - 12)
-                break;
-            auto e = list[i];
-            button(p, {x + 12, yy, width - 28, yy + 38}, e->name, SelectEntity, e->id, false, true);
-        }
+        button(p,{x+12,b-42,x+103,b-10},"Меньше",Smaller);
+        button(p,{x+112,b-42,x+203,b-10},"Больше",Larger);
+        iconButton(p,{r.right-51,b-43,r.right-13,b-8},"color","Цвет",StrokeColor);return;
+    }
+    if(panel==3) {
+        auto entries=campaign.search(query);int n=0;
+        for(size_t i=objectScroll;i<entries.size();++i){auto e=entries[i];if(e->type!="location"&&e->type!="character"&&e->type!="character_asset")continue;
+            float py=y+142+n++*49;if(py+43>b-8)break;button(p,{x+12,py,r.right-12,py+43},e->name,SelectEntity,e->id,false,true);}
+        return;
+    }
+    button(p,{x+12,y+139,x+97,y+170},"Страны",FilterObjects,"country",objectFilter=="country",true);
+    button(p,{x+103,y+139,x+190,y+170},"Места",FilterObjects,"settlement",objectFilter=="settlement",true);
+    button(p,{x+196,y+139,r.right-12,y+170},"Все",FilterObjects,"",objectFilter.empty(),true);
+    std::vector<const Json*> list;
+    for(const auto &[id,f]:map.doc["features"].obj()) {
+        if(!objectFilter.empty()&&f["role"].str()!=objectFilter&&!(objectFilter=="settlement"&&!f["entity_id"].str().empty()&&f["kind"].str()=="symbol"))continue;
+        if(matches(f["name"].str()+" "+id,query))list.push_back(&f);
+    }
+    std::sort(list.begin(),list.end(),[](auto a,auto b){return (*a)["name"].str()<(*b)["name"].str();});
+    objectScroll=std::clamp(objectScroll,0,std::max(0,int(list.size())-std::max(1,int((b-y-187)/48))));
+    float row=y+182;
+    for(size_t i=objectScroll;i<list.size()&&row+44<b-8;++i,row+=48) {
+        auto &f=*list[i];auto id=f["id"].str();button(p,{x+12,row,r.right-12,row+43},f["name"].str(id),SelectObject,id,selected.contains(id),true);
     }
 }
+
 void App::paintProperties(Painter &p) {
-    if (!showPanels || (!historyView && panel != 4 && panel != 5))
-        return;
-    float x = width - 340, y = 124, b = std::min(height - 78, 720.f);
-    dock(p, {x, y, width - 16, b});
-    hits.push_back({{x, y, width - 16, b}, 0, {}});
-    p.text(historyView  ? "Версии"
-           : panel == 4 ? "Слои"
-                        : "Свойства",
-           {x + 16, y + 6, width - 64, y + 44}, 15, ink, true);
-    iconButton(p, {width - 58, y + 4, width - 22, y + 40}, "x", "Закрыть", ClosePanel);
-    if (historyView) {
-        button(p, {x + 14, y + 54, width - 30, y + 90}, "+  Версия по событию", Snapshot, "", true);
-        int n = 0;
-        int skipped = 0;
-        for (auto it = versions.rbegin(); it != versions.rend(); ++it) {
-            if (skipped++ < versionScroll)
-                continue;
-            float yy = y + 108 + n++ * 68;
-            if (yy + 62 > b - 58)
-                break;
-            D2D1_RECT_F r{x + 14, yy, width - 30, yy + 60};
-            p.rounded(r, "#334148", 5);
-            p.text((*it)["label"].str(), {x + 24, yy + 3, width - 38, yy + 31}, 12, ink, true);
-            p.text((*it)["recorded_at"].str(), {x + 24, yy + 30, width - 38, yy + 57}, 10, muted);
-            hits.push_back({r, SelectVersion, (*it)["id"].str()});
+    if(!showPanels || (!historyView&&panel!=5) || (historyView&&!compareMode))return;
+    auto r=drawerArea;float x=r.left,y=r.top+8-detailScroll,b=r.bottom;
+    dock(p,r);size_t first=hits.size();hits.push_back({r,0,{},{}});
+    p.target->PushAxisAlignedClip(r,D2D1_ANTIALIAS_MODE_ALIASED);
+    p.text(historyView?"Изменения":"Свойства",{x+16,y,r.right-52,y+38},16,ink,true);y+=48;
+    if(historyView) {
+        for(size_t i=diffScroll;i<diffRows.size();++i) {
+            if(y+62>b-12)break;const auto &v=diffRows[i];
+            p.text(v["name"].str(),{x+16,y,r.right-16,y+37},12,ink,true);
+            p.text(v["change"].str(),{x+16,y+36,r.right-16,y+58},11,muted);
+            hits.push_back({{x+8,y,r.right-8,y+61},FocusDiff,std::to_string(i),v["name"].str()});y+=66;
         }
-        button(p, {x + 14, b - 46, x + 144, b - 12}, "Изменения", ShowDiff);
-        button(p, {x + 152, b - 46, width - 30, b - 12}, "Восстановить", RestoreVersion);
-    } else if (panel == 4) {
-        p.text("↑ Границы всегда сверху", {x + 16, y + 45, width - 30, y + 73}, 12, accent);
-        iconButton(p, {x + 12, y + 78, x + 48, y + 114}, "plus", "Новый слой", AddLayer);
-        iconButton(p, {x + 55, y + 78, x + 91, y + 114}, "arrow", "Выбирать только в активном слое",
-                   IsolateLayer, "", isolateLayer);
-        iconButton(p, {x + 98, y + 78, x + 134, y + 114}, "up", "Заливка слоя выше (границы закреплены)",
-                   LayerUp);
-        iconButton(p, {x + 141, y + 78, x + 177, y + 114}, "down", "Заливка слоя ниже (границы закреплены)",
-                   LayerDown);
-        button(p, {x + 195, y + 81, width - 30, y + 111}, "Архив", ShowArchiveLayers, "", showArchiveLayers,
-               true);
-        std::vector<const Json *> list;
-        for (const auto &l : map.doc["layers"].arr()) {
-            bool archive = l["name"].str().starts_with("Архив");
-            if (archive && !showArchiveLayers)
-                continue;
-            list.push_back(&l);
-        }
-        auto rank = [](const Json &l) {
-            return l["domain"].str() == "political"       ? 0
-                   : l["domain"].str() == "physical"      ? 1
-                   : l["name"].str().starts_with("Архив") ? 3
-                                                          : 2;
-        };
-        std::stable_sort(list.begin(), list.end(), [&](auto a, auto b) { return rank(*a) < rank(*b); });
-        layerScroll = std::clamp(layerScroll, 0, std::max(0, int(list.size()) - 1));
-        int n = 0;
-        for (size_t i = layerScroll; i < list.size(); i++) {
-            const Json &l = *list[i];
-            float yy = y + 132 + n++ * 46;
-            if (yy + 40 > b - 12)
-                break;
-            if (l["id"].str() == activeLayer)
-                p.rounded({x + 8, yy, width - 24, yy + 40}, "#28545A", 4);
-            iconButton(p, {x + 10, yy + 2, x + 44, yy + 36}, l["visible"].boolean(true) ? "eye" : "eye_off",
-                       "Показать / скрыть слой", Visibility, l["id"].str());
-            iconButton(p, {x + 46, yy + 2, x + 80, yy + 36}, l["locked"].boolean() ? "lock" : "unlock",
-                       "Запретить / разрешить изменение", Lock, l["id"].str(), l["locked"].boolean());
-            p.text(l["name"].str(), {x + 91, yy, width - 31, yy + 40}, 12,
-                   l["visible"].boolean(true) ? ink : muted);
-            hits.push_back({{x + 85, yy, width - 26, yy + 40},
-                            SelectLayer,
-                            l["id"].str(),
-                            "Редактировать только: " + l["name"].str()});
-        }
-    } else if (selected.empty()) {
-        p.text("Выберите объект", {x + 18, y + 57, width - 32, y + 96}, 13, muted);
-        button(p, {x + 14, y + 112, width - 30, y + 146}, "Объекты мира", ObjectsTab);
-        button(p, {x + 14, y + 158, width - 30, y + 192}, "Кампания", CampaignTab);
-        iconButton(p, {x + 14, y + 210, x + 54, y + 250}, "eye", "Подписи карты", ToggleNames, "", mapLabels);
-        iconButton(p, {x + 66, y + 210, x + 106, y + 250}, "node", "Привязка к точкам", Snap, "", snap);
-        iconButton(p, {x + 118, y + 210, x + 158, y + 250}, "ruler", "Сетка", Grid, "", grid);
+        if(diffRows.size()==0)p.text("Изменений нет",{x+16,y,r.right-16,y+44},13,muted);
     } else {
-        const auto &f = map.doc["features"][*selected.begin()];
-        p.text(f["name"].str(), {x + 18, y + 49, width - 32, y + 84}, 14, ink, true);
-        int cs[] = {Properties, FillColor, StrokeColor, FitSelection,
-                    BindEntity, OpenCard,  Duplicate,   Delete};
-        const char *gs[] = {"gear", "color", "pen", "fit", "link", "export", "plus", "trash"};
-        const char *ts[] = {"Все свойства",        "Заливка",          "Цвет линии / символа", "К объекту",
-                            "Связать с карточкой", "Открыть карточку", "Дублировать",          "Удалить"};
-        for (int i = 0; i < 8; i++)
-            iconButton(p,
-                       {x + 17 + (i % 4) * 72.f, y + 101 + (i / 4) * 52.f, x + 61 + (i % 4) * 72.f,
-                        y + 145 + (i / 4) * 52.f},
-                       gs[i], ts[i], cs[i]);
-        button(p, {x + 14, y + 225, width - 30, y + 260}, "Кампания", CampaignTab);
-        if (f["kind"].str() == "symbol") {
-            iconButton(p, {x + 18, y + 280, x + 58, y + 320}, "minus", "Уменьшить", ScaleDown);
-            iconButton(p, {x + 71, y + 280, x + 111, y + 320}, "plus", "Увеличить", ScaleUp);
-            iconButton(p, {x + 124, y + 280, x + 164, y + 320}, "undo", "Повернуть влево", RotateLeft);
-            iconButton(p, {x + 177, y + 280, x + 217, y + 320}, "redo", "Повернуть вправо", RotateRight);
-            iconButton(p, {x + 230, y + 280, x + 270, y + 320}, "save", "Сохранить шаблон", SavePreset);
+        auto action=[&](const std::string &label,int cmd,bool active=false){button(p,{x+14,y,r.right-14,y+35},label,cmd,"",active);y+=44;};
+        if(selected.empty()){p.text("Выбери объект на карте",{x+16,y,r.right-16,y+48},13,muted);y+=59;action("Свойства карты",Properties);}
+        else {
+            const auto &f=static_cast<const Json&>(map.doc)["features"][*selected.begin()];
+            p.text(f["name"].str(),{x+16,y,r.right-16,y+59},14,ink,true);y+=70;
+            action("Название и оформление",Properties);action("Цвет заливки",FillColor);action("Цвет линии",StrokeColor);
+            auto e=campaign.find(f["entity_id"].str());if(e)action("Открыть карточку",OpenCard);
+            action(e?"Изменить связь":"Связать с карточкой",BindEntity);action("Дублировать",Duplicate);action("Приблизить объект",FitSelection);
+            if(f["kind"].str()=="symbol")action("Сохранить как шаблон",SavePreset);
         }
+        action("Изолировать слой",IsolateLayer,isolateLayer);action("Подписи карты",ToggleNames,mapLabels);action("Привязка к точкам",Snap,snap);
     }
+    p.target->PopAxisAlignedClip();
+    for(size_t i=first;i<hits.size();++i){hits[i].rect.top=std::max(r.top,hits[i].rect.top);hits[i].rect.bottom=std::min(b,hits[i].rect.bottom);if(hits[i].rect.bottom<hits[i].rect.top)hits[i].command=0;}
+    iconButton(p,{r.right-43,r.top+9,r.right-9,r.top+41},"x","Закрыть",historyView?ToggleDiff:ClosePanel);
 }
-void App::paintTimeline(Painter &p) {
-    if (!drawing.empty()) {
-        float x = (width - 176) / 2, y = height - 118;
-        dock(p, {x, y, x + 176, y + 42});
-        button(p, {x + 4, y + 4, x + 126, y + 38}, "Готово · Enter", FinishContour, "", true);
-        iconButton(p, {x + 134, y + 4, x + 172, y + 38}, "x", "Отменить · Esc", CancelContour);
-    } else if (editScope == SelectionDomain::Borders && !activeBorder.empty()) {
-        float x = (width - 306) / 2, y = height - 118;
-        dock(p, {x, y, x + 306, y + 42});
-        iconButton(p, {x + 4, y + 3, x + 42, y + 39}, "plus", "Добавить точку · двойной клик по линии",
-                   AddControl);
-        iconButton(p, {x + 46, y + 3, x + 84, y + 39}, "trash", "Удалить выбранную точку · Delete",
-                   RemoveControl);
-        button(p, {x + 94, y + 5, x + 193, y + 37}, "Море", ToggleSea, "", allowSea);
-        p.text(std::to_string(activeControls.size()) + " точек", {x + 203, y + 3, x + 296, y + 39}, 12, muted,
-               false, true);
-    } else if (tool == Tool::Region) {
-        float x = (width - 120) / 2, y = height - 118;
-        dock(p, {x, y, x + 120, y + 42});
-        button(p, {x + 5, y + 5, x + 115, y + 37}, "Море", ToggleSea, "", allowSea);
-    }
-    dock(p, {16, height - 56, 147, height - 16});
-    iconButton(p, {20, height - 52, 56, height - 20}, "history", "Версии по событиям", HistoryView, "",
-               historyView);
-    button(p, {58, height - 52, 143, height - 20}, "Версии", HistoryView, "", historyView, true);
-    dock(p, {width - 213, height - 56, width - 16, height - 16});
-    iconButton(p, {width - 210, height - 53, width - 176, height - 19}, "minus", "Отдалить", ZoomOut);
-    p.text(std::to_string(int(zoom * 100)) + "%", {width - 174, height - 53, width - 117, height - 19}, 12,
-           ink, false, true);
-    iconButton(p, {width - 115, height - 53, width - 81, height - 19}, "plus", "Приблизить", ZoomIn);
-    iconButton(p, {width - 58, height - 53, width - 22, height - 19}, "fit", "Вся карта · Home", Fit);
-    if (!selected.empty() && !historyView && !down) {
-        float x = std::max(174.f, (width - 250) / 2), y = height - 66;
-        dock(p, {x, y, x + 246, y + 48});
-        hits.push_back({{x, y, x + 246, y + 48}, 0, {}});
-        iconButton(p, {x + 5, y + 4, x + 45, y + 44}, "node", "Контрольные точки границы · K", SetTool, "18",
-                   tool == Tool::Border);
-        iconButton(p, {x + 53, y + 4, x + 93, y + 44}, "move", "Выбор границы · V", SetTool, "0",
-                   tool == Tool::Select);
-        iconButton(p, {x + 101, y + 4, x + 141, y + 44}, "color", "Цвет",
-                   map.doc["features"][*selected.begin()]["kind"].str() == "symbol" ? StrokeColor
-                                                                                    : FillColor);
-        iconButton(p, {x + 149, y + 4, x + 189, y + 44}, "gear", "Свойства", InspectorPanel, "", panel == 5);
-        iconButton(p, {x + 197, y + 4, x + 237, y + 44}, "more", "Действия с объектом", SelectionMenu);
-    }
+
+void App::paintComparisonChrome(Painter &p) {
+    p.fill({0,0,width,106},surface);
+    button(p,{20,16,155,54},"← История",HistoryView,"",false,true);
+    p.text("Сравнение редакций",{176,16,485,54},20,ink,true);
+    button(p,{width-385,17,width-260,54},compareMode==2?"Наложение":"Рядом",CompareOverlay);
+    button(p,{width-248,17,width-134,54},"Изменения",ToggleDiff,"",showPanels);
+    button(p,{width-122,17,width-20,54},"К карте",EditorView);
+    float mid=width/2;
+    button(p,{20,64,mid-14,99},"A · "+versionDetails["label"].str(),ChooseCompareA,"",false,true);
+    std::string title="Рабочий черновик";
+    if(comparisonB)for(const auto &v:map.versions())if(v["id"].str()==comparisonB->doc["_comparison_id"].str())title=v["label"].str();
+    button(p,{mid+14,64,width-20,99},"B · "+title,ChooseCompareB,"",false,true);
+    dock(p,{width-181,height-58,width-16,height-16});
+    iconButton(p,{width-176,height-55,width-136,height-19},"minus","Отдалить",ZoomOut);
+    iconButton(p,{width-128,height-55,width-88,height-19},"fit","Вся карта",Fit);
+    iconButton(p,{width-80,height-55,width-40,height-19},"plus","Приблизить",ZoomIn);
 }
+
 void App::paintChrome(Painter &p) {
-    paintTools(p);
-    paintSidebar(p);
-    paintProperties(p);
-    paintTimeline(p);
-    if (GetTickCount64() < noticeUntil) {
-        float w = std::min(440.f, 32.f + float(wide(status).size()) * 7.f), x = (width - w) / 2;
-        p.rounded({x, 58, x + w, 94}, "#243B3E", 5);
-        p.text(status, {x + 14, 58, x + w - 14, 94}, 12, ink);
+    if(historyView&&!compareMode)paintHistoryScreen(p);
+    else {
+        if(historyView)paintComparisonChrome(p);else paintMapChrome(p);
+        paintSidebar(p);paintProperties(p);
     }
-    if (!down && GetTickCount64() - hoverSince >= 500)
-        for (auto it = hits.rbegin(); it != hits.rend(); ++it)
-            if (over(it->rect, mouse)) {
-                if (!it->tip.empty()) {
-                    float w = std::min(340.f, 32.f + float(wide(it->tip).size()) * 7.f),
-                          x = std::clamp(float(mouse.x) + 16, 8.f, width - w - 8),
-                          y = std::clamp(float(mouse.y) + 23, 48.f, height - 96);
-                    p.rounded({x, y, x + w, y + 32}, "#152328", 5);
-                    p.text(it->tip, {x + 12, y, x + w - 8, y + 32}, 12, ink);
-                }
-                break;
-            }
+    if(keyboardHit>=0 && keyboardHit<int(hits.size()))p.rect(hits[keyboardHit].rect,accent,2);
+    if(now()<noticeUntil) {
+        float w=std::min(540.f,width-180),x=(width-w)/2,y=historyView?78.f:height-130;
+        dock(p,{x,y,x+w,y+48});p.text(status,{x+14,y+2,x+w-14,y+45},12,ink);
+        hits.push_back({{x,y,x+w,y+48},0,{},{}});
+    }
+    if(!down && now()-hoverSince>=650)for(auto it=hits.rbegin();it!=hits.rend();++it)if(over(it->rect,mouse)){
+        if(!it->tip.empty()) {float w=std::min(400.f,30.f+float(wide(it->tip).size())*6.f),x=std::clamp(float(mouse.x)+16,8.f,width-w-8),y=std::clamp(float(mouse.y)+24,8.f,height-50);
+            p.rounded({x,y,x+w,y+37},"#233C37",5);p.text(it->tip,{x+10,y,x+w-10,y+37},12,"#FFFFFF");}break;
+    }
 }
 } // namespace atlas

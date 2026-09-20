@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 15,
+  "document_hash": "d5189ecc18af53ec6022230327e58e27543647d2594b58171f92c0363e614bf6",
+  "document_ref": "history/documents/9e19d7a18105fd9a9ded1351bfcfe5fe9994952a89e32c8e6b9a558e821cc22e.json",
+  "format": 2,
+  "id": "MAPVER-9F74B43E-C87B-49F0-9B55-DD153FA55AD8",
+  "integrity": "305b7d9af734f374f5f30f3fc2fd63456edcceb0d803975dcb85544c2a23c9db",
+  "label": "Михаэль · Бой с Эрин и пробуждение в пустыне",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-D08297F5-9015-4C8D-AD7E-BCDC42E012F9",
+  "recorded_at": "2026-09-20T14:02:02.455Z",
+  "sequence": 82,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Сфера выбросила Михаэля из хранилища в пустыню. Это магическое перемещение, а не пеший маршрут.",
+    "evidence_ids": [
+      "SRC-0186"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0093",
+    "story_date": "сразу после ультиматума Эрин",
+    "story_order": 81920
+  }
+}

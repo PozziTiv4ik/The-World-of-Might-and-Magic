@@ -3,6 +3,7 @@
 #include <set>
 
 namespace atlas {
+int historySelfTest(const fs::path &,const fs::path &);
 int selfTest(const fs::path &target, const fs::path &pdn, const fs::path &objectMap) {
     if (target.empty())
         throw std::runtime_error("self-test requires --out");
@@ -771,6 +772,8 @@ int selfTest(const fs::path &target, const fs::path &pdn, const fs::path &object
             async.excludedBorderArcs.insert(ref["id"].str());
         require(!topFrame(), "control drag suppresses the old cached political line immediately");
     }
+    passed += historySelfTest(dir,objectMap);
+    passed += workspaceSelfTest(dir);
     auto result = fields({{"passed", passed}, {"failed", 0}, {"artifacts", pathText(dir)}});
     atomicText(dir / L"result.json", result.dump() + "\n");
     std::cout << result.dump() << "\n";

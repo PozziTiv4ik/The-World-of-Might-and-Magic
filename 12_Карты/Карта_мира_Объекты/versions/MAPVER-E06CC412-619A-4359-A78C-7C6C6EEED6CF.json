@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 15,
+  "document_hash": "9a47d9b7b130ad1227cf9387619356836fdf84fae48b9330bad98934a18dd0c7",
+  "document_ref": "history/documents/68467bae3ea967419870176d4283abe73f30ab91095f8f899b7ee58fb37d6a32.json",
+  "format": 2,
+  "id": "MAPVER-E06CC412-619A-4359-A78C-7C6C6EEED6CF",
+  "integrity": "df4144752d13876a0d973acf2cc85aa89801b38ee6df9e6bce0e61aaf34b450b",
+  "label": "Александрос · Сон о Серагоне и выборе между троном и Эрин",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-7E965F22-260C-4062-8BA5-9637B5743287",
+  "recorded_at": "2026-09-20T14:00:56.574Z",
+  "sequence": 50,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Александрос видит сон в столице. События сновидения не меняют географию мира.",
+    "evidence_ids": [
+      "SRC-0132"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0028",
+    "story_date": "глубокая ночь после закрытого семейного разговора о снах и ключах Сар-Илама",
+    "story_order": 49152
+  }
+}

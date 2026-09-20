@@ -16,6 +16,20 @@ void Map::rebuildPoliticalTopology() {
     std::map<std::pair<long long, long long>, std::string> points;
     auto coordinate = [](Point p) { return std::pair{std::llround(p.x * 1000), std::llround(p.y * 1000)}; };
     std::set<std::pair<long long, long long>> manualControls;
+    auto signature = [](const Json &ns) {
+        std::vector<std::string> ids;
+        for(const auto &n:ns.arr())ids.push_back(n.str());
+        bool closed=ids.size()>1 && ids.front()==ids.back();
+        if(closed)ids.pop_back();
+        auto normalize=[&](std::vector<std::string> a) {
+            if(closed && !a.empty())std::rotate(a.begin(),std::min_element(a.begin(),a.end()),a.end());
+            std::string key=closed?"closed|":"open|";for(const auto &n:a)key+=n+"|";return key;
+        };
+        auto f=normalize(ids);std::reverse(ids.begin(),ids.end());return std::min(f,normalize(ids));
+    };
+    std::map<std::string,std::string> existingArcs;
+    for(const auto &[id,a]:doc["arcs"].obj())
+        if(a["nodes"].isArray())existingArcs.try_emplace(signature(a["nodes"]),id);
     for (const auto &[id, a] : doc["arcs"].obj())
         if (a["control_nodes"].isArray())
             for (const auto &n : a["control_nodes"].arr())
@@ -92,6 +106,12 @@ void Map::rebuildPoliticalTopology() {
         adj[e.a].push_back(k);
         adj[e.b].push_back(k);
     }
+    std::set<std::string> turns;
+    for(const auto &[id,contours]:rings)for(const auto &ring:contours)
+        for(size_t i=0;i<ring.size();++i) {
+            const auto &a=ring[(i+ring.size()-1)%ring.size()],&b=ring[i];
+            if(a.first==b.second && a.second==b.first)turns.insert(b.first);
+        }
     auto neighbours = [&](const std::string &node, const std::set<std::string> &owners) {
         std::vector<Key> out;
         for (auto &k : adj[node])
@@ -109,7 +129,7 @@ void Map::rebuildPoliticalTopology() {
         std::set<Key> seen{key};
         while (true) {
             auto ns = neighbours(current, owners);
-            if (ns.size() != 2) {
+            if (ns.size() != 2 || adj[current].size() != 2 || turns.contains(current)) {
                 start = current;
                 break;
             }
@@ -144,10 +164,33 @@ void Map::rebuildPoliticalTopology() {
             e.forward = e.a == current;
             current = e.a == current ? e.b : e.a;
             ids.push(current);
-            if (current == start || neighbours(current, owners).size() != 2)
+            if (current == start || neighbours(current, owners).size() != 2 || adj[current].size() != 2 || turns.contains(current))
                 break;
         }
-        doc["arcs"][aid] = fields({{"nodes", ids}});
+        auto reused=existingArcs.find(signature(ids));
+        if(reused!=existingArcs.end()) {
+            auto oldId=aid;aid=reused->second;
+            for(auto &[k,e]:edges)if(e.arc==oldId)e.arc=aid;
+        }
+        if(!doc["arcs"].contains(aid))doc["arcs"][aid]=fields({{"nodes",ids}});
+        else {
+            // Keep the existing directed representation and flip edge orientations when needed.
+            const auto &old=doc["arcs"][aid]["nodes"];
+            if(old.size()>2 && old[0]==old[old.size()-1] && old[0]!=ids[0]) {
+                // A previously isolated closed loop can gain a junction. Its cyclic
+                // geometry is unchanged, but references must now start at that junction.
+                doc["arcs"][aid]["nodes"]=ids;
+                doc["arcs"][aid].obj().erase("control_nodes");
+            } else if(old[0].str()!=ids[0].str() || (old.size()>1 && old[1].str()!=ids[1].str())) {
+                for(auto &[k,e]:edges)if(e.arc==aid) {
+                    for(size_t i=1;i<old.size();++i)
+                        if((old[i-1].str()==e.a && old[i].str()==e.b) ||
+                           (old[i-1].str()==e.b && old[i].str()==e.a)) {
+                            e.forward=old[i-1].str()==e.a;break;
+                        }
+                }
+            }
+        }
     }
     for (auto &[id, rs] : rings) {
         Json result = Json::array();
@@ -163,17 +206,20 @@ void Map::rebuildPoliticalTopology() {
             }
             size_t start = 0;
             for (size_t i = 0; i < refs.size(); i++)
-                if (refs[i].id != refs[(i + refs.size() - 1) % refs.size()].id) {
+                if (refs[i].id != refs[(i + refs.size() - 1) % refs.size()].id ||
+                    refs[i].reverse != refs[(i + refs.size() - 1) % refs.size()].reverse) {
                     start = i;
                     break;
                 }
             Json out = Json::array();
             std::string prev;
+            bool previousReverse=false;
             for (size_t i = 0; i < refs.size(); i++) {
                 const auto &r = refs[(start + i) % refs.size()];
-                if (r.id != prev) {
+                if (r.id != prev || r.reverse != previousReverse) {
                     out.push(fields({{"id", r.id}, {"reverse", r.reverse}}));
                     prev = r.id;
+                    previousReverse=r.reverse;
                 }
             }
             result.push(out);

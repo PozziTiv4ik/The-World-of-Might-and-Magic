@@ -16,3 +16,7 @@ desktop.ini
 
 # Local transaction journals and test workspaces (never campaign canon).
 .wmma/
+
+# Local Atlas sessions and Python authoring caches.
+**/.atlas/
+__pycache__/

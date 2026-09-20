@@ -1,0 +1,251 @@
+{
+  "base": "history/documents/0c6a038e8f4f8d12f9cd9dca53d908457e2eb7593f97fb05c296727a94fcd333.json",
+  "changes": [
+    {
+      "after": "в тот же день после доклада Антонио в ставке Уайтбурга",
+      "before": "неделю спустя после отбытия Александроса из столицы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Обдумав карту войны, Александрос подписывает план из трех одновременных ударов. Первый приказ направлен Гранд-Адмиралу Раону. Имперский флот должен идти к Тол-Меналасу и занять гавань раньше главных сил Гормаша. Раон обязан принять баронов Торговой Компании, готовых перейти на сторону Империи, эвакуировать семьи союзных баронов и использовать открывшееся окно для захвата Торгового Лорда Хельмара и Графа Петира.",
+      "before": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Уайтбург, имперская ставка",
+      "before": "Уайтбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0040",
+      "before": "SCENE-0039",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_040_Три_удара_против_Железной_Орды.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_039_Уайтбургская_ставка_и_карта_Орды.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "4628e4842c4cf931f6ba58bddbacf3361f0ea9613548116b4fac9426493b89b1",
+      "before": "3fd8d4927315d4668d181715471d858d773aab7b99522c4d50e4b5052c01ef39",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 68608,
+      "before": 67584,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 040. Три удара против Железной Орды",
+      "before": "Сцена 039. Уайтбургская ставка и карта Орды",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0172"
+      ],
+      "before": [
+        "SRC-0151"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0040",
+      "before": "SCENE-0039",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Обдумав карту войны, Александрос подписывает план из трех одновременных ударов. Первый приказ направлен Гранд-Адмиралу Раону. Имперский флот должен идти к Тол-Меналасу и занять гавань раньше главных сил Гормаша. Раон обязан принять баронов Торговой Компании, готовых перейти на сторону Империи, эвакуировать семьи союзных баронов и использовать открывшееся окно для захвата Торгового Лорда Хельмара и Графа Петира.",
+      "before": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0172"
+      ],
+      "before": [
+        "SRC-0151"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0040",
+      "before": "SCENE-0039",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0151"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0039",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": "MAPVER-ABAF57F9-1A1F-4180-BF5A-8B3307025080",
+      "before": "MAPVER-5520BA3C-D1F7-4CC2-98FA-F73EB9E170A5",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Обдумав карту войны, Александрос подписывает план из трех одновременных ударов. Первый приказ направлен Гранд-Адмиралу Раону. Имперский флот должен идти к Тол-Меналасу и занять гавань раньше главных сил Гормаша. Раон обязан принять баронов Торговой Компании, готовых перейти на сторону Империи, эвакуировать семьи союзных баронов и использовать открывшееся окно для захвата Торгового Лорда Хельмара и Графа Петира.",
+      "before": "Неделю спустя после отбытия из столицы Александрос, Харрингтон и императорская гвардия прибывают в Уайтбург. Генерал Антонио принимает Императора и докладывает, что армия готова к выдвижению. В Уайтбурге собраны 100000 имперских солдат, 5000 паладинов, 20000 тяжелой конницы и 500 грифонов. В Порт-Стокхолде стоят 10000 тяжелой пехоты Лорда Герхарда и 3500 ульфхеднаров.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0172"
+      ],
+      "before": [
+        "SRC-0151"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0040",
+      "before": "SCENE-0039",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "в тот же день после доклада Антонио в ставке Уайтбурга",
+      "before": "неделю спустя после отбытия Александроса из столицы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 68608,
+      "before": 67584,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

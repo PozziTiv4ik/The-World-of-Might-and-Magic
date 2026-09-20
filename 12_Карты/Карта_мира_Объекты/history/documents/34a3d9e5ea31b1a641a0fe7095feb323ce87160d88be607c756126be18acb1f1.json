@@ -1,0 +1,408 @@
+{
+  "base": "history/documents/7cd517972f1c12bdbf79fa27674ae16cae7b910b428a698698e1fff9fafdf72e.json",
+  "changes": [
+    {
+      "after": "через день после поражения у ущелья",
+      "before": "тем же вечером после дуэли у Тол-Меналаса и донесений о Порт-Вингарде",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+      "before": "Тем же вечером после победы над Гормашем и тяжелых донесений о Порт-Вингарде в покои Александроса постучали. Вошел капитан имперской разведки Хагран, а двое его людей ввели пленника в темном одеянии с мешком на голове. Когда мешок сняли, Император увидел Петира. Хагран сообщил, что разведка сознательно скрыла поимку даже от торговых баронов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "темница и кровавая арена в одном из поселений области Либриария",
+      "before": "дворец и забытые подземелья Тол-Меналаса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0039"
+      ],
+      "before": [
+        "LOC-0083"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": [
+        2516,
+        805
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0110",
+      "before": "SCENE-0042",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Никитосиос/Сцена_003_Кровавая_арена_и_встреча_с_Варианом.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_042_Тайная_поимка_Петира_и_портал_под_Тол-Меналасом.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "4d1936d64bb20c1ed0c01a67fe8cd4b98f6ee7b2861768793c2951bf80bf5a55",
+      "before": "85b48dbe76b005cd52f17e313efce106657eebf639aafb9d59b9e7d1db4f3a7b",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 72704,
+      "before": 71680,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 003. Кровавая арена и встреча с Варианом",
+      "before": "Сцена 042. Тайная поимка Петира и портал под Тол-Меналасом",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0187"
+      ],
+      "before": [
+        "SRC-0175"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0110",
+      "before": "SCENE-0109",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0039",
+      "before": "LOC-0044",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1378,
+        692
+      ],
+      "before": [
+        1345.5,
+        657.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": [
+        1327.5,
+        635.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+      "before": "Тем же вечером после победы над Гормашем и тяжелых донесений о Порт-Вингарде в покои Александроса постучали. Вошел капитан имперской разведки Хагран, а двое его людей ввели пленника в темном одеянии с мешком на голове. Когда мешок сняли, Император увидел Петира. Хагран сообщил, что разведка сознательно скрыла поимку даже от торговых баронов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0039",
+      "before": "LOC-0083",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0187"
+      ],
+      "before": [
+        "SRC-0182"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Кровавая арена области Либриария",
+      "before": "Тол-Меналас",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": [
+        2516,
+        805
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0110",
+      "before": "SCENE-0042",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0187"
+      ],
+      "before": [
+        "SRC-0175"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0110",
+      "before": "SCENE-0109",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1327.5,
+        635.33
+      ],
+      "before": [
+        1510,
+        470
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-0"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": [
+        1327.5,
+        635.33
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0114-1"
+      ]
+    },
+    {
+      "after": "MAPVER-C4A16AD6-9FA7-4D19-8D21-0389DD1E3301",
+      "before": "MAPVER-17B24266-989A-4797-83D3-0A424F7BFDF9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Никитосиос",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+      "before": "Тем же вечером после победы над Гормашем и тяжелых донесений о Порт-Вингарде в покои Александроса постучали. Вошел капитан имперской разведки Хагран, а двое его людей ввели пленника в темном одеянии с мешком на голове. Когда мешок сняли, Император увидел Петира. Хагран сообщил, что разведка сознательно скрыла поимку даже от торговых баронов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0187"
+      ],
+      "before": [
+        "SRC-0182"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "before": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0110",
+      "before": "SCENE-0042",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "через день после поражения у ущелья",
+      "before": "тем же вечером после дуэли у Тол-Меналаса и донесений о Порт-Вингарде",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 72704,
+      "before": 71680,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

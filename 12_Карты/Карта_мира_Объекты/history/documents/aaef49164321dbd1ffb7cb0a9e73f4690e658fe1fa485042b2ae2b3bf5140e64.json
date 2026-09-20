@@ -1,0 +1,406 @@
+{
+  "base": "history/documents/3f374258a553ae11cdc428f9b572b3049ac7e5fd3ce1088b4bb8539a2b08df47.json",
+  "changes": [
+    {
+      "after": "ночь и следующий день после свадьбы Михаэля и Нилуфар",
+      "before": "на следующий день после свадьбы Михаэля и Нилуфар; спустя некоторое время после приказа о миссии в Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Этой же ночью Александрос почти не может уснуть. Когда сон наконец приходит, Император видит не успокоение, а новый кошмар. Железная Орда грабит Цитадель Света и уничтожает столицу до основания; Петир убивает Михаэля в кабинете ударом кинжала в спину; Никитосиос отворачивается от отца в час нужды; Харрингтон лежит мертвым среди снегов ледяных хребтов, а над его телом возвышается Демитриос.",
+      "before": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "столица Империи; Цитадель Вечного Света",
+      "before": "Белая Гавань / Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0007"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0023",
+      "before": "SCENE-0081",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_023_Сон_о_пылающем_оке_и_пророчество_трех_лун.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_018_Порт-Лабад_и_след_Бессмертного_Императора.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "52e022b70b2767e965b52330e9b0eca9cc9cc77ab7f9c15ef5338d38a579f773",
+      "before": "775af5d2a6f6adb04fd44eb443713d40f498c89d6121671c5e822091cb416ce1",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 43008,
+      "before": 41984,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 023. Сон о пылающем оке и пророчество трех лун",
+      "before": "Сцена 018. Порт-Лабад и след Бессмертного Императора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0127"
+      ],
+      "before": [
+        "SRC-0125"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0023",
+      "before": "SCENE-0022",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1938,
+        725
+      ],
+      "before": [
+        1843,
+        814
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Этой же ночью Александрос почти не может уснуть. Когда сон наконец приходит, Император видит не успокоение, а новый кошмар. Железная Орда грабит Цитадель Света и уничтожает столицу до основания; Петир убивает Михаэля в кабинете ударом кинжала в спину; Никитосиос отворачивается от отца в час нужды; Харрингтон лежит мертвым среди снегов ледяных хребтов, а над его телом возвышается Демитриос.",
+      "before": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0127"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0023",
+      "before": "SCENE-0081",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0127"
+      ],
+      "before": [
+        "SRC-0125"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0023",
+      "before": "SCENE-0022",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-12BE1785-4F14-497C-963C-9F773D6BA987",
+      "before": "MAPVER-FCF6E3A1-3D75-4D9B-8B4C-C1DA5AF803E0",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Этой же ночью Александрос почти не может уснуть. Когда сон наконец приходит, Император видит не успокоение, а новый кошмар. Железная Орда грабит Цитадель Света и уничтожает столицу до основания; Петир убивает Михаэля в кабинете ударом кинжала в спину; Никитосиос отворачивается от отца в час нужды; Харрингтон лежит мертвым среди снегов ледяных хребтов, а над его телом возвышается Демитриос.",
+      "before": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0127"
+      ],
+      "before": [
+        "SRC-0125"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-THREE-MOONS"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0023",
+      "before": "SCENE-0081",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "ночь и следующий день после свадьбы Михаэля и Нилуфар",
+      "before": "на следующий день после свадьбы Михаэля и Нилуфар; спустя некоторое время после приказа о миссии в Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 43008,
+      "before": 41984,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

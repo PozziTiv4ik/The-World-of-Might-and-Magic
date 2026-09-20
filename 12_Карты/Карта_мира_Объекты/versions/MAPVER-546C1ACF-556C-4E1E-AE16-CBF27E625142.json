@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 1,
+  "document_hash": "3e71d0538dd851055e2bd1d0fd7c92f5716f4ddaa918805c860eb713d87ef616",
+  "document_ref": "history/documents/1715bb63da7086c1872ed38a489a2c4bee163b5843594104eccaea35efc81940.json",
+  "format": 2,
+  "id": "MAPVER-546C1ACF-556C-4E1E-AE16-CBF27E625142",
+  "integrity": "aead822c0edaa36eb914a92eb26013f686c0876682adb1a345d1c6e5bccf1ab8",
+  "label": "Александрос · Разорение столицы и донесения после высадки",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-B21881EC-B2A2-4C71-BCD3-4828DB87054E",
+  "recorded_at": "2026-09-20T14:02:06.804Z",
+  "sequence": 84,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Столица разорена, Роксана и Петир похищены. Сообщение о гибели Михаэля и Нилуфар не подтверждает их смерть.",
+    "evidence_ids": [
+      "SRC-0190"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0047",
+    "story_date": "неделю спустя после начала вторжения к Порт-Лаоду и высадок на Шантири",
+    "story_order": 83968
+  }
+}

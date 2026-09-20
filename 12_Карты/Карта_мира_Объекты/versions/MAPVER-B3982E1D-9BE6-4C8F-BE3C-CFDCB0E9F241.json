@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 14,
+  "document_hash": "67f2f5a8707291d011cfa465aefd54b67263b1fdc47b066f506bde20166994c0",
+  "document_ref": "history/documents/328a0627fb64bdd3a5ab5fc5aaf408e862b35a876242f49cbeca6cfd0806eb2c.json",
+  "format": 2,
+  "id": "MAPVER-B3982E1D-9BE6-4C8F-BE3C-CFDCB0E9F241",
+  "integrity": "a8884dc84b9a33a528d9c6453f55d6ee6af374b710d9e5161a7a5b8ec0a4cd2c",
+  "label": "Михаэль · Ответ Вито в Белой Гавани",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E69EAE70-875D-4E37-83CC-472F8D9AD603",
+  "recorded_at": "2026-09-20T14:00:21.665Z",
+  "sequence": 32,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Тем же временем Михаэль прибыл в Белую Гавань и сразу увидел результат своих задержек: орки уже завершили инфраструктуру для будущей Гвардии Белой Гавани. Картос начал рекрутинг среди населения и обучение новых воинов, превращая решение Высшего совета в практическую силу региона. Принцу сообщили, что Рагдус отбыл в ярости из-за бюрократических проволочек.",
+    "evidence_ids": [
+      "SRC-0089"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0077",
+    "story_date": "тем же временем после Высшего совета и падения Лордамера",
+    "story_order": 31744
+  }
+}

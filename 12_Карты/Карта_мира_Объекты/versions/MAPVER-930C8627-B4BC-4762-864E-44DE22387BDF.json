@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "9f40c86b6d34b6efdd7c553c975f907a839204b42b3ee261e3ae2176bdafee8b",
+  "document_ref": "history/documents/ced4cfefabe783a88d3a46a153101ecce383ab4f826af86340acaa6d10077700.json",
+  "format": 2,
+  "id": "MAPVER-930C8627-B4BC-4762-864E-44DE22387BDF",
+  "integrity": "812a91a3e7bb48e42b20ec731271bd6e2e8716e7261e16c3802052a3b31d09b9",
+  "label": "Михаэль · Раон и поток наемников",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-0C8F11A7-8884-454B-9789-A931700A7F9B",
+  "recorded_at": "2026-09-20T13:55:18.860Z",
+  "sequence": 8,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0066",
+    "story_date": "за 1 неделю до Дня Единения Империи",
+    "story_order": 8192
+  }
+}

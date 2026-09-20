@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "caf02e3e4e259e73c242f477c88d92f32a6936a5c795a1df196f775c461e334f",
+  "document_ref": "history/documents/d5fe5a46dbf4edfa1cb415a8336ae6705b77365dae8d7405957b5eae7b18193e.json",
+  "format": 2,
+  "id": "MAPVER-928DA56D-4B89-45E9-A3FA-52BE91E4EE7E",
+  "integrity": "16ca5af60ff3d974c3a1e4a45225d0a8bce6b983672362b01bb4603af52efb65",
+  "label": "Александрос · Дуэль у Тол-Меналаса и падение Порт-Вингарда",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-9D8C03E0-7C06-49CB-8C88-A9091E31E307",
+  "recorded_at": "2026-09-20T14:01:37.833Z",
+  "sequence": 70,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Гормаш погиб в дуэли у Тол-Меналаса. Одновременно Порт-Вингард захвачен орками; верфи разрушены.",
+    "evidence_ids": [
+      "SRC-0171"
+    ],
+    "front_ids": [
+      "FRONT-IRON-HORDE"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0041",
+    "story_date": "неделю спустя после начала трех ударов против Железной Орды",
+    "story_order": 69632
+  }
+}

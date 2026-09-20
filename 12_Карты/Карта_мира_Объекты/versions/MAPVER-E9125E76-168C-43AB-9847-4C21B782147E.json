@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 11,
+  "document_hash": "48a2dd90fe9d4963beaabaf10f1a7d9c7940c4a244ca53471abc7374c5cfabab",
+  "document_ref": "history/documents/529d350c60b941d83a2729b743f990dfa3ad0445ee21cf3472def659d5a51866.json",
+  "format": 2,
+  "id": "MAPVER-E9125E76-168C-43AB-9847-4C21B782147E",
+  "integrity": "bfaee6dd8d7695f3c0030a36bbd5107dd841ef5243cc61c520b424150d265378",
+  "label": "Александрос · Прибытие Никитосиоса и красный дракон",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E1BBBF9E-E3A0-477C-BA20-CBE92E109606",
+  "recorded_at": "2026-09-20T13:55:26.657Z",
+  "sequence": 12,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Никитосиос прибыл в столицу на красном драконе.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-CRIMSON-PEAK"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0007",
+    "story_date": "за 3 дня до Дня Единения Империи",
+    "story_order": 12288
+  }
+}

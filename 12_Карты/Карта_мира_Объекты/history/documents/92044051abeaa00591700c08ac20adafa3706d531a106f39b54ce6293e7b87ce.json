@@ -1,0 +1,344 @@
+{
+  "base": "history/documents/25c870fb5cbdaf755c2556caf3abb8182fa0977e77bd2e5723374c2d3f6d562c.json",
+  "changes": [
+    {
+      "after": "неделю спустя после первого раунда турнира Либриария",
+      "before": "после освобождения Хорнбурга и допроса Вана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+      "before": "После объяснений Вана Александрос забирает медальон Ордена затмения, вызывает лекарей к ослабевшему лорду и готовит людей к возвращению в столицу. Харрингтон уже отпущен в погоню за Роксаной и Закхероном вместе с Линдольфом и Лордом Богданом. У отряда есть письмо Императора к Вито с просьбой оказать все возможное содействие в поимке культистов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Великая арена Либриария",
+      "before": "Хорнбург; дорога к столице Империи Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0010"
+      ],
+      "before": [
+        "LOC-0089"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1338,
+        628
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0113",
+      "before": "SCENE-0059",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Никитосиос/Сцена_006_Последний_бой_турнира_и_смерть_Вариана.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_059_Возвращение_в_столицу_после_признания_Вана.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "3a18536b3970ecb31cc67d5e16f9ce16d0cadc02ff96b16addcbd70541580523",
+      "before": "0ee6373ff2ef4e8944d7860a5395a1c36ceca466555dd3efe5f5fbafa44b0ecd",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 106496,
+      "before": 105472,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 006. Последний бой турнира и смерть Вариана",
+      "before": "Сцена 059. Возвращение в столицу после признания Вана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0216"
+      ],
+      "before": [
+        "SRC-0214"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0113",
+      "before": "SCENE-0112",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+      "before": "После объяснений Вана Александрос забирает медальон Ордена затмения, вызывает лекарей к ослабевшему лорду и готовит людей к возвращению в столицу. Харрингтон уже отпущен в погоню за Роксаной и Закхероном вместе с Линдольфом и Лордом Богданом. У отряда есть письмо Императора к Вито с просьбой оказать все возможное содействие в поимке культистов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0010",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0216"
+      ],
+      "before": [
+        "SRC-0223"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Великая арена Либриария",
+      "before": "Хорнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1338,
+        628
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0113",
+      "before": "SCENE-0059",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0114",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0214"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0114",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Никитосиос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0112",
+        "stroke": "#A44E56",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114"
+      ]
+    },
+    {
+      "after": "MAPVER-11C101DF-E61F-4A1C-8118-3836E8FE3500",
+      "before": "MAPVER-E3D87B12-11C0-47DA-91EC-9534F9262052",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Никитосиос",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+      "before": "После объяснений Вана Александрос забирает медальон Ордена затмения, вызывает лекарей к ослабевшему лорду и готовит людей к возвращению в столицу. Харрингтон уже отпущен в погоню за Роксаной и Закхероном вместе с Линдольфом и Лордом Богданом. У отряда есть письмо Императора к Вито с просьбой оказать все возможное содействие в поимке культистов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0216"
+      ],
+      "before": [
+        "SRC-0223"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "before": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0113",
+      "before": "SCENE-0059",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "неделю спустя после первого раунда турнира Либриария",
+      "before": "после освобождения Хорнбурга и допроса Вана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 106496,
+      "before": 105472,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

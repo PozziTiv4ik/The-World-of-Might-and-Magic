@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 1,
+  "document_hash": "140320338c9fcb33e24d260f199c03785bd1f027fbae9574e1a13dfab24406b7",
+  "document_ref": "history/documents/0a42ccc64b80b2a96f2d1456624a21f4b51279a5c6904da1907bfc6a832e3548.json",
+  "format": 2,
+  "id": "MAPVER-323A9BB1-286B-4CA7-A801-CDD95D9A6F69",
+  "integrity": "38bd4c7dfbd3b9fc93a12898380064d7cc1b5e0255553ac37f74f5696d42e559",
+  "label": "Александрос · Приглашение Никитосиосу",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-8EEF2927-A064-4D52-A4D2-1BA7800045DB",
+  "recorded_at": "2026-09-20T13:55:07.264Z",
+  "sequence": 2,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Александрос решил отправить личное приглашение первенцу.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-CRIMSON-PEAK"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0002",
+    "story_date": "за 2 недели до Дня Единения Империи",
+    "story_order": 2048
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "base": "history/documents/379dc94c27a0f3f87fe9c50ece6d64344cc403454242d82b1d2de988c5ff2445.json",
+  "changes": [
+    {
+      "after": "на следующий день после боя у входа; через сутки после начала снятия печати",
+      "before": "через неделю пути после выхода из Алиманджада",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Ровно через сутки после начала работы Нилуфар печать поддалась и круглая дверь распахнулась. За ней открылся огромный зал, наполненный сокровищами. Истощенная Нилуфар осталась у входа восстанавливать силы, а Михаэль, Харагорн и люди Принца начали осмотр. Внимание Михаэля быстро привлекла необычная сфера из неизвестного ему материала. Изнутри она излучала тусклый серебристо-голубой свет.",
+      "before": "Через неделю пути ориентиры привели экспедицию к огромному круглому входу в хранилище, скрытому за зарослями лиан и водопадом. Когда отряд приблизился, из окружающих коридоров его атаковали темные эльфы — стражи хранилища. Нилуфар возвела магический щит. Из-под его защиты она и Михаэль обстреливали противника, пока гвардейцы Принца и Харагорн сошлись со стражами в ближнем бою.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "хранилище Бессмертного Императора в Песчаных горах",
+      "before": "вход в хранилище Бессмертного Императора в Песчаных горах",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0092",
+      "before": "SCENE-0091",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_029_Сокровища_хранилища_и_ультиматум_Эрин.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_028_Бой_у_входа_в_хранилище.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "56d0dc9595f009c217dad5411118beac73a9cc51dace274c7bc6652d52ae0631",
+      "before": "0d67f4d8e535036f9e27e5e9ca47ddeca059789c07457f350fb0306b8146f5eb",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 80896,
+      "before": 79872,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 029. Сокровища хранилища и ультиматум Эрин",
+      "before": "Сцена 028. Бой у входа в хранилище",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0178"
+      ],
+      "before": [
+        "SRC-0177"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0092",
+      "before": "SCENE-0091",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Ровно через сутки после начала работы Нилуфар печать поддалась и круглая дверь распахнулась. За ней открылся огромный зал, наполненный сокровищами. Истощенная Нилуфар осталась у входа восстанавливать силы, а Михаэль, Харагорн и люди Принца начали осмотр. Внимание Михаэля быстро привлекла необычная сфера из неизвестного ему материала. Изнутри она излучала тусклый серебристо-голубой свет.",
+      "before": "Через неделю пути ориентиры привели экспедицию к огромному круглому входу в хранилище, скрытому за зарослями лиан и водопадом. Когда отряд приблизился, из окружающих коридоров его атаковали темные эльфы — стражи хранилища. Нилуфар возвела магический щит. Из-под его защиты она и Михаэль обстреливали противника, пока гвардейцы Принца и Харагорн сошлись со стражами в ближнем бою.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0178"
+      ],
+      "before": [
+        "SRC-0177"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0092",
+      "before": "SCENE-0091",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0177"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0091",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-4BC68259-A6D0-4E05-9A0A-BE9601C21B39",
+      "before": "MAPVER-E3B55F23-3B4A-47D2-B383-BFBAB8F64EE1",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Ровно через сутки после начала работы Нилуфар печать поддалась и круглая дверь распахнулась. За ней открылся огромный зал, наполненный сокровищами. Истощенная Нилуфар осталась у входа восстанавливать силы, а Михаэль, Харагорн и люди Принца начали осмотр. Внимание Михаэля быстро привлекла необычная сфера из неизвестного ему материала. Изнутри она излучала тусклый серебристо-голубой свет.",
+      "before": "Через неделю пути ориентиры привели экспедицию к огромному круглому входу в хранилище, скрытому за зарослями лиан и водопадом. Когда отряд приблизился, из окружающих коридоров его атаковали темные эльфы — стражи хранилища. Нилуфар возвела магический щит. Из-под его защиты она и Михаэль обстреливали противника, пока гвардейцы Принца и Харагорн сошлись со стражами в ближнем бою.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0178"
+      ],
+      "before": [
+        "SRC-0177"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0092",
+      "before": "SCENE-0091",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "на следующий день после боя у входа; через сутки после начала снятия печати",
+      "before": "через неделю пути после выхода из Алиманджада",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 80896,
+      "before": 79872,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

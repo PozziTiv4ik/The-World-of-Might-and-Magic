@@ -1,0 +1,74 @@
+{
+  "autosave_recovered_by_a": "Unsaved B",
+  "background_only_diff_count": 0,
+  "bad_anchor_validation_errors": 0,
+  "broken_history_error": "Invalid JSON at byte 2",
+  "broken_history_list_failed": true,
+  "broken_history_validation_errors": 0,
+  "claim_validation_errors": 0,
+  "compact_document_bytes": 5273350,
+  "history_scale": [
+    {
+      "bytes": 18235546,
+      "list_ms": 177.304,
+      "versions": 2
+    },
+    {
+      "bytes": 91178059,
+      "list_ms": 762.4246,
+      "versions": 10
+    },
+    {
+      "bytes": 227945284,
+      "list_ms": 1845.9569,
+      "versions": 25
+    },
+    {
+      "note": "Single warm local sample; measures versions() only, not GUI FPS."
+    }
+  ],
+  "locked_country_removed_by_claim": true,
+  "missing_parent_validation_errors": 0,
+  "pretty_document_bytes": 8350022,
+  "second_noop_topology_rebuild_changes": {
+    "arcs": 7398,
+    "features": 47
+  },
+  "snapshot_undo": {
+    "a": "MAPVER-CBE5D4B8-1D88-4258-A056-4A07955F6B6C",
+    "b": "MAPVER-9F5CD8C9-01E8-44D2-BAC2-D89FE3E3C2F2",
+    "b_still_exists": true,
+    "c_parent": "MAPVER-CBE5D4B8-1D88-4258-A056-4A07955F6B6C"
+  },
+  "undo_steps_after_40_edits": 6,
+  "reviewed_git_revision": "6eea88c26b4b7ec74ae054443ad7fb3fcf757746",
+  "stock_self_test": {
+    "map": "12_Карты/Карта_мира_Объекты",
+    "pdn_sha256": "604d8b76109be66fcf69c885dd274fd4cf5bbf7a5afb48a3fa8a42bd1d6847bf",
+    "failed": 0,
+    "passed": 129
+  },
+  "files_sha256": [
+    {
+      "sha256": "77ebc10e77567e0e1f8db7f541bd698fcf49ff6143108d5aad1d5af6b989bcb9",
+      "path": "D:\\Project\\The World of Might and Magic\\tools\\Atlas\\bin\\Atlas.exe"
+    },
+    {
+      "sha256": "af4d410bec18e76b30fad023f588b90669219c29ddbeb1dc4354394764988c95",
+      "path": "D:\\Project\\The World of Might and Magic\\tools\\Atlas\\bin\\Atlas.Cli.exe"
+    },
+    {
+      "sha256": "930700dfa1a9d0cbc94815f7415103b40e3455792f51c5917df31a818dfdde04",
+      "path": "D:\\Project\\The World of Might and Magic\\12_Карты\\Карта_мира_Объекты\\map.json"
+    }
+  ],
+  "gui": {
+    "observed": [
+      "Countries filter includes Water Network",
+      "History rows show recording time only",
+      "Comparison wheel changes zoom counter without zooming maps",
+      "Diff form showed an empty area for a 13,890-change, 5,974,281-byte CLI diff"
+    ],
+    "scope": "Audit copy only; native interaction stopped after physical Escape"
+  }
+}

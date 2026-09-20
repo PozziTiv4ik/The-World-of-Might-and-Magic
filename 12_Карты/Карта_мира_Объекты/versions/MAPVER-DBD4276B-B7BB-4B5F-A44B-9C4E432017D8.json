@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "a810ccec2f1fa8871560c7e78c3406b765b5f2bd5cd30928e104c9e7b23567e8",
+  "document_ref": "history/documents/d5e3eb81d720b07300480dd78c1813bc0940d66e9147cb13da64087a085d58d4.json",
+  "format": 2,
+  "id": "MAPVER-DBD4276B-B7BB-4B5F-A44B-9C4E432017D8",
+  "integrity": "7df2caf69997c266055c1f776ea14be78347fa1e722f80e6876e094357d1353a",
+  "label": "Михаэль · Уайтбург, письмо Вито и казна войны",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-AF4EEA1B-1335-41C6-ACD2-D2274CE04109",
+  "recorded_at": "2026-09-20T14:00:04.615Z",
+  "sequence": 23,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+    "evidence_ids": [
+      "SRC-0074"
+    ],
+    "front_ids": [
+      "FRONT-WAR-TREASURY"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0073",
+    "story_date": "после освобождения Уайтбурга",
+    "story_order": 22528
+  }
+}

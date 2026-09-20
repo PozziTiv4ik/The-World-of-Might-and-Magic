@@ -106,7 +106,7 @@ bool App::beginBoundaryEdit(Point w) {
     if (!arc.empty()) {
         selectBorder(arc);
         down = false;
-        ReleaseCapture();
+        if(window)ReleaseCapture();
         invalidate();
         return true;
     }
@@ -146,7 +146,7 @@ bool App::beginBoundaryEdit(Point w) {
         refreshControls();
         updateSelection();
         down = false;
-        ReleaseCapture();
+        if(window)ReleaseCapture();
         return true;
     }
     selected.clear();

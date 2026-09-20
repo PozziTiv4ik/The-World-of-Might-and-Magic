@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 8,
+  "document_hash": "6da229f7b485596e57a1e1cbeb47dd735717fb5620674619f24b37ce614c670e",
+  "document_ref": "history/documents/a3e52b74a57520412b2315a8dfab6a4b44d5d158f5f7e000f94f6ffe0d218ed9.json",
+  "format": 2,
+  "id": "MAPVER-034AA7A8-B7FF-4F45-97F6-DF2E5E7BD0BD",
+  "integrity": "557d631c8f24e7feabe5ecb9398fa068956852ee59bd6bc64c7579625e0d8771",
+  "label": "Александрос · Толкование снов и выбор наместника перед отплытием",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-C45A56CE-BB26-4E7E-BF0A-14A14F477D3D",
+  "recorded_at": "2026-09-20T14:02:27.130Z",
+  "sequence": 91,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Через четыре дня после встречи с Линдольфом наступил день отплытия Александроса, Харрингтона и союзных сил из Белой Гавани к Цитадели Солнца. За оставшееся время Александрос поговорил с присланным Орденом дракона толкователем снов. Тот разделил прежние видения Императора по источникам и смыслу: 1. Первое пророчество исходило от Света.",
+    "evidence_ids": [
+      "SRC-0209"
+    ],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0052",
+    "story_date": "через четыре дня после встречи с Линдольфом; день отплытия из Белой Гавани",
+    "story_order": 91136
+  }
+}

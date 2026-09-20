@@ -1,0 +1,27 @@
+{
+  "asset_hashes": {},
+  "document_depth": 14,
+  "document_hash": "682115e8a9594fdc40090c5957b964a8067082e1541859f7d4f17b1647e331d9",
+  "document_ref": "history/documents/2f82f6e8b5c07bb847559aa6b62d516e73c2e537fe9efd057df3c98c0b729bde.json",
+  "format": 2,
+  "id": "MAPVER-161BA5C4-F65B-499F-BB97-717059A56ED4",
+  "integrity": "7aac84addccbdbb95a72c24bd93de5eeb1a1a60e28c6fca241633cd5c3406da7",
+  "label": "Александрос · Первые недели войны",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E19195AE-DCF6-4501-B287-7735730AD06B",
+  "recorded_at": "2026-09-20T13:55:34.671Z",
+  "sequence": 16,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+    "evidence_ids": [],
+    "front_ids": [],
+    "relation": "after",
+    "scene_id": "SCENE-0009",
+    "story_date": "первые шесть недель после Дня Единения Империи",
+    "story_order": 15360
+  }
+}

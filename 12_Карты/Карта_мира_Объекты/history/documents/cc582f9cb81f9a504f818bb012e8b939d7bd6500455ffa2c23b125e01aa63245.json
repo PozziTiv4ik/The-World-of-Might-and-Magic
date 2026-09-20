@@ -1,0 +1,344 @@
+{
+  "base": "history/documents/8a515492e35f8759d0a0b23dc27a3c389d26121ba89786bd5b173e20a07eafaf.json",
+  "changes": [
+    {
+      "after": "спустя две недели гладиаторских боев и поединков",
+      "before": "несколько дней после встречи с Хенги в неизвестной пустыне",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "За две недели гладиаторских боев Никитосиос, Вариан, Бейн, Роган и Эгвин успели снискать славу и популярность. Их пятерку начали называть Багровой гидрой. Местная знать сочла прозвище забавным и решила устроить для зрителей буквальное «сражение гидр»: отряд должны были бросить против древней темной гидры. Перед боем гладиаторы тренировались как единая группа и закрепили профильное оружие.",
+      "before": "Положение было безысходным. Михаэль вытянул из Колчана мастера Шантири три магические стрелы про запас и отдал сам артефакт Хенги. В обмен гоблин передал ему бурдюк. Принц сразу начал пить, но быстро понял, что вкус у воды странный и отвратительный. На вопрос Михаэля Хенги объяснил, что больше не будет делать бурдюк из мошонки мантикоры.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "кровавая арена области Либриария",
+      "before": "неизвестная пустыня Михаэля, западный путь к оазису",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0039"
+      ],
+      "before": [
+        "LOC-0048"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": [
+        1490,
+        1735
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0111",
+      "before": "SCENE-0095",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Никитосиос/Сцена_004_Сражение_гидр_и_приглашение_на_Великую_арену.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_032_Сделка_с_Хенги_и_оазис_сколопендроморфов.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e10ededae546673ce92fe5056a44f7708fbbdebdaa13100cc9f5fdee05cf526b",
+      "before": "3c0a7c9a4f9e1c9e2084bfe04ca0088eca2977ca09e7e5be40a2b92269cb6abe",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 88064,
+      "before": 87040,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 004. Сражение гидр и приглашение на Великую арену",
+      "before": "Сцена 032. Сделка с Хенги и оазис сколопендроморфов",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0199"
+      ],
+      "before": [
+        "SRC-0187"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0111",
+      "before": "SCENE-0110",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "За две недели гладиаторских боев Никитосиос, Вариан, Бейн, Роган и Эгвин успели снискать славу и популярность. Их пятерку начали называть Багровой гидрой. Местная знать сочла прозвище забавным и решила устроить для зрителей буквальное «сражение гидр»: отряд должны были бросить против древней темной гидры. Перед боем гладиаторы тренировались как единая группа и закрепили профильное оружие.",
+      "before": "Положение было безысходным. Михаэль вытянул из Колчана мастера Шантири три магические стрелы про запас и отдал сам артефакт Хенги. В обмен гоблин передал ему бурдюк. Принц сразу начал пить, но быстро понял, что вкус у воды странный и отвратительный. На вопрос Михаэля Хенги объяснил, что больше не будет делать бурдюк из мошонки мантикоры.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0039",
+      "before": "LOC-0048",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0199"
+      ],
+      "before": [
+        "SRC-0198"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Кровавая арена области Либриария",
+      "before": "Неизвестная пустыня Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1360,
+        670
+      ],
+      "before": [
+        1490,
+        1735
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0111",
+      "before": "SCENE-0095",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0114",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0187"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0114",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Никитосиос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0110",
+        "stroke": "#A44E56",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114"
+      ]
+    },
+    {
+      "after": "MAPVER-9914F24A-F6B1-4672-9FF1-23BBF49DD665",
+      "before": "MAPVER-10FB6856-A4ED-4DB3-901A-2A9BDA0FB201",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Никитосиос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "За две недели гладиаторских боев Никитосиос, Вариан, Бейн, Роган и Эгвин успели снискать славу и популярность. Их пятерку начали называть Багровой гидрой. Местная знать сочла прозвище забавным и решила устроить для зрителей буквальное «сражение гидр»: отряд должны были бросить против древней темной гидры. Перед боем гладиаторы тренировались как единая группа и закрепили профильное оружие.",
+      "before": "Положение было безысходным. Михаэль вытянул из Колчана мастера Шантири три магические стрелы про запас и отдал сам артефакт Хенги. В обмен гоблин передал ему бурдюк. Принц сразу начал пить, но быстро понял, что вкус у воды странный и отвратительный. На вопрос Михаэля Хенги объяснил, что больше не будет делать бурдюк из мошонки мантикоры.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0199"
+      ],
+      "before": [
+        "SRC-0198"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "before": [
+        "FRONT-THREE-MOONS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0111",
+      "before": "SCENE-0095",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя две недели гладиаторских боев и поединков",
+      "before": "несколько дней после встречи с Хенги в неизвестной пустыне",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 88064,
+      "before": 87040,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

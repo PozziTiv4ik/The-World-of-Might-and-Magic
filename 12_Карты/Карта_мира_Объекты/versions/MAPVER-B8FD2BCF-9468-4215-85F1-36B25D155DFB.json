@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 4,
+  "document_hash": "33d863bfcf9e425e33576a8d40dd799936cb251aaef7219d39f20a7387f86921",
+  "document_ref": "history/documents/5d9187e41f92dfc76bea62f6b577aa3c1b2c9ff6c851234c1f825eb10c93eb0a.json",
+  "format": 2,
+  "id": "MAPVER-B8FD2BCF-9468-4215-85F1-36B25D155DFB",
+  "integrity": "6b9e32e7f698a6ffc87d99c40f28af8eed42ad43e7091fc07275bf5d8751e58c",
+  "label": "Александрос · Королевский грифон и демигрифы Рейнбурга",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-289F5D35-79A6-4558-9E00-DF0DA9A4CDA7",
+  "recorded_at": "2026-09-20T14:00:35.242Z",
+  "sequence": 39,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+    "evidence_ids": [
+      "SRC-0123"
+    ],
+    "front_ids": [
+      "FRONT-BERTRAM-LEGACY"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0020",
+    "story_date": "через несколько дней после сна о затмении; приезд Александроса в Рейнбург",
+    "story_order": 37888
+  }
+}

@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "name": "01-vector-editing",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "camera",
+      "zoom": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": "key",
+      "key": "T"
+    },
+    {
+      "action": "assert",
+      "pointer": "/tool",
+      "equals": "label"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Подпись",
+        "values": {
+          "Текст": "Пробный порт"
+        }
+      }
+    },
+    {
+      "action": "click",
+      "at": [
+        430,
+        310
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "remember",
+      "name": "port",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Свойства объекта",
+        "values": {
+          "Название": "Порт после правки",
+          "Размер текста": "30"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "F2"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features/${port}/name",
+      "equals": "Порт после правки",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "V"
+    },
+    {
+      "action": "drag",
+      "space": "world",
+      "from": [
+        430,
+        310
+      ],
+      "to": [
+        520,
+        360
+      ],
+      "preview": true
+    },
+    {
+      "action": "assert",
+      "pointer": "/features/${port}/position",
+      "equals": [
+        520,
+        360
+      ],
+      "target": "document",
+      "epsilon": 0.001
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Z"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features/${port}/position",
+      "equals": [
+        430,
+        310
+      ],
+      "target": "document",
+      "epsilon": 0.001
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Y"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features/${port}/position",
+      "equals": [
+        520,
+        360
+      ],
+      "target": "document",
+      "epsilon": 0.001
+    },
+    {
+      "action": "click",
+      "at": [
+        520,
+        360
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+D"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 2
+    },
+    {
+      "action": "key",
+      "key": "Delete"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+V"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 2
+    },
+    {
+      "action": "capture",
+      "capture": "edited-objects"
+    },
+    {
+      "action": "remember",
+      "name": "before_invalid",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Свойства объекта",
+        "values": {
+          "Название": "Нельзя сохранить",
+          "Непрозрачность (0–1)": "2"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "F2",
+      "expect_error": "Число должно"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "before_invalid"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": false
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 2
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "save_file",
+        "value": "exports/map.svg"
+      }
+    },
+    {
+      "action": "command",
+      "command": "export_svg"
+    },
+    {
+      "action": "assert",
+      "file": "exports/map.svg",
+      "contains": "Порт после правки"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "save_file",
+        "value": "exports/map.png"
+      }
+    },
+    {
+      "action": "command",
+      "command": "export_png"
+    },
+    {
+      "action": "assert",
+      "file": "exports/map.png",
+      "image_size": [
+        1600,
+        1000
+      ]
+    },
+    {
+      "action": "assert_ui"
+    }
+  ]
+}

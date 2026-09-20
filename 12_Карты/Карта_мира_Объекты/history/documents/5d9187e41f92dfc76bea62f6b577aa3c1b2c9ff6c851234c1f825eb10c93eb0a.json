@@ -1,0 +1,411 @@
+{
+  "base": "history/documents/787d4a86aef54b5b76ac19810d9b6056d24f8b4fcf886e75604e26b50d1d995e.json",
+  "changes": [
+    {
+      "after": "через несколько дней после сна о затмении; приезд Александроса в Рейнбург",
+      "before": "раннее утро после письма Михаэля о назначенной дате свадьбы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+      "before": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Рейнбург",
+      "before": "столица Империи; путь в Рейнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0070"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1721.5,
+        691.33
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0020",
+      "before": "SCENE-0019",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_020_Королевский_грифон_и_демигрифы_Рейнбурга.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_019_Сон_о_затмении_и_поручения_перед_Рейнбургом.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "a40b5fa9e7e50da1c43d0820ccd36dfe963173b9710a3d7caa47b6214fedd73b",
+      "before": "061f86151c5e44dac4050160a89d0c57aa3e81ffa4de8294cfdeeeefff039640",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 37888,
+      "before": 36864,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 020. Королевский грифон и демигрифы Рейнбурга",
+      "before": "Сцена 019. Сон о затмении и поручения перед Рейнбургом",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0123"
+      ],
+      "before": [
+        "SRC-0122"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0020",
+      "before": "SCENE-0019",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0070",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1739.5,
+        669.33
+      ],
+      "before": [
+        1938,
+        725
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1721.5,
+        691.33
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+      "before": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0070",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0123"
+      ],
+      "before": [
+        "SRC-0122"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Рейнбург",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1721.5,
+        691.33
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0020",
+      "before": "SCENE-0019",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0123"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0020",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        2227,
+        479
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1721.5,
+        691.33
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-289F5D35-79A6-4558-9E00-DF0DA9A4CDA7",
+      "before": "MAPVER-BF8232B7-036B-43DC-BBEF-57ABCE834D76",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Через несколько дней после утреннего решения о поездке Александрос добирается до Рейнбурга. Его встречают Лорд Виктор и Генерал Антонио. Император с нетерпением ждет увидеть дрессированных демигрифов своими глазами. Виктор докладывает, что план по имперским алхимикам уже приведен в действие.",
+      "before": "Ночью Александрос видит тревожный сон. Перед ним огромная цитадель, на вершинах которой стоит странное устройство. У механизма проводят ритуал три безликие фигуры, обозначенные не именами, а образами: крыса, суккуб и Мантикора. К ним подходит четвертая фигура, и Александрос чувствует в ней собственного сына, но не может понять, кто это - Никитосиос, Харрингтон или Михаэль.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0123"
+      ],
+      "before": [
+        "SRC-0122"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-BERTRAM-LEGACY"
+      ],
+      "before": [
+        "FRONT-FLEET-COUNCIL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0020",
+      "before": "SCENE-0019",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "через несколько дней после сна о затмении; приезд Александроса в Рейнбург",
+      "before": "раннее утро после письма Михаэля о назначенной дате свадьбы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 37888,
+      "before": 36864,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

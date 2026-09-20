@@ -1,0 +1,421 @@
+{
+  "base": "history/documents/34a3d9e5ea31b1a641a0fe7095feb323ce87160d88be607c756126be18acb1f1.json",
+  "changes": [
+    {
+      "after": "спустя неделю после совета Ордена затмения",
+      "before": "через день после поражения у ущелья",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+      "before": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Пустыня Кланов; руины древнего храма; дорога обратно в Алиманджад",
+      "before": "темница и кровавая арена в одном из поселений области Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0071"
+      ],
+      "before": [
+        "LOC-0039"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1460,
+        1530
+      ],
+      "before": [
+        1360,
+        670
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0089",
+      "before": "SCENE-0110",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_026_Руины_Шантири_и_ранение_Картоса.md",
+      "before": "01_Кампания/Ветки/Никитосиос/Сцена_003_Кровавая_арена_и_встреча_с_Варианом.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "d4176abb8106f63376c0f367f07e3254396a9b4ae64d574d774ec2b211f88251",
+      "before": "4d1936d64bb20c1ed0c01a67fe8cd4b98f6ee7b2861768793c2951bf80bf5a55",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 73728,
+      "before": 72704,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 026. Руины Шантири и ранение Картоса",
+      "before": "Сцена 003. Кровавая арена и встреча с Варианом",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0176"
+      ],
+      "before": [
+        "SRC-0173"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0089",
+      "before": "SCENE-0088",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0071",
+      "before": "LOC-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1442,
+        1508
+      ],
+      "before": [
+        1359,
+        1542.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1460,
+        1530
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+      "before": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0071",
+      "before": "LOC-0039",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0176"
+      ],
+      "before": [
+        "SRC-0187"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Руины древнего храма в Пустыне Кланов",
+      "before": "Кровавая арена области Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1460,
+        1530
+      ],
+      "before": [
+        1360,
+        670
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0089",
+      "before": "SCENE-0110",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0176"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0089",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1377,
+        1564.5
+      ],
+      "before": [
+        1340,
+        1510
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1460,
+        1530
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-B74DEBBC-0991-476C-9AB7-2D973778D38A",
+      "before": "MAPVER-C4A16AD6-9FA7-4D19-8D21-0389DD1E3301",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Никитосиос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+      "before": "Через день после поражения у ущелья Никитосиос очнулся в темнице почти обнаженным. Он попытался выбить дверь всплеском темной энергии, но наложенный на нее барьер отразил удар. Никитосиос успел наспех поставить собственную защиту, однако его отбросило к противоположной стене. После этого стражники вошли в камеру и избили пленника за попытку побега.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0176"
+      ],
+      "before": [
+        "SRC-0187"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0089",
+      "before": "SCENE-0110",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя неделю после совета Ордена затмения",
+      "before": "через день после поражения у ущелья",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 73728,
+      "before": 72704,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

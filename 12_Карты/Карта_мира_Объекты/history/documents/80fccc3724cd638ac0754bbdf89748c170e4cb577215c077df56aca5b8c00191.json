@@ -1,0 +1,45 @@
+{
+  "base": "history/documents/704237d485926f7e8c1800c66b3074b9568fef0ec3730f133e13115925ec4e69.json",
+  "changes": [
+    {
+      "after": "MAPVER-0538CF3F-CA8E-4212-A139-331F67A600B5",
+      "before": "MAPVER-CDC99549-3254-42ED-A796-10034DFFF81E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "chapters",
+      "before": "main",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "chain_id"
+      ]
+    },
+    {
+      "after": "Состояние мира после последней сцены главы 4. Все моменты главы доступны в цепочке «Вся история».",
+      "before": "После аудиенции у Авалона Александрос остаётся в Валантиде. Храм Вечного Солнца — предложенная цель дальнейшего пути.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": 4096,
+      "before": 122880,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

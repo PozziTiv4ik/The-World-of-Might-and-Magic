@@ -1,0 +1,38 @@
+name: Atlas Native Editor
+
+on:
+  push:
+    paths: ['tools/Atlas/**', '12_Карты/**', '.github/workflows/atlas.yml']
+  pull_request:
+    paths: ['tools/Atlas/**', '12_Карты/**', '.github/workflows/atlas.yml']
+  workflow_dispatch:
+
+jobs:
+  native:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build and native regressions
+        shell: pwsh
+        run: ./tools/Atlas/build.ps1 -Test
+      - name: Replay editor scenarios without desktop automation
+        shell: pwsh
+        run: ./tools/Atlas/test-editor.ps1
+      - name: Upload editor replay reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: atlas-editor-reports
+          path: .wmma/atlas-editor-tests/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Validate campaign and complete history
+        shell: pwsh
+        run: |
+          & ./tools/Atlas/bin/Atlas.Cli.exe validate ./12_Карты/Карта_мира_Объекты --project . --history
+          if ($LASTEXITCODE -ne 0) { throw 'Atlas history validation failed' }
+      - name: Verify portable package
+        shell: pwsh
+        run: ./tools/Atlas/package.ps1

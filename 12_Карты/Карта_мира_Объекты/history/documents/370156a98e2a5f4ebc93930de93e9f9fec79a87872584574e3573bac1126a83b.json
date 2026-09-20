@@ -1,0 +1,634 @@
+{
+  "base": "history/documents/d0616d9938b8c26e286a932a26b3ac24a7fe238b4cf4dfb11bc52a44e4768e77.json",
+  "changes": [
+    {
+      "after": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ],
+      "before": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0059",
+        "nodes"
+      ]
+    },
+    {
+      "after": "через две недели после Высшего совета и несколько дней похода к столице Лордамера",
+      "before": "на следующий день после Высшего совета",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+      "before": "На следующий день после Высшего совета Михаэль не стал публично спорить с условием Александроса, но выбрал личный ход через Вито. Принц написал другу письмо, в котором признал его победы и новый имперский статус Тар-Элама, а союз с Нилуфар назвал будущим, способным изменить обе Империи.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Порт-Стокхолд; Порт-Торхард через донесение; столица Лордамера",
+      "before": "Хорнбург; подготовка к отбытию в Белую Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0077",
+        "LOC-0078"
+      ],
+      "before": [
+        "LOC-0089"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2227,
+        479
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": "SCENE-0076",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_016_Падение_Лордамера.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_013_Письмо_Вито_после_совета.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "10d2fc0fdaf8096bf8c864eb673f0004ff60374d4cab8a33db770622a8a4e392",
+      "before": "ff4892f1d1375068e79a6311d4918207d2d47134e282ff4550ce2556235160f0",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 30720,
+      "before": 29696,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 016. Падение Лордамера",
+      "before": "Сцена 013. Письмо Вито после совета",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "before": [
+        "SRC-0086"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": "SCENE-0015",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0078",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2245,
+        457
+      ],
+      "before": [
+        2100,
+        614
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2227,
+        479
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+      "before": "На следующий день после Высшего совета Михаэль не стал публично спорить с условием Александроса, но выбрал личный ход через Вито. Принц написал другу письмо, в котором признал его победы и новый имперский статус Тар-Элама, а союз с Нилуфар назвал будущим, способным изменить обе Империи.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0078",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "before": [
+        "SRC-0088"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Столица Лордамера",
+      "before": "Хорнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2227,
+        479
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": "SCENE-0076",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Взят имперскими силами",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0068",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0068",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0068",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0068",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0068",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Занят армией Александроса",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0077",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0077",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0077",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0077",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0077",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Лордамер покорён",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0078",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0078",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0078",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0078",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0078",
+        "text_color"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0087",
+          "SRC-0092"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0016",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        2208.17,
+        530.5
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": [
+        2227,
+        479
+      ],
+      "before": [
+        1870,
+        500
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ]
+    },
+    {
+      "after": "MAPVER-AE387128-ABC2-4FBB-8CBE-861781CFC0D5",
+      "before": "MAPVER-49807696-4582-46FC-8797-523DFF4D33A9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+      "before": "На следующий день после Высшего совета Михаэль не стал публично спорить с условием Александроса, но выбрал личный ход через Вито. Принц написал другу письмо, в котором признал его победы и новый имперский статус Тар-Элама, а союз с Нилуфар назвал будущим, способным изменить обе Империи.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0087",
+        "SRC-0092"
+      ],
+      "before": [
+        "SRC-0088"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WHITEBURG"
+      ],
+      "before": [
+        "FRONT-TAR-ELAM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0016",
+      "before": "SCENE-0076",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "через две недели после Высшего совета и несколько дней похода к столице Лордамера",
+      "before": "на следующий день после Высшего совета",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 30720,
+      "before": 29696,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

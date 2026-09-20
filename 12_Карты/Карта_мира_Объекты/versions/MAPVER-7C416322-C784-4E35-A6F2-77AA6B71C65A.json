@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 12,
+  "document_hash": "71bee7466faabb9c2f6378cb21976fd925e4cb009099ed47a1ecab0c57d52ff5",
+  "document_ref": "history/documents/72c29d4767d4d957b7399a93a3db9f9c26836d937f27969aa47b297317e5b3b0.json",
+  "format": 2,
+  "id": "MAPVER-7C416322-C784-4E35-A6F2-77AA6B71C65A",
+  "integrity": "8dd27adbec8bbc5607ab2dfd3da3d362218979e0120b80d5c3c4ca9b66ea3201",
+  "label": "Александрос · Штурм Цитадели Солнца и гибель Короля Солнца",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-1F4981CA-B762-4237-8E82-D48086695253",
+  "recorded_at": "2026-09-20T14:02:35.745Z",
+  "sequence": 95,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Союзники взяли Цитадель Солнца. Вито убил Короля Солнца; посох уничтожен.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0054",
+    "story_date": "через неделю после отплытия; четвертый день осады Цитадели Солнца",
+    "story_order": 95232
+  }
+}

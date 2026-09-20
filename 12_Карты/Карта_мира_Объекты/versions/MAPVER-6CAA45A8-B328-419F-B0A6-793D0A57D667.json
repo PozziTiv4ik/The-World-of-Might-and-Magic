@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 13,
+  "document_hash": "6cd3967039206133aa9dca78a6daafb3508f37f966fa804533875f3696827bb4",
+  "document_ref": "history/documents/890f430e0804b00799496bf3e4403f9bce08bc9c4d51106ebff0877f5f404059.json",
+  "format": 2,
+  "id": "MAPVER-6CAA45A8-B328-419F-B0A6-793D0A57D667",
+  "integrity": "45802a802543fb68be076bcb56dafdbc04e63c8ebef427a120d3d216f11f1b08",
+  "label": "Никитосиос · Финальный лабиринт и теневая рука",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-A98D011D-9870-446C-A951-859F1889372F",
+  "recorded_at": "2026-09-20T14:03:06.920Z",
+  "sequence": 112,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Спустя неделю боев в столице лишь пять отрядов из всех прибывших со всего Королевства Бездны прошли испытания, предшествующие финалу. Последним испытанием стал бой на выживание в лабиринтах троглодитов глубоко под Цитаделью Бездны. Каждый участник должен пройти лабиринт и принести теневой аметист.",
+    "evidence_ids": [
+      "SRC-0226"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0115",
+    "story_date": "спустя неделю боёв в Цитадели Бездны",
+    "story_order": 112640
+  }
+}

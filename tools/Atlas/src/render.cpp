@@ -84,7 +84,8 @@ void Painter::text(const std::string &t, D2D1_RECT_F r, float size, const std::s
                    bool center, bool serif) {
     auto s = wide(t);
     auto &formats = textCache->formats;
-    int key = int(size * 10) * 8 + (serif ? 4 : 0) + (bold ? 2 : 0) + (center ? 1 : 0);
+    bool wrap=!center && !serif && r.bottom-r.top>size*2.3f;
+    int key = int(size * 10) * 16 + (serif ? 8 : 0) + (bold ? 4 : 0) + (center ? 2 : 0) + (wrap?1:0);
     if (!formats.contains(key)) {
         Com<IDWriteTextFormat> f;
         check(textFactory->CreateTextFormat(serif ? L"Georgia" : L"Segoe UI", nullptr,
@@ -92,8 +93,8 @@ void Painter::text(const std::string &t, D2D1_RECT_F r, float size, const std::s
                                             DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, size,
                                             L"ru-RU", f.put()),
               "Create text format");
-        f->SetWordWrapping(serif ? DWRITE_WORD_WRAPPING_WHOLE_WORD : DWRITE_WORD_WRAPPING_NO_WRAP);
-        f->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        f->SetWordWrapping(serif || wrap ? DWRITE_WORD_WRAPPING_WHOLE_WORD : DWRITE_WORD_WRAPPING_NO_WRAP);
+        f->SetParagraphAlignment(wrap?DWRITE_PARAGRAPH_ALIGNMENT_NEAR:DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         if (center)
             f->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
         formats.emplace(key, std::move(f));
@@ -239,6 +240,75 @@ void MapRenderer::symbol(const Json &def, ID2D1RenderTarget *target, Point at, d
     }
     target->SetTransform(old);
 }
+
+namespace {
+struct MapCaption { std::string text; D2D1_RECT_F box; float size; bool cartographic; };
+std::optional<MapCaption> mapCaption(Map &map,const Json &f,double zoom) {
+    const Json &doc=map.doc;
+    auto role=f["role"].str();
+    bool inferredLabel=role!="campaign_route" && role!="country";
+    if(!f["show_label"].boolean(inferredLabel) || f["opacity"].num(1)<=0 || zoom<f["min_zoom"].num())return {};
+    auto name=f["label_text"].str(f["name"].str());if(name.empty())return {};
+    if(role=="country_label" && doc["features"].contains(f["parent_id"].str()))name=doc["features"][f["parent_id"].str()]["name"].str(name);
+    bool small=role=="settlement_label" || role=="campaign_place" || role=="campaign_actor";
+    if(small && f["font_size"].num(14)*zoom<10)return {};
+    float size=float(f["font_size"].num(24));
+    bool cartographic=doc["style"].str()=="cartographic";
+    bool adaptive=cartographic && !f["scale_label_with_map"].boolean();
+    if(adaptive && (small || role=="country_label"))size=std::min(size,float((role=="country_label"?18.:role=="campaign_actor"?14.:16.)/zoom));
+    float width=float(f["label_width"].num(std::max(100.,double(wide(name).size())*size*.6)));
+    float height=float(f["label_height"].num(size*2));
+    if(adaptive && (small || role=="country_label")) {
+        width=float(std::clamp(double(wide(name).size())*size*zoom*.6,75.,220.)/zoom);
+        height=size*2.3f;
+    }
+    if(cartographic && role=="country_label" && zoom<.38) {
+        for(auto prefix:{std::string("Королевство "),std::string("Царство "),std::string("Республика ")})if(name.starts_with(prefix)){name=name.substr(prefix.size());break;}
+        size=float(11.5/std::max(.08,zoom));width=float(140/std::max(.08,zoom));height=float(34/std::max(.08,zoom));
+    }
+    auto at=map.anchor(f),shift=point(f["label_offset"]);
+    if(role=="campaign_actor" && f["story_position"].isArray() && f["auto_label"].boolean(true)) {
+        auto origin=point(f["story_position"]);
+        shift.x=(at.x>=origin.x?1:-1)*(width/2+40/zoom);
+        shift.y=at.y<origin.y?-10/zoom:10/zoom;
+    }
+    at.x+=shift.x;at.y+=shift.y;
+    return MapCaption{name,{float(at.x)-width/2,float(at.y)-height/2,float(at.x)+width/2,float(at.y)+height/2},size,cartographic};
+}
+std::set<std::string> hiddenMapCaptions(Map &map,double zoom) {
+    std::vector<std::pair<double,const Json *>> captions;
+    const Json &doc=map.doc;
+    for(const auto &[id,f]:doc["features"].obj()) {
+        const auto *layer=map.layer(f["layer_id"].str());
+        if(!layer || !(*layer)["visible"].boolean(true) || !mapCaption(map,f,zoom))continue;
+        auto role=f["role"].str();double priority=0;
+        if(role=="campaign_actor")priority=3e10;
+        else if(role=="campaign_place")priority=f["font_size"].num()<20?1e9:1e5;
+        else if(role=="country_label") {
+            priority=zoom<.6?1e10:1e6;
+            const auto &parent=doc["features"][f["parent_id"].str()];
+            double x0=1e20,y0=1e20,x1=-1e20,y1=-1e20;
+            if(parent.isObject())for(const auto &ring:map.paths(parent))for(auto p:ring) {
+                x0=std::min(x0,p.x);x1=std::max(x1,p.x);y0=std::min(y0,p.y);y1=std::max(y1,p.y);
+            }
+            if(x1>=x0 && y1>=y0)priority+=std::min(1e7,(x1-x0)*(y1-y0));
+        }
+        else continue;
+        if(role=="campaign_place" && f["entity_id"].str()==doc["features"]["MAPOBJ-CAMPAIGN-CURRENT-EVENT"]["entity_id"].str())priority=2e10;
+        captions.push_back({priority,&f});
+    }
+    std::stable_sort(captions.begin(),captions.end(),[](auto &a,auto &b){return a.first>b.first;});
+    std::vector<D2D1_RECT_F> occupied;std::set<std::string> hidden;
+    for(const auto &[priority,f]:captions) {
+        auto box=mapCaption(map,*f,zoom)->box;
+        box={box.left*float(zoom),box.top*float(zoom),box.right*float(zoom),box.bottom*float(zoom)};
+        bool overlap=false;
+        for(const auto &other:occupied)if(box.left<other.right+4 && box.right>other.left-4 && box.top<other.bottom+3 && box.bottom>other.top-3){overlap=true;break;}
+        if(overlap)hidden.insert((*f)["id"].str());else occupied.push_back(box);
+    }
+    return hidden;
+}
+}
 void MapRenderer::feature(Map &map, const Json &f, ID2D1RenderTarget *target, float layerOpacity, double zoom,
                           bool labels, bool drawStroke, bool drawFill) {
     Painter p(target, textFactory.get(), &textCache);
@@ -277,50 +347,16 @@ void MapRenderer::feature(Map &map, const Json &f, ID2D1RenderTarget *target, fl
             target->PopLayer();
         }
     }
-    auto name = f["label_text"].str(f["name"].str());
-    if (f["role"].str() == "country_label" && map.doc["features"].contains(f["parent_id"].str())) {
-        auto parentName = map.doc["features"][f["parent_id"].str()]["name"].str();
-        if (parentName != f["name"].str())
-            name = parentName;
-    }
-    if (labels && !name.empty() && f["show_label"].boolean(true) && zoom >= f["min_zoom"].num() &&
-        (f["role"].str() != "settlement_label" || f["font_size"].num(14) * zoom >= 10)) {
-        auto a = map.anchor(f), shift = point(f["label_offset"]);
-        a.x += shift.x;
-        a.y += shift.y;
-        float size = float(f["font_size"].num(24));
-        bool cartographic = map.doc["style"].str() == "cartographic";
-        float width = float(f["label_width"].num(std::max(100.0, double(wide(name).size()) * size * .6)));
-        float height = float(f["label_height"].num(size * 2));
-        if (cartographic && f["role"].str() == "country_label" && zoom < .38) {
-            if (map.doc["features"].contains(f["parent_id"].str()))
-                name = map.doc["features"][f["parent_id"].str()]["name"].str(name);
-            for (auto prefix :
-                 {std::string("Королевство "), std::string("Царство "), std::string("Республика ")})
-                if (name.starts_with(prefix)) {
-                    name = name.substr(prefix.size());
-                    break;
-                }
-            size = float(11.5 / std::max(.08, zoom));
-            width = float(140 / std::max(.08, zoom));
-            height = float(34 / std::max(.08, zoom));
+    if(labels)if(auto caption=mapCaption(map,f,zoom)) {
+        if(caption->cartographic && zoom>.65) {
+            auto halo=caption->box;halo.top+=1/float(zoom);halo.bottom+=1/float(zoom);
+            p.text(caption->text,halo,caption->size,"#EFEAD9",false,true,true);
         }
-        auto rect = D2D1::RectF(float(a.x) - width / 2, float(a.y) - height / 2, float(a.x) + width / 2,
-                                float(a.y) + height / 2);
-        if (cartographic && zoom > .65) {
-            for (auto delta : std::vector<Point>{{0, 1}}) {
-                auto halo = rect;
-                halo.left += float(delta.x);
-                halo.right += float(delta.x);
-                halo.top += float(delta.y);
-                halo.bottom += float(delta.y);
-                p.text(name, halo, size, "#EFEAD9", false, true, true);
-            }
-        }
-        p.text(name, rect, size, f["text_color"].str("#514D43"), !cartographic && kind == "region", true,
-               cartographic);
+        p.text(caption->text,caption->box,caption->size,f["text_color"].str("#514D43"),
+               !caption->cartographic && kind=="region",true,caption->cartographic);
     }
 }
+
 void MapRenderer::draw(Map &map, ID2D1RenderTarget *target, D2D1_RECT_F viewport, double zoom, Point offset,
                        const std::set<std::string> &selected, bool nodes, bool labels) {
     target->PushAxisAlignedClip(viewport, D2D1_ANTIALIAS_MODE_ALIASED);
@@ -353,42 +389,7 @@ void MapRenderer::draw(Map &map, ID2D1RenderTarget *target, D2D1_RECT_F viewport
     // Stable, scale-dependent label layout. Order is independent of the viewport/overscan,
     // so panning cannot make neighbouring captions jump in and out of the collision set.
     std::set<std::string> hiddenLabels;
-    if (map.doc["style"].str() == "cartographic" && labels) {
-        std::vector<std::pair<double, const Json *>> captions;
-        for (const auto &[id, f] : map.doc["features"].obj())
-            if (f["role"].str() == "country_label") {
-                double priority = 0;
-                const Json &parent = map.doc["features"][f["parent_id"].str()];
-                if (parent.isObject()) {
-                    D2D1_RECT_F b;
-                    featureGeometry(map, parent)->GetBounds(nullptr, &b);
-                    priority = (b.right - b.left) * (b.bottom - b.top);
-                }
-                captions.push_back({priority, &f});
-            }
-        std::stable_sort(captions.begin(), captions.end(),
-                         [](auto &a, auto &b) { return a.first > b.first; });
-        std::vector<D2D1_RECT_F> occupied;
-        for (auto &[rank, ptr] : captions) {
-            const Json &f = *ptr;
-            auto at = point(f["position"]);
-            double w = zoom < .38 ? 140 : f["label_width"].num(300) * zoom,
-                   h = zoom < .38 ? 34 : f["label_height"].num(80) * zoom;
-            D2D1_RECT_F b{float(at.x * zoom - w / 2), float(at.y * zoom - h / 2), float(at.x * zoom + w / 2),
-                          float(at.y * zoom + h / 2)};
-            bool overlap = false;
-            for (auto &a : occupied)
-                if (b.left < a.right + 4 && b.right > a.left - 4 && b.top < a.bottom + 3 &&
-                    b.bottom > a.top - 3) {
-                    overlap = true;
-                    break;
-                }
-            if (overlap)
-                hiddenLabels.insert(f["id"].str());
-            else
-                occupied.push_back(b);
-        }
-    }
+    if(map.doc["style"].str()=="cartographic" && labels)hiddenLabels=hiddenMapCaptions(map,zoom);
     if (styled && interleaved)
         blended = true;
     if (styled && !blended) {
@@ -477,7 +478,7 @@ void MapRenderer::draw(Map &map, ID2D1RenderTarget *target, D2D1_RECT_F viewport
             } else {
                 for (auto ptr : map.orderedFeatures(l["id"].str())) {
                     const auto &f = *ptr;
-                    if (hiddenLabels.contains(f["id"].str()))
+                    if (hiddenLabels.contains(f["id"].str()) && f["kind"].str()=="label")
                         continue;
                     if (f["position"].isArray()) {
                         if (f["kind"].str() == "label" &&
@@ -512,7 +513,7 @@ void MapRenderer::draw(Map &map, ID2D1RenderTarget *target, D2D1_RECT_F viewport
                         }
                         feature(map, f, target, opacity, zoom, labels, false, false);
                     } else
-                        feature(map, f, target, opacity, zoom, labels, f["role"].str() != "country");
+                        feature(map, f, target, opacity, zoom, labels && !hiddenLabels.contains(f["id"].str()), f["role"].str() != "country");
                 }
             }
         }
@@ -774,6 +775,7 @@ static std::string base64(const Bytes &b) {
     return s;
 }
 void MapRenderer::exportSvg(Map &map, const fs::path &file) {
+    auto suppressedCaptions=map.doc["style"].str()=="cartographic"?hiddenMapCaptions(map,1):std::set<std::string>{};
     std::ostringstream out;
     int w = int(map.doc["width"].num()), h = int(map.doc["height"].num());
     bool hasRaster = false, interleaved = false, seenVector = false, blended = false;
@@ -915,21 +917,22 @@ void MapRenderer::exportSvg(Map &map, const fs::path &file) {
                         }
                     out << "\"/>";
                 }
-                if (!f["name"].str().empty() && f["show_label"].boolean(true)) {
-                    auto a = map.anchor(f), d = point(f["label_offset"]);
-                    auto label = f["label_text"].str(f["name"].str());
-                    if (f["role"].str() == "country_label" &&
-                        map.doc["features"].contains(f["parent_id"].str())) {
-                        auto name = map.doc["features"][f["parent_id"].str()]["name"].str();
-                        if (name != f["name"].str())
-                            label = name;
-                    }
+                if (auto caption=mapCaption(map,f,1);caption && !suppressedCaptions.contains(f["id"].str())) {
+                    Point a{(caption->box.left+caption->box.right)/2,(caption->box.top+caption->box.bottom)/2},d{};
+                    auto label=caption->text;
                     std::vector<std::string> lines;
                     std::istringstream stream(label);
                     std::string line;
-                    while (std::getline(stream, line))
-                        lines.push_back(line);
-                    double size = f["font_size"].num(24), step = size * 1.18;
+                    while (std::getline(stream, line)) {
+                        auto limit=std::max(6,int((caption->box.right-caption->box.left)/(caption->size*.6f)));
+                        std::istringstream words(line);std::string part,word;
+                        while(words>>word) {
+                            if(!part.empty() && int(wide(part+" "+word).size())>limit){lines.push_back(part);part.clear();}
+                            if(!part.empty())part+=" ";part+=word;
+                        }
+                        if(!part.empty())lines.push_back(part);
+                    }
+                    double size = caption->size, step = size * 1.18;
                     out << "<text text-anchor=\"middle\" font-family=\""
                         << (map.doc["style"].str() == "cartographic" ? "Georgia, serif"
                                                                      : "Segoe UI, sans-serif")

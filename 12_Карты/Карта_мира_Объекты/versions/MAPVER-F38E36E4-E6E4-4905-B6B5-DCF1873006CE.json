@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 8,
+  "document_hash": "92c3c3b9f9f0ce5c7fd87b38c04a911783e1d4ffedc114ff80adb11adc7ea11b",
+  "document_ref": "history/documents/12af032fccec2ac9840ebf51b1e8814139c3e866e25a8111788f67e546a338ca.json",
+  "format": 2,
+  "id": "MAPVER-F38E36E4-E6E4-4905-B6B5-DCF1873006CE",
+  "integrity": "1d1d0cd87ff3eac3eeae695768e52e5e44d9427b0a3c2f5c8e880ff35145d631",
+  "label": "Александрос · Ответ Дариусу и предложение торговых протекторатов",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-ECE02B09-D8D7-4E3F-A44A-EE25E47CC99D",
+  "recorded_at": "2026-09-20T14:01:47.604Z",
+  "sequence": 75,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Александрос отвечает Дариусу письмом. Император прямо запрещает смертельную перепись разума Арториуса: он не позволит пленнику умереть столь жестоко. Одновременно Александрос отказывается просто ждать несколько месяцев и приказывает Верховному инквизитору искать иной способ срочно получить сведения. Заверив письмо, Александрос связывается через видящий камень с Михаэлем и Нилуфар.",
+    "evidence_ids": [
+      "SRC-0181"
+    ],
+    "front_ids": [
+      "FRONT-BLACKWOOD"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0043",
+    "story_date": "после тайной поимки Петира; на следующий день после донесения Дариуса об Арториусе",
+    "story_order": 74752
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "base": "history/documents/a59f39688bcf3bd95ac9f89b4446a25aaad1aaad51773dbfe0169c5c1490caed.json",
+  "changes": [
+    {
+      "after": "через три дня после решения идти к Цитадели Солнца",
+      "before": "через неделю после отбытия с континента Шантири",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Обдумав полученные в Белой Гавани донесения, Александрос объявил Харрингтону, что они вместе поплывут к Цитадели Солнца. Император поручил сыну готовить их элитные войска, а сам распорядился отправить в Рейнбург письмо с запросом грифонов для подкрепления. Отплытие назначено после прибытия этих сил; точная численность элиты и грифонов не названа. Воодушевленный Харрингтон немедленно отправился отдавать распоряжения.",
+      "before": "Тар-Обсидиан и Тар-Иматрис пали. Обсидиановое королевство капитулировало перед Тар-Эламом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "SCENE-0051",
+      "before": "SCENE-0050",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_051_Решение_о_Цитадели_Солнца_и_возвращение_Линдольфа.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_050_Донесения_в_Белой_Гавани_и_просьба_Харрингтона.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "080f4b6defbcb428632ed55ea29ee6e401095bacba4a3d633b64e7cb387ffaef",
+      "before": "42b777a9bf8054e634de496b5a94e0c34f4270e1ff64afa3841899d41e33a87f",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 90112,
+      "before": 89088,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 051. Решение о Цитадели Солнца и возвращение Линдольфа",
+      "before": "Сцена 050. Донесения в Белой Гавани и просьба Харрингтона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0206"
+      ],
+      "before": [
+        "SRC-0195"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0051",
+      "before": "SCENE-0050",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Обдумав полученные в Белой Гавани донесения, Александрос объявил Харрингтону, что они вместе поплывут к Цитадели Солнца. Император поручил сыну готовить их элитные войска, а сам распорядился отправить в Рейнбург письмо с запросом грифонов для подкрепления. Отплытие назначено после прибытия этих сил; точная численность элиты и грифонов не названа. Воодушевленный Харрингтон немедленно отправился отдавать распоряжения.",
+      "before": "Тар-Обсидиан и Тар-Иматрис пали. Обсидиановое королевство капитулировало перед Тар-Эламом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0206"
+      ],
+      "before": [
+        "SRC-0195"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0051",
+      "before": "SCENE-0050",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0195"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0050",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": "MAPVER-5948B6A2-2206-495B-A7B9-A327BFFD8FAB",
+      "before": "MAPVER-09140B3D-9AC8-4FF0-B589-D27408025318",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Обдумав полученные в Белой Гавани донесения, Александрос объявил Харрингтону, что они вместе поплывут к Цитадели Солнца. Император поручил сыну готовить их элитные войска, а сам распорядился отправить в Рейнбург письмо с запросом грифонов для подкрепления. Отплытие назначено после прибытия этих сил; точная численность элиты и грифонов не названа. Воодушевленный Харрингтон немедленно отправился отдавать распоряжения.",
+      "before": "Тар-Обсидиан и Тар-Иматрис пали. Обсидиановое королевство капитулировало перед Тар-Эламом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0206"
+      ],
+      "before": [
+        "SRC-0195"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0051",
+      "before": "SCENE-0050",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "через три дня после решения идти к Цитадели Солнца",
+      "before": "через неделю после отбытия с континента Шантири",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 90112,
+      "before": 89088,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

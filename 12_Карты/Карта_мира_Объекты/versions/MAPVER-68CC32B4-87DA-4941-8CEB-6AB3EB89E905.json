@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 2,
+  "document_hash": "0650f5ac185e33ecd81a3d0afe24f144ef0c5fc8a37ef8c0bc9e92023acdf194",
+  "document_ref": "history/documents/7d41575765398798a1e53b8ccd8831a8ff3a42cbdfcf9e9a177f92efa4aa1fc6.json",
+  "format": 2,
+  "id": "MAPVER-68CC32B4-87DA-4941-8CEB-6AB3EB89E905",
+  "integrity": "22a4c1ef6a884aa4a59113d453ac1412a35655f1ada3d73f6c3a1c3eeba0f521",
+  "label": "Михаэль · Тикорман, Гавейн и условие Каролины",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-AE66D9E0-EC2A-4050-930A-5DCA11F2F371",
+  "recorded_at": "2026-09-20T14:02:46.623Z",
+  "sequence": 101,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "На следующий день Орден затмения во главе с Онсерагом покинул Башню у моря и отправился на север. В башне Михаэль успел восстановить силы после спасения из Порт-Мантикоры. Он продолжал тревожиться за Нилуфар и Харагорна, но Онсераг заверил его, что орден ищет обоих и считает их живыми, раз перемещение пережил сам Принц. Через несколько часов после полудня отряд увидел знакомые Михаэлю руины замка Тикормана.",
+    "evidence_ids": [
+      "SRC-0212"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0100",
+    "story_date": "следующий день после спасения Михаэля из Порт-Мантикоры",
+    "story_order": 101376
+  }
+}

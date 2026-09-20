@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "6f226f79b0239f35df0d8e2a4dde12a7bfcb33d665cce31c9becf09615584097",
+  "document_ref": "history/documents/6f226f79b0239f35df0d8e2a4dde12a7bfcb33d665cce31c9becf09615584097.json",
+  "format": 2,
+  "id": "MAPVER-C4D0110B-11A1-4C6E-8690-56F89FBFD000",
+  "integrity": "362f2000b8b1d91e82326965d5f561de3ad8c26f787283631e61eb4540a93dad",
+  "label": "Никитосиос · Свобода, Аразаил и Архипелаг Древних",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-7BAD2321-DBFA-4CEA-9F5A-2FE28B598FF8",
+  "recorded_at": "2026-09-20T14:03:20.445Z",
+  "sequence": 115,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "### Свобода победителей Никитосиос вернулся из последнего лабиринта с теневым аметистом и официально завершил испытания, хотя заплатил за победу левой рукой до локтя. Полуэльф получил свободу и был признан полноправным гражданином Королевства Бездны. Из прежней Багровой гидры испытание также прошли Эгвин Темная Лилия и Роган Варвар. Бейн Черный Страж к завершению испытания так и не вернулся из лабиринта;",
+    "evidence_ids": [
+      "SRC-0229"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0116",
+    "story_date": "сразу после завершения последнего испытания в Цитадели Бездны",
+    "story_order": 115712
+  }
+}

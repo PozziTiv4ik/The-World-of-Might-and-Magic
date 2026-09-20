@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 8,
+  "document_hash": "1102e4d59dc585ac0a1481db38582b293815eb14d784c83aff3c27bcebef2f8d",
+  "document_ref": "history/documents/3f374258a553ae11cdc428f9b572b3049ac7e5fd3ce1088b4bb8539a2b08df47.json",
+  "format": 2,
+  "id": "MAPVER-12BE1785-4F14-497C-963C-9F773D6BA987",
+  "integrity": "3e164dca549252ae5420c27804a7e4a829584cb8e950487fbcfaebc2b98f6885",
+  "label": "Михаэль · Порт-Лабад и след Бессмертного Императора",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-FCF6E3A1-3D75-4D9B-8B4C-C1DA5AF803E0",
+  "recorded_at": "2026-09-20T14:00:42.453Z",
+  "sequence": 43,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+    "evidence_ids": [
+      "SRC-0125"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0081",
+    "story_date": "на следующий день после свадьбы Михаэля и Нилуфар; спустя некоторое время после приказа о миссии в Порт-Лабад",
+    "story_order": 41984
+  }
+}

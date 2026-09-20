@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 13,
+  "document_hash": "78b2958bde1fd3fc994bdaeac6766673c2c8e9a7a214494854f24339c882193c",
+  "document_ref": "history/documents/faa629ba6ffd914b994169f3c76094ac6e41d58097bc60d31baaabdbf3041694.json",
+  "format": 2,
+  "id": "MAPVER-BEBA7300-2BA0-4ECC-B89D-7541E171F921",
+  "integrity": "3f08f73cde52f5e2adf28e1c02501d307d937e90c3c07d7847c1afb59b9aecd1",
+  "label": "Александрос · Итоги Цитадели Солнца и срочные донесения Елены",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-7C416322-C784-4E35-A6F2-77AA6B71C65A",
+  "recorded_at": "2026-09-20T14:02:37.527Z",
+  "sequence": 96,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "На следующий день после штурма Цитадели Солнца союзники подвели первые итоги победы. Цена оказалась чудовищной: из сорока рыцарей дракона выжили только пятеро, включая Реймонда. Тар-Элам и Империя потеряли около ста тысяч воинов и больше полусотни кораблей из-за метеоритного дождя, вызванного Посохом разрушения. Цитадель была зачищена, но главных пленников и Закхерона там не оказалось.",
+    "evidence_ids": [
+      "SRC-0210"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0055",
+    "story_date": "на следующий день после штурма Цитадели Солнца",
+    "story_order": 96256
+  }
+}

@@ -26,6 +26,7 @@ Point App::world(Point p) const {
     return {(p.x - offset.x) / zoom, (p.y - offset.y) / zoom};
 }
 bool App::inCanvas(Point p) const {
+    if (historyView && !compareMode) return false;
     if (!contains(canvas, p))
         return false;
     for (const auto &hit : hits)
@@ -34,10 +35,12 @@ bool App::inCanvas(Point p) const {
     return true;
 }
 void App::fit() {
-    double w = map.doc["width"].num(4000), h = map.doc["height"].num(3000);
-    zoom = std::clamp(std::min((canvas.right - canvas.left - 32) / w, (canvas.bottom - canvas.top - 32) / h),
+    const auto &document=historyView&&comparison?comparison->doc:map.doc;
+    double w=document["width"].num(4000),h=document["height"].num(3000);
+    double available=(canvas.right-canvas.left)/(historyView&&compareMode==1?2:1);
+    zoom = std::clamp(std::min((available - 32) / w, (canvas.bottom - canvas.top - 32) / h),
                       .01, 8.0);
-    offset = {canvas.left + (canvas.right - canvas.left - w * zoom) / 2,
+    offset = {canvas.left + (available - w * zoom) / 2,
               canvas.top + (canvas.bottom - canvas.top - h * zoom) / 2};
     invalidate();
 }
@@ -75,19 +78,21 @@ void App::fitSelection() {
     invalidate();
 }
 void App::layout() {
+    if(!window){computeLayout();return;}
     RECT r;
     GetClientRect(window, &r);
     dpi = GetDpiForWindow(window) / 96.0f;
     width = r.right / dpi;
     height = r.bottom / dpi;
-    left = right = 0;
-    canvas = D2D1::RectF(0, 44, width, height);
-    if (target) {
-        target->Resize(D2D1::SizeU(r.right, r.bottom));
-        target->SetDpi(dpi * 96, dpi * 96);
-    }
-    MoveWindow(searchBox, int((width - 324) * dpi), int(178 * dpi), int(292 * dpi), int(28 * dpi), TRUE);
-    ShowWindow(searchBox, showPanels && panel >= 1 && panel <= 3 && !historyView ? SW_SHOW : SW_HIDE);
+    computeLayout();
+    if (target) {target->Resize(D2D1::SizeU(r.right,r.bottom));target->SetDpi(dpi*96,dpi*96);}
+    bool searchVisible=historyView ? !compareMode&&historySearch : showPanels&&panel!=4&&panel!=5;
+    auto searchRect=historyView?D2D1::RectF(24,70,std::min(width-100,560.f),102):
+        D2D1::RectF(drawerArea.left+14,drawerArea.top+97,drawerArea.right-14,drawerArea.top+127);
+    if(searchVisible)MoveWindow(searchBox,int(searchRect.left*dpi),int(searchRect.top*dpi),
+        int((searchRect.right-searchRect.left)*dpi),int(30*dpi),TRUE);
+    ShowWindow(searchBox,searchVisible?SW_SHOW:SW_HIDE);
+    for(auto c:{chainBox,chapterBox,sortBox})if(c)ShowWindow(c,SW_HIDE);
     ShowWindow(nameBox, SW_HIDE);
     invalidate();
 }
@@ -116,16 +121,86 @@ void App::changed(const std::string &label) {
     history.push(before, map.doc, label);
     dirty = true;
     ++editSerial;
-    noticeUntil = GetTickCount64() + 2400;
+    noticeUntil = now() + 2400;
     if (window)
-        SetTimer(window, 5, 2400, nullptr);
+        if(window)SetTimer(window, 5, 2400, nullptr);
     status = label;
     renderer.clear();
     painted.reset();
     paintedLayer.clear();
     updateSelection();
-    auto title = "АТЛАС 4 — " + map.doc["name"].str() + " *";
+    auto title = "АТЛАС — " + map.doc["name"].str() + " *";
     SetWindowTextW(window, wide(title).c_str());
+}
+void App::drawFrame(ID2D1RenderTarget *rt,bool live) {
+        rt->SetTransform(D2D1::Matrix3x2F::Identity());
+        rt->Clear(color(map.doc["background"].str("#D3E0DE")));
+        hits.clear();
+        Painter p(rt, renderer.textFactory.get(), &uiTextCache);
+        if(historyView && !compareMode) {}
+        else if(historyView && comparison)drawHistoryMaps(p);
+        else if(live)renderer.drawResponsive(map,rt,canvas,zoom,offset,
+            editScope==SelectionDomain::Borders?std::set<std::string>{}:selected,
+            tool==Tool::Node&&editScope!=SelectionDomain::Borders,panning||now()<cameraMovingUntil,window,false);
+        else {renderer.paintBorders=false;renderer.drawInteractive(map,rt,canvas,zoom,offset,
+            editScope==SelectionDomain::Borders?std::set<std::string>{}:selected,
+            tool==Tool::Node&&editScope!=SelectionDomain::Borders);renderer.paintBorders=true;}
+        if (dragPreview && !draggingControl)
+            renderer.drawDragPreview(map, rt, canvas, zoom, offset, selected, dragDelta,
+                                     movingNode);
+        if (grid && !historyView) {
+            rt->PushAxisAlignedClip(canvas, D2D1_ANTIALIAS_MODE_ALIASED);
+            double step = 100 * zoom;
+            if (step >= 12) {
+                for (double x = std::fmod(offset.x, step); x < canvas.right; x += step)
+                    if (x >= canvas.left)
+                        p.line({x, canvas.top}, {x, canvas.bottom}, "#668899", .5f, .3f);
+                for (double y = std::fmod(offset.y, step); y < canvas.bottom; y += step)
+                    if (y >= canvas.top)
+                        p.line({canvas.left, y}, {canvas.right, y}, "#668899", .5f, .3f);
+            }
+            rt->PopAxisAlignedClip();
+        }
+        if (!drawing.empty()) {
+            rt->PushAxisAlignedClip(canvas, D2D1_ANTIALIAS_MODE_ALIASED);
+            std::vector<Point> pts = drawing;
+            if (tool == Tool::Land || tool == Tool::Region || tool == Tool::Route || tool == Tool::River ||
+                tool == Tool::Zone)
+                pts.push_back(world(mouse));
+            for (size_t i = 1; i < pts.size(); i++)
+                p.line({pts[i - 1].x * zoom + offset.x, pts[i - 1].y * zoom + offset.y},
+                       {pts[i].x * zoom + offset.x, pts[i].y * zoom + offset.y}, painted ? stroke : "#73FFF0",
+                       painted ? float(brushSize * zoom) : 2);
+            if (!painted)
+                for (auto q : drawing)
+                    p.circle({q.x * zoom + offset.x, q.y * zoom + offset.y}, 3, "#E2FFFF");
+            rt->PopAxisAlignedClip();
+        }
+        if (!selectionMask.empty() && !historyView) {
+            rt->PushAxisAlignedClip(canvas, D2D1_ANTIALIAS_MODE_ALIASED);
+            for (size_t i = 0; i < selectionMask.size(); i++) {
+                auto a = selectionMask[i], b = selectionMask[(i + 1) % selectionMask.size()];
+                p.line({a.x * zoom + offset.x, a.y * zoom + offset.y},
+                       {b.x * zoom + offset.x, b.y * zoom + offset.y}, "#E8FFFF", 1);
+            }
+            rt->PopAxisAlignedClip();
+        }
+        if (selectionBox || (down && tool == Tool::Rectangle)) {
+            auto r =
+                D2D1::RectF(float(std::min(dragStart.x, mouse.x)), float(std::min(dragStart.y, mouse.y)),
+                            float(std::max(dragStart.x, mouse.x)), float(std::max(dragStart.y, mouse.y)));
+            p.fill(r, "#51DDD8", .13f);
+            p.rect(r, "#73EEE6");
+        }
+        if (!historyView) {
+            if(live)renderer.drawResponsiveBorders(map,rt,canvas,zoom,offset);
+            else renderer.drawBorders(map,rt,canvas,zoom,offset);
+            if (!activeBorder.empty() && editScope == SelectionDomain::Borders)
+                renderer.drawControlEditor(map, rt, canvas, zoom, offset, activeBorder,
+                                           activeControls, activeControl, controlTarget,
+                                           draggingControl && dragPreview, controlPreviewIds);
+        }
+        paintChrome(p);
 }
 void App::paint() {
     PAINTSTRUCT ps;
@@ -142,94 +217,7 @@ void App::paint() {
                   "Create editor render target");
         }
         target->BeginDraw();
-        target->SetTransform(D2D1::Matrix3x2F::Identity());
-        target->Clear(color(map.doc["background"].str("#D3E0DE")));
-        hits.clear();
-        Painter p(target.get(), renderer.textFactory.get(), &uiTextCache);
-        if (historyView && comparison) {
-            if (!comparisonRenderer)
-                comparisonRenderer = std::make_unique<MapRenderer>(renderer.factory.get());
-            float mid = (canvas.left + canvas.right) / 2;
-            auto a = canvas;
-            a.right = mid - 5;
-            a.top += 28;
-            auto b = canvas;
-            b.left = mid + 5;
-            b.top += 28;
-            auto fitView = [&](Map &m, MapRenderer &viewRenderer, D2D1_RECT_F r) {
-                double z = std::min((r.right - r.left) / m.doc["width"].num(),
-                                    (r.bottom - r.top) / m.doc["height"].num());
-                viewRenderer.drawResponsive(m, target.get(), r, z,
-                                            {r.left + (r.right - r.left - m.doc["width"].num() * z) / 2,
-                                             r.top + (r.bottom - r.top - m.doc["height"].num() * z) / 2},
-                                            {}, false, false, window);
-            };
-            fitView(*comparison, *comparisonRenderer, a);
-            fitView(map, renderer, b);
-            p.text("Сохранённая версия", D2D1::RectF(a.left, canvas.top, a.right, a.top), 13, "#DFE9F0",
-                   true);
-            p.text("Рабочая копия", D2D1::RectF(b.left, canvas.top, b.right, b.top), 13, "#78DDD8", true);
-        } else
-            renderer.drawResponsive(map, target.get(), canvas, zoom, offset,
-                                    editScope == SelectionDomain::Borders ? std::set<std::string>{}
-                                                                          : selected,
-                                    tool == Tool::Node && editScope != SelectionDomain::Borders,
-                                    panning || GetTickCount64() < cameraMovingUntil, window, false);
-        if (dragPreview && !draggingControl)
-            renderer.drawDragPreview(map, target.get(), canvas, zoom, offset, selected, dragDelta,
-                                     movingNode);
-        if (grid && !historyView) {
-            target->PushAxisAlignedClip(canvas, D2D1_ANTIALIAS_MODE_ALIASED);
-            double step = 100 * zoom;
-            if (step >= 12) {
-                for (double x = std::fmod(offset.x, step); x < canvas.right; x += step)
-                    if (x >= canvas.left)
-                        p.line({x, canvas.top}, {x, canvas.bottom}, "#668899", .5f, .3f);
-                for (double y = std::fmod(offset.y, step); y < canvas.bottom; y += step)
-                    if (y >= canvas.top)
-                        p.line({canvas.left, y}, {canvas.right, y}, "#668899", .5f, .3f);
-            }
-            target->PopAxisAlignedClip();
-        }
-        if (!drawing.empty()) {
-            target->PushAxisAlignedClip(canvas, D2D1_ANTIALIAS_MODE_ALIASED);
-            std::vector<Point> pts = drawing;
-            if (tool == Tool::Land || tool == Tool::Region || tool == Tool::Route || tool == Tool::River ||
-                tool == Tool::Zone)
-                pts.push_back(world(mouse));
-            for (size_t i = 1; i < pts.size(); i++)
-                p.line({pts[i - 1].x * zoom + offset.x, pts[i - 1].y * zoom + offset.y},
-                       {pts[i].x * zoom + offset.x, pts[i].y * zoom + offset.y}, painted ? stroke : "#73FFF0",
-                       painted ? float(brushSize * zoom) : 2);
-            if (!painted)
-                for (auto q : drawing)
-                    p.circle({q.x * zoom + offset.x, q.y * zoom + offset.y}, 3, "#E2FFFF");
-            target->PopAxisAlignedClip();
-        }
-        if (!selectionMask.empty() && !historyView) {
-            target->PushAxisAlignedClip(canvas, D2D1_ANTIALIAS_MODE_ALIASED);
-            for (size_t i = 0; i < selectionMask.size(); i++) {
-                auto a = selectionMask[i], b = selectionMask[(i + 1) % selectionMask.size()];
-                p.line({a.x * zoom + offset.x, a.y * zoom + offset.y},
-                       {b.x * zoom + offset.x, b.y * zoom + offset.y}, "#E8FFFF", 1);
-            }
-            target->PopAxisAlignedClip();
-        }
-        if (selectionBox || (down && tool == Tool::Rectangle)) {
-            auto r =
-                D2D1::RectF(float(std::min(dragStart.x, mouse.x)), float(std::min(dragStart.y, mouse.y)),
-                            float(std::max(dragStart.x, mouse.x)), float(std::max(dragStart.y, mouse.y)));
-            p.fill(r, "#51DDD8", .13f);
-            p.rect(r, "#73EEE6");
-        }
-        if (!historyView) {
-            renderer.drawResponsiveBorders(map, target.get(), canvas, zoom, offset);
-            if (!activeBorder.empty() && editScope == SelectionDomain::Borders)
-                renderer.drawControlEditor(map, target.get(), canvas, zoom, offset, activeBorder,
-                                           activeControls, activeControl, controlTarget,
-                                           draggingControl && dragPreview, controlPreviewIds);
-        }
-        paintChrome(p);
+        drawFrame(target.get(),true);
         auto hr = target->EndDraw();
         if (hr == D2DERR_RECREATE_TARGET) {
             target.reset();
@@ -284,19 +272,23 @@ void App::pointerDown(Point p, bool middle) {
             if (contains(it->rect, p)) {
                 auto cmd = it->command;
                 auto data = it->data;
-                SetFocus(window);
+                if(window)SetFocus(window);
                 if (cmd)
                     command(cmd, data);
                 return;
             }
     }
-    if (!inCanvas(p) || historyView)
+    if(historyView&&!compareMode && contains(timelineArea,p)) {
+        timelineDragging=true;timelineDragStart=versionScroll;dragStart=p;down=true;
+        if(window)SetFocus(window);if(window)SetCapture(window);return;
+    }
+    if (!inCanvas(p))
         return;
-    SetFocus(window);
+    if(window)SetFocus(window);
     down = true;
     dragStart = last = p;
-    SetCapture(window);
-    if (middle || tool == Tool::Pan || (GetKeyState(VK_SPACE) & 0x8000)) {
+    if(window)SetCapture(window);
+    if (historyView || middle || tool == Tool::Pan || (keyState(VK_SPACE) & 0x8000)) {
         panning = true;
         panOrigin = offset;
         return;
@@ -313,9 +305,9 @@ void App::pointerDown(Point p, bool middle) {
     if (beginBoundaryEdit(w))
         return;
     if (tool == Tool::Select) {
-        auto id = hitObject(w, 7 / zoom, !(GetKeyState(VK_MENU) & 0x8000));
+        auto id = hitObject(w, 7 / zoom, !(keyState(VK_MENU) & 0x8000));
         if (!id.empty()) {
-            if (GetKeyState(VK_CONTROL) & 0x8000) {
+            if (keyState(VK_CONTROL) & 0x8000) {
                 if (selected.contains(id))
                     selected.erase(id);
                 else
@@ -325,14 +317,14 @@ void App::pointerDown(Point p, bool middle) {
                 selected.insert(id);
             }
             updateSelection();
-            if (selected.size() == 1 && map.doc["features"][*selected.begin()]["role"].str() == "country") {
+            if (selected.size() == 1 && static_cast<const Json &>(map.doc)["features"][*selected.begin()]["role"].str() == "country") {
                 movingBorder = map.sharedBorder(*selected.begin(), w);
                 borderGrab = w;
                 if (movingBorder.empty())
                     status = "У государства нет общей границы; берега редактируются отдельно";
             }
         } else {
-            if (!(GetKeyState(VK_CONTROL) & 0x8000))
+            if (!(keyState(VK_CONTROL) & 0x8000))
                 selected.clear();
             selectionBox = true;
         }
@@ -377,7 +369,7 @@ void App::pointerDown(Point p, bool middle) {
         }
     } else if (tool == Tool::Stamp || tool == Tool::Label) {
         down = false;
-        ReleaseCapture();
+        if(window)ReleaseCapture();
         std::string label;
         if (tool == Tool::Label) {
             auto result = form(window, "Подпись", {{"Текст", "Подпись"}});
@@ -387,7 +379,8 @@ void App::pointerDown(Point p, bool middle) {
         }
         auto id = map.addSymbol(w, tool == Tool::Label ? "label" : activeSymbol, drawingLayer(), stroke,
                                 brushSize * 3);
-        auto &defaults = map.doc["symbols"][activeSymbol]["defaults"];
+        const Json &symbols = map.doc["symbols"];
+        const auto &defaults = symbols[activeSymbol]["defaults"];
         if (tool == Tool::Stamp && defaults.isObject())
             for (auto &[k, v] : defaults.obj())
                 map.doc["features"][id][k] = v;
@@ -472,7 +465,7 @@ void App::pointerDown(Point p, bool middle) {
             changed("Цветовая область превращена в контур");
         }
         down = false;
-        ReleaseCapture();
+        if(window)ReleaseCapture();
     } else if (tool == Tool::Fill) {
         auto l = map.layer(activeLayer);
         if (l && (*l)["kind"].str() == "raster" && !(*l)["locked"].boolean()) {
@@ -485,7 +478,7 @@ void App::pointerDown(Point p, bool middle) {
             changed("Заливка на растровом слое");
             map.clearCache();
             down = false;
-            ReleaseCapture();
+            if(window)ReleaseCapture();
             return;
         }
         auto id = hitObject(w, 3 / zoom);
@@ -534,6 +527,10 @@ void App::strokeRaster(Point a, Point b, bool erase) {
     }
 }
 void App::pointerMove(Point p) {
+    if(timelineDragging) {
+        mouse=p;versionScroll=std::clamp(timelineDragStart+int((dragStart.x-p.x)/eventSpacing),0,
+            std::max(0,int(storyEvents.size())-visibleEvents()));invalidate();return;
+    }
     auto prev = world(last);
     mouse = p;
     if (inCanvas(p))
@@ -541,11 +538,11 @@ void App::pointerMove(Point p) {
     if (down) {
         if (panning) {
             offset = {panOrigin.x + p.x - dragStart.x, panOrigin.y + p.y - dragStart.y};
-            cameraMovingUntil = GetTickCount64() + 180;
-            SetTimer(window, 2, 180, nullptr);
+            cameraMovingUntil = now() + 180;
+            if(window)SetTimer(window, 2, 180, nullptr);
         } else if (draggingControl) {
             controlTarget = world(p);
-            if (GetKeyState(VK_SHIFT) & 0x8000) {
+            if (keyState(VK_SHIFT) & 0x8000) {
                 auto origin = point(map.doc["nodes"][activeControl]);
                 if (std::abs(controlTarget.x - origin.x) >= std::abs(controlTarget.y - origin.y))
                     controlTarget.y = origin.y;
@@ -562,7 +559,7 @@ void App::pointerMove(Point p) {
             dragDelta = {at.x - origin.x, at.y - origin.y};
             dragPreview = distance(dragStart, p) > 3;
         } else if (tool == Tool::Select && !selectionBox && !selected.empty() &&
-                   map.doc["features"][*selected.begin()]["role"].str() != "country") {
+                   static_cast<const Json &>(map.doc)["features"][*selected.begin()]["role"].str() != "country") {
             auto a = world(dragStart), b = world(p);
             dragDelta = {b.x - a.x, b.y - a.y};
             dragPreview = distance(dragStart, p) > 3;
@@ -601,21 +598,22 @@ void App::pointerMove(Point p) {
             }
         if (hit != hoverHit) {
             hoverHit = hit;
-            hoverSince = GetTickCount64();
-            SetTimer(window, 4, 550, nullptr);
+            hoverSince = now();
+            if(window)SetTimer(window, 4, 550, nullptr);
         } else if (drawing.empty() && tool != Tool::Stamp)
             return;
     }
-    auto tick = GetTickCount64();
+    auto tick = now();
     if (tick - lastPointerPaint >= 16) {
         invalidate();
         lastPointerPaint = tick;
     } else if (!pointerPaintPending) {
         pointerPaintPending = true;
-        SetTimer(window, 3, 16, nullptr);
+        if(window)SetTimer(window, 3, 16, nullptr);
     }
 }
 void App::pointerUp(Point p) {
+    if(timelineDragging){timelineDragging=false;down=false;if(window)ReleaseCapture();invalidate();return;}
     mouse = p;
     if (!down)
         return;
@@ -623,7 +621,7 @@ void App::pointerUp(Point p) {
     if (!panning && (dragPreview || distance(dragStart, p) > 3) && !selectionBox) {
         if (draggingControl) {
             controlTarget = world(p);
-            if (GetKeyState(VK_SHIFT) & 0x8000) {
+            if (keyState(VK_SHIFT) & 0x8000) {
                 auto origin = point(map.doc["nodes"][activeControl]);
                 if (std::abs(controlTarget.x - origin.x) >= std::abs(controlTarget.y - origin.y))
                     controlTarget.y = origin.y;
@@ -637,7 +635,7 @@ void App::pointerUp(Point p) {
         } else if (!movingNode.empty()) {
             map.moveNode(movingNode, world(p));
         } else if (tool == Tool::Select && !selected.empty() &&
-                   map.doc["features"][*selected.begin()]["role"].str() != "country") {
+                   static_cast<const Json &>(map.doc)["features"][*selected.begin()]["role"].str() != "country") {
             auto a = world(dragStart), b = world(p);
             map.moveFeatures(std::vector<std::string>(selected.begin(), selected.end()),
                              {b.x - a.x, b.y - a.y});
@@ -646,7 +644,7 @@ void App::pointerUp(Point p) {
     dragPreview = false;
     renderer.excludedBorderArcs.clear();
     down = false;
-    ReleaseCapture();
+    if(window)ReleaseCapture();
     if (panning) {
         panning = false;
         invalidate();
@@ -767,18 +765,44 @@ LRESULT CALLBACK App::proc(HWND h, UINT m, WPARAM w, LPARAM l) {
     try {
         return a->message(m, w, l);
     } catch (const std::exception &e) {
-        if (a->down && a->before["schema_version"].num() == 1) {
-            a->map.doc = a->before;
-            a->map.clearCache();
-            a->renderer.clear();
-        }
-        a->down = false;
-        a->panning = false;
-        ReleaseCapture();
+        a->rollbackInteraction();
         showError(h, e);
         a->invalidate();
         return 0;
     }
+}
+void App::wheel(Point at,int d) {
+        if(historyView&&!compareMode) {
+            if(keyState(VK_CONTROL)&0x8000){eventSpacing=std::clamp(eventSpacing*(d>0?1.15f:1/1.15f),150.f,360.f);revealVersion(versionDetails["id"].str());}
+            else versionScroll=std::clamp(versionScroll-(d>0?1:-1),0,std::max(0,int(storyEvents.size())-visibleEvents()));
+        } else if(showPanels && contains(drawerArea,at)) {
+            if(historyView)diffScroll=std::clamp(diffScroll-(d>0?2:-2),0,std::max(0,int(diffRows.size())-1));
+            else if(panel==5)detailScroll=std::clamp(detailScroll-(d>0?60:-60),0,620);
+            else if(panel==4)layerScroll=std::max(0,layerScroll-(d>0?2:-2));
+            else objectScroll=std::max(0,objectScroll-(d>0?2:-2));
+        } else if(inCanvas(at)) {
+            auto screen=at;
+            if(historyView&&compareMode==1 && at.x>(canvas.left+canvas.right)/2)screen.x-=(canvas.right-canvas.left)/2;
+            auto anchor=world(screen);
+            zoom=std::clamp(zoom*std::pow(1.2,d/120.0),.01,24.0);
+            offset={screen.x-anchor.x*zoom,screen.y-anchor.y*zoom};
+            cameraMovingUntil=now()+120;if(window)SetTimer(window,2,120,nullptr);
+        }
+    invalidate();
+}
+void App::setQuery(const std::string &value) {
+    query=value;objectScroll=0;versionScroll=0;
+    if(historyView){refreshVersions();if(!selectedEvent()&&!versions.empty())showVersion(versions.front()["id"].str());}
+    invalidate();
+}
+void App::rollbackInteraction() {
+    if(down&&!panning&&!timelineDragging&&before["schema_version"].num()==1){map.doc=before;map.clearCache();renderer.clear();}
+    down=false;panning=false;timelineDragging=false;dragPreview=false;draggingControl=false;
+    movingNode.clear();movingBorder.clear();selectionBox=false;renderer.excludedBorderArcs.clear();painted.reset();
+    paintedLayer.clear();drawing.clear();selectionMask.clear();
+    map.clearCache();renderer.clear();
+    if(window)ReleaseCapture();
+    updateSelection();invalidate();
 }
 LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -786,9 +810,9 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         invalidate();
         return 0;
     case WM_CREATE: {
-        BOOL dark = TRUE;
+        BOOL dark = FALSE;
         DwmSetWindowAttribute(window, 20, &dark, sizeof dark);
-        COLORREF caption = RGB(24, 36, 46);
+        COLORREF caption = RGB(250, 251, 248);
         DwmSetWindowAttribute(window, 35, &caption, sizeof caption);
         dpi = GetDpiForWindow(window) / 96.0f;
         font = CreateFontW(int(-15 * dpi), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, 0, 0,
@@ -802,9 +826,16 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
                                   100, 30, window, reinterpret_cast<HMENU>(20002), nullptr, nullptr);
         SendMessageW(nameBox, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
         EnableWindow(nameBox, FALSE);
+        auto combo=[&](int id) {
+            auto c=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,0,0,200,250,window,reinterpret_cast<HMENU>(INT_PTR(id)),nullptr,nullptr);
+            SendMessageW(c,WM_SETFONT,reinterpret_cast<WPARAM>(font),TRUE);return c;
+        };
+        chainBox=combo(20003);chapterBox=combo(20004);sortBox=combo(20005);
+        for(auto text:{L"По сюжету",L"По сохранению",L"Происхождение",L"По дате мира"})SendMessageW(sortBox,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(text));
+        refreshVersions(true);
         layout();
         fit();
-        SetTimer(window, 1, 15000, nullptr);
+        if(window)SetTimer(window, 1, 15000, nullptr);
         return 0;
     }
     case WM_PAINT:
@@ -816,7 +847,7 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         if (LOWORD(wp) != WA_INACTIVE) {
             // An occluded HWND target can skip presentation. Request a frame after
             // foreground activation has completed, even without mouse movement.
-            SetTimer(window, 6, 60, nullptr);
+            if(window)SetTimer(window, 6, 60, nullptr);
             invalidate();
         }
         break;
@@ -828,12 +859,16 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         auto r = reinterpret_cast<RECT *>(lp);
         SetWindowPos(window, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top,
                      SWP_NOZORDER | SWP_NOACTIVATE);
+        auto newDpi=GetDpiForWindow(window)/96.f;
+        if(font)DeleteObject(font);
+        font=CreateFontW(int(-15*newDpi),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
+        for(auto control:{searchBox,nameBox,chainBox,chapterBox,sortBox})if(control)SendMessageW(control,WM_SETFONT,reinterpret_cast<WPARAM>(font),TRUE);
         layout();
         return 0;
     }
     case WM_GETMINMAXINFO: {
         auto m = reinterpret_cast<MINMAXINFO *>(lp);
-        m->ptMinTrackSize = {LONG(940 * dpi), LONG(650 * dpi)};
+        m->ptMinTrackSize = {LONG(800 * dpi), LONG(500 * dpi)};
         return 0;
     }
     case WM_LBUTTONDOWN:
@@ -848,6 +883,7 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_CANCELMODE:
     case WM_CAPTURECHANGED:
+        if(timelineDragging){timelineDragging=false;down=false;return 0;}
         if (down) {
             if (!panning) {
                 map.doc = before;
@@ -871,6 +907,11 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         pointerMove({GET_X_LPARAM(lp) / dpi, GET_Y_LPARAM(lp) / dpi});
         return 0;
     case WM_LBUTTONDBLCLK:
+        if(historyView&&!compareMode){
+            Point at{GET_X_LPARAM(lp)/dpi,GET_Y_LPARAM(lp)/dpi};
+            for(auto it=hits.rbegin();it!=hits.rend();++it)if(it->command==SelectVersion&&contains(it->rect,at)){showVersion(it->data);openMoment();break;}
+            return 0;
+        }
         if (editScope == SelectionDomain::Borders &&
             (tool == Tool::Select || tool == Tool::Border || tool == Tool::Node)) {
             mouse = {GET_X_LPARAM(lp) / dpi, GET_Y_LPARAM(lp) / dpi};
@@ -884,34 +925,27 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         else if (!selected.empty())
             properties();
         return 0;
+    case WM_MOUSEHWHEEL:
     case WM_MOUSEWHEEL: {
         POINT pos{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
         ScreenToClient(window, &pos);
         Point at{pos.x / dpi, pos.y / dpi};
         int d = GET_WHEEL_DELTA_WPARAM(wp);
-        if (showPanels && historyView && at.x > width - 340 && at.y > 124 && at.y < height - 78) {
-            versionScroll =
-                std::clamp(versionScroll - (d > 0 ? 1 : -1), 0, std::max(0, int(versions.size()) - 1));
-        } else if (showPanels && panel == 4 && at.x > width - 340 && at.y > 124 && at.y < height - 78) {
-            layerScroll = std::max(0, layerScroll - (d > 0 ? 3 : -3));
-        } else if (showPanels && panel >= 1 && panel <= 3 && at.x > width - 340 && at.y > 124 &&
-                   at.y < height - 78) {
-            objectScroll = std::max(0, objectScroll - (d > 0 ? 3 : -3));
-        } else {
-            auto anchor = world(at);
-            zoom = std::clamp(zoom * std::pow(1.2, d / 120.0), .01, 24.0);
-            offset = {at.x - anchor.x * zoom, at.y - anchor.y * zoom};
-            cameraMovingUntil = GetTickCount64() + 120;
-            SetTimer(window, 2, 120, nullptr);
-        }
+        if(msg==WM_MOUSEHWHEEL)d=-d;
+        wheel(at,d);
         invalidate();
         return 0;
     }
     case WM_COMMAND:
+        if(!syncHistory && HIWORD(wp)==CBN_SELCHANGE && LOWORD(wp)>=20003 && LOWORD(wp)<=20005) {
+            int at=int(SendMessageW(reinterpret_cast<HWND>(lp),CB_GETCURSEL,0,0));
+            if(LOWORD(wp)==20003 && at>=0 && at<int(chainIds.size()))historyChain=chainIds[at];
+            if(LOWORD(wp)==20004 && at>=0 && at<int(chapterIds.size()))historyChapter=chapterIds[at];
+            if(LOWORD(wp)==20005)historyOrder=at==1?"saved":at==2?"parents":at==3?"date":"story";
+            versionScroll=0;refreshVersions();invalidate();return 0;
+        }
         if (LOWORD(wp) == 20001 && HIWORD(wp) == EN_CHANGE) {
-            query = editText(searchBox);
-            objectScroll = 0;
-            invalidate();
+            setQuery(editText(searchBox));
             return 0;
         }
         if (LOWORD(wp) == 20002 && HIWORD(wp) == EN_KILLFOCUS && !syncName && !selected.empty()) {
@@ -928,17 +962,17 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_CTLCOLOREDIT: {
         auto dc = reinterpret_cast<HDC>(wp);
-        SetTextColor(dc, RGB(48, 65, 49));
-        SetBkColor(dc, RGB(235, 240, 231));
-        SetDCBrushColor(dc, RGB(235, 240, 231));
+        SetTextColor(dc, RGB(35, 52, 50));
+        SetBkColor(dc, RGB(250, 251, 248));
+        SetDCBrushColor(dc, RGB(250, 251, 248));
         return reinterpret_cast<LRESULT>(GetStockObject(DC_BRUSH));
     }
     case WM_KEYDOWN: {
-        bool ctrl = GetKeyState(VK_CONTROL) & 0x8000, shift = GetKeyState(VK_SHIFT) & 0x8000;
+        bool ctrl = keyState(VK_CONTROL) & 0x8000, shift = keyState(VK_SHIFT) & 0x8000;
         if (ctrl) {
             switch (wp) {
             case 'S':
-                save(shift);
+                if(shift)revisionDialog();else save();
                 return 0;
             case 'O':
                 open();
@@ -956,20 +990,19 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
                 copy();
                 return 0;
             case 'V':
-                paste();
+                command(Paste);
                 return 0;
+            case 'H':
+                command(historyView?EditorView:HistoryView);return 0;
             case 'F':
-                panel = 2;
-                sideTab = 1;
-                showPanels = true;
-                historyView = false;
-                layout();
-                SetFocus(searchBox);
+                if(historyView)historySearch=true;else{panel=2;sideTab=1;showPanels=true;}
+                layout();if(searchBox)SetFocus(searchBox);
                 return 0;
             case 'D':
                 command(Duplicate);
                 return 0;
             case 'A':
+                if(historyView)return 0;
                 selected.clear();
                 for (auto &[id, f] : map.doc["features"].obj())
                     if (map.selectable(f, isolateLayer ? SelectionDomain::ActiveLayer : editScope,
@@ -979,29 +1012,19 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
                 return 0;
             }
         }
+        if(wp==VK_F11){toggleFullscreen();return 0;}
         if (wp == VK_ESCAPE) {
-            dragPreview = false;
-            drawing.clear();
-            selectionMask.clear();
-            movingNode.clear();
-            movingBorder.clear();
-            draggingControl = false;
-            renderer.excludedBorderArcs.clear();
-            if (down) {
-                if (!panning) {
-                    map.doc = before;
-                    renderer.clear();
-                }
-                panning = false;
-                down = false;
-                ReleaseCapture();
-            }
-            selectionBox = false;
-            invalidate();
+            if(timelineDragging){timelineDragging=false;down=false;if(window)ReleaseCapture();invalidate();return 0;}
+            if(historyView){command(compareMode?HistoryView:EditorView);return 0;}
+            if(!down&&drawing.empty()&&showPanels){command(ClosePanel);return 0;}
+            if(!down&&drawing.empty()&&fullscreen){toggleFullscreen();return 0;}
+            rollbackInteraction();
             return 0;
         }
+        if(historyView && (wp==VK_LEFT || wp==VK_RIGHT)){command(wp==VK_LEFT?PreviousVersion:NextVersion);return 0;}
         if (wp == VK_RETURN) {
-            finishDrawing();
+            if(keyboardHit>=0 && keyboardHit<int(hits.size()) && hits[keyboardHit].command){auto hit=hits[keyboardHit];command(hit.command,hit.data);return 0;}
+            if(historyView&&!compareMode)openMoment();else finishDrawing();
             return 0;
         }
         if (wp == VK_DELETE) {
@@ -1009,16 +1032,23 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         if (wp == VK_F2) {
-            properties();
+            if(historyView)editVersion();else properties();
             return 0;
         }
         if (wp == VK_HOME) {
+            if(historyView&&!compareMode){versionScroll=0;invalidate();return 0;}
             fit();
             return 0;
         }
-        if (wp == VK_TAB) {
-            command(Panels);
-            return 0;
+        if(historyView&&!compareMode && wp==VK_END){versionScroll=std::max(0,int(storyEvents.size())-visibleEvents());invalidate();return 0;}
+        if(historyView&&!compareMode && (wp==VK_PRIOR || wp==VK_NEXT)){command(HistoryPage,wp==VK_NEXT?"next":"previous");return 0;}
+        if(wp==VK_F6){command(Panels);return 0;}
+        if(wp==VK_TAB) {
+            if(!hits.empty())for(size_t i=0;i<hits.size();++i) {
+                keyboardHit=(keyboardHit+(shift?-1:1)+int(hits.size()))%int(hits.size());
+                if(hits[keyboardHit].command && hits[keyboardHit].rect.bottom>hits[keyboardHit].rect.top)break;
+            }
+            invalidate();return 0;
         }
         for (int i = 0; i < 19; i++)
             if (wp == UINT(toolKeys[i][0])) {
@@ -1028,6 +1058,7 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
     case WM_TIMER:
+        if(wp==7){KillTimer(window,7);invalidate();return 0;}
         if (wp == 6) {
             KillTimer(window, 6);
             invalidate();
@@ -1052,11 +1083,11 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         if (wp == 3) {
             KillTimer(window, 3);
             pointerPaintPending = false;
-            lastPointerPaint = GetTickCount64();
+            lastPointerPaint = now();
             invalidate();
             return 0;
         }
-        if (dirty && !down && editSerial != autosavedSerial && !map.directory.empty())
+        if (dirty && !down && editSerial != autosavedSerial)
             try {
                 map.autosave();
                 autosavedSerial = editSerial;
@@ -1070,13 +1101,18 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
         if (!map.directory.empty())
             try {
                 atomicText(map.directory / L".atlas" / L"view.json",
-                           fields({{"zoom", zoom},
-                                   {"offset", pointJson(offset)},
+                           fields({{"zoom", historyView&&editorCameraSaved?editorZoom:zoom},
+                                   {"offset", pointJson(historyView&&editorCameraSaved?editorOffset:offset)},
                                    {"active_layer", activeLayer},
                                    {"side_tab", sideTab},
                                    {"project_root", pathText(projectRoot)},
                                    {"panels", showPanels},
-                                   {"ui_revision", 4},
+                                   {"ui_revision", 6},
+                                   {"fullscreen",fullscreen},
+                                   {"history_view",historyView},{"compare_mode",compareMode},
+                                   {"history_order",historyOrder},{"history_chain",historyChain},
+                                   {"history_chapter",historyChapter},{"version_id",versionDetails["id"]},{"event_spacing",eventSpacing},
+                                   {"compare_version_id",comparisonB?comparisonB->doc["_comparison_id"]:Json()},
                                    {"edit_scope", int(editScope)},
                                    {"isolate_layer", isolateLayer},
                                    {"panel", panel},
@@ -1098,6 +1134,7 @@ LRESULT App::message(UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(window, msg, wp, lp);
 }
 int App::run(HINSTANCE instance, int show) {
+    bool startFullscreen=true;
     campaign.load(projectRoot);
     if (!initialMap.empty() && fs::exists(initialMap))
         map.load(initialMap);
@@ -1105,6 +1142,7 @@ int App::run(HINSTANCE instance, int show) {
         map.doc["symbols"] = defaultSymbols();
     activeLayer = map.vectorLayer();
     versions = map.versions();
+    historyView=false;historyChain="main";showPanels=false;editScope=SelectionDomain::All;
     WNDCLASSEXW wc{sizeof wc};
     wc.style = CS_DBLCLKS;
     wc.lpfnWndProc = proc;
@@ -1119,12 +1157,12 @@ int App::run(HINSTANCE instance, int show) {
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     int w = std::min(1500, int(work.right - work.left) - 60),
         h = std::min(940, int(work.bottom - work.top) - 60);
-    auto title = wide("АТЛАС 4 — " + map.doc["name"].str());
+    auto title = wide("АТЛАС — " + map.doc["name"].str());
     window = CreateWindowExW(0, wc.lpszClassName, title.c_str(), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
                              CW_USEDEFAULT, CW_USEDEFAULT, w, h, nullptr, nullptr, instance, this);
     if (!window)
         throw std::runtime_error("Cannot create Atlas window");
-    ShowWindow(window, show == SW_HIDE ? SW_SHOWNORMAL : show);
+    ShowWindow(window, SW_MAXIMIZE);
     UpdateWindow(window);
     if (!map.directory.empty() && fs::exists(map.directory / L".atlas" / L"view.json"))
         try {
@@ -1134,32 +1172,57 @@ int App::run(HINSTANCE instance, int show) {
                 campaign.load(savedRoot);
                 projectRoot = savedRoot;
             }
-            showPanels = view["panels"].boolean(true);
+            showPanels = false;
             snap = view["snap"].boolean(true);
             grid = view["grid"].boolean();
             sideTab = int(view["side_tab"].num());
-            if (view["ui_revision"].num() == 4) {
-                editScope = SelectionDomain(std::clamp(int(view["edit_scope"].num(1)), 1, 3));
+            if (view["ui_revision"].num() >= 6) {
+                editScope = SelectionDomain(std::clamp(int(view["edit_scope"].num(0)), 0, 3));
                 isolateLayer = view["isolate_layer"].boolean();
             }
+            if(view["ui_revision"].num()>=6) {
+                startFullscreen=view["fullscreen"].boolean(true);
+                panel=0;
+                historyView=false;compareMode=0;eventSpacing=float(std::clamp(view["event_spacing"].num(232),150.,360.));
+                historyOrder=view["history_order"].str("story");historyChain=view["history_chain"].str();
+                historyChapter=int(view["history_chapter"].num());
+                refreshVersions(true);
+                if(historyView&&!view["version_id"].str().empty())showVersion(view["version_id"].str());
+                if(compareMode&&!view["compare_version_id"].str().empty())showVersion(view["compare_version_id"].str(),true);
+            }
             layout();
-            if (view["ui_revision"].num() >= 3)
+            if (view["ui_revision"].num() >= 6)
                 zoom = std::clamp(view["zoom"].num(zoom), .01, 24.0);
-            if (view["ui_revision"].num() >= 3 && view["offset"].isArray())
+            if (view["ui_revision"].num() >= 6 && view["offset"].isArray())
                 offset = point(view["offset"]);
             if (map.layer(view["active_layer"].str()))
                 activeLayer = view["active_layer"].str();
             invalidate();
         } catch (...) {
         }
+    if(startFullscreen)toggleFullscreen();
+    if(historyView && !comparison) {
+        refreshVersions(true);
+        auto id=map.doc["parent_version"].str();
+        if(!id.empty())try{showVersion(id);}catch(...){}
+    }
     if (map.hasRecovery())
         status = "Есть автосохранение: Файл → Восстановить автосохранение";
     MSG message;
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
-        if (message.message == WM_KEYDOWN && (GetKeyState(VK_CONTROL) & 0x8000) &&
+        if(message.message==WM_KEYDOWN && (message.wParam==VK_F11 || (message.hwnd==searchBox&&message.wParam==VK_ESCAPE))) {
+            if(window)SetFocus(window);SendMessageW(window,WM_KEYDOWN,message.wParam,message.lParam);continue;
+        }
+        if(message.message==WM_KEYDOWN && message.hwnd==searchBox && (message.wParam==VK_RETURN || message.wParam==VK_TAB)) {
+            if(window)SetFocus(window);
+            if(message.wParam==VK_RETURN && historyView && !versions.empty())showVersion(versions.front()["id"].str());
+            else SendMessageW(window,WM_KEYDOWN,VK_TAB,message.lParam);
+            continue;
+        }
+        if (message.message == WM_KEYDOWN && (keyState(VK_CONTROL) & 0x8000) &&
             (message.wParam == 'S' || message.wParam == 'O' || message.wParam == 'N' ||
-             message.wParam == 'F')) {
-            SetFocus(window);
+             message.wParam == 'F' || message.wParam == 'H')) {
+            if(window)SetFocus(window);
             SendMessageW(window, WM_KEYDOWN, message.wParam, message.lParam);
             continue;
         }

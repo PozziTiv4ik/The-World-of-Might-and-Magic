@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 10,
+  "document_hash": "d7d10b122d18ebfc70fec03aef6b9f6dc8a1ba9c60604fcafa4ce63236d34b2d",
+  "document_ref": "history/documents/9d002eff44d975917d402e10f6b5e7781f5f2f0acf51b1ae9bed475ed9d71d95.json",
+  "format": 2,
+  "id": "MAPVER-E341B99E-C836-49D1-99B4-D1CEC061CDEB",
+  "integrity": "42bc5597ee2619ee7a91de86651c8a97c20621cff89dcca8104d3cf3a8ccdae2",
+  "label": "Михаэль · Побег с Роксаной к войскам Тар-Элама",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-96DC1C11-CAE7-444F-A677-055DC7109E08",
+  "recorded_at": "2026-09-20T14:03:01.038Z",
+  "sequence": 109,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Михаэль отказался казнить Роксану Ракх'фелором и открыто стал врагом Ордена затмения (DEC-124). Онсераг приказал связать его и бросить вместе с Роксаной в яму, но немедленную расправу сорвал неожиданный удар морской пехоты гильдии. Атакующие пришли не как войска Тар-Элама, а как люди Михаэля. Их появление с необычным боевым рогом заставило лагерь ордена и рыцарей Закхерона перестраиваться на ходу.",
+    "evidence_ids": [
+      "SRC-0225"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0103",
+    "story_date": "сразу после отказа Михаэля казнить Роксану у Тикормана",
+    "story_order": 109568
+  }
+}

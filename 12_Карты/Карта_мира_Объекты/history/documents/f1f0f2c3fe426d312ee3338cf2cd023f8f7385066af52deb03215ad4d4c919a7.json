@@ -1,0 +1,168 @@
+{
+  "base": "history/documents/ced4cfefabe783a88d3a46a153101ecce383ab4f826af86340acaa6d10077700.json",
+  "changes": [
+    {
+      "after": "от 1 недели до 6 дней до Дня Единения Империи",
+      "before": "за 1 неделю до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Сцена 004. Дугал и отъезд в столицу",
+      "before": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань, зал разведки; дорога в столицу",
+      "before": "Белая Гавань, порт и кабинет Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0067",
+      "before": "SCENE-0066",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_004_Дугал_и_отъезд_в_столицу.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_003_Раон_и_поток_наемников.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "8058a59d45985d5e93d49ab68a2301b88f6d39e4db12c7c86268fb611e0591fc",
+      "before": "e74f47b4d9a83868507a678570d3970f0d992d66fb5e0426e556a5bb84ce3683",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 9216,
+      "before": 8192,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 004. Дугал и отъезд в столицу",
+      "before": "Сцена 003. Раон и поток наемников",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0067",
+      "before": "SCENE-0066",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Сцена 004. Дугал и отъезд в столицу",
+      "before": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0067",
+      "before": "SCENE-0066",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-930C8627-B4BC-4762-864E-44DE22387BDF",
+      "before": "MAPVER-0C8F11A7-8884-454B-9789-A931700A7F9B",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Сцена 004. Дугал и отъезд в столицу",
+      "before": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": "SCENE-0067",
+      "before": "SCENE-0066",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "от 1 недели до 6 дней до Дня Единения Империи",
+      "before": "за 1 неделю до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 9216,
+      "before": 8192,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

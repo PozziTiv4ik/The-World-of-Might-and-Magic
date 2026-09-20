@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 9,
+  "document_hash": "62eadf2c1d0802a5d98f4fd7b93f5bf3bbeb0e7c4a0d77131512edfa65bf07f0",
+  "document_ref": "history/documents/da90f2cc65c27a40feb09149ee67e4745aa2f66f27892f7088f7cb2aa36c561e.json",
+  "format": 2,
+  "id": "MAPVER-1D222A36-FA44-474B-8DD8-3B152A5D308B",
+  "integrity": "87aa39dd9375767846d84f37a344d9b97ee74bf2c09aa169041ae6be2c180371",
+  "label": "Александрос · Ответ Михаэлю по Картосу и Имрахилю",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-6948843C-0105-45A5-86B4-CEA109AEB35B",
+  "recorded_at": "2026-09-20T14:01:16.919Z",
+  "sequence": 60,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Обдумав слова Михаэля, Александрос принимает решение по делу Картоса и Имрахиля. Император соглашается отказать Имрахилю в командных полномочиях над Картосом. При этом он намерен выразить магистру особую благодарность и заверить его, что силы Империи держат ситуацию в Белой Гавани под контролем.",
+    "evidence_ids": [
+      "SRC-0148"
+    ],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0036",
+    "story_date": "тот же разговор через видящий камень после доклада Михаэля из Порт-Лабада",
+    "story_order": 59392
+  }
+}

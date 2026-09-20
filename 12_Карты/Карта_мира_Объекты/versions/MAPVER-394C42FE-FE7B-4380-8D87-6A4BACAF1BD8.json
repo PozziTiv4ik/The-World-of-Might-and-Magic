@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 15,
+  "document_hash": "7cdd2217df7e7fdd1a45e80f208d3e43e7196cbc19a11aaa39ec3d338086c8dc",
+  "document_ref": "history/documents/fc477183d15ec7eadc85739bdf6ccf3d68e3a52cb3ed22da04a360859f73f064.json",
+  "format": 2,
+  "id": "MAPVER-394C42FE-FE7B-4380-8D87-6A4BACAF1BD8",
+  "integrity": "f0d38a60bb0aaed23551d650cda13f08ba90280192d8b274d4abed027969eeed",
+  "label": "Михаэль · Ответы союзников и выбор у северных ворот Порт-Мантикоры",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-744EC438-B78E-44D0-B307-2046C3ED86A2",
+  "recorded_at": "2026-09-20T14:02:41.107Z",
+  "sequence": 98,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Михаэль провел всю следующую неделю в арендованной комнате Порт-Мантикоры. Он не выходил наружу, охранял серебристо-голубую сферу и ждал ответа от Онсерага или Аругала. Днем Принцу доставили зашифрованное письмо из гильдии. Для постороннего его текст не имел смысла, но Михаэль прочел сообщение с помощью шифра гильдии.",
+    "evidence_ids": [
+      "SRC-0207"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0098",
+    "story_date": "через неделю после укрытия Михаэля в комнате Порт-Мантикоры",
+    "story_order": 98304
+  }
+}

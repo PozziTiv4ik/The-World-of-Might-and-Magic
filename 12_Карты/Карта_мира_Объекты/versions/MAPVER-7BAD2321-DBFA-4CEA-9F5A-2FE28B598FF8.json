@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 15,
+  "document_hash": "8b0558493b806bccbc10239766c52466d6dc8ec5d2c02ee42a64760c4c1390be",
+  "document_ref": "history/documents/f8424a7daaf49675e6d05ff406d2c6418a0eaefb3ad10d1e3622a374ccba892e.json",
+  "format": 2,
+  "id": "MAPVER-7BAD2321-DBFA-4CEA-9F5A-2FE28B598FF8",
+  "integrity": "034641358d072488d6e2217083425536a6219800a0bade2d3d2cacc67096fbb0",
+  "label": "Михаэль · Ответ Аругалу, доклад Вито и отъезд домой",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-ED7D6F34-576B-4E16-A6AF-BFA8F9D15C9A",
+  "recorded_at": "2026-09-20T14:03:18.333Z",
+  "sequence": 114,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Письмо Аругала вызвало у Михаэля негодование: после передачи Белой Гавани Боромиру и знати оппозиция уже перешла к прямому ослаблению гильдии. Однако Принц не стал отвечать открытым сопротивлением. Михаэль приказал Аругалу пока не принимать требование Боромира. Гильдия должна продолжать исполнять обычные обязательства, не выводить из города имущество и деньги и не оказывать властям открытого сопротивления.",
+    "evidence_ids": [
+      "SRC-0228"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0105",
+    "story_date": "вечер после коронации Вито; перед отбытием Михаэля из Алиманджада",
+    "story_order": 114688
+  }
+}

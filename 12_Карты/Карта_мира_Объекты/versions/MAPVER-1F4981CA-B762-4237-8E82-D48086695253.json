@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 11,
+  "document_hash": "36a78b07890a4796c59f8ac6325e6dee68c7de1ff527f2d9138141e823445a0e",
+  "document_ref": "history/documents/c96413bf79a59e9b8eeda575ea452bc22353c052dea73389e3c41dcbc9f930bf.json",
+  "format": 2,
+  "id": "MAPVER-1F4981CA-B762-4237-8E82-D48086695253",
+  "integrity": "882b5a5b2388778849ab5f6d4195594491f9b2e63aa47cc6ca0d7a455e408e88",
+  "label": "Михаэль · Письма, охота и темный эльф в Порт-Мантикоре",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-CE4C5026-5849-4E51-AC7C-09D95C147D9B",
+  "recorded_at": "2026-09-20T14:02:33.624Z",
+  "sequence": 94,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+    "evidence_ids": [
+      "SRC-0208"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0097",
+    "story_date": "на следующий день после прибытия Михаэля в Порт-Мантикору",
+    "story_order": 94208
+  }
+}

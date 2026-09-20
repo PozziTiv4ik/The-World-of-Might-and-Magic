@@ -1,0 +1,251 @@
+{
+  "base": "history/documents/47ab19691d4160683367dd37a19241eea80630186422aabd5afd5ab2b509e841.json",
+  "changes": [
+    {
+      "after": "спустя неделю боёв в Цитадели Бездны",
+      "before": "через неделю после смерти Вариана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Спустя неделю боев в столице лишь пять отрядов из всех прибывших со всего Королевства Бездны прошли испытания, предшествующие финалу. Последним испытанием стал бой на выживание в лабиринтах троглодитов глубоко под Цитаделью Бездны. Каждый участник должен пройти лабиринт и принести теневой аметист.",
+      "before": "Через неделю после смерти Вариана гладиаторов привезли в Цитадель Бездны. Столица Королевства Бездны поразила Никитосиоса величием: в сердце он признал ее даже прекраснее любимого Багрового Пика. В казармах гладиаторов под столичной ареной Ламия сняла со всех ошейники. Она объяснила, что последние испытания требуют полной отдачи, поэтому гладиаторам позволяют пользоваться всей доступной силой.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "лабиринты троглодитов глубоко под Цитаделью Бездны",
+      "before": "Цитадель Бездны, казармы гладиаторов под ареной столицы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0115",
+      "before": "SCENE-0114",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Никитосиос/Сцена_008_Финальный_лабиринт_и_теневая_рука.md",
+      "before": "01_Кампания/Ветки/Никитосиос/Сцена_007_Цитадель_Бездны_и_метка_темного_дракона.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "a891e26b62a07f5e434c17a31edf06eb220a98f2e2b17d49518365334592111d",
+      "before": "647e8a82bf85c67160083063fe7a18a5bfe150e199201f6191e373dca54fd98d",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 112640,
+      "before": 111616,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 008. Финальный лабиринт и теневая рука",
+      "before": "Сцена 007. Цитадель Бездны и метка темного дракона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0226"
+      ],
+      "before": [
+        "SRC-0221"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0115",
+      "before": "SCENE-0114",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Спустя неделю боев в столице лишь пять отрядов из всех прибывших со всего Королевства Бездны прошли испытания, предшествующие финалу. Последним испытанием стал бой на выживание в лабиринтах троглодитов глубоко под Цитаделью Бездны. Каждый участник должен пройти лабиринт и принести теневой аметист.",
+      "before": "Через неделю после смерти Вариана гладиаторов привезли в Цитадель Бездны. Столица Королевства Бездны поразила Никитосиоса величием: в сердце он признал ее даже прекраснее любимого Багрового Пика. В казармах гладиаторов под столичной ареной Ламия сняла со всех ошейники. Она объяснила, что последние испытания требуют полной отдачи, поэтому гладиаторам позволяют пользоваться всей доступной силой.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0226"
+      ],
+      "before": [
+        "SRC-0221"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0115",
+      "before": "SCENE-0114",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0114",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0221"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0114",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Никитосиос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0114",
+        "stroke": "#A44E56",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114"
+      ]
+    },
+    {
+      "after": "MAPVER-A98D011D-9870-446C-A951-859F1889372F",
+      "before": "MAPVER-D8585B05-36DF-4E3B-963D-E9CD2F249B89",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Спустя неделю боев в столице лишь пять отрядов из всех прибывших со всего Королевства Бездны прошли испытания, предшествующие финалу. Последним испытанием стал бой на выживание в лабиринтах троглодитов глубоко под Цитаделью Бездны. Каждый участник должен пройти лабиринт и принести теневой аметист.",
+      "before": "Через неделю после смерти Вариана гладиаторов привезли в Цитадель Бездны. Столица Королевства Бездны поразила Никитосиоса величием: в сердце он признал ее даже прекраснее любимого Багрового Пика. В казармах гладиаторов под столичной ареной Ламия сняла со всех ошейники. Она объяснила, что последние испытания требуют полной отдачи, поэтому гладиаторам позволяют пользоваться всей доступной силой.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0226"
+      ],
+      "before": [
+        "SRC-0221"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0115",
+      "before": "SCENE-0114",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя неделю боёв в Цитадели Бездны",
+      "before": "через неделю после смерти Вариана",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 112640,
+      "before": 111616,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

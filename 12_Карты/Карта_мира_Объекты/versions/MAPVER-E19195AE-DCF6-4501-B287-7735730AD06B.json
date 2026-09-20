@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 13,
+  "document_hash": "7a0554e8d1f3ed7e789f3e224e1690c4998768a03b34bd81cacecb4e005599c1",
+  "document_ref": "history/documents/371b33c56c2fdae735f6e28ca952dc00a70885d54f33377c9ca857fae49c17bd.json",
+  "format": 2,
+  "id": "MAPVER-E19195AE-DCF6-4501-B287-7735730AD06B",
+  "integrity": "f15121fc56713fcdfd402d9c633a923207a716c863d432a2496ea385b7c8c90b",
+  "label": "Александрос · День Единения и предательство Петира",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-1D96572B-B4EE-4994-B30D-4B2334716B5D",
+  "recorded_at": "2026-09-20T13:55:31.756Z",
+  "sequence": 14,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0008",
+    "story_date": "от 2 дней до Дня Единения до Дня Единения Империи",
+    "story_order": 14336
+  }
+}

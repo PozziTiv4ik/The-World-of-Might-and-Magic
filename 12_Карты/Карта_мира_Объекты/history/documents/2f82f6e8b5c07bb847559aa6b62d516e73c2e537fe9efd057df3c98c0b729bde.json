@@ -1,0 +1,398 @@
+{
+  "base": "history/documents/371b33c56c2fdae735f6e28ca952dc00a70885d54f33377c9ca857fae49c17bd.json",
+  "changes": [
+    {
+      "after": {
+        "nodes": [
+          "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+          "NODE-MAPOBJ-ROUTE-CHAR-0059-1",
+          "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+        ]
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": "первые шесть недель после Дня Единения Империи",
+      "before": "от 2 дней до Дня Единения до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+      "before": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света; Вестфолд; земли Хорнбурга; фронты Империи",
+      "before": "Цитадель Вечного Света; столица; имение Барона Ривертона; южные ворота",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094",
+        "LOC-0011",
+        "LOC-0089"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0009",
+      "before": "SCENE-0008",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_009_Первые_недели_войны.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_008_День_Единения_и_предательство_Петира.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "523a915aee9be6ed3cb6ac5e90c086272d200567def2c1b7a329ed1db240875f",
+      "before": "04a7393e7f56667871c0504ee4f6ed09d79fdd426f6456ddef254e84b47eecb6",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 15360,
+      "before": 14336,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 009. Первые недели войны",
+      "before": "Сцена 008. День Единения и предательство Петира",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0009",
+      "before": "SCENE-0008",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2100,
+        614
+      ],
+      "before": [
+        1938,
+        725
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+      "before": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Хорнбург",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0009",
+      "before": "SCENE-0008",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0009",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1991,
+        652.5
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ]
+    },
+    {
+      "after": "MAPVER-E19195AE-DCF6-4501-B287-7735730AD06B",
+      "before": "MAPVER-1D96572B-B4EE-4994-B30D-4B2334716B5D",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": 2,
+      "before": 1,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "chapter"
+      ]
+    },
+    {
+      "after": "Александрос спас Крепость Отваги и закрыл фронт Эрона, но цена побед на других направлениях оказалась тяжелой. Бертрам погиб, Енох при смерти, а Блэквуд ушел в подземелья Мглистых Гор. Оливия взяла Штормград, Никитосиос удержал Багровый Пик, Лоренцо отбросил Дементру, а эльфы присылают сильное подкрепление.",
+      "before": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0009",
+      "before": "SCENE-0008",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "первые шесть недель после Дня Единения Империи",
+      "before": "от 2 дней до Дня Единения до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 15360,
+      "before": 14336,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

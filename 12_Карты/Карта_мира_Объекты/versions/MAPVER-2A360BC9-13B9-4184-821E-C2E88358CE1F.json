@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 6,
+  "document_hash": "b79f8d55d2abec1379c3a6d21e5b2988e73ac39501a91ba795020f549acb1004",
+  "document_ref": "history/documents/5fb13642bb785e01e526cf5e89b786d0f3558ad7b209b931a91b393c410b3f22.json",
+  "format": 2,
+  "id": "MAPVER-2A360BC9-13B9-4184-821E-C2E88358CE1F",
+  "integrity": "f10babb82ea287f71b2b7b92f15127b76a05dfd23c71f456eff57f2df9cfd76d",
+  "label": "Александрос · Эрин, печати Бездны и донесения совета",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-DBD4276B-B7BB-4B5F-A44B-9C4E432017D8",
+  "recorded_at": "2026-09-20T14:00:06.653Z",
+  "sequence": 24,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+    "evidence_ids": [
+      "SRC-0074"
+    ],
+    "front_ids": [
+      "FRONT-CRIMSON-PEAK"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0012",
+    "story_date": "спустя несколько дней после ухода Эрин из Багрового Пика",
+    "story_order": 23552
+  }
+}

@@ -1,0 +1,439 @@
+{
+  "base": "history/documents/651f47c6d9b34a65c5453fc5d74b44f0d0b04e51dace16d7cfcdd25a4cf7a1c9.json",
+  "changes": [
+    {
+      "after": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ],
+      "before": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0059",
+        "nodes"
+      ]
+    },
+    {
+      "after": "спустя неделю после отбытия из Цитадели Солнца",
+      "before": "ночь после недели укрытия Михаэля в Порт-Мантикоре",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Спустя неделю после отбытия из Цитадели Солнца Александрос прибыл к Крепости Отваги и запросил отчет о состоянии фронта с Хорнбургом. Ему доложили, что город окружен имперскими силами. Осадные орудия должны пробить достаточную брешь примерно через неделю; после этого можно будет начинать штурм и зачистку города от демонов. Александрос, Харрингтон, Богдан и Линдольф поспешили в осадный лагерь у стен Хорнбурга.",
+      "before": "Михаэль принял решение встать на сторону Онсерага. Обсидиановый воин Ордена бессмертной клятвы объявил, что служителям зла нет пощады, после чего темные эльфы вступили в открытый бой с ассасинами и воинами Ордена затмения. Онсераг начал собирать огромный огненный шар, а Ретип растворился в тенях.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Крепость Отваги; осадный лагерь у стен Хорнбурга; путь к Хорнбургу; Башня Песков как разведывательный след",
+      "before": "Порт-Мантикора; скрытое помещение Ордена затмения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0037"
+      ],
+      "before": [
+        "LOC-0064"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2155,
+        678
+      ],
+      "before": [
+        1595,
+        1710
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0057",
+      "before": "SCENE-0099",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_057_Прибытие_к_Крепости_Отваги_и_след_Башни_Песков.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_036_Выбор_Онсерага_и_шантирийский_кристалл.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "1415f70e2ea61f513a6a0db008466695f9bf2bf61c2275705742e39a7554d3b7",
+      "before": "48c0accf4b6bd28563f7210f8ef9cf99a9166d5da8a09bfd1c5cc1ddcde8e1f5",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 100352,
+      "before": 99328,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 057. Прибытие к Крепости Отваги и след Башни Песков",
+      "before": "Сцена 036. Выбор Онсерага и шантирийский кристалл",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0217"
+      ],
+      "before": [
+        "SRC-0218"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0057",
+      "before": "SCENE-0056",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0037",
+      "before": "LOC-0100",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2173,
+        656
+      ],
+      "before": [
+        1792,
+        1118
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2155,
+        678
+      ],
+      "before": [
+        1774,
+        1140
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Спустя неделю после отбытия из Цитадели Солнца Александрос прибыл к Крепости Отваги и запросил отчет о состоянии фронта с Хорнбургом. Ему доложили, что город окружен имперскими силами. Осадные орудия должны пробить достаточную брешь примерно через неделю; после этого можно будет начинать штурм и зачистку города от демонов. Александрос, Харрингтон, Богдан и Линдольф поспешили в осадный лагерь у стен Хорнбурга.",
+      "before": "Михаэль принял решение встать на сторону Онсерага. Обсидиановый воин Ордена бессмертной клятвы объявил, что служителям зла нет пощады, после чего темные эльфы вступили в открытый бой с ассасинами и воинами Ордена затмения. Онсераг начал собирать огромный огненный шар, а Ретип растворился в тенях.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0037",
+      "before": "LOC-0064",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0217"
+      ],
+      "before": [
+        "SRC-0213"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Крепость Отваги",
+      "before": "Порт-Мантикора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2155,
+        678
+      ],
+      "before": [
+        1595,
+        1710
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0057",
+      "before": "SCENE-0099",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0217"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0057",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        2155,
+        678
+      ],
+      "before": [
+        1770,
+        1115
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-22C34328-E398-4994-8577-E77A36451705",
+      "before": "MAPVER-394C42FE-FE7B-4380-8D87-6A4BACAF1BD8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Спустя неделю после отбытия из Цитадели Солнца Александрос прибыл к Крепости Отваги и запросил отчет о состоянии фронта с Хорнбургом. Ему доложили, что город окружен имперскими силами. Осадные орудия должны пробить достаточную брешь примерно через неделю; после этого можно будет начинать штурм и зачистку города от демонов. Александрос, Харрингтон, Богдан и Линдольф поспешили в осадный лагерь у стен Хорнбурга.",
+      "before": "Михаэль принял решение встать на сторону Онсерага. Обсидиановый воин Ордена бессмертной клятвы объявил, что служителям зла нет пощады, после чего темные эльфы вступили в открытый бой с ассасинами и воинами Ордена затмения. Онсераг начал собирать огромный огненный шар, а Ретип растворился в тенях.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0217"
+      ],
+      "before": [
+        "SRC-0213"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-HORNBURG"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0057",
+      "before": "SCENE-0099",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя неделю после отбытия из Цитадели Солнца",
+      "before": "ночь после недели укрытия Михаэля в Порт-Мантикоре",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 100352,
+      "before": 99328,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

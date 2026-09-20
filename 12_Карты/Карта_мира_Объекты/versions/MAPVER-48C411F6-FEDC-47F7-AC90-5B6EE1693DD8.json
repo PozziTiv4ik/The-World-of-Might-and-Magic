@@ -1,0 +1,33 @@
+{
+  "asset_hashes": {},
+  "document_depth": 4,
+  "document_hash": "2824d54e4f4bf1aafeb6305220d6780e901d89f8ffcdc4579f7b7357e355567e",
+  "document_ref": "history/documents/2ffbcf98d5c583760c5088228a9247e8d03f7f34cf02744c6dfdd6ab8331cdc4.json",
+  "format": 2,
+  "id": "MAPVER-48C411F6-FEDC-47F7-AC90-5B6EE1693DD8",
+  "integrity": "51fb8f7d651f76373301235528c08b56621e777e839e6d04a5caf2ea6e3e634e",
+  "label": "Общий мир · Высадка Союза на Острове Алой Луны",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-3492FAFD-47E5-449A-9247-A9FD291FDB30",
+  "recorded_at": "2026-09-20T14:03:29.705Z",
+  "sequence": 120,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Общий мир",
+    "chain_id": "main",
+    "chapter": 4,
+    "description": "Союз отступил с Алой Луны. Утер и Дариус погибли; Закхерон и Клинок Власти уничтожены. Выжившие вернулись на Серебряную Луну.",
+    "evidence_ids": [
+      "SRC-0234",
+      "SRC-0235",
+      "SRC-0240"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0118",
+    "story_date": "на следующий день после военного совета Союза; начало высадки на Остров Алой Луны",
+    "story_order": 119808
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "name": "07-cancel-and-errors",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "camera",
+      "zoom": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": "remember",
+      "name": "initial",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Подпись",
+        "cancel": true
+      }
+    },
+    {
+      "action": "key",
+      "key": "T"
+    },
+    {
+      "action": "click",
+      "at": [
+        400,
+        300
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "initial"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "cancel": true
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "initial"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Свойства карты",
+        "values": {
+          "Название": "Не сохранять",
+          "Цвет фона (#RRGGBB)": "wrong"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "F2",
+      "expect_error": "Invalid background"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "initial"
+    },
+    {
+      "action": "key",
+      "key": "T"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Подпись",
+        "values": {
+          "Текст": "Кириллица & <текст>"
+        }
+      }
+    },
+    {
+      "action": "click",
+      "at": [
+        420,
+        320
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": true
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "confirm",
+        "value": "cancel"
+      }
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+N"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": true
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "save_file",
+        "cancel": true
+      }
+    },
+    {
+      "action": "command",
+      "command": "export_png"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "command",
+      "command": "history"
+    },
+    {
+      "action": "remember",
+      "name": "readonly",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+V"
+    },
+    {
+      "action": "key",
+      "key": "Delete"
+    },
+    {
+      "action": "key",
+      "key": "T"
+    },
+    {
+      "action": "command",
+      "command": "properties"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "readonly"
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "capture",
+      "capture": "unicode-label"
+    }
+  ]
+}

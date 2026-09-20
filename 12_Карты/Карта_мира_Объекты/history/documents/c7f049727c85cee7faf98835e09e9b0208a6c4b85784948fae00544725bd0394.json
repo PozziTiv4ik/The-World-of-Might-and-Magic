@@ -1,0 +1,278 @@
+{
+  "base": "history/documents/da8745b9225d1210031371538e1c28fb297e217628382a54ca47fa456bfb7470.json",
+  "changes": [
+    {
+      "after": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+      "before": "Александрос взял Хорнбург и пленил Эйтрига Даркхольма, закрыв один из главных мятежных узлов востока. Но новые донесения резко меняют карту угроз: Багровый Пик истекает силами, Кровавый Барон идет к родному Порт-Вингарду Александроса, Гектор разоряет Солнечное Копье, а Черная гора снова становится полем боя.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Черная гора",
+      "before": "Хорнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0102"
+      ],
+      "before": [
+        "LOC-0089"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1785,
+        390
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0119",
+      "before": "SCENE-0010",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Харрингтон/Сцена_001_Черная_гора.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_010_Хорнбург_и_новые_донесения.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "0a33ee57232d0fa0d5c0f4e5eb055993db40a0bc2b603d5d609700ce43b0f12e",
+      "before": "c201632be9ccef1fa388e498b5ef3cc58d99f0e13d84d6c3e3c920d674d367c8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 18432,
+      "before": 17408,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 001. Черная гора",
+      "before": "Сцена 010. Хорнбург и новые донесения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": {
+        "entity_id": "CHAR-0137",
+        "evidence_ids": [],
+        "font_size": 19,
+        "id": "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "kind": "symbol",
+        "known_to": [],
+        "label_offset": [
+          10,
+          -19
+        ],
+        "last_scene_id": "SCENE-0119",
+        "layer_id": "LAYER-CAMPAIGN-HEROES",
+        "location_id": "LOC-0102",
+        "name": "Харрингтон",
+        "opacity": 1,
+        "position": [
+          1767,
+          412
+        ],
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_actor",
+        "rotation": 0,
+        "show_label": true,
+        "size": 28,
+        "story_position": [
+          1785,
+          390
+        ],
+        "stroke": "#387C60",
+        "symbol_id": "story-actor",
+        "text_color": "#387C60",
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4503
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137"
+      ]
+    },
+    {
+      "after": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+      "before": "Александрос взял Хорнбург и пленил Эйтрига Даркхольма, закрыв один из главных мятежных узлов востока. Но новые донесения резко меняют карту угроз: Багровый Пик истекает силами, Кровавый Барон идет к родному Порт-Вингарду Александроса, Гектор разоряет Солнечное Копье, а Черная гора снова становится полем боя.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0102",
+      "before": "LOC-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Черная гора",
+      "before": "Хорнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1785,
+        390
+      ],
+      "before": [
+        2082,
+        636
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0119",
+      "before": "SCENE-0010",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-DF86D481-0AED-4E3A-B19A-6E10601B373F",
+      "before": "MAPVER-551BF86E-C966-47F0-BA92-C368E9FD5205",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Харрингтон",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Портал в преисподнюю в Черной горе закрыт, а ритуал шаманов хаоса сорван. Орки хаоса понесли сокрушительное поражение, но победа досталась дорогой ценой: погиб Лорд Кортес Солнечное Копье. Граф Истван выжил после второго штурма. Позднее он вместе с несколькими паладинами остался в Солнечном Копье, чтобы помогать местным жрецам лечить раненых после набега Гектора.",
+      "before": "Александрос взял Хорнбург и пленил Эйтрига Даркхольма, закрыв один из главных мятежных узлов востока. Но новые донесения резко меняют карту угроз: Багровый Пик истекает силами, Кровавый Барон идет к родному Порт-Вингарду Александроса, Гектор разоряет Солнечное Копье, а Черная гора снова становится полем боя.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-BLACK-MOUNTAIN"
+      ],
+      "before": [
+        "FRONT-HORNBURG"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0119",
+      "before": "SCENE-0010",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": 18432,
+      "before": 17408,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "0fbe653d5de621f2a625446f82ba0ec95677d8d2dcd77c5c744034240bd8632b",
+  "document_ref": "history/documents/7cd517972f1c12bdbf79fa27674ae16cae7b910b428a698698e1fff9fafdf72e.json",
+  "format": 2,
+  "id": "MAPVER-C4A16AD6-9FA7-4D19-8D21-0389DD1E3301",
+  "integrity": "231c3e5d8d9f4e41a149e554b79a6bd2755e0939baed34aa09010875cc2c6b6f",
+  "label": "Александрос · Тайная поимка Петира и портал под Тол-Меналасом",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-17B24266-989A-4797-83D3-0A424F7BFDF9",
+  "recorded_at": "2026-09-20T14:01:41.702Z",
+  "sequence": 72,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Тем же вечером после победы над Гормашем и тяжелых донесений о Порт-Вингарде в покои Александроса постучали. Вошел капитан имперской разведки Хагран, а двое его людей ввели пленника в темном одеянии с мешком на голове. Когда мешок сняли, Император увидел Петира. Хагран сообщил, что разведка сознательно скрыла поимку даже от торговых баронов.",
+    "evidence_ids": [
+      "SRC-0182"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0042",
+    "story_date": "тем же вечером после дуэли у Тол-Меналаса и донесений о Порт-Вингарде",
+    "story_order": 71680
+  }
+}

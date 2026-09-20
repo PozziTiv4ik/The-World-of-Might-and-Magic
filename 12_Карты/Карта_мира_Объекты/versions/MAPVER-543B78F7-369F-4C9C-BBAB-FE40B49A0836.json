@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 13,
+  "document_hash": "04b1f59b0be1f5e47cdbc88d284939af455d6008da1c37c90bba8e8cc5bc1ca9",
+  "document_ref": "history/documents/c0feaf94fd5aa1dc2551460bd715d7b28ee769828f98afd7107aedf7fce2711f.json",
+  "format": 2,
+  "id": "MAPVER-543B78F7-369F-4C9C-BBAB-FE40B49A0836",
+  "integrity": "f48cdd8b03406e52201b2bf3413cfb94d9dde61a6898c12cc9babfab25212745",
+  "label": "Александрос · Решения перед походом в Уайтбург",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-696F1EA4-384C-4A8F-939C-966694EF08E1",
+  "recorded_at": "2026-09-20T14:01:25.333Z",
+  "sequence": 64,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Обдумав доклады Елены, письмо Вито, первые удары Железной Орды и свои последние сны, Александрос принимает пакет решений перед отъездом из столицы. Первое распоряжение получает Елена. Император приказывает усилить агентурные силы вокруг Тол-Меналаса и приложить все усилия, чтобы Петир снова не избежал поимки.",
+    "evidence_ids": [
+      "SRC-0152"
+    ],
+    "front_ids": [
+      "FRONT-IRON-HORDE"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0038",
+    "story_date": "после письма Вито и первых ударов Орды; перед отбытием Александроса в Уайтбург",
+    "story_order": 63488
+  }
+}

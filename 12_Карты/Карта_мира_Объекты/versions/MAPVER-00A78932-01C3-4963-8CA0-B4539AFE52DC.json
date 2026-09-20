@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "288a691745e05310934bad420cf8ef1a4f1ab15af408212df520dece9a98184e",
+  "document_ref": "history/documents/83905b371119f3cf297510582b114da423426a6ac9194942d007d1f001c7075f.json",
+  "format": 2,
+  "id": "MAPVER-00A78932-01C3-4963-8CA0-B4539AFE52DC",
+  "integrity": "4fa916591f384917d4675eab55f97d985624268a4b9098bce4f4672dfc5d4c1d",
+  "label": "Михаэль · Отказ Каролине и поручение Онсерага",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-68CC32B4-87DA-4941-8CEB-6AB3EB89E905",
+  "recorded_at": "2026-09-20T14:02:48.392Z",
+  "sequence": 102,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Михаэль отказался покупать молчание Каролины предательством Нилуфар. Он прямо сказал принцессе, что если она считает его виновным в нарушении правил ордена, они пойдут к Онсерагу вместе, а сам Михаэль ответит перед главой ордена. Они вошли в комнату вскоре после того, как Онсераг закончил разговор с Лордом Ваном Даркхольмом.",
+    "evidence_ids": [
+      "SRC-0215"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0101",
+    "story_date": "вечер следующего дня после спасения Михаэля из Порт-Мантикоры",
+    "story_order": 102400
+  }
+}

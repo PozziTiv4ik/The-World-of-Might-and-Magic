@@ -1,0 +1,614 @@
+{
+  "base": "history/documents/c96413bf79a59e9b8eeda575ea452bc22353c052dea73389e3c41dcbc9f930bf.json",
+  "changes": [
+    {
+      "after": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ],
+      "before": [
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "arcs",
+        "ARC-MAPOBJ-ROUTE-CHAR-0059",
+        "nodes"
+      ]
+    },
+    {
+      "after": "через неделю после отплытия; четвертый день осады Цитадели Солнца",
+      "before": "на следующий день после прибытия Михаэля в Порт-Мантикору",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Союзники взяли Цитадель Солнца. Вито убил Короля Солнца; посох уничтожен.",
+      "before": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Солнечные острова; город у Цитадели Солнца; Цитадель Солнца",
+      "before": "Порт-Мантикора и саванна Кланов Закона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0075",
+        "LOC-0100"
+      ],
+      "before": [
+        "LOC-0064"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1595,
+        1710
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0097",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_054_Штурм_Цитадели_Солнца_и_гибель_Короля_Солнца.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_034_Письма,_охота_и_темный_эльф_в_Порт-Мантикоре.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e068ffa312ab161b37397c9af28beef547daa902ed575328f4a6c4599897ca1d",
+      "before": "ab3e25b0b07077be1d4d53085563b364474fdd695517bec5a57576fe60a6cdc0",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 95232,
+      "before": 94208,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 054. Штурм Цитадели Солнца и гибель Короля Солнца",
+      "before": "Сцена 034. Письма, охота и темный эльф в Порт-Мантикоре",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0211"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0053",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0100",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1792,
+        1118
+      ],
+      "before": [
+        1843,
+        814
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0115"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0018",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0100",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1756,
+        1162
+      ],
+      "before": [
+        1902,
+        769
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Союзники взяли Цитадель Солнца. Вито убил Короля Солнца; посох уничтожен.",
+      "before": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0100",
+      "before": "LOC-0064",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0208"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Солнца",
+      "before": "Порт-Мантикора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1595,
+        1710
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0097",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Союзники взяли цитадель; Король Солнца погиб",
+      "before": "Морская блокада",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0100",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0037",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0100",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0100",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0100",
+        "text_color"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0054",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0115"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0137",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0018",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0137",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        2265,
+        1245
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1770,
+        1115
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-2"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1785,
+        390
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0137-0"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0137-1"
+      ]
+    },
+    {
+      "after": "MAPVER-1F4981CA-B762-4237-8E82-D48086695253",
+      "before": "MAPVER-CE4C5026-5849-4E51-AC7C-09D95C147D9B",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Союзники взяли Цитадель Солнца. Вито убил Короля Солнца; посох уничтожен.",
+      "before": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0208"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-TAR-ELAM"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0054",
+      "before": "SCENE-0097",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "через неделю после отплытия; четвертый день осады Цитадели Солнца",
+      "before": "на следующий день после прибытия Михаэля в Порт-Мантикору",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 95232,
+      "before": 94208,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

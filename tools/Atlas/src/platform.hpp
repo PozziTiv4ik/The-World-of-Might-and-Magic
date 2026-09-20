@@ -54,6 +54,7 @@ std::wstring wide(const std::string &s);
 std::string utf8(const std::wstring &s);
 std::string pathText(const fs::path &p);
 fs::path pathOf(const std::string &s);
+fs::path nativePath(const fs::path &);
 Bytes readBytes(const fs::path &p, size_t limit = 512 * 1024 * 1024);
 std::string readText(const fs::path &p);
 void atomicWrite(const fs::path &p, const Bytes &b);

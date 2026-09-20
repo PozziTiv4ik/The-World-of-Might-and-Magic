@@ -1,0 +1,314 @@
+{
+  "schema_version": 1,
+  "name": "03-revisions-and-dates",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Первый день",
+          "Глава": "1",
+          "Дата / момент мира": "2020-01-01",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "remember",
+      "name": "v1",
+      "pointer": "/selected_version"
+    },
+    {
+      "action": "remember",
+      "name": "v1_hash",
+      "pointer": "",
+      "target": "file_hash",
+      "file": "map/versions/${v1}.json"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "open_moment"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "map"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Свойства карты",
+        "values": {
+          "Название": "Карта после редактирования"
+        }
+      }
+    },
+    {
+      "action": "key",
+      "key": "F2"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": false
+    },
+    {
+      "action": "remember",
+      "name": "v2",
+      "pointer": "/parent_version"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 1
+    },
+    {
+      "action": "assert",
+      "pointer": "/revisions",
+      "equals": 2
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "select_revision",
+        "data": "${v1}"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "open_moment"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/name",
+      "equals": "Проверка Atlas",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "select_revision",
+        "data": "${v2}"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "open_moment"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/name",
+      "equals": "Карта после редактирования",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "compare"
+      }
+    },
+    {
+      "action": "assert",
+      "pointer": "/mode",
+      "equals": "compare"
+    },
+    {
+      "action": "assert",
+      "pointer": "/diff_count",
+      "gt": 0
+    },
+    {
+      "action": "capture",
+      "capture": "compare-revisions"
+    },
+    {
+      "action": "command",
+      "command": "compare_overlay"
+    },
+    {
+      "action": "assert",
+      "pointer": "/compare_mode",
+      "equals": 2
+    },
+    {
+      "action": "capture",
+      "capture": "overlay"
+    },
+    {
+      "action": "command",
+      "command": "history"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "file_hash",
+      "file": "map/versions/${v1}.json",
+      "equals_ref": "v1_hash"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Позднее событие",
+          "Глава": "1",
+          "Дата / момент мира": "2020-03-01",
+          "Место в истории": "В конце главы"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новое событие",
+        "values": {
+          "Название": "Добавлено в прошлое",
+          "Глава": "1",
+          "Дата / момент мира": "2020-02-01",
+          "Место в истории": "Перед выбранным событием"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "new_event"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 3
+    },
+    {
+      "action": "remember",
+      "name": "middle",
+      "pointer": "/selected_version"
+    },
+    {
+      "action": "key",
+      "key": "Home"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "select_version",
+        "index": 0
+      }
+    },
+    {
+      "action": "key",
+      "key": "Right"
+    },
+    {
+      "action": "assert",
+      "pointer": "/selected_version",
+      "equals": "${middle}"
+    },
+    {
+      "action": "command",
+      "command": "sort",
+      "data": "date"
+    },
+    {
+      "action": "key",
+      "key": "Home"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "select_version",
+        "index": 0
+      }
+    },
+    {
+      "action": "key",
+      "key": "Right"
+    },
+    {
+      "action": "assert",
+      "pointer": "/selected_version",
+      "equals": "${middle}"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Дата и порядок",
+        "values": {
+          "Название": "Уточнённый момент",
+          "Дата / момент мира": "2020-02-02"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "edit_event"
+    },
+    {
+      "action": "capture",
+      "capture": "dated-timeline"
+    },
+    {
+      "action": "validate_history"
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+H"
+    },
+    {
+      "action": "assert",
+      "pointer": "/events",
+      "equals": 3
+    },
+    {
+      "action": "validate_history"
+    }
+  ]
+}

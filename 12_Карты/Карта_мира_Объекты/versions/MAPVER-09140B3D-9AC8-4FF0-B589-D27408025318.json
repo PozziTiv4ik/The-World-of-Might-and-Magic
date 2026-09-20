@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "bca80f8d23b61a7de7d0a4f0448f45da53f3232c6987a9f157567aa4b772ca76",
+  "document_ref": "history/documents/cc582f9cb81f9a504f818bb012e8b939d7bd6500455ffa2c23b125e01aa63245.json",
+  "format": 2,
+  "id": "MAPVER-09140B3D-9AC8-4FF0-B589-D27408025318",
+  "integrity": "f4e28ad8818fc7ab9f928ac6eae8acc67646e1b25aa0bb2a3f63b068666c7795",
+  "label": "Никитосиос · Сражение гидр и приглашение на Великую арену",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-9914F24A-F6B1-4672-9FF1-23BBF49DD665",
+  "recorded_at": "2026-09-20T14:02:15.379Z",
+  "sequence": 88,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "За две недели гладиаторских боев Никитосиос, Вариан, Бейн, Роган и Эгвин успели снискать славу и популярность. Их пятерку начали называть Багровой гидрой. Местная знать сочла прозвище забавным и решила устроить для зрителей буквальное «сражение гидр»: отряд должны были бросить против древней темной гидры. Перед боем гладиаторы тренировались как единая группа и закрепили профильное оружие.",
+    "evidence_ids": [
+      "SRC-0199"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0111",
+    "story_date": "спустя две недели гладиаторских боев и поединков",
+    "story_order": 88064
+  }
+}

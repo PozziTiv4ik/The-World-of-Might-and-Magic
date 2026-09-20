@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 4,
+  "document_hash": "df54ffde7ce717a7f1568a5252945a6dc98d073e6b451bdf7f8a2686f5baaa12",
+  "document_ref": "history/documents/d81f5ceddfd8cdc42350712f6ba64dd59e86c4b11fdd017378358cacf023d0d4.json",
+  "format": 2,
+  "id": "MAPVER-AF4EEA1B-1335-41C6-ACD2-D2274CE04109",
+  "integrity": "f5afe6725154eaeec7cae74afbab45dd4c492173e4c20fbad40ea749c20fffde",
+  "label": "Михаэль · Крепость Сокола",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-231A29D1-B934-4AC7-9AFB-42CF15C33623",
+  "recorded_at": "2026-09-20T14:00:02.536Z",
+  "sequence": 22,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Сцена 009. Крепость Сокола",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-FALCON-FORTRESS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0072",
+    "story_date": "первые недели после Дня Единения Империи",
+    "story_order": 21504
+  }
+}

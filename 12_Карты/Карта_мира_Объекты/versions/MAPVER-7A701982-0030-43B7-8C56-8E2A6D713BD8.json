@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "aeb27a1fb801f7c80de26e52fcbf77ab694558e9ab702abd4ec0d830f6c20518",
+  "document_ref": "history/documents/30d3bcea96db967f8c0413124f809a7c4ad37b958d41c96a04b19bb031064c3f.json",
+  "format": 2,
+  "id": "MAPVER-7A701982-0030-43B7-8C56-8E2A6D713BD8",
+  "integrity": "53f0f592699e78c3cc14eeb2b78cd4c748877c6447d4d54b03392739ca2d16ca",
+  "label": "Александрос · Просьба Берена об Имперском союзе торговцев",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-FE2A91B0-6C00-47A1-9F7A-4F63447B43F8",
+  "recorded_at": "2026-09-20T14:01:08.938Z",
+  "sequence": 56,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "На следующий день после сна о стене к Александросу приходит проситель из Белой Гавани. Молодой человек представляется Береном и рассказывает, что долгие годы работал на своего отца Белиора, одного из влиятельных торговцев города. Берен учился у него, и семейное дело процветало. Со временем Берен увидел, что торговая модель отца могла быть эффективнее, и предложил более жесткий способ ведения дела.",
+    "evidence_ids": [
+      "SRC-0145"
+    ],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0034",
+    "story_date": "на следующий день после сна о стене",
+    "story_order": 55296
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "1116db151cad2aaf6d97dfc1234dcc3fc57beb21faa3301e3e85ddde50342155",
+  "document_ref": "history/documents/1116db151cad2aaf6d97dfc1234dcc3fc57beb21faa3301e3e85ddde50342155.json",
+  "format": 2,
+  "id": "MAPVER-7C2DDDD8-92D9-496B-BBC9-6EE8FEA786EF",
+  "integrity": "7907bfee60e4be40061ad911b2ec0c0bb40902c81b4b17d8d41cb7c2bd881a2d",
+  "label": "Глава 2 · Гражданская война",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-BFF0E594-761D-451F-A20C-F5E42FE534F2",
+  "recorded_at": "2026-09-20T14:00:24.773Z",
+  "sequence": 34,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "chapters",
+    "chapter": 2,
+    "description": "Состояние мира после последней сцены главы 2. Все моменты главы доступны в цепочке «Вся история».",
+    "evidence_ids": [
+      "SRC-0117"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0017",
+    "story_date": "после падения Лордамера, возвращение Александроса в столицу",
+    "story_order": 2048
+  }
+}

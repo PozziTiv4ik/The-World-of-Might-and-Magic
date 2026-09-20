@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 3,
+  "document_hash": "219067fde5b8ed8596c9acf90e1c6afe42027ba831e6d0caeea23a51082b5b41",
+  "document_ref": "history/documents/9bb47dccf0ed225fb56761d3f0c040cbb45b081e5f9824a01ed66449b997029e.json",
+  "format": 2,
+  "id": "MAPVER-10FB6856-A4ED-4DB3-901A-2A9BDA0FB201",
+  "integrity": "31f216858fad4f51c8bc1469151b07493ba3ae29d1bc4b257dedb87c14a491ed",
+  "label": "Александрос · Приказы после разорения столицы и возвращение Императора",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-60EAF3C5-41C8-4557-BFD2-C9EE1476F2A5",
+  "recorded_at": "2026-09-20T14:02:11.196Z",
+  "sequence": 86,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Получив донесения о разорении столицы, письме Константиноса, просьбе Дария и сообщении Уриона о предполагаемой гибели Михаэля и Нилуфар, Александрос не стал терять ни секунды. Император сел за ближайший стол и начал писать один приказ за другим. В столицу он распорядился выделить лучших лекарей и жрецов для Лорда Лоренцо: тот должен выжить.",
+    "evidence_ids": [
+      "SRC-0196"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0049",
+    "story_date": "сразу после донесений о разорении столицы и письма Ланикеи",
+    "story_order": 86016
+  }
+}

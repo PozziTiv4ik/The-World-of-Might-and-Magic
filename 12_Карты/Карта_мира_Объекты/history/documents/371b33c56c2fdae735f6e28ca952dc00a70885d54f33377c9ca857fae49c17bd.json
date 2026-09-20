@@ -1,0 +1,332 @@
+{
+  "base": "history/documents/70873e1894e88d0b49d8401584a1a5a304f3e03be8bc6be3eba515f6553d4789.json",
+  "changes": [
+    {
+      "after": "от 2 дней до Дня Единения до Дня Единения Империи",
+      "before": "от 3 дней до Дня Единения до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "before": "\"Операция: Теневой Триумф\" не провалилась полностью: именно действия Михаэля, Картоса и Никитосиоса помогли раскрыть значительную часть заговора и уничтожить большую массу наемников в столице. Но главная цель Михаэля - контролируемый триумф и личный политический взлет - была сорвана. Заговор оказался глубже, чем он думал, а Петир использовал расследование, аресты и ложные направления как часть более крупного удара.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света; столица; имение Барона Ривертона; южные ворота",
+      "before": "катакомбы столицы; Цитадель Вечного Света; имение Барона Ривертона; южные ворота столицы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": "SCENE-0069",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_008_День_Единения_и_предательство_Петира.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_006_Катакомбы_и_провал_Теневого_Триумфа.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "04a7393e7f56667871c0504ee4f6ed09d79fdd426f6456ddef254e84b47eecb6",
+      "before": "af078ebe4fc5c278fb4093d7acbd0ec32c8acdfa6f03737d562f187a3b268ffc",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 14336,
+      "before": 13312,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 008. День Единения и предательство Петира",
+      "before": "Сцена 006. Катакомбы и провал Теневого Триумфа",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": "SCENE-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": "SCENE-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": "SCENE-0069",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "before": "\"Операция: Теневой Триумф\" не провалилась полностью: именно действия Михаэля, Картоса и Никитосиоса помогли раскрыть значительную часть заговора и уничтожить большую массу наемников в столице. Но главная цель Михаэля - контролируемый триумф и личный политический взлет - была сорвана. Заговор оказался глубже, чем он думал, а Петир использовал расследование, аресты и ложные направления как часть более крупного удара.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": "SCENE-0069",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Занят войсками гномов",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0066",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0066",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0066",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0066",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Флот Лордамера вошёл в город",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0085",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Восстание против Короны",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "text_color"
+      ]
+    },
+    {
+      "after": "MAPVER-1D96572B-B4EE-4994-B30D-4B2334716B5D",
+      "before": "MAPVER-E9125E76-168C-43AB-9847-4C21B782147E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "before": "\"Операция: Теневой Триумф\" не провалилась полностью: именно действия Михаэля, Картоса и Никитосиоса помогли раскрыть значительную часть заговора и уничтожить большую массу наемников в столице. Но главная цель Михаэля - контролируемый триумф и личный политический взлет - была сорвана. Заговор оказался глубже, чем он думал, а Петир использовал расследование, аресты и ложные направления как часть более крупного удара.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": "SCENE-0008",
+      "before": "SCENE-0069",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "от 2 дней до Дня Единения до Дня Единения Империи",
+      "before": "от 3 дней до Дня Единения до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 14336,
+      "before": 13312,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

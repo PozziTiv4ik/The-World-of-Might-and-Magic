@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 9,
+  "document_hash": "366fb786cdffc9ac93fb8358f7391e3945f0cde9895da0fa250b73fa404dd9a2",
+  "document_ref": "history/documents/aaef49164321dbd1ffb7cb0a9e73f4690e658fe1fa485042b2ae2b3bf5140e64.json",
+  "format": 2,
+  "id": "MAPVER-CD2F32AA-3A53-4A67-A972-5F7AA47E652F",
+  "integrity": "654a894afcd4d3ad0c2609ab04e67e79fe765c0bd4d94e34c2868299abc3e8de",
+  "label": "Александрос · Сон о пылающем оке и пророчество трех лун",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-12BE1785-4F14-497C-963C-9F773D6BA987",
+  "recorded_at": "2026-09-20T14:00:44.386Z",
+  "sequence": 44,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Этой же ночью Александрос почти не может уснуть. Когда сон наконец приходит, Император видит не успокоение, а новый кошмар. Железная Орда грабит Цитадель Света и уничтожает столицу до основания; Петир убивает Михаэля в кабинете ударом кинжала в спину; Никитосиос отворачивается от отца в час нужды; Харрингтон лежит мертвым среди снегов ледяных хребтов, а над его телом возвышается Демитриос.",
+    "evidence_ids": [
+      "SRC-0127"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0023",
+    "story_date": "ночь и следующий день после свадьбы Михаэля и Нилуфар",
+    "story_order": 43008
+  }
+}

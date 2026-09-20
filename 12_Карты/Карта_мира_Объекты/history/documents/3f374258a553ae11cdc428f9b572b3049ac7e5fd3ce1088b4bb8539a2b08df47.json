@@ -1,0 +1,218 @@
+{
+  "base": "history/documents/57e161784c305d1fd3ef4f26b04f20b4922758fd59d604bbd95ccff1d010687e.json",
+  "changes": [
+    {
+      "after": "на следующий день после свадьбы Михаэля и Нилуфар; спустя некоторое время после приказа о миссии в Порт-Лабад",
+      "before": "на следующий день после свадьбы Михаэля и Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+      "before": "Тщательно обдумав предложение Елены, Александрос отказывается от саботажа флота Торговой Компании. Император не хочет провоцировать конфликт с Железной Ордой и запрещает использовать готовый железный флот как прикрытие для тайного удара по Хельмару. Вместо этого он приказывает Елене сосредоточить внедренных агентов на выяснении точного местоположения Петира.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань / Порт-Лабад",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0081",
+      "before": "SCENE-0022",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_018_Порт-Лабад_и_след_Бессмертного_Императора.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_022_Отказ_от_саботажа_и_тайный_путь_к_Гормашу.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "775af5d2a6f6adb04fd44eb443713d40f498c89d6121671c5e822091cb416ce1",
+      "before": "86f2e18ffc4e3446e7fe197e609f2e5391929453d1c33b624f2722069b475653",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 41984,
+      "before": 40960,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 018. Порт-Лабад и след Бессмертного Императора",
+      "before": "Сцена 022. Отказ от саботажа и тайный путь к Гормашу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0124"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0081",
+      "before": "SCENE-0080",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+      "before": "Тщательно обдумав предложение Елены, Александрос отказывается от саботажа флота Торговой Компании. Император не хочет провоцировать конфликт с Железной Ордой и запрещает использовать готовый железный флот как прикрытие для тайного удара по Хельмару. Вместо этого он приказывает Елене сосредоточить внедренных агентов на выяснении точного местоположения Петира.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "SRC-0125"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0081",
+      "before": "SCENE-0022",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-FCF6E3A1-3D75-4D9B-8B4C-C1DA5AF803E0",
+      "before": "MAPVER-220D1A2A-D832-4256-B2FC-79DDF6A47981",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "В Белой Гавани готовят торговую и дипломатическую миссию. Нилуфар предлагает личную поездку в Порт-Лабад.",
+      "before": "Тщательно обдумав предложение Елены, Александрос отказывается от саботажа флота Торговой Компании. Император не хочет провоцировать конфликт с Железной Ордой и запрещает использовать готовый железный флот как прикрытие для тайного удара по Хельмару. Вместо этого он приказывает Елене сосредоточить внедренных агентов на выяснении точного местоположения Петира.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0081",
+      "before": "SCENE-0022",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "на следующий день после свадьбы Михаэля и Нилуфар; спустя некоторое время после приказа о миссии в Порт-Лабад",
+      "before": "на следующий день после свадьбы Михаэля и Нилуфар",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 41984,
+      "before": 40960,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

@@ -1,0 +1,261 @@
+{
+  "base": "history/documents/3392d1cc3d0db748747214dbcd4dcf2870f9a23f78c718846e7a8ed69174c8be.json",
+  "changes": [
+    {
+      "after": "за 1 неделю и 5 дней до Дня Единения Империи",
+      "before": "за 2 недели до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Александрос решил не вмешиваться немедленно и приказал пока наблюдать за ситуацией с Владиславом. Ответ Императора послу был однозначен: Империя будет следить за развитием событий, но пока прямой угрозы нет, Александрос не хочет рисковать своими людьми и отправлять их на проклятый север без действительно веской причины.",
+      "before": "Идея усилить любимую гвардию наемников пришлась Михаэлю по душе, особенно учитывая редкость такой элитной экипировки. Принц согласился на условия Эванессы и подчеркнул возможность будущего торгового сближения. Эванесса была рада такому развитию событий. Вечером был устроен небольшой пир в честь сделки, а часть товара из сундука уже в этот же день принесла неплохую прибыль гильдии Михаэля.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, приватная аудиенция",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0007"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0003",
+      "before": "SCENE-0064",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_003_След_Владислава.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_001_Сделка_Уайтбурга.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "7d687f702d5d21905c4953ff22ac2edd39cf272e6c6f3ecabf24623de1cf3163",
+      "before": "47d576903a680334b7ca64d8dd31217c13412919d06bdcc1c2502d9f9f1aa579",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 4096,
+      "before": 3072,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 003. След Владислава",
+      "before": "Сцена 001. Сделка Уайтбурга",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0003",
+      "before": "SCENE-0002",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Александрос решил не вмешиваться немедленно и приказал пока наблюдать за ситуацией с Владиславом. Ответ Императора послу был однозначен: Империя будет следить за развитием событий, но пока прямой угрозы нет, Александрос не хочет рисковать своими людьми и отправлять их на проклятый север без действительно веской причины.",
+      "before": "Идея усилить любимую гвардию наемников пришлась Михаэлю по душе, особенно учитывая редкость такой элитной экипировки. Принц согласился на условия Эванессы и подчеркнул возможность будущего торгового сближения. Эванесса была рада такому развитию событий. Вечером был устроен небольшой пир в честь сделки, а часть товара из сундука уже в этот же день принесла неплохую прибыль гильдии Михаэля.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0003",
+      "before": "SCENE-0064",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-FE79CE89-3862-4112-AD12-E68238563C0C",
+      "before": "MAPVER-323A9BB1-286B-4CA7-A801-CDD95D9A6F69",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Александрос решил не вмешиваться немедленно и приказал пока наблюдать за ситуацией с Владиславом. Ответ Императора послу был однозначен: Империя будет следить за развитием событий, но пока прямой угрозы нет, Александрос не хочет рисковать своими людьми и отправлять их на проклятый север без действительно веской причины.",
+      "before": "Идея усилить любимую гвардию наемников пришлась Михаэлю по душе, особенно учитывая редкость такой элитной экипировки. Принц согласился на условия Эванессы и подчеркнул возможность будущего торгового сближения. Эванесса была рада такому развитию событий. Вечером был устроен небольшой пир в честь сделки, а часть товара из сундука уже в этот же день принесла неплохую прибыль гильдии Михаэля.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-ELVES-ITLINBURG"
+      ],
+      "before": [
+        "FRONT-WHITEBURG"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0003",
+      "before": "SCENE-0064",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "за 1 неделю и 5 дней до Дня Единения Империи",
+      "before": "за 2 недели до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 4096,
+      "before": 3072,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

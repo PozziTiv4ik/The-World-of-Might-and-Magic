@@ -1,0 +1,45 @@
+{
+  "base": "history/documents/371b33c56c2fdae735f6e28ca952dc00a70885d54f33377c9ca857fae49c17bd.json",
+  "changes": [
+    {
+      "after": "MAPVER-E19195AE-DCF6-4501-B287-7735730AD06B",
+      "before": "MAPVER-1D96572B-B4EE-4994-B30D-4B2334716B5D",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "chapters",
+      "before": "main",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "chain_id"
+      ]
+    },
+    {
+      "after": "Состояние мира после последней сцены главы 1. Все моменты главы доступны в цепочке «Вся история».",
+      "before": "День Единения заканчивается предательством и открытой войной. На карте отмечены потерянные города и восстание Хорнбурга.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": 1024,
+      "before": 14336,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

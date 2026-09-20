@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "10afebf24488e4d511158f23096bcee219016800684f7aa803730ac148facb9c",
+  "document_ref": "history/documents/409d90ca3bfee0f0d18194ad50405f0102881b02752e142728ce0a429857730e.json",
+  "format": 2,
+  "id": "MAPVER-E3D87B12-11C0-47DA-91EC-9534F9262052",
+  "integrity": "af777b864694d9cdff617885167808401da557b92a6cfea9df41645600b20494",
+  "label": "Александрос · Штурм Хорнбурга и ожерелье затмения",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-D9FDEFD0-78B1-46A5-8D4C-E1A4638B65CC",
+  "recorded_at": "2026-09-20T14:02:52.001Z",
+  "sequence": 104,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Хорнбург освобождён. Портал уничтожен, Ван найден живым.",
+    "evidence_ids": [
+      "SRC-0219"
+    ],
+    "front_ids": [
+      "FRONT-HORNBURG"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0058",
+    "story_date": "спустя неделю осады Хорнбурга",
+    "story_order": 104448
+  }
+}

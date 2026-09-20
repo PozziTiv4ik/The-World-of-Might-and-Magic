@@ -1,0 +1,516 @@
+{
+  "base": "history/documents/3c5529cc84364015125b21a9b386614e1f7adf570584a757cab027cbadcbd224.json",
+  "changes": [
+    {
+      "after": "во время аудиенции лидеров Союза у Короля Авалона в Валантиде",
+      "before": "несколько дней после отхода Союза от Тар-Хиконы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+      "before": "Союз восстанавливается в Валантиде. Механизмы находятся в Валантиде и Элирии; Никитосиос направляется к Элирии.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Валантида и Андрианаполис, Остров Серебряной Луны",
+      "before": "Валантида, Остров Серебряной Луны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": "SCENE-0062",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_044_Андрианаполис,_помилование_и_сон_Серагона.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_062_Валантида,_подготовка_Союза_и_угроза_Сумеречной_Луне.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "ee18338340578472893c400916196963ae30d78d723a42e72264bc00fbe0d50d",
+      "before": "20a72858a28f0f18097329bbd723e6f10eec33713510b8ee158e300c05b8203c",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 121856,
+      "before": 120832,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 044. Андрианаполис, помилование и сон Серагона",
+      "before": "Сцена 062. Валантида, подготовка Союза и угроза Сумеречной Луне",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": "SCENE-0118",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0114",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [
+        "SRC-0234",
+        "SRC-0235"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": "SCENE-0118",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+      "before": "Союз восстанавливается в Валантиде. Механизмы находятся в Валантиде и Элирии; Никитосиос направляется к Элирии.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [
+        "SRC-0233"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": "SCENE-0062",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Получено разрешение на штаб гильдии",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0002",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0002",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0002",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#2F7CA4",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0002",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#2F7CA4",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0002",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Склады гильдии построены",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0086",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0086",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0086",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0086",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0086",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Штаб гильдии открыт",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0096",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0096",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0096",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0096",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0096",
+        "text_color"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0114",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0234",
+          "SRC-0235"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0114",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Никитосиос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0118",
+        "stroke": "#A44E56",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0114"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0234",
+          "SRC-0235"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0118",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-8DB790BB-3E28-4191-A948-124429A90E7D",
+      "before": "MAPVER-48C411F6-FEDC-47F7-AC90-5B6EE1693DD8",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+      "before": "Союз восстанавливается в Валантиде. Механизмы находятся в Валантиде и Элирии; Никитосиос направляется к Элирии.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0232"
+      ],
+      "before": [
+        "SRC-0233"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-THREE-MOONS",
+        "FRONT-WAR-TREASURY"
+      ],
+      "before": [
+        "FRONT-THREE-MOONS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0107",
+      "before": "SCENE-0062",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "во время аудиенции лидеров Союза у Короля Авалона в Валантиде",
+      "before": "несколько дней после отхода Союза от Тар-Хиконы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 121856,
+      "before": 120832,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

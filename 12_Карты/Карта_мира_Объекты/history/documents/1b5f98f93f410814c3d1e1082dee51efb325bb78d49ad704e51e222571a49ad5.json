@@ -1,0 +1,305 @@
+{
+  "base": "history/documents/2e3eb23e61ed00a70c87986d55fb49e4e845462e03a84113032d42cd52de848a.json",
+  "changes": [
+    {
+      "after": "после разговора с Нилуфар; следующее утро после сделки с Петиром",
+      "before": "на следующий день после разговора с Александросом; утро следующего дня",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "После разговора с Нилуфар Александрос вызвал Петира и объявил собственные условия сотрудничества. Предателя тайно перевезут в столицу, в Цитадель Вечного Света, где он будет находиться под строгим надзором Елены. Обещанные удобства сохраняются, но жизнь и положение Петира теперь прямо зависят от того, насколько полезными и проверяемыми окажутся его сведения.",
+      "before": "На следующий день после разговора с Александросом Михаэль и его спутники к вечеру вернулись в Алиманджад. В тайном зале Ордена затмения их ждал Онсераг — впервые не магической проекцией, а лично. Нилуфар отчиталась об исследовании древнего храма и передала сведения о хранилище Бессмертного Императора. Михаэль сообщил о предложенной Александросу модели Имперских Торговых Протекторатов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Тол-Меналас; Белая Гавань, Порт-Вингард и Южный континент через приказы",
+      "before": "Алиманджад; путь на север к хранилищу Бессмертного Императора",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0083"
+      ],
+      "before": [
+        "LOC-0001"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2516,
+        805
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0044",
+      "before": "SCENE-0090",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_044_Сделка_с_Петиром_и_новый_марш_против_Орды.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_027_Поручение_Онсерага_и_путь_к_хранилищу.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "db1eee8bcc8ec9230a2ebff200c0b73a926f4f91552d200cd5b0b820a252cdcf",
+      "before": "c7970144e34a09c6d738203479511863a73d27f91288c9898da76ee7fcca1e27",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 76800,
+      "before": 75776,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 044. Сделка с Петиром и новый марш против Орды",
+      "before": "Сцена 027. Поручение Онсерага и путь к хранилищу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0179"
+      ],
+      "before": [
+        "SRC-0181"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0044",
+      "before": "SCENE-0043",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "После разговора с Нилуфар Александрос вызвал Петира и объявил собственные условия сотрудничества. Предателя тайно перевезут в столицу, в Цитадель Вечного Света, где он будет находиться под строгим надзором Елены. Обещанные удобства сохраняются, но жизнь и положение Петира теперь прямо зависят от того, насколько полезными и проверяемыми окажутся его сведения.",
+      "before": "На следующий день после разговора с Александросом Михаэль и его спутники к вечеру вернулись в Алиманджад. В тайном зале Ордена затмения их ждал Онсераг — впервые не магической проекцией, а лично. Нилуфар отчиталась об исследовании древнего храма и передала сведения о хранилище Бессмертного Императора. Михаэль сообщил о предложенной Александросу модели Имперских Торговых Протекторатов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0083",
+      "before": "LOC-0001",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0179"
+      ],
+      "before": [
+        "SRC-0180"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Тол-Меналас",
+      "before": "Алиманджад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2516,
+        805
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0044",
+      "before": "SCENE-0090",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-36563D7F-C6D0-41CD-9723-92C37C649F45",
+      "before": "MAPVER-F38E36E4-E6E4-4905-B6B5-DCF1873006CE",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "После разговора с Нилуфар Александрос вызвал Петира и объявил собственные условия сотрудничества. Предателя тайно перевезут в столицу, в Цитадель Вечного Света, где он будет находиться под строгим надзором Елены. Обещанные удобства сохраняются, но жизнь и положение Петира теперь прямо зависят от того, насколько полезными и проверяемыми окажутся его сведения.",
+      "before": "На следующий день после разговора с Александросом Михаэль и его спутники к вечеру вернулись в Алиманджад. В тайном зале Ордена затмения их ждал Онсераг — впервые не магической проекцией, а лично. Нилуфар отчиталась об исследовании древнего храма и передала сведения о хранилище Бессмертного Императора. Михаэль сообщил о предложенной Александросу модели Имперских Торговых Протекторатов.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0179"
+      ],
+      "before": [
+        "SRC-0180"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0044",
+      "before": "SCENE-0090",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после разговора с Нилуфар; следующее утро после сделки с Петиром",
+      "before": "на следующий день после разговора с Александросом; утро следующего дня",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 76800,
+      "before": 75776,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

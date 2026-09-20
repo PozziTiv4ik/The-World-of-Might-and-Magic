@@ -1,0 +1,311 @@
+{
+  "base": "history/documents/d5e3eb81d720b07300480dd78c1813bc0940d66e9147cb13da64087a085d58d4.json",
+  "changes": [
+    {
+      "after": "спустя несколько дней после ухода Эрин из Багрового Пика",
+      "before": "после освобождения Уайтбурга",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+      "before": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Багровый Пик; походная ставка Александроса",
+      "before": "Уайтбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0004"
+      ],
+      "before": [
+        "LOC-0085"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1870,
+        500
+      ],
+      "before": [
+        2086,
+        807
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0012",
+      "before": "SCENE-0073",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_012_Эрин,_печати_Бездны_и_донесения_совета.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_010_Уайтбург,_письмо_Вито_и_казна_войны.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e0a9630e030f67cdd92b2367467aad1efe3abdcc34d4c43dea64b0a78d420022",
+      "before": "aa58d487fb052424f4528a8379f31adafebd6491360b723f7176014a78f642f1",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 23552,
+      "before": 22528,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 012. Эрин, печати Бездны и донесения совета",
+      "before": "Сцена 010. Уайтбург, письмо Вито и казна войны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0074"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0012",
+      "before": "SCENE-0011",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+      "before": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0004",
+      "before": "LOC-0085",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Багровый Пик",
+      "before": "Уайтбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1870,
+        500
+      ],
+      "before": [
+        2086,
+        807
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0012",
+      "before": "SCENE-0073",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0011",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": "MAPVER-DBD4276B-B7BB-4B5F-A44B-9C4E432017D8",
+      "before": "MAPVER-AF4EEA1B-1335-41C6-ACD2-D2274CE04109",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Вернувшись с разведывательного полета, Эрин подтвердила данные военной разведки по гномьим войскам. Гномы деморализованы после гибели Глоина, но их крепости остаются хорошо защищенными. По оценке Эрин, лучшего момента для удара по гномьей линии может не быть. Перед отлетом Эрин позвала Александроса и Никитосиоса на личный разговор.",
+      "before": "После успешного освобождения Уайтбурга и отправки донесения о победе совету и Александросу Михаэль задумался о практической выгоде победы. Взятие Крепости Сокола и освобождение Уайтбурга прошли при участии выжившего Дариуса, Лафемы и ее чародеев солнца. В городе остались документы Эванессы, бумаги верфей, архивы и следы лордамерской логистики.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "before": [
+        "FRONT-WAR-TREASURY"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0012",
+      "before": "SCENE-0073",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя несколько дней после ухода Эрин из Багрового Пика",
+      "before": "после освобождения Уайтбурга",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 23552,
+      "before": 22528,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

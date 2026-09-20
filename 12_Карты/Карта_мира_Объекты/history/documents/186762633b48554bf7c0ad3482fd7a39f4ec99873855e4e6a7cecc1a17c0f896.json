@@ -1,0 +1,265 @@
+{
+  "base": "history/documents/646a72fbe90cb4ff5ed115e3b4f4e41a197572f7e86da9aab55caa59973b30d6.json",
+  "changes": [
+    {
+      "after": "утро отбытием Михаэля и Нилуфар в Порт-Лабад; после личного разговора Александроса с Нилуфар",
+      "before": "утро перед отбытием Михаэля и Нилуфар в Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Позже, в порту Белой Гавани, все провожают Вито, Михаэля и Нилуфар. Праздничная и тревожная неделя наконец сходит к моменту отплытия: свадьба уже состоялась, срочный совет о культе падших прошел, Белая Гавань передана на время Картосу и Богдану, а миссия Михаэля и Нилуфар теперь становится реальным путешествием, а не только планом. Вито тепло желает Михаэлю и Нилуфар успеха.",
+      "before": "Утром перед отбытием Михаэля и Нилуфар в Порт-Лабад Александрос зовет Нилуфар на личный разговор. Принцесса принимает приглашение позитивно: для нее это не формальная аудиенция, а возможность поговорить с отцом мужа без шума двора, свадебных гостей и срочных советов. Нилуфар говорит Александросу, что видит в Михаэле огромный потенциал.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань, порт",
+      "before": "Белая Гавань, покои для личной аудиенции; путь к порту",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0030",
+      "before": "SCENE-0029",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_030_Проводы_Михаэля_и_Нилуфар_в_Порт-Лабад.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_029_Личный_разговор_с_Нилуфар_перед_отбытием.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "555cb2a8004e1845a7f3f173a67f270154d6b30e9c54fa8182a1135ed7397dff",
+      "before": "14741e2418b56b2fd136caf0411445bdc1d74fec295e19630b0cb4ab6e737f3d",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 51200,
+      "before": 50176,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 030. Проводы Михаэля и Нилуфар в Порт-Лабад",
+      "before": "Сцена 029. Личный разговор с Нилуфар перед отбытием",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0138"
+      ],
+      "before": [
+        "SRC-0134"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0030",
+      "before": "SCENE-0029",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Позже, в порту Белой Гавани, все провожают Вито, Михаэля и Нилуфар. Праздничная и тревожная неделя наконец сходит к моменту отплытия: свадьба уже состоялась, срочный совет о культе падших прошел, Белая Гавань передана на время Картосу и Богдану, а миссия Михаэля и Нилуфар теперь становится реальным путешествием, а не только планом. Вито тепло желает Михаэлю и Нилуфар успеха.",
+      "before": "Утром перед отбытием Михаэля и Нилуфар в Порт-Лабад Александрос зовет Нилуфар на личный разговор. Принцесса принимает приглашение позитивно: для нее это не формальная аудиенция, а возможность поговорить с отцом мужа без шума двора, свадебных гостей и срочных советов. Нилуфар говорит Александросу, что видит в Михаэле огромный потенциал.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0138"
+      ],
+      "before": [
+        "SRC-0134"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0030",
+      "before": "SCENE-0029",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0134"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0029",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": "MAPVER-5664ECDC-7496-42A1-B191-4E2B49A26A69",
+      "before": "MAPVER-E06CC412-619A-4359-A78C-7C6C6EEED6CF",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Позже, в порту Белой Гавани, все провожают Вито, Михаэля и Нилуфар. Праздничная и тревожная неделя наконец сходит к моменту отплытия: свадьба уже состоялась, срочный совет о культе падших прошел, Белая Гавань передана на время Картосу и Богдану, а миссия Михаэля и Нилуфар теперь становится реальным путешествием, а не только планом. Вито тепло желает Михаэлю и Нилуфар успеха.",
+      "before": "Утром перед отбытием Михаэля и Нилуфар в Порт-Лабад Александрос зовет Нилуфар на личный разговор. Принцесса принимает приглашение позитивно: для нее это не формальная аудиенция, а возможность поговорить с отцом мужа без шума двора, свадебных гостей и срочных советов. Нилуфар говорит Александросу, что видит в Михаэле огромный потенциал.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0138"
+      ],
+      "before": [
+        "SRC-0134"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-LAW-CLANS"
+      ],
+      "before": [
+        "FRONT-TAR-ELAM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0030",
+      "before": "SCENE-0029",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "утро отбытием Михаэля и Нилуфар в Порт-Лабад; после личного разговора Александроса с Нилуфар",
+      "before": "утро перед отбытием Михаэля и Нилуфар в Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 51200,
+      "before": 50176,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

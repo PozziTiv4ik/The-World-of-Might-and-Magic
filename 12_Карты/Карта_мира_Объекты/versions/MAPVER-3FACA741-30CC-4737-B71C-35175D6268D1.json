@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 8,
+  "document_hash": "99f56cf3873dd7f75f86e6affd21df6318ed4e7b6f3573c818809aecbe054099",
+  "document_ref": "history/documents/649e92f41cff88bdabf2e8beb9b299ea8e855ff2c93b40ab0e03850f3f56476f.json",
+  "format": 2,
+  "id": "MAPVER-3FACA741-30CC-4737-B71C-35175D6268D1",
+  "integrity": "ebfafa1c154fc0877deaff8e21cf3629221e3e52a69ed3d47ad6cf5b2984531d",
+  "label": "Александрос · Присяга Андуина, разоблачение Онсерага и ультиматум совета",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-98C409DE-6DE8-487F-BEE7-2CE932B346AC",
+  "recorded_at": "2026-09-20T14:02:57.328Z",
+  "sequence": 107,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "### Восстановление столицы и присяга Андуина Спустя неделю в столице полным ходом шли восстановительные работы. Средства и мастера-каменщики, присланные Тар-Эламом, стали существенным подспорьем и заметно ускорили восстановление города после налета Закхерона. В своем кабинете Александрос принял Андуина из рода Молотоглавов. Барон оказался суров и внешностью, и словом.",
+    "evidence_ids": [
+      "SRC-0222"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0060",
+    "story_date": "спустя неделю после возвращения Александроса в столицу",
+    "story_order": 107520
+  }
+}

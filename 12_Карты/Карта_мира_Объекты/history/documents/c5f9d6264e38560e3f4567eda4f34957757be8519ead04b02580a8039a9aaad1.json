@@ -1,0 +1,259 @@
+{
+  "base": "history/documents/f1f0f2c3fe426d312ee3338cf2cd023f8f7385066af52deb03215ad4d4c919a7.json",
+  "changes": [
+    {
+      "after": "за 5 дней до Дня Единения Империи",
+      "before": "от 1 недели до 6 дней до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+      "before": "Сцена 004. Дугал и отъезд в столицу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света, столица",
+      "before": "Белая Гавань, зал разведки; дорога в столицу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0007"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0006",
+      "before": "SCENE-0067",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_006_Маска_сокрытого_облика.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_004_Дугал_и_отъезд_в_столицу.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "fb23266342779b4341dde0402a9356ae799d231714c553285d7269413d4a6b41",
+      "before": "8058a59d45985d5e93d49ab68a2301b88f6d39e4db12c7c86268fb611e0591fc",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 10240,
+      "before": 9216,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 006. Маска сокрытого облика",
+      "before": "Сцена 004. Дугал и отъезд в столицу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0006",
+      "before": "SCENE-0005",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+      "before": "Сцена 004. Дугал и отъезд в столицу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0007",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Белая Гавань",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0006",
+      "before": "SCENE-0067",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-94DB8829-839E-411B-96A2-0E4832BF7DC0",
+      "before": "MAPVER-930C8627-B4BC-4762-864E-44DE22387BDF",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Александрос подписал последнюю на сегодня бумагу, отправился в имперское хранилище и воспользовался Маской сокрытого облика. Скрыв истинный облик, он покинул дворцовую круговерть и вышел в город.",
+      "before": "Сцена 004. Дугал и отъезд в столицу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [],
+      "before": [
+        "FRONT-WHITE-HARBOR"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0006",
+      "before": "SCENE-0067",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "за 5 дней до Дня Единения Империи",
+      "before": "от 1 недели до 6 дней до Дня Единения Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 10240,
+      "before": 9216,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

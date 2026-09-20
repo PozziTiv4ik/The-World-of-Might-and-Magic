@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "651f47c6d9b34a65c5453fc5d74b44f0d0b04e51dace16d7cfcdd25a4cf7a1c9",
+  "document_ref": "history/documents/651f47c6d9b34a65c5453fc5d74b44f0d0b04e51dace16d7cfcdd25a4cf7a1c9.json",
+  "format": 2,
+  "id": "MAPVER-22C34328-E398-4994-8577-E77A36451705",
+  "integrity": "4b1074d715c312f72ff78667c50e31697d07f53eb360c79db123f9ea20424232",
+  "label": "Михаэль · Выбор Онсерага и шантирийский кристалл",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-394C42FE-FE7B-4380-8D87-6A4BACAF1BD8",
+  "recorded_at": "2026-09-20T14:02:42.946Z",
+  "sequence": 99,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Михаэль принял решение встать на сторону Онсерага. Обсидиановый воин Ордена бессмертной клятвы объявил, что служителям зла нет пощады, после чего темные эльфы вступили в открытый бой с ассасинами и воинами Ордена затмения. Онсераг начал собирать огромный огненный шар, а Ретип растворился в тенях.",
+    "evidence_ids": [
+      "SRC-0213"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0099",
+    "story_date": "ночь после недели укрытия Михаэля в Порт-Мантикоре",
+    "story_order": 99328
+  }
+}

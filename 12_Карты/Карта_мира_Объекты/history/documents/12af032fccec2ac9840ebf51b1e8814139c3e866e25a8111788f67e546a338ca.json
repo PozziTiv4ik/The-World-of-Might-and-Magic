@@ -1,0 +1,305 @@
+{
+  "base": "history/documents/ac01e718add4cbe4818f5375d38f3309198909017b2901c44fa9e813bd0f1f79.json",
+  "changes": [
+    {
+      "after": "после тайной поимки Петира; на следующий день после донесения Дариуса об Арториусе",
+      "before": "спустя неделю после совета Ордена затмения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Александрос отвечает Дариусу письмом. Император прямо запрещает смертельную перепись разума Арториуса: он не позволит пленнику умереть столь жестоко. Одновременно Александрос отказывается просто ждать несколько месяцев и приказывает Верховному инквизитору искать иной способ срочно получить сведения. Заверив письмо, Александрос связывается через видящий камень с Михаэлем и Нилуфар.",
+      "before": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Тол-Меналас; связь через видящий камень с Михаэлем и Нилуфар",
+      "before": "Пустыня Кланов; руины древнего храма; дорога обратно в Алиманджад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0083"
+      ],
+      "before": [
+        "LOC-0071"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2516,
+        805
+      ],
+      "before": [
+        1460,
+        1530
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0043",
+      "before": "SCENE-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_043_Ответ_Дариусу_и_предложение_торговых_протекторатов.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_026_Руины_Шантири_и_ранение_Картоса.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "96becec1f47c27a0c51040c8aefaf29534c6b952c6b24f5ada0297c13ef0e4e9",
+      "before": "d4176abb8106f63376c0f367f07e3254396a9b4ae64d574d774ec2b211f88251",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 74752,
+      "before": 73728,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 043. Ответ Дариусу и предложение торговых протекторатов",
+      "before": "Сцена 026. Руины Шантири и ранение Картоса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0181"
+      ],
+      "before": [
+        "SRC-0182"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0043",
+      "before": "SCENE-0042",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Александрос отвечает Дариусу письмом. Император прямо запрещает смертельную перепись разума Арториуса: он не позволит пленнику умереть столь жестоко. Одновременно Александрос отказывается просто ждать несколько месяцев и приказывает Верховному инквизитору искать иной способ срочно получить сведения. Заверив письмо, Александрос связывается через видящий камень с Михаэлем и Нилуфар.",
+      "before": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0083",
+      "before": "LOC-0071",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0181"
+      ],
+      "before": [
+        "SRC-0176"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Тол-Меналас",
+      "before": "Руины древнего храма в Пустыне Кланов",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2516,
+        805
+      ],
+      "before": [
+        1460,
+        1530
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0043",
+      "before": "SCENE-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-ECE02B09-D8D7-4E3F-A44A-EE25E47CC99D",
+      "before": "MAPVER-B74DEBBC-0991-476C-9AB7-2D973778D38A",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Александрос отвечает Дариусу письмом. Император прямо запрещает смертельную перепись разума Арториуса: он не позволит пленнику умереть столь жестоко. Одновременно Александрос отказывается просто ждать несколько месяцев и приказывает Верховному инквизитору искать иной способ срочно получить сведения. Заверив письмо, Александрос связывается через видящий камень с Михаэлем и Нилуфар.",
+      "before": "Спустя неделю после совета Ордена затмения экспедиция Михаэля уже неделю ведет раскопки в Пустыне Кланов. Нилуфар привела людей к нужному месту, и из песков постепенно показались руины древнего храма. В очередной жаркий день Нилуфар приносит Михаэлю мороженое. Принц с благодарностью называет ее своей спасительницей, но отдых прерывает рабочий: найден проход в глубину руин.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0181"
+      ],
+      "before": [
+        "SRC-0176"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-BLACKWOOD"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0043",
+      "before": "SCENE-0089",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "после тайной поимки Петира; на следующий день после донесения Дариуса об Арториусе",
+      "before": "спустя неделю после совета Ордена затмения",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 74752,
+      "before": 73728,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

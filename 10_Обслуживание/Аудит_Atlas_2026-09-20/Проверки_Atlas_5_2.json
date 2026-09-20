@@ -1,0 +1,38 @@
+{
+  "version": "5.2.0",
+  "editor_scenarios": 12,
+  "editor_failed": 0,
+  "editor_checks": 3688,
+  "generated_edit_operations": 360,
+  "deterministic_replay_confirmed": true,
+  "native_full_checks": 205,
+  "latest_workspace_checks": 44,
+  "campaign_checks": 740,
+  "computer_use": false,
+  "native_windows": false,
+  "source_map_and_timeline_unchanged": true,
+  "original_versions_unchanged": true,
+  "literary_sources_unchanged": true,
+  "source_binary_hashes_match": true,
+  "portable_files_verified": 290,
+  "portable_cli_launch": true,
+  "portable_editor_replay": true,
+  "portable_validation": {
+    "errors": [],
+    "warnings": []
+  },
+  "archive_sha256": "62de3332e30ec55202be53f7230ba77d2b7021ad6594187f40c36f1c6d668ebb",
+  "editor_report": "D:\\Project\\The World of Might and Magic\\.wmma\\atlas-editor-tests\\suite-20260920-173050-a0539a\\index.html",
+  "binary_sha256": {
+    "Atlas.exe": "ae9665e4d1cb050b18c57a4228de0950826f45ab1b676ceb8a6fa4ece67fddac",
+    "Atlas.Cli.exe": "b5ef8a25f6264c9b50d6ac913f8ac27ff59119f469d2ea5577cfc5ddb85f7586"
+  },
+  "operating_system_dialogs_tested": false,
+  "project_validation": {
+    "finalization_passed": true,
+    "errors": 0,
+    "warnings": 0,
+    "markdown_files": 1026,
+    "image_files": 158
+  }
+}

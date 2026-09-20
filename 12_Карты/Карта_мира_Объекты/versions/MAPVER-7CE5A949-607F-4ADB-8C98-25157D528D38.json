@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 14,
+  "document_hash": "8f34e6a629396204be5e15eb5ca2f36b8b6108feb7c56dd475e89cfb47fb4bdf",
+  "document_ref": "history/documents/89bcb705752ad3efcd9b3db913dd69fd83f50ad11a1186127ee0a720a4abe18c.json",
+  "format": 2,
+  "id": "MAPVER-7CE5A949-607F-4ADB-8C98-25157D528D38",
+  "integrity": "5419e0658a0ff93ce643a84a2ff17b695ceca09bb034f2e8d3378cd7d0f74065",
+  "label": "Глава 1 · День Единения",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E19195AE-DCF6-4501-B287-7735730AD06B",
+  "recorded_at": "2026-09-20T13:55:32.808Z",
+  "sequence": 15,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "chapters",
+    "chapter": 1,
+    "description": "Состояние мира после последней сцены главы 1. Все моменты главы доступны в цепочке «Вся история».",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0008",
+    "story_date": "от 2 дней до Дня Единения до Дня Единения Империи",
+    "story_order": 1024
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "dc4c7496725ce6d87ca384572d54a02920cecd50ed768a7811915756ff8e56fe",
+  "document_ref": "history/documents/f97b60810374a594eda68de081ad5fd847c12b0d48ad033475bb937b2f716235.json",
+  "format": 2,
+  "id": "MAPVER-652FD494-CFE8-45DE-98E8-680958EB1180",
+  "integrity": "b8c26d5ffc6c425b388e708650cd92afd5abcec5ddd765210e3a4a96332440c2",
+  "label": "Михаэль · Прибытие в Порт-Лабад и письмо Картоса",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-B0EF398D-046F-4CA4-BF14-05A4E7458021",
+  "recorded_at": "2026-09-20T14:01:13.073Z",
+  "sequence": 58,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+    "evidence_ids": [
+      "SRC-0137"
+    ],
+    "front_ids": [
+      "FRONT-LAW-CLANS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0083",
+    "story_date": "спустя неделю после отбытия из Белой Гавани",
+    "story_order": 57344
+  }
+}

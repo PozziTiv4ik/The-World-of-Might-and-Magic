@@ -1,0 +1,278 @@
+{
+  "base": "history/documents/0a42ccc64b80b2a96f2d1456624a21f4b51279a5c6904da1907bfc6a832e3548.json",
+  "changes": [
+    {
+      "after": "Идея усилить любимую гвардию наемников пришлась Михаэлю по душе, особенно учитывая редкость такой элитной экипировки. Принц согласился на условия Эванессы и подчеркнул возможность будущего торгового сближения. Эванесса была рада такому развитию событий. Вечером был устроен небольшой пир в честь сделки, а часть товара из сундука уже в этот же день принесла неплохую прибыль гильдии Михаэля.",
+      "before": "Александрос решил отправить личное приглашение первенцу.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Цитадель Вечного Света, зал военной стратегии",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0064",
+      "before": "SCENE-0002",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_001_Сделка_Уайтбурга.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_002_Приглашение_Никитосиосу.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "47d576903a680334b7ca64d8dd31217c13412919d06bdcc1c2502d9f9f1aa579",
+      "before": "ae14cc3e2d2bfdc6a438ba2b56f5aa1217b9a001b367e45b880529f4571286d9",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 3072,
+      "before": 2048,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 001. Сделка Уайтбурга",
+      "before": "Сцена 002. Приглашение Никитосиосу",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": {
+        "entity_id": "CHAR-0136",
+        "evidence_ids": [],
+        "font_size": 19,
+        "id": "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "kind": "symbol",
+        "known_to": [],
+        "label_offset": [
+          10,
+          -19
+        ],
+        "last_scene_id": "SCENE-0064",
+        "layer_id": "LAYER-CAMPAIGN-HEROES",
+        "location_id": "LOC-0007",
+        "name": "Михаэль",
+        "opacity": 1,
+        "position": [
+          1807,
+          814
+        ],
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_actor",
+        "rotation": 0,
+        "show_label": true,
+        "size": 28,
+        "story_position": [
+          1825,
+          836
+        ],
+        "stroke": "#2F7CA4",
+        "symbol_id": "story-actor",
+        "text_color": "#2F7CA4",
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4501
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136"
+      ]
+    },
+    {
+      "after": "Идея усилить любимую гвардию наемников пришлась Михаэлю по душе, особенно учитывая редкость такой элитной экипировки. Принц согласился на условия Эванессы и подчеркнул возможность будущего торгового сближения. Эванесса была рада такому развитию событий. Вечером был устроен небольшой пир в честь сделки, а часть товара из сундука уже в этот же день принесла неплохую прибыль гильдии Михаэля.",
+      "before": "Александрос решил отправить личное приглашение первенцу.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0064",
+      "before": "SCENE-0002",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-323A9BB1-286B-4CA7-A801-CDD95D9A6F69",
+      "before": "MAPVER-8EEF2927-A064-4D52-A4D2-1BA7800045DB",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Идея усилить любимую гвардию наемников пришлась Михаэлю по душе, особенно учитывая редкость такой элитной экипировки. Принц согласился на условия Эванессы и подчеркнул возможность будущего торгового сближения. Эванесса была рада такому развитию событий. Вечером был устроен небольшой пир в честь сделки, а часть товара из сундука уже в этот же день принесла неплохую прибыль гильдии Михаэля.",
+      "before": "Александрос решил отправить личное приглашение первенцу.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WHITEBURG"
+      ],
+      "before": [
+        "FRONT-CRIMSON-PEAK"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0064",
+      "before": "SCENE-0002",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": 3072,
+      "before": 2048,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

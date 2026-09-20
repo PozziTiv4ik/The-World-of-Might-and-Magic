@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 14,
+  "document_hash": "fcaa92800f4a9e29032660f40122c973e857799f42a43b5a5cce1097c877b8ff",
+  "document_ref": "history/documents/7150ac441386d0ad2ce0b9129865f3f289f29e19ddf30ecb73dfc16df529e257.json",
+  "format": 2,
+  "id": "MAPVER-7E965F22-260C-4062-8BA5-9637B5743287",
+  "integrity": "8b6e7d28da47c9953650626a9678e33ba139ad8128e8a8822ed3d8bfcc767129",
+  "label": "Александрос · Семейный разговор о снах и ключах Сар-Илама",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-D1DFE177-E46D-412B-928B-283EBA13FE24",
+  "recorded_at": "2026-09-20T14:00:54.674Z",
+  "sequence": 49,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Глубокой ночью, когда срочный совет уже разошелся, в зале цитадели остаются только Александрос и его сыновья. Император собирает Михаэля, Харрингтона и Никитосиоса не как правителей, командующих или наследников, а как семью.",
+    "evidence_ids": [
+      "SRC-0133"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0027",
+    "story_date": "глубокая ночь после срочного совета о культе падших",
+    "story_order": 48128
+  }
+}

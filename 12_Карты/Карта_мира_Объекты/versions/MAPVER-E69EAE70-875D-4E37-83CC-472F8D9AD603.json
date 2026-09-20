@@ -1,0 +1,32 @@
+{
+  "asset_hashes": {},
+  "document_depth": 13,
+  "document_hash": "54a7fb1b703bd16219e775a4aa116a1e65aac958a8a0b79ba370a5339f2c545d",
+  "document_ref": "history/documents/370156a98e2a5f4ebc93930de93e9f9fec79a87872584574e3573bac1126a83b.json",
+  "format": 2,
+  "id": "MAPVER-E69EAE70-875D-4E37-83CC-472F8D9AD603",
+  "integrity": "3d85837ebfe03df8aafcc92f7d6cdb165bac2e4524a4b327a3cc442a6b609357",
+  "label": "Александрос · Падение Лордамера",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-AE387128-ABC2-4FBB-8CBE-861781CFC0D5",
+  "recorded_at": "2026-09-20T14:00:19.470Z",
+  "sequence": 31,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Пали Порт-Стокхолд и столица Лордамера. Александрос завершает северную кампанию.",
+    "evidence_ids": [
+      "SRC-0087",
+      "SRC-0092"
+    ],
+    "front_ids": [
+      "FRONT-WHITEBURG"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0016",
+    "story_date": "через две недели после Высшего совета и несколько дней похода к столице Лордамера",
+    "story_order": 30720
+  }
+}

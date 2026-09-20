@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "bd74e7d79751f0fd1eb63ae4d4418b1659fcca4a7692f631e53218eff7249adf",
+  "document_ref": "history/documents/92044051abeaa00591700c08ac20adafa3706d531a106f39b54ce6293e7b87ce.json",
+  "format": 2,
+  "id": "MAPVER-98C409DE-6DE8-487F-BEE7-2CE932B346AC",
+  "integrity": "dbc6700da34b635229f62cee1893a7f77a322e96e27d91920ecf19056af0f66f",
+  "label": "Никитосиос · Последний бой турнира и смерть Вариана",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-11C101DF-E61F-4A1C-8118-3836E8FE3500",
+  "recorded_at": "2026-09-20T14:02:55.521Z",
+  "sequence": 106,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Через неделю после первого раунда турнир Либриария подошел к последнему бою. Победа означала путь в Цитадель Бездны и делала свободу ближе. Против Багровой гидры вышли воины большого клана или дома Сурового Сердца, добровольно ставшие гладиаторами ради славы. Их лидером был Тралсай — хитрый и подлый ассасин. Эгвин знала его как одного из тех, кто принимал непосредственное участие в ликвидации ее клана.",
+    "evidence_ids": [
+      "SRC-0216"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0113",
+    "story_date": "неделю спустя после первого раунда турнира Либриария",
+    "story_order": 106496
+  }
+}

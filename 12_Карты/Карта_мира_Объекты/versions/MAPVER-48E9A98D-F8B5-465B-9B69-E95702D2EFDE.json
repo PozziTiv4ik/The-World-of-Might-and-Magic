@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "92c86bb0c9f97295470b49e151ea1b61e5ff8960540ded55b0d41b360f0a0311",
+  "document_ref": "history/documents/1c7d68c2a3064de02aa3254b7235ff81972386b272cb1b3081a5755d3a5efec8.json",
+  "format": 2,
+  "id": "MAPVER-48E9A98D-F8B5-465B-9B69-E95702D2EFDE",
+  "integrity": "6143b50204b0794ec70ec9208ae086b9cd55dfa60b4e9bf41c326efb840481af",
+  "label": "Михаэль · Свадьба Михаэля и Нилуфар",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-B8FD2BCF-9468-4215-85F1-36B25D155DFB",
+  "recorded_at": "2026-09-20T14:00:37.134Z",
+  "sequence": 40,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "День свадьбы Михаэля и Нилуфар наступает. Белая Гавань ликует и украшена торжественнее, чем когда-либо прежде. Утром в гавань входит флот Тар-Элама, и Вито возглавляет процессию к цитадели: чародеи, элементали, боевые слоны и горгульи показывают гостям и жителям города мощь юга. Перед женихом и невестой Вито объявляет дары от Великого Императора Тар-Элама.",
+    "evidence_ids": [
+      "SRC-0124"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0080",
+    "story_date": "день свадьбы Михаэля и Нилуфар в Белой Гавани",
+    "story_order": 38912
+  }
+}

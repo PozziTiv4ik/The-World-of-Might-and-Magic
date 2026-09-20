@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 15,
+  "document_hash": "53892ece6ad4c6efe23789d73961ee4917b9a932ca612373f1b140e609c03f48",
+  "document_ref": "history/documents/57289807dd17eb8f22b69a03182b141528e4d13f209e3cc02461f08c3f94e395.json",
+  "format": 2,
+  "id": "MAPVER-551BF86E-C966-47F0-BA92-C368E9FD5205",
+  "integrity": "932d8c20eb515d01f40cc3e42b89479164514e38ac9209e5d474411be17bd62d",
+  "label": "Михаэль · Осада Белой Гавани",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-161BA5C4-F65B-499F-BB97-717059A56ED4",
+  "recorded_at": "2026-09-20T13:55:36.905Z",
+  "sequence": 17,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Сцена 007. Осада Белой Гавани",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0070",
+    "story_date": "первые шесть недель после Дня Единения Империи",
+    "story_order": 16384
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 7,
+  "document_hash": "17d269d2402aac23c12b67b114d575c1bfcd5d8f60758b236c387ff679af0098",
+  "document_ref": "history/documents/9e78513d6d37e76b2875688783548c91116db7b0793cbb415fe42475da71c139.json",
+  "format": 2,
+  "id": "MAPVER-80BD64F4-CC09-46E7-99B0-3D84490F1985",
+  "integrity": "ce31ae2dd27e374a86e524ac835f6d8431d6c3574fb5b25f4852dd9d64ce38ec",
+  "label": "Александрос · Храм Вечного Солнца и выбор Александроса",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-FAC2D8B8-B5C4-4E8B-9D5F-8FE6F1769D4E",
+  "recorded_at": "2026-09-20T14:10:01.487Z",
+  "sequence": 135,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 4,
+    "description": "После аудиенции у Авалона Александрос остаётся в Валантиде. Храм Вечного Солнца — предложенная цель дальнейшего пути.",
+    "evidence_ids": [
+      "SRC-0242"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0063",
+    "story_date": "сразу после аудиенции у Короля Авалона в Валантиде",
+    "story_order": 122880
+  }
+}

@@ -1,0 +1,645 @@
+{
+  "base": "history/documents/1b5f98f93f410814c3d1e1082dee51efb325bb78d49ad704e51e222571a49ad5.json",
+  "changes": [
+    {
+      "after": "неделю спустя после дуэли чести",
+      "before": "после разговора с Нилуфар; следующее утро после сделки с Петиром",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+      "before": "После разговора с Нилуфар Александрос вызвал Петира и объявил собственные условия сотрудничества. Предателя тайно перевезут в столицу, в Цитадель Вечного Света, где он будет находиться под строгим надзором Елены. Обещанные удобства сохраняются, но жизнь и положение Петира теперь прямо зависят от того, насколько полезными и проверяемыми окажутся его сведения.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Порт-Белен; другие направления через донесения",
+      "before": "Тол-Меналас; Белая Гавань, Порт-Вингард и Южный континент через приказы",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0058"
+      ],
+      "before": [
+        "LOC-0083"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2548,
+        908
+      ],
+      "before": [
+        2516,
+        805
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": "SCENE-0044",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_045_Падение_Порт-Белена_и_новые_доклады.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_044_Сделка_с_Петиром_и_новый_марш_против_Орды.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "b5775d6246737d1763cfb7336e6bad4b9d6f5b0e6765d85c68324f1f4cd7fef7",
+      "before": "db1eee8bcc8ec9230a2ebff200c0b73a926f4f91552d200cd5b0b820a252cdcf",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 77824,
+      "before": 76800,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 045. Падение Порт-Белена и новые доклады",
+      "before": "Сцена 044. Сделка с Петиром и новый марш против Орды",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0185"
+      ],
+      "before": [
+        "SRC-0179"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": "SCENE-0044",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0058",
+      "before": "LOC-0083",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2566,
+        886
+      ],
+      "before": [
+        2534,
+        783
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2548,
+        908
+      ],
+      "before": [
+        2516,
+        805
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+      "before": "После разговора с Нилуфар Александрос вызвал Петира и объявил собственные условия сотрудничества. Предателя тайно перевезут в столицу, в Цитадель Вечного Света, где он будет находиться под строгим надзором Елены. Обещанные удобства сохраняются, но жизнь и положение Петира теперь прямо зависят от того, насколько полезными и проверяемыми окажутся его сведения.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0058",
+      "before": "LOC-0083",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0185"
+      ],
+      "before": [
+        "SRC-0179"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Порт-Белен",
+      "before": "Тол-Меналас",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2548,
+        908
+      ],
+      "before": [
+        2516,
+        805
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": "SCENE-0044",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Взят армией Александроса",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0058",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0185"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0058",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0058",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0058",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0058",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Освобождён Вито",
+      "before": "Захвачен орками; верфи разрушены",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0059",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0171",
+        "SRC-0185"
+      ],
+      "before": [
+        "SRC-0171"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": "SCENE-0041",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0059",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0059",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0059",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Взят имперскими войсками",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0060",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0185"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0060",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0060",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#534A3F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0060",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#39362E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0060",
+        "text_color"
+      ]
+    },
+    {
+      "after": "Осада Тар-Обсидиана",
+      "before": "Вторжение Тар-Элама",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0081",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0150",
+        "SRC-0185"
+      ],
+      "before": [
+        "SRC-0150"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0081",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": "SCENE-0037",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0081",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#B17B2E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0081",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#AF4949",
+      "before": "#B17B2E",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0081",
+        "text_color"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0059",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0185"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0059",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Александрос",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0045",
+        "stroke": "#A86B18",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059"
+      ]
+    },
+    {
+      "after": [
+        2516,
+        805
+      ],
+      "before": [
+        2086,
+        807
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        2548,
+        908
+      ],
+      "before": [
+        2516,
+        805
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-43D109F1-4C51-413B-B457-431990F83F6B",
+      "before": "MAPVER-36563D7F-C6D0-41CD-9723-92C37C649F45",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+      "before": "После разговора с Нилуфар Александрос вызвал Петира и объявил собственные условия сотрудничества. Предателя тайно перевезут в столицу, в Цитадель Вечного Света, где он будет находиться под строгим надзором Елены. Обещанные удобства сохраняются, но жизнь и положение Петира теперь прямо зависят от того, насколько полезными и проверяемыми окажутся его сведения.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0185"
+      ],
+      "before": [
+        "SRC-0179"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-IRON-HORDE"
+      ],
+      "before": [
+        "FRONT-COUNTERINTEL"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0045",
+      "before": "SCENE-0044",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "неделю спустя после дуэли чести",
+      "before": "после разговора с Нилуфар; следующее утро после сделки с Петиром",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 77824,
+      "before": 76800,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

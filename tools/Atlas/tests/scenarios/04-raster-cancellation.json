@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "name": "04-raster-cancellation",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Растровый тест",
+    "width": 64,
+    "height": 64
+  },
+  "steps": [
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "open_file",
+        "value": "white.png"
+      }
+    },
+    {
+      "action": "command",
+      "command": "add_raster"
+    },
+    {
+      "action": "remember",
+      "name": "raster",
+      "pointer": "/active_layer"
+    },
+    {
+      "action": "remember",
+      "name": "blank",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "remember",
+      "name": "blank_image",
+      "pointer": "/layers/3/image",
+      "target": "document"
+    },
+    {
+      "action": "camera",
+      "zoom": 4,
+      "offset": [
+        280,
+        200
+      ]
+    },
+    {
+      "action": "command",
+      "command": "stroke_color",
+      "data": "#C62828"
+    },
+    {
+      "action": "key",
+      "key": "B"
+    },
+    {
+      "action": "pointer_down",
+      "at": [
+        12,
+        12
+      ],
+      "space": "world"
+    },
+    {
+      "action": "pointer_move",
+      "at": [
+        42,
+        20
+      ],
+      "space": "world"
+    },
+    {
+      "action": "capture",
+      "capture": "brush-before-cancel"
+    },
+    {
+      "action": "key",
+      "key": "Escape"
+    },
+    {
+      "action": "assert",
+      "pointer": "/down",
+      "equals": false
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "blank"
+    },
+    {
+      "action": "key",
+      "key": "R"
+    },
+    {
+      "action": "click",
+      "at": [
+        10,
+        40
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers/3/image",
+      "equals": "${blank_image}",
+      "target": "document"
+    },
+    {
+      "action": "click",
+      "at": [
+        50,
+        40
+      ],
+      "space": "world"
+    },
+    {
+      "action": "key",
+      "key": "Enter"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 1
+    },
+    {
+      "action": "command",
+      "command": "layer",
+      "data": "${raster}"
+    },
+    {
+      "action": "key",
+      "key": "B"
+    },
+    {
+      "action": "drag",
+      "space": "world",
+      "from": [
+        12,
+        12
+      ],
+      "to": [
+        42,
+        20
+      ]
+    },
+    {
+      "action": "remember",
+      "name": "painted",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers/3/image",
+      "target": "document",
+      "not_equals_ref": "blank_image"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Z"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers/3/image",
+      "equals": "${blank_image}",
+      "target": "document"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Y"
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "painted"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers/3/image",
+      "target": "document",
+      "not_equals_ref": "blank_image"
+    },
+    {
+      "action": "assert_ui"
+    }
+  ],
+  "images": [
+    {
+      "file": "white.png",
+      "width": 64,
+      "height": 64,
+      "fill": "#FFFFFF"
+    }
+  ]
+}

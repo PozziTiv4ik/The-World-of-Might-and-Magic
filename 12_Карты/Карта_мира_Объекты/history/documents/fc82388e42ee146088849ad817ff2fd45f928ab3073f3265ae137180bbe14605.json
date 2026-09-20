@@ -1,0 +1,265 @@
+{
+  "base": "history/documents/509a162e34a62a32aacc4e463ab3260a06a7094895b93d39a63c6c1d15931d0b.json",
+  "changes": [
+    {
+      "after": "от распоряжений Александроса до дня перед Высшим советом",
+      "before": "месяц спустя после освобождения Уайтбурга",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Тем же днем, когда Александрос оформлял решения перед советом, Михаэль одобрил поставки древесины для эльфов и отправил послание Королю Андриану. Эльфийская продовольственная линия принята: Империя получает поддержку зерном и припасами, а эльфы - ограниченную древесину для восстановления Лейндрассила и разоренного нежитью региона.",
+      "before": "После освобождения Уайтбурга Михаэль принял предложение Вито и составил ответное письмо. Отдельным письмом он продублировал решение Александросу, изложил обоснование и выразил надежду на понимание отца. Как Лорд-Мастер экономики, Михаэль распорядился о будущих торговых предприятиях своей гильдии с Империей. Доступный бюджет восстановления Михаэль направил на Штормград.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Хорнбург; Белая Гавань, Феликия и Иктильдрассил через письма",
+      "before": "Хорнбург; Белая Гавань через доклады Картоса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0075",
+      "before": "SCENE-0074",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_012_Нилуфар,_гильдия_и_канун_совета.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_011_Картос,_казна_домов_и_эльфийское_продовольствие.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "3ffce57881a4562c0ffd86fff157c0054ea41a38710aa7e815a381aaf311f1df",
+      "before": "ac2ef92992aa29f563fa3ecd29de6917d861f4f2adba0c8532ff1bbef157dae4",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 26624,
+      "before": 25600,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 012. Нилуфар, гильдия и канун совета",
+      "before": "Сцена 011. Картос, казна домов и эльфийское продовольствие",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0085"
+      ],
+      "before": [
+        "SRC-0076"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0075",
+      "before": "SCENE-0074",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Тем же днем, когда Александрос оформлял решения перед советом, Михаэль одобрил поставки древесины для эльфов и отправил послание Королю Андриану. Эльфийская продовольственная линия принята: Империя получает поддержку зерном и припасами, а эльфы - ограниченную древесину для восстановления Лейндрассила и разоренного нежитью региона.",
+      "before": "После освобождения Уайтбурга Михаэль принял предложение Вито и составил ответное письмо. Отдельным письмом он продублировал решение Александросу, изложил обоснование и выразил надежду на понимание отца. Как Лорд-Мастер экономики, Михаэль распорядился о будущих торговых предприятиях своей гильдии с Империей. Доступный бюджет восстановления Михаэль направил на Штормград.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0085"
+      ],
+      "before": [
+        "SRC-0076"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0075",
+      "before": "SCENE-0074",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0076"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0074",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-A3B76AF6-6853-4068-9C88-201D745177EF",
+      "before": "MAPVER-30F5082A-7757-4026-B4F5-1C919F43CB74",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Тем же днем, когда Александрос оформлял решения перед советом, Михаэль одобрил поставки древесины для эльфов и отправил послание Королю Андриану. Эльфийская продовольственная линия принята: Империя получает поддержку зерном и припасами, а эльфы - ограниченную древесину для восстановления Лейндрассила и разоренного нежитью региона.",
+      "before": "После освобождения Уайтбурга Михаэль принял предложение Вито и составил ответное письмо. Отдельным письмом он продублировал решение Александросу, изложил обоснование и выразил надежду на понимание отца. Как Лорд-Мастер экономики, Михаэль распорядился о будущих торговых предприятиях своей гильдии с Империей. Доступный бюджет восстановления Михаэль направил на Штормград.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0085"
+      ],
+      "before": [
+        "SRC-0076"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-TAR-ELAM"
+      ],
+      "before": [
+        "FRONT-WAR-TREASURY"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0075",
+      "before": "SCENE-0074",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "от распоряжений Александроса до дня перед Высшим советом",
+      "before": "месяц спустя после освобождения Уайтбурга",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 26624,
+      "before": 25600,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

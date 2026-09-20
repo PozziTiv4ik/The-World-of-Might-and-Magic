@@ -1,0 +1,237 @@
+{
+  "base": "history/documents/ce28b88a89c37d9cdb3e35210ccefff920d57ec76fbd202810720840d5917fc9.json",
+  "changes": [
+    {
+      "after": "сразу после аудиенции у Короля Авалона в Валантиде",
+      "before": "во время аудиенции лидеров Союза у Короля Авалона в Валантиде",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "После аудиенции у Авалона Александрос остаётся в Валантиде. Храм Вечного Солнца — предложенная цель дальнейшего пути.",
+      "before": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Валантида, Остров Серебряной Луны",
+      "before": "Валантида и Андрианаполис, Остров Серебряной Луны",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0063",
+      "before": "SCENE-0107",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_063_Храм_Вечного_Солнца_и_выбор_Александроса.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_044_Андрианаполис,_помилование_и_сон_Серагона.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "71ad3283027d364b32eb72c0cc22604b97f46a2777025319a6d553b704f6ee4d",
+      "before": "ee18338340578472893c400916196963ae30d78d723a42e72264bc00fbe0d50d",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 122880,
+      "before": 121856,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 063. Храм Вечного Солнца и выбор Александроса",
+      "before": "Сцена 044. Андрианаполис, помилование и сон Серагона",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0242"
+      ],
+      "before": [
+        "SRC-0233"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0063",
+      "before": "SCENE-0062",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "После аудиенции у Авалона Александрос остаётся в Валантиде. Храм Вечного Солнца — предложенная цель дальнейшего пути.",
+      "before": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0242"
+      ],
+      "before": [
+        "SRC-0232"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0063",
+      "before": "SCENE-0107",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-FAC2D8B8-B5C4-4E8B-9D5F-8FE6F1769D4E",
+      "before": "MAPVER-640400E0-486D-4CD6-8A84-6C8BEC8BC23D",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "После аудиенции у Авалона Александрос остаётся в Валантиде. Храм Вечного Солнца — предложенная цель дальнейшего пути.",
+      "before": "В Андрианаполисе разрешён будущий штаб. Действующий штаб в Цитадели Ночи и построенные склады Феликии отмечены отдельно.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0242"
+      ],
+      "before": [
+        "SRC-0232"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-THREE-MOONS"
+      ],
+      "before": [
+        "FRONT-THREE-MOONS",
+        "FRONT-WAR-TREASURY"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0063",
+      "before": "SCENE-0107",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "сразу после аудиенции у Короля Авалона в Валантиде",
+      "before": "во время аудиенции лидеров Союза у Короля Авалона в Валантиде",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 122880,
+      "before": 121856,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

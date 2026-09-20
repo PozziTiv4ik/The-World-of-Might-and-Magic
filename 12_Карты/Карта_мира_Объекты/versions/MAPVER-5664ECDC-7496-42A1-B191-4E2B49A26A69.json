@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "646a72fbe90cb4ff5ed115e3b4f4e41a197572f7e86da9aab55caa59973b30d6",
+  "document_ref": "history/documents/646a72fbe90cb4ff5ed115e3b4f4e41a197572f7e86da9aab55caa59973b30d6.json",
+  "format": 2,
+  "id": "MAPVER-5664ECDC-7496-42A1-B191-4E2B49A26A69",
+  "integrity": "d0c4040a44f1e7f8b0dfa2952b3134f1558fe75a096d7810ce91ccae5e21adf9",
+  "label": "Александрос · Личный разговор с Нилуфар перед отбытием",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-E06CC412-619A-4359-A78C-7C6C6EEED6CF",
+  "recorded_at": "2026-09-20T14:00:58.466Z",
+  "sequence": 51,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Утром перед отбытием Михаэля и Нилуфар в Порт-Лабад Александрос зовет Нилуфар на личный разговор. Принцесса принимает приглашение позитивно: для нее это не формальная аудиенция, а возможность поговорить с отцом мужа без шума двора, свадебных гостей и срочных советов. Нилуфар говорит Александросу, что видит в Михаэле огромный потенциал.",
+    "evidence_ids": [
+      "SRC-0134"
+    ],
+    "front_ids": [
+      "FRONT-TAR-ELAM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0029",
+    "story_date": "утро перед отбытием Михаэля и Нилуфар в Порт-Лабад",
+    "story_order": 50176
+  }
+}

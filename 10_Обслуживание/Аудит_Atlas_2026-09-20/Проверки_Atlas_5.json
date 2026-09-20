@@ -1,0 +1,75 @@
+{
+  "application": "Atlas",
+  "version": "5.0.0",
+  "native_tests": {
+    "passed": 161,
+    "failed": 0,
+    "history_1001_headers_ms": 250
+  },
+  "campaign_checks": {
+    "passed": 740,
+    "failed": 0,
+    "scenes": 120,
+    "chapters": 4,
+    "locations": 106,
+    "first_countries": 51,
+    "current_countries": 47,
+    "original_snapshots_unchanged": true,
+    "literary_sources_unchanged": true
+  },
+  "world": {
+    "features": 2132,
+    "countries": 47,
+    "bound_features": 130,
+    "scenes": 120,
+    "chapter_milestones": 4,
+    "versions": 138,
+    "original_versions_unchanged": true
+  },
+  "binary_sha256": {
+    "Atlas.exe": "16b18d027551e52e43772a68b62cfaab7029b6ee01859151f487614128a5463d",
+    "Atlas.Cli.exe": "8f74c0efa815aec06c9738d1a97bda5cebe3c0c0a3cf8a775695abe427fb8791"
+  },
+  "portable": {
+    "bytes": 26473687,
+    "sha256": "900f831cfdd0deb54f73d97fd7821c0b47071f5cd0611d1edf4b396007f03473",
+    "all_member_hashes_verified": true,
+    "standalone_cli_started": true
+  },
+  "offscreen_previews": [
+    {
+      "width": 1680,
+      "height": 945,
+      "path": "tools/Atlas/Примеры/Atlas5_История.png"
+    },
+    {
+      "width": 1680,
+      "height": 945,
+      "path": "tools/Atlas/Примеры/Atlas5_Сравнение.png"
+    },
+    {
+      "width": 1680,
+      "height": 945,
+      "path": "tools/Atlas/Примеры/Atlas5_Редактор.png"
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "path": ".wmma/atlas5-1366.png"
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "path": ".wmma/atlas5-1920.png"
+    }
+  ],
+  "live_ui": "interrupted_by_user_physical_escape",
+  "project_validation": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "history_validation": {
+    "errors": 0,
+    "warnings": 0
+  }
+}

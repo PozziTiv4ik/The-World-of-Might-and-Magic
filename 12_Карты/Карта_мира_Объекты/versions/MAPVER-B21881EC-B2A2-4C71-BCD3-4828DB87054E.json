@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "a508b93083334dbefa6c971213c13983a06e0a5ddad939c597804a75c76ef74c",
+  "document_ref": "history/documents/a508b93083334dbefa6c971213c13983a06e0a5ddad939c597804a75c76ef74c.json",
+  "format": 2,
+  "id": "MAPVER-B21881EC-B2A2-4C71-BCD3-4828DB87054E",
+  "integrity": "96f3e5f36b8aa52d7136fc45bb0d942d486ee226adfbe47c9bfe98e809d761ed",
+  "label": "Михаэль · Три дня в пустыне и предложение Хенги",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-9F74B43E-C87B-49F0-9B55-DD153FA55AD8",
+  "recorded_at": "2026-09-20T14:02:04.600Z",
+  "sequence": 83,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Несколько дней Михаэль блуждал по неизвестной пустыне. Страшная жара, отсутствие воды и пищи быстро истощали Принца. Ему неоднократно приходилось отбиваться от гигантских скорпионов и сколопендроморфов, а миражи несколько раз заставляли его принимать пустой песок за спасительные оазисы. На третий день Михаэль чувствовал, что близок к смерти. Из-за дюны показалось маленькое существо — гоблин.",
+    "evidence_ids": [
+      "SRC-0191"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0094",
+    "story_date": "третий день после пробуждения в неизвестной пустыне",
+    "story_order": 82944
+  }
+}

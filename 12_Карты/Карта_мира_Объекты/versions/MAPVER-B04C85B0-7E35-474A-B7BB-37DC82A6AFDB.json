@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 2,
+  "document_hash": "98231a37aad0c81ac4baf875bf262a38aa57b86f366e90558027389302b7511b",
+  "document_ref": "history/documents/fa3fea795de8f0df2fb48c7ce7227f82582fd75bfae20249b09d8eea33e08637.json",
+  "format": 2,
+  "id": "MAPVER-B04C85B0-7E35-474A-B7BB-37DC82A6AFDB",
+  "integrity": "a662af22c15c2a3fce875fda4d97035a49d8260b629799d8bfed4afd9cba37a4",
+  "label": "Михаэль · Штурм Белой Гавани",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-800D7560-7D89-42B5-8CA3-64FF6AAE6BF3",
+  "recorded_at": "2026-09-20T13:55:43.344Z",
+  "sequence": 20,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Михаэль",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Сцена 008. Штурм Белой Гавани",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-WHITE-HARBOR"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0071",
+    "story_date": "первые недели после Дня Единения Империи",
+    "story_order": 19456
+  }
+}

@@ -1,0 +1,364 @@
+{
+  "base": "history/documents/0b9538f80cdc242c3b61c70b01f69da61bdeea4de1abc5308792280ca916bdef.json",
+  "changes": [
+    {
+      "after": "Тщательно обдумав предложение Елены, Александрос отказывается от саботажа флота Торговой Компании. Император не хочет провоцировать конфликт с Железной Ордой и запрещает использовать готовый железный флот как прикрытие для тайного удара по Хельмару. Вместо этого он приказывает Елене сосредоточить внедренных агентов на выяснении точного местоположения Петира.",
+      "before": "На следующее утро после свадьбы Михаэля и Нилуфар Елена вызывает Александроса и представляет новый доклад. По сведениям разведки, железный флот Орды готов, и орки собираются бросить вызов морскому могуществу Торговой Компании. Елена сообщает, что имперские агенты уже плотно осели среди государства Хельмара.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "столица Империи",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0022",
+      "before": "SCENE-0021",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_022_Отказ_от_саботажа_и_тайный_путь_к_Гормашу.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_021_Елена_и_железный_шанс_против_Хельмара.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "86f2e18ffc4e3446e7fe197e609f2e5391929453d1c33b624f2722069b475653",
+      "before": "77b31a7c836fbae16b53f90040d241b039315ae65a3269b8cee84db9f4e04a62",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 40960,
+      "before": 39936,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 022. Отказ от саботажа и тайный путь к Гормашу",
+      "before": "Сцена 021. Елена и железный шанс против Хельмара",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0125"
+      ],
+      "before": [
+        "SRC-0128"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0022",
+      "before": "SCENE-0021",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        1843,
+        814
+      ],
+      "before": [
+        1938,
+        725
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Тщательно обдумав предложение Елены, Александрос отказывается от саботажа флота Торговой Компании. Император не хочет провоцировать конфликт с Железной Ордой и запрещает использовать готовый железный флот как прикрытие для тайного удара по Хельмару. Вместо этого он приказывает Елене сосредоточить внедренных агентов на выяснении точного местоположения Петира.",
+      "before": "На следующее утро после свадьбы Михаэля и Нилуфар Елена вызывает Александроса и представляет новый доклад. По сведениям разведки, железный флот Орды готов, и орки собираются бросить вызов морскому могуществу Торговой Компании. Елена сообщает, что имперские агенты уже плотно осели среди государства Хельмара.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0125"
+      ],
+      "before": [
+        "SRC-0128"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0022",
+      "before": "SCENE-0021",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0125"
+      ],
+      "before": [
+        "SRC-0128"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0022",
+      "before": "SCENE-0021",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1825,
+        836
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": "MAPVER-220D1A2A-D832-4256-B2FC-79DDF6A47981",
+      "before": "MAPVER-48E9A98D-F8B5-465B-9B69-E95702D2EFDE",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Тщательно обдумав предложение Елены, Александрос отказывается от саботажа флота Торговой Компании. Император не хочет провоцировать конфликт с Железной Ордой и запрещает использовать готовый железный флот как прикрытие для тайного удара по Хельмару. Вместо этого он приказывает Елене сосредоточить внедренных агентов на выяснении точного местоположения Петира.",
+      "before": "На следующее утро после свадьбы Михаэля и Нилуфар Елена вызывает Александроса и представляет новый доклад. По сведениям разведки, железный флот Орды готов, и орки собираются бросить вызов морскому могуществу Торговой Компании. Елена сообщает, что имперские агенты уже плотно осели среди государства Хельмара.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0125"
+      ],
+      "before": [
+        "SRC-0128"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0022",
+      "before": "SCENE-0021",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": 40960,
+      "before": 39936,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

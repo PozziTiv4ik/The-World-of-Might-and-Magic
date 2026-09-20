@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 14,
+  "document_hash": "651cf0d30a6039375a11fcd13d9f9dd2dc58f24728a821434b12dee215234a39",
+  "document_ref": "history/documents/ec297c08988195935d9fb1a3fc1938ec6cdb3dbdc2c57aec8da563c140e6a563.json",
+  "format": 2,
+  "id": "MAPVER-744EC438-B78E-44D0-B307-2046C3ED86A2",
+  "integrity": "9cff1a0b6b5bcc8bbf39ca02965915b271e559d50c53f8b309bdafde4e694677",
+  "label": "Александрос · Допрос Кхемала и отъезд в Хорнбург",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-BEBA7300-2BA0-4ECC-B89D-7541E171F921",
+  "recorded_at": "2026-09-20T14:02:39.299Z",
+  "sequence": 97,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "После получения срочных донесений Александрос приказал готовить людей и флот к немедленному отбытию в Хорнбург. Пока шли приготовления, Император разослал несколько распоряжений по Империи. Герхарду велено закрепиться в землях, захваченных в ходе разгрома Железной Орды, и начать формирование протектората. Александрос принял дань орочьих кланов и гарантировал им мир.",
+    "evidence_ids": [
+      "SRC-0218"
+    ],
+    "front_ids": [
+      "FRONT-HORNBURG"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0056",
+    "story_date": "перед отбытием из Цитадели Солнца к Хорнбургу",
+    "story_order": 97280
+  }
+}

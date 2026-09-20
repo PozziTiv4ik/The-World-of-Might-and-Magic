@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "name": "09-exploration",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "explore",
+      "seed": 17,
+      "steps": 120
+    },
+    {
+      "action": "explore",
+      "seed": 5102,
+      "steps": 120
+    },
+    {
+      "action": "explore",
+      "seed": 20260920,
+      "steps": 120
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "validate_history"
+    },
+    {
+      "action": "assert_ui"
+    },
+    {
+      "action": "capture",
+      "capture": "explored-map"
+    }
+  ]
+}

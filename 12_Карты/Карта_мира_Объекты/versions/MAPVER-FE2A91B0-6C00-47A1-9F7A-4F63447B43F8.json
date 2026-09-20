@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 4,
+  "document_hash": "09327f3873f42e811e5e7968c88c3c66cef80ab1e3f504dc95c6a9489a5ef43a",
+  "document_ref": "history/documents/317464dd626d8458424eb38e8d9dbd355e95ccb1b3215a5cec4a9775c997605d.json",
+  "format": 2,
+  "id": "MAPVER-FE2A91B0-6C00-47A1-9F7A-4F63447B43F8",
+  "integrity": "c8f8ad0eeb0f098c1fe8245fbc3eab61c3c282c0ff54d8bdeaf3dcb78cd8c7bf",
+  "label": "Александрос · Прощение Оберина и сон о стене",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-125EA814-1E3E-4C5A-A659-F9EE961436CB",
+  "recorded_at": "2026-09-20T14:01:06.770Z",
+  "sequence": 55,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "После получения письма Имрахиля Александрос откладывает этот вопрос. Сейчас он решает, что Оберина нельзя оставлять без подмоги. Император пишет письмо, в котором дарует Оберину прощение, заверяет его в полном понимании и поддержке, а затем передает письмо Елене. Одновременно Александрос тайно выделяет из имперской армии 500 паладинов, 2500 тяжелой пехоты и 5000 имперских солдат для переправки в поддержку Оберина.",
+    "evidence_ids": [
+      "SRC-0144"
+    ],
+    "front_ids": [
+      "FRONT-THREE-MOONS"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0033",
+    "story_date": "на следующий день после письма Имрахиля; ночь нового сна",
+    "story_order": 54272
+  }
+}

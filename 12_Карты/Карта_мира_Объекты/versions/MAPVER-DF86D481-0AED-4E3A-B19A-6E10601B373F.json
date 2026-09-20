@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "da8745b9225d1210031371538e1c28fb297e217628382a54ca47fa456bfb7470",
+  "document_ref": "history/documents/da8745b9225d1210031371538e1c28fb297e217628382a54ca47fa456bfb7470.json",
+  "format": 2,
+  "id": "MAPVER-DF86D481-0AED-4E3A-B19A-6E10601B373F",
+  "integrity": "18646a004d842a6c4aaca210908eeefc78ea5b0a82658608c2515a928d845569",
+  "label": "Александрос · Хорнбург и новые донесения",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-551BF86E-C966-47F0-BA92-C368E9FD5205",
+  "recorded_at": "2026-09-20T13:55:39.688Z",
+  "sequence": 18,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Александрос взял Хорнбург и пленил Эйтрига Даркхольма, закрыв один из главных мятежных узлов востока. Но новые донесения резко меняют карту угроз: Багровый Пик истекает силами, Кровавый Барон идет к родному Порт-Вингарду Александроса, Гектор разоряет Солнечное Копье, а Черная гора снова становится полем боя.",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-HORNBURG"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0010",
+    "story_date": "первые недели после Дня Единения Империи",
+    "story_order": 17408
+  }
+}

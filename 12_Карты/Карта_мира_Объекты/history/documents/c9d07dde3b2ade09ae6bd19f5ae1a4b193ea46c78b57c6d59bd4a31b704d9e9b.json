@@ -1,0 +1,305 @@
+{
+  "base": "history/documents/f97b60810374a594eda68de081ad5fd847c12b0d48ad033475bb937b2f716235.json",
+  "changes": [
+    {
+      "after": "на следующий день после аудиенции Берена; одновременно с письмом Никитосиоса и прибытием Михаэля в Порт-Лабад",
+      "before": "спустя неделю после отбытия из Белой Гавани",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "На следующий день после аудиенции Берена к Александросу почти одновременно с письмом от старшего сына приходит посылка. В ней лежит тот самый загадочный скипетр, о котором Никитосиос говорил на закрытом семейном разговоре. Прочитав письмо Никитосиоса, Александрос беспокоится за сына, который ушел к Ледяным хребтам и Королевству Бездны, но верит, что Лорд Багрового Пика достаточно силен, чтобы пройти этот путь.",
+      "before": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "столица Империи; связь с Порт-Лабадом через видящий камень",
+      "before": "Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0094"
+      ],
+      "before": [
+        "LOC-0061"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1277,
+        1536
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0035",
+      "before": "SCENE-0083",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_035_Скипетр_из_Торбьорна_и_вызов_Михаэля.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_020_Прибытие_в_Порт-Лабад_и_письмо_Картоса.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "1f113e18f3763ffd7d08e9c757a754a17bbdd5850defe04cb8bfa4bd32354343",
+      "before": "4ac0d925a9c45fb2e2e72b33338c9b05123ad168b4c9b9a3fe179cefb19aff2f",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 58368,
+      "before": 57344,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 035. Скипетр из Торбьорна и вызов Михаэля",
+      "before": "Сцена 020. Прибытие в Порт-Лабад и письмо Картоса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0149"
+      ],
+      "before": [
+        "SRC-0145"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0035",
+      "before": "SCENE-0034",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "На следующий день после аудиенции Берена к Александросу почти одновременно с письмом от старшего сына приходит посылка. В ней лежит тот самый загадочный скипетр, о котором Никитосиос говорил на закрытом семейном разговоре. Прочитав письмо Никитосиоса, Александрос беспокоится за сына, который ушел к Ледяным хребтам и Королевству Бездны, но верит, что Лорд Багрового Пика достаточно силен, чтобы пройти этот путь.",
+      "before": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0094",
+      "before": "LOC-0061",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0149"
+      ],
+      "before": [
+        "SRC-0137"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Цитадель Вечного Света",
+      "before": "Порт-Лабад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1920,
+        747
+      ],
+      "before": [
+        1277,
+        1536
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0035",
+      "before": "SCENE-0083",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-652FD494-CFE8-45DE-98E8-680958EB1180",
+      "before": "MAPVER-B0EF398D-046F-4CA4-BF14-05A4E7458021",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Михаэль",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "На следующий день после аудиенции Берена к Александросу почти одновременно с письмом от старшего сына приходит посылка. В ней лежит тот самый загадочный скипетр, о котором Никитосиос говорил на закрытом семейном разговоре. Прочитав письмо Никитосиоса, Александрос беспокоится за сына, который ушел к Ледяным хребтам и Королевству Бездны, но верит, что Лорд Багрового Пика достаточно силен, чтобы пройти этот путь.",
+      "before": "Спустя неделю после отплытия из Белой Гавани на горизонте появляются очертания Порт-Лабада. Для Михаэля это первое настолько дальнее плавание, и дорога заметно изматывает Принца. Он надеется пару дней отдохнуть в городе, прежде чем выдвигаться в столицу Кланов Закона на аудиенцию к Владыке Закона Уриону. По прибытии делегацию встречает Лорд Закона Аракхен.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0149"
+      ],
+      "before": [
+        "SRC-0137"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-THREE-MOONS"
+      ],
+      "before": [
+        "FRONT-LAW-CLANS"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0035",
+      "before": "SCENE-0083",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "на следующий день после аудиенции Берена; одновременно с письмом Никитосиоса и прибытием Михаэля в Порт-Лабад",
+      "before": "спустя неделю после отбытия из Белой Гавани",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 58368,
+      "before": 57344,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

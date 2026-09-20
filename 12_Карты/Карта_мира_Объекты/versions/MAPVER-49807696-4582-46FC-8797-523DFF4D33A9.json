@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 11,
+  "document_hash": "54289ab1d42862767fcbe4a9c9737ec9ea417c4473da8248d9771fe286334dce",
+  "document_ref": "history/documents/e0f4aea49aed993c53dbbbd2ba0aba1b683008e7d7d0d56c8e60f53ff78e5bf1.json",
+  "format": 2,
+  "id": "MAPVER-49807696-4582-46FC-8797-523DFF4D33A9",
+  "integrity": "f9ff972286badcb5500fe54475338cba25448510281c55df5fd4e8213d74ffb1",
+  "label": "Александрос · День совета",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-4C6CD2D3-97B9-4182-A49E-08AA57F36A90",
+  "recorded_at": "2026-09-20T14:00:15.810Z",
+  "sequence": 29,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 2,
+    "description": "Высший совет впервые в истории Империи собрался вне стен столицы. Для Хорнбурга это стало днем, который должен остаться в хрониках: город, недавно взятый Александросом у мятежника Даркхольма, теперь стал временным центром имперского управления. Первой темой стала война с Лордамером. Елена представила данные по плану Лорда Герхарда Волка.",
+    "evidence_ids": [
+      "SRC-0086"
+    ],
+    "front_ids": [
+      "FRONT-FLEET-COUNCIL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0015",
+    "story_date": "день заседания Высшего совета в Хорнбурге",
+    "story_order": 28672
+  }
+}

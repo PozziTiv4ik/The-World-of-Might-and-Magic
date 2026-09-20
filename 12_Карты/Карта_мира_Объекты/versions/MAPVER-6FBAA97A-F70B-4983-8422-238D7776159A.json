@@ -1,0 +1,29 @@
+{
+  "asset_hashes": {},
+  "document_depth": 5,
+  "document_hash": "6fc6c95e42723cb2f428ddba66e5e22cc4e45fffd26735a7cb6f05393bfb8fda",
+  "document_ref": "history/documents/7477a3195a6ac5732dc7be61f2f6f8a5e5975627608d7bbb0df294e4a3d632ea.json",
+  "format": 2,
+  "id": "MAPVER-6FBAA97A-F70B-4983-8422-238D7776159A",
+  "integrity": "278ecf1c2a06a920ae9f500a67e1edefff8d278a48a9e712d1f4d90827cb3248",
+  "label": "Александрос · Письмо Михаэля о пиратах",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-3DA463A4-A568-4FBB-A50F-A808EB32CA6A",
+  "recorded_at": "2026-09-20T13:55:14.706Z",
+  "sequence": 6,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 1,
+    "description": "Сцена 004. Письмо Михаэля о пиратах",
+    "evidence_ids": [],
+    "front_ids": [
+      "FRONT-HECTOR-LINER"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0004",
+    "story_date": "за 1 неделю и 3 дня до Дня Единения Империи",
+    "story_order": 6144
+  }
+}

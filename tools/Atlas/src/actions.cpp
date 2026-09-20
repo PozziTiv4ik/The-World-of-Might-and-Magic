@@ -7,10 +7,10 @@
 
 namespace atlas {
 bool App::discard() {
-    SetFocus(window);
+    if(window)SetFocus(window);
     if (!dirty)
         return true;
-    int result = MessageBoxW(window, L"Сохранить изменения текущей карты?", L"АТЛАС",
+    int result = confirmDialog(window, L"Сохранить изменения текущей карты?", L"АТЛАС",
                              MB_YESNOCANCEL | MB_ICONQUESTION);
     if (result == IDCANCEL)
         return false;
@@ -21,7 +21,9 @@ bool App::discard() {
     return true;
 }
 void App::save(bool as) {
-    SetFocus(window);
+    if(historyView)command(EditorView);
+    if(!as && dirty && !map.doc["parent_version"].str().empty()) {revisionDialog(false);return;}
+    if(window)SetFocus(window);
     if (as || map.directory.empty()) {
         auto folder = chooseFolder(window, "Выбери папку для проекта карты");
         if (!folder)
@@ -35,8 +37,8 @@ void App::save(bool as) {
         map.save();
     dirty = false;
     status = "Карта сохранена";
-    noticeUntil = GetTickCount64() + 2000;
-    SetTimer(window, 5, 2000, nullptr);
+    noticeUntil = now() + 2000;
+    if(window)SetTimer(window, 5, 2000, nullptr);
     SetWindowTextW(window, wide("АТЛАС — " + map.doc["name"].str()).c_str());
     invalidate();
 }
@@ -84,7 +86,7 @@ void App::open() {
     SetWindowTextW(window, wide("АТЛАС — " + map.doc["name"].str()).c_str());
 }
 void App::exportMap(bool svg) {
-    SetFocus(window);
+    if(window)SetFocus(window);
     auto file =
         saveFile(window, svg ? L"SVG\0*.svg\0\0" : L"PNG\0*.png\0\0", svg ? L"Карта.svg" : L"Карта.png");
     if (!file)
@@ -108,45 +110,45 @@ static double number(const std::string &s, double minimum, double maximum) {
     return value;
 }
 void App::properties() {
-    if (selected.empty()) {
-        auto result =
-            form(window, "Свойства карты",
-                 {{"Название", map.doc["name"].str()}, {"Цвет фона (#RRGGBB)", map.doc["background"].str()}});
-        if (!result)
-            return;
-        before = map.doc;
-        map.doc["name"] = (*result)[0];
-        map.doc["background"] = (*result)[1];
-        changed("Изменены свойства карты");
-        return;
+    const Json &f=selected.empty()?map.doc:map.doc["features"][*selected.begin()];
+    std::vector<Field> fields;
+    std::vector<std::string> keys;
+    auto add=[&](const std::string &label,const std::string &key,const std::string &fallback="") {
+        keys.push_back(key);
+        fields.push_back({label,f[key].isNumber()?std::to_string(f[key].num()):f[key].str(fallback)});
+    };
+    add("Название","name");
+    if(selected.empty())add("Цвет фона (#RRGGBB)","background","#D3E0DE");
+    else {
+        auto kind=f["kind"].str();
+        if(kind=="label"){add("Размер текста","font_size","24");add("Цвет текста (#RRGGBB)","text_color","#333333");}
+        else if(kind=="symbol"){add("Размер значка","size","36");add("Поворот, градусы","rotation","0");add("Цвет значка (#RRGGBB)","stroke","#635D4D");}
+        else {
+            if(f["closed"].boolean())add("Заливка (#RRGGBB или none)","fill","#C4D5BD");
+            add("Цвет линии (#RRGGBB)","stroke","#635D4D");add("Толщина линии","stroke_width","2");
+        }
+        add("Непрозрачность (0–1)","opacity","1");
+        if(f.contains("campaign_state"))add("Состояние на карте","campaign_state");
     }
-    auto &f = map.doc["features"][*selected.begin()];
-    auto result = form(window, "Оформление объекта",
-                       {{"Подпись", f["name"].str()},
-                        {"Цвет линии / символа (#RRGGBB)", f["stroke"].str(stroke)},
-                        {"Толщина линии (пиксели карты)", std::to_string(int(f["stroke_width"].num(3)))},
-                        {"Размер символа", std::to_string(int(f["size"].num(36)))},
-                        {"Размер подписи", std::to_string(int(f["font_size"].num(24)))},
-                        {"Непрозрачность (0–100)", std::to_string(int(f["opacity"].num(1) * 100))},
-                        {"Поворот символа (градусы)", std::to_string(int(f["rotation"].num()))}});
-    if (!result)
-        return;
-    auto &r = *result;
-    double lw = number(r[2], .1, 300), size = number(r[3], 2, 2000), fontSize = number(r[4], 2, 500),
-           alpha = number(r[5], 0, 100) / 100, angle = number(r[6], -3600, 3600);
-    before = map.doc;
-    for (auto &id : selected) {
-        auto &o = map.doc["features"][id];
-        if (selected.size() == 1)
-            o["name"] = r[0];
-        o["stroke"] = r[1];
-        o["stroke_width"] = lw;
-        o["size"] = size;
-        o["font_size"] = fontSize;
-        o["opacity"] = alpha;
-        o["rotation"] = angle;
-    }
-    changed("Изменено оформление");
+    auto result=form(window,selected.empty()?"Свойства карты":"Свойства объекта",fields,"Применить");
+    if(!result)return;
+    before=map.doc;
+    auto apply=[&](Json &item) {
+        for(size_t i=0;i<keys.size();++i) {
+            const auto &key=keys[i];const auto &value=(*result)[i];
+            if(key=="name" && selected.size()>1)continue;
+            if(key=="opacity")item[key]=number(value,0,1);
+            else if(key=="size" || key=="font_size")item[key]=number(value,2,2000);
+            else if(key=="rotation")item[key]=number(value,-3600,3600);
+            else if(key=="stroke_width")item[key]=number(value,.1,300);
+            else item[key]=value;
+        }
+    };
+    try {
+        if(selected.empty())apply(map.doc);else for(const auto &id:selected)apply(map.doc["features"][id]);
+        auto validation=map.validate();if(validation["errors"].size())throw std::runtime_error(validation["errors"].dump());
+    }catch(...){map.doc=before;throw;}
+    changed("Свойства сохранены");
 }
 void App::bindEntity() {
     if (selected.empty()) {
@@ -179,49 +181,6 @@ void App::bindEntity() {
     }
     changed("Объект связан с карточкой");
 }
-void App::versionDialog() {
-    if (map.directory.empty()) {
-        save();
-        if (map.directory.empty())
-            return;
-    }
-    std::vector<std::string> scenes{"Без сюжетной привязки"};
-    std::vector<const Entity *> entries;
-    for (auto &e : campaign.entities)
-        if (e.type == "scene") {
-            scenes.push_back(e.id + " · " + e.name);
-            entries.push_back(&e);
-        }
-    auto result = form(window, "Сохранить версию карты",
-                       {{"Название версии", "Версия " + std::to_string(versions.size() + 1)},
-                        {"Сцена кампании", scenes[0], scenes},
-                        {"Положение относительно сцены", "После сцены", {"После сцены", "До сцены"}},
-                        {"Статус", "Черновик", {"Черновик", "Принятая карта"}}},
-                       "Сохранить версию");
-    if (!result)
-        return;
-    auto &r = *result;
-    Json anchor;
-    auto it = std::find(scenes.begin(), scenes.end(), r[1]);
-    size_t i = size_t(it - scenes.begin());
-    if (i) {
-        auto e = entries.at(i - 1);
-        anchor = fields({{"scene_id", e->id},
-                         {"chapter", std::atoi(e->chapter.c_str())},
-                         {"branch", e->branch},
-                         {"relation", r[2] == "До сцены" ? "before" : "after"},
-                         {"evidence_ids", e->sources},
-                         {"front_ids", e->fronts}});
-    }
-    before = map.doc;
-    auto id = map.snapshot(r[0], anchor, r[3] == "Принятая карта");
-    changed("Сохранена версия: " + r[0]);
-    map.save();
-    dirty = false;
-    versions = map.versions();
-    status = "Версия сохранена: " + id;
-    invalidate();
-}
 void App::copy() {
     if (selected.empty())
         return;
@@ -231,7 +190,7 @@ void App::copy() {
                           {"arcs", Json::object()},
                           {"symbols", map.doc["symbols"]}});
     for (auto &id : selected) {
-        auto &f = map.doc["features"][id];
+        const auto &f = static_cast<const Json &>(map.doc)["features"][id];
         bundle["features"][id] = f;
         auto add = [&](const Json &list) {
             if (!list.isArray())
@@ -248,52 +207,13 @@ void App::copy() {
             for (auto &ring : f["rings"].arr())
                 add(ring);
     }
-    auto text = wide(bundle.dump());
-    if (!OpenClipboard(window))
-        throw std::runtime_error("Буфер обмена занят");
-    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, (text.size() + 1) * sizeof(wchar_t));
-    if (!memory) {
-        CloseClipboard();
-        throw std::bad_alloc();
-    }
-    auto ptr = GlobalLock(memory);
-    std::memcpy(ptr, text.c_str(), (text.size() + 1) * sizeof(wchar_t));
-    GlobalUnlock(memory);
-    EmptyClipboard();
-    if (!SetClipboardData(CF_UNICODETEXT, memory)) {
-        GlobalFree(memory);
-        CloseClipboard();
-        throw std::runtime_error("Не удалось скопировать объекты");
-    }
-    CloseClipboard();
+    writeClipboard(window,bundle.dump());
     status = "Объекты скопированы";
     invalidate();
 }
 void App::paste() {
-    if (!OpenClipboard(window))
-        return;
-    auto mem = GetClipboardData(CF_UNICODETEXT);
-    if (!mem) {
-        CloseClipboard();
-        return;
-    }
-    auto p = static_cast<const wchar_t *>(GlobalLock(mem));
-    if (!p) {
-        CloseClipboard();
-        throw std::runtime_error("Не удалось прочитать буфер обмена");
-    }
-    size_t max = GlobalSize(mem) / sizeof(wchar_t), n = 0;
-    while (n < max && p[n])
-        n++;
-    if (n > 16 * 1024 * 1024) {
-        GlobalUnlock(mem);
-        CloseClipboard();
-        throw std::runtime_error("Слишком большой буфер обмена");
-    }
-    std::wstring text(p, n);
-    GlobalUnlock(mem);
-    CloseClipboard();
-    auto bundle = Json::parse(utf8(text));
+    auto text=readClipboard(window);if(!text)return;
+    auto bundle=Json::parse(*text);
     if (bundle["format"].str() != "atlas-selection-1")
         throw std::runtime_error("В буфере нет объектов Atlas");
     before = map.doc;
@@ -309,12 +229,15 @@ void App::paste() {
             auto copy = a;
             for (auto &n : copy["nodes"].arr())
                 n = nodes.at(n.str());
+            if(copy.contains("control_nodes")&&copy["control_nodes"].isArray())for(auto &n:copy["control_nodes"].arr())n=nodes.at(n.str());
             auto aid = newId("ARC-");
             map.doc["arcs"][aid] = copy;
             arcs[id] = aid;
         }
         selected.clear();
         auto layer = drawingLayer();
+        std::map<std::string,std::string> featureIds;
+        for(const auto &[id,f]:bundle["features"].obj())featureIds[id]=newId("MAPOBJ-");
         for (auto &[id, f] : bundle["features"].obj()) {
             auto obj = f;
             auto change = [&](Json &refs) {
@@ -322,16 +245,17 @@ void App::paste() {
                     for (auto &r : refs.arr())
                         r["id"] = arcs.at(r["id"].str());
             };
-            change(obj["arcs"]);
-            if (obj["rings"].isArray())
+            if(obj.contains("arcs"))change(obj["arcs"]);
+            if (obj.contains("rings")&&obj["rings"].isArray())
                 for (auto &ring : obj["rings"].arr())
                     change(ring);
-            if (obj["position"].isArray()) {
+            if (obj.contains("position")&&obj["position"].isArray()) {
                 auto q = point(obj["position"]);
                 obj["position"] = pointJson({q.x + 24, q.y + 24});
             }
-            auto fid = newId("MAPOBJ-");
+            auto fid = featureIds.at(id);
             obj["id"] = fid;
+            if(obj.contains("parent_id")&&featureIds.contains(obj["parent_id"].str()))obj["parent_id"]=featureIds.at(obj["parent_id"].str());
             map.doc["next_z"] = map.doc["next_z"].num() + 1;
             obj["z_order"] = map.doc["next_z"];
             obj["layer_id"] = layer;
@@ -342,6 +266,8 @@ void App::paste() {
             for (auto &[id, s] : bundle["symbols"].obj())
                 if (!map.doc["symbols"].contains(id))
                     map.doc["symbols"][id] = s;
+        auto errors=map.validate()["errors"];
+        if(errors.size())throw std::runtime_error("Некорректные объекты в буфере: "+errors.dump());
         changed("Вставлены объекты");
     } catch (...) {
         map.doc = before;
@@ -533,23 +459,17 @@ void App::booleanRegions(bool subtract) {
     changed(subtract ? "Вычтена область" : "Территории объединены");
 }
 void App::command(int cmd, const std::string &data) {
-    if (down && (cmd == SetTool || cmd == ScopeBorders || cmd == ScopeLand || cmd == ScopeObjects ||
-                 cmd == SelectLayer)) {
-        if (!panning && before["schema_version"].num() == 1) {
-            map.doc = before;
-            map.clearCache();
-            renderer.clear();
-        }
-        down = false;
-        panning = false;
-        draggingControl = false;
-        dragPreview = false;
-        selectionBox = false;
-        movingNode.clear();
-        movingBorder.clear();
-        renderer.excludedBorderArcs.clear();
-        ReleaseCapture();
+    if(headless && (cmd==Print || cmd==OpenCard || cmd==OpenVersionSource || cmd==ExitApp || cmd==OpenCampaign))
+        throw std::runtime_error("External OS action is unavailable in windowless replay");
+    if(historyView) {
+        const std::set<int> writes={Undo,Redo,Paste,Duplicate,Delete,Properties,BindEntity,StrokeColor,FillColor,Smaller,Larger,InsertNode,Simplify,Union,Subtract,Style,AddLayer,Visibility,Lock,LayerUp,LayerDown,LayerProperties,SetTool,SetSymbol,SavePreset,SelectEntity,AddRaster,ToggleSea};
+        if(writes.contains(cmd)){status="Для правки нажми «Открыть карту»";noticeUntil=now()+3000;invalidate();return;}
     }
+    keyboardHit=-1;
+    if ((down || !drawing.empty() || painted) &&
+        (cmd==SetTool || cmd==ScopeBorders || cmd==ScopeLand || cmd==ScopeObjects || cmd==SelectLayer ||
+         cmd==HistoryView || cmd==CompareView || cmd==EditorView || cmd==OpenMoment || cmd==RestoreVersion))
+        rollbackInteraction();
     if (comparisonRenderer && (cmd == SelectVersion || cmd == HistoryView))
         comparisonRenderer->clear();
     switch (cmd) {
@@ -616,19 +536,16 @@ void App::command(int cmd, const std::string &data) {
         finishDrawing();
         return;
     case CancelContour:
-        drawing.clear();
-        invalidate();
+        rollbackInteraction();
         return;
     case ClosePanel:
-        panel = 0;
-        historyView = false;
-        comparison.reset();
+        panel = 0;showPanels=false;
         layout();
         return;
     case LayersPanel:
     case InspectorPanel:
         panel = panel == (cmd == LayersPanel ? 4 : 5) ? 0 : (cmd == LayersPanel ? 4 : 5);
-        showPanels = true;
+        showPanels = panel!=0;
         historyView = false;
         layout();
         return;
@@ -650,7 +567,7 @@ void App::command(int cmd, const std::string &data) {
             AppendMenuW(menu, MF_STRING, pair.first, pair.second);
         POINT at;
         GetCursorPos(&at);
-        int choice = TrackPopupMenu(menu, TPM_RETURNCMD, at.x, at.y, 0, window, nullptr);
+        int choice = pickMenu(window,menu);
         DestroyMenu(menu);
         if (choice)
             command(choice);
@@ -681,7 +598,7 @@ void App::command(int cmd, const std::string &data) {
             AppendMenuW(menu, MF_STRING, 2000 + i, names[i]);
         POINT pos;
         GetCursorPos(&pos);
-        int id = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, pos.x, pos.y, 0, window, nullptr);
+        int id = pickMenu(window,menu);
         DestroyMenu(menu);
         if (id >= 2000 && id < 2019)
             command(SetTool, std::to_string(id - 2000));
@@ -693,7 +610,7 @@ void App::command(int cmd, const std::string &data) {
     case ShowSourceNote:
         if (!selected.empty()) {
             const auto &f = map.doc["features"][*selected.begin()];
-            MessageBoxW(window, wide(f["source_note"].str("Текст не распознан")).c_str(),
+            confirmDialog(window, wide(f["source_note"].str("Текст не распознан")).c_str(),
                         L"Заметка исходного PDN · требуется проверка", MB_OK);
         }
         return;
@@ -738,6 +655,10 @@ void App::command(int cmd, const std::string &data) {
         HMENU menu = CreatePopupMenu();
         auto item = [&](int id, const wchar_t *title) { AppendMenuW(menu, MF_STRING, id, title); };
         if (cmd == FileMenu) {
+            item(HistoryView,L"История карты\tCtrl+H");
+            item(Snapshot,L"Сохранить редакцию…\tCtrl+Shift+S");
+            item(LibraryTab,L"Библиотека символов");
+            item(ObjectsTab,L"Объекты карты");
             item(EditMenu, L"Правка…");
             item(MapMenu, L"Карта…");
             item(ViewMenu, L"Вид…");
@@ -772,8 +693,11 @@ void App::command(int cmd, const std::string &data) {
             item(Subtract, L"Вычесть территории");
             item(Fit, L"Показать всю карту\tHome");
         } else if (cmd == VersionMenu) {
-            item(Snapshot, L"Сохранить версию по событию…");
-            item(HistoryView, L"Сравнение версий");
+            item(Snapshot, L"Сохранить редакцию…\tCtrl+Shift+S");
+            item(NewEvent, L"Новое событие…");
+            item(HistoryView, L"История карты\tCtrl+H");
+            item(CompareView, L"Сравнить карты…");
+            item(DraftsDialog, L"Именованные черновики…");
             item(ShowDiff, L"Посмотреть список изменений");
             item(RestoreVersion, L"Создать рабочую копию выбранной версии");
         } else if (cmd == ViewMenu) {
@@ -786,9 +710,11 @@ void App::command(int cmd, const std::string &data) {
             item(ObjectsTab, L"Объекты мира");
             item(CampaignTab, L"Кампания");
             item(Snap, L"Привязка к узлам");
-            item(Panels, L"Показать / скрыть панели\tTab");
+            item(Panels, L"Открыть / закрыть панель\tF6");
+            item(InspectorPanel,L"Свойства объекта");
+            item(FullScreen,L"Полный экран\tF11");
         } else {
-            MessageBoxW(
+            confirmDialog(
                 window,
                 L"АТЛАС — редактор карт\n\nV — выбор, Ctrl+клик — несколько объектов\nN — общие узлы, P — "
                 L"территория\nR — маршрут, U — река, Z — зона\nB — кисть, E — ластик, S — символ, T — "
@@ -803,7 +729,7 @@ void App::command(int cmd, const std::string &data) {
         }
         POINT pt;
         GetCursorPos(&pt);
-        int chosen = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, pt.x, pt.y, 0, window, nullptr);
+        int chosen = pickMenu(window,menu);
         DestroyMenu(menu);
         if (chosen)
             command(chosen);
@@ -960,6 +886,7 @@ void App::command(int cmd, const std::string &data) {
         brushSize = std::min(500.0, brushSize + 2);
         break;
     case Fit:
+        comparisonFocus.clear();
         fit();
         return;
     case ZoomIn:
@@ -977,68 +904,121 @@ void App::command(int cmd, const std::string &data) {
         grid = !grid;
         break;
     case Panels:
+        if(historyView&&!compareMode)break;
         showPanels = !showPanels;
+        if(!panel)panel=2;
         layout();
         return;
     case Style:
         chooseStyle(data);
         return;
-    case Snapshot:
-        versionDialog();
-        return;
+    case Snapshot:revisionDialog();return;
+    case NewEvent:versionDialog();return;
+    case NewRevision:
+        openMoment();status="Правь карту · Ctrl+S сохранит новую редакцию";noticeUntil=now()+3500;invalidate();return;
+    case OpenMoment:openMoment();return;
+    case CompareRevisions:compareRevisions();return;
+    case FullScreen:toggleFullscreen();return;
+    case HistoryFilter:
+        if(data.empty()){historyMenu(cmd);return;}
+        historyChapter=std::stoi(data);versionScroll=0;refreshVersions(true);
+        if(!selectedEvent()&&!versions.empty())showVersion(versions.front()["id"].str());
+        layout();break;
+    case HistoryOptions:historyMenu(cmd);return;
+    case HistoryCollection:
+        historyChain=data;historyChapter=0;versionScroll=0;refreshVersions(true);
+        if(!versions.empty())showVersion(versions.front()["id"].str());layout();break;
+    case HistorySort:
+        historyOrder=data;versionScroll=0;refreshVersions();revealVersion(versionDetails["id"].str());break;
+    case HistorySearch:
+        if(data=="clear"){query.clear();if(searchBox)SetWindowTextW(searchBox,L"");refreshVersions();if(!versions.empty())showVersion(versions.front()["id"].str());}
+        else historySearch=!historySearch;
+        layout();if(historySearch){if(searchBox)SetFocus(searchBox);}else if(window)SetFocus(window);break;
+    case HistoryPage:
+        versionScroll=std::clamp(versionScroll+(data=="next"?1:-1)*std::max(1,visibleEvents()-1),0,std::max(0,int(storyEvents.size())-visibleEvents()));break;
+    case HistoryScale:
+        eventSpacing=std::clamp(eventSpacing*(data=="in"?1.2f:1/1.2f),150.f,360.f);revealVersion(versionDetails["id"].str());break;
+    case SelectRevision:
+        if(data=="choose") {
+            const auto *event=selectedEvent();if(!event)break;
+            auto list=event->revisions;std::vector<std::string> labels;
+            for(size_t i=0;i<list.size();++i)labels.push_back("v"+std::to_string(i+1)+" · "+list[i]["recorded_at"].str()+" · "+list[i]["story_anchor"]["revision_note"].str());
+            auto r=form(window,"Редакции карты",{{"Редакция",labels.back(),labels}},"Выбрать");
+            if(r){auto index=size_t(std::find(labels.begin(),labels.end(),(*r)[0])-labels.begin());showVersion(list.at(index)["id"].str());}
+        }else showVersion(data);
+        break;
+    case EditorView:
+        historyView=false;compareMode=0;diffVisible=false;showPanels=false;panel=0;detailScroll=0;
+        layout();if(editorCameraSaved){zoom=editorZoom;offset=editorOffset;}else fit();break;
     case HistoryView:
-        showPanels = true;
-        panel = 0;
-        historyView = !historyView;
-        if (historyView) {
-            versions = map.versions();
-            if (!versions.empty()) {
-                auto id = versions.back()["id"].str();
-                comparison = std::make_unique<Map>();
-                comparison->doc = map.version(id)["document"];
-                comparison->directory = map.directory;
-                comparison->doc["_comparison_id"] = id;
-            }
+    case CompareView: {
+        if(!historyView){editorZoom=zoom;editorOffset=offset;editorCameraSaved=true;}
+        drawing.clear();selected.clear();activeBorder.clear();activeControl.clear();
+        historyView=true;showPanels=false;compareMode=cmd==CompareView?1:0;detailScroll=0;
+        refreshVersions(true);layout();
+        if(!comparison && !versions.empty()) {
+            auto id=map.doc["parent_version"].str();bool found=false;
+            for(const auto &event:storyEvents)for(const auto &v:event.revisions)if(v["id"].str()==id)found=true;
+            if(!found)id=versions.back()["id"].str();
+            showVersion(id);
         }
-        layout();
-        break;
-    case SelectVersion: {
-        comparison = std::make_unique<Map>();
-        comparison->doc = map.version(data)["document"];
-        comparison->directory = map.directory;
-        comparison->doc["_comparison_id"] = data;
-        status = "Сравнение с выбранной версией";
+        revealVersion(versionDetails["id"].str());
+        if(compareMode){buildDiff();fit();}
         break;
     }
-    case RestoreVersion: {
-        if (!comparison) {
-            status = "Сначала выбери версию в режиме сравнения";
-            break;
-        }
-        before = map.doc;
-        auto id = comparison->doc["_comparison_id"].str();
-        map.restore(id);
-        selected.clear();
-        historyView = false;
-        changed("Создана рабочая копия сохранённой версии");
-        layout();
+    case SelectVersion:
+        showVersion(data);
+        if(compareMode)buildDiff();
+        break;
+    case CompareOverlay:
+        compareMode=compareMode==2?1:2;fit();break;
+    case ChooseCompareA:chooseComparison(false);return;
+    case ChooseCompareB:chooseComparison(true);return;
+    case EditVersion:editVersion();return;
+    case NewChain:newChain();return;
+    case DraftsDialog:draftsDialog();return;
+    case RecoveryDialog:recoveryDialog();return;
+    case SaveNamedDraft: {
+        auto name=form(window,"Сохранить черновик",{{"Название","Моя работа"}});
+        if(name)map.stashDraft((*name)[0]);
         break;
     }
+    case PreviousVersion:
+    case NextVersion: {
+        if(versions.empty())break;
+        size_t index=0;auto event=selectedEvent();for(size_t i=0;i<storyEvents.size();++i)if(event&&storyEvents[i].key==event->key)index=i;
+        int next=std::clamp(int(index)+(cmd==NextVersion?1:-1),0,int(versions.size())-1);
+        showVersion(versions[size_t(next)]["id"].str());
+        if(compareMode)buildDiff();
+        break;
+    }
+    case FocusDiff:focusDiff(size_t(std::stoul(data)));return;
+    case FocusScene: {
+        const Json &doc=historyView&&comparison?comparison->doc:map.doc;
+        if(doc["campaign_event"]["position"].isArray()) {
+            auto at=point(doc["campaign_event"]["position"]);
+            double w=(canvas.right-canvas.left)/(compareMode==1?2:1);
+            zoom=std::clamp(std::min(w/520.,(canvas.bottom-canvas.top)/400.),.2,3.0);
+            offset={canvas.left+w/2-at.x*zoom,(canvas.top+canvas.bottom)/2-at.y*zoom};
+            comparisonFocus={"MAPOBJ-CAMPAIGN-CURRENT-EVENT"};
+        } else {status="Для этой версии ещё не выбрано место события";noticeUntil=now()+3000;}
+        break;
+    }
+    case ToggleDiff:diffVisible=!showPanels;showPanels=diffVisible;detailScroll=0;layout();break;
+    case OpenVersionSource: {
+        auto id=versionDetails["story_anchor"]["scene_id"].str();
+        if(id.empty())id=versionDetails["story_anchor"]["reference_scene_id"].str();
+        auto e=campaign.find(id);
+        if(e){auto file=safeChild(campaign.root,e->path);ShellExecuteW(window,L"open",file.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}
+        else{status="У этой версии нет отдельной сцены";noticeUntil=now()+3000;}
+        break;
+    }
+    case RestoreVersion:openMoment();return;
     case ShowDiff:
-        if (comparison) {
-            auto diff = map.diff(comparison->doc);
-            auto result =
-                form(window, "Изменения карты", {{"JSON изменений", diff.dump(), {}, true}}, "Закрыть");
-            (void)result;
-        } else
-            status = "Сначала выбери сохранённую версию";
+        if(comparison){historyView=true;if(!compareMode)compareMode=1;buildDiff();layout();fit();}
         break;
     case Recover:
-        before = map.doc;
-        map.recover();
-        selected.clear();
-        changed("Восстановлено автосохранение");
-        break;
+        recoveryDialog();return;
     case AddLayer: {
         auto result = form(window, "Новый слой",
                            {{"Название", "Новый слой"}, {"Тип", "Объекты", {"Объекты", "Растровый"}}});
@@ -1079,7 +1059,7 @@ void App::command(int cmd, const std::string &data) {
         setScope(domain == "political"  ? SelectionDomain::Borders
                  : domain == "physical" ? SelectionDomain::Land
                                         : SelectionDomain::Objects);
-        isolateLayer = true;
+        isolateLayer = false;
     }
         activeLayer = data;
         status = "Слой: " + (*map.layer(data))["name"].str();
@@ -1127,7 +1107,7 @@ void App::command(int cmd, const std::string &data) {
     }
     case SetTool: {
         Tool wanted = Tool(std::clamp(std::stoi(data), 0, 18));
-        SelectionDomain desired = editScope;
+        SelectionDomain desired = wanted==Tool::Select?SelectionDomain::All:editScope;
         if (wanted == Tool::Border || wanted == Tool::Region)
             desired = SelectionDomain::Borders;
         else if (wanted == Tool::Land)
@@ -1155,17 +1135,21 @@ void App::command(int cmd, const std::string &data) {
         }
         status = tool == Tool::Node ? "Выбери страну; перетаскивай точки её границы" : "Инструмент выбран";
         break;
-    case SetSymbol:
+    case SetSymbol: {
+        const Json &symbols=map.doc["symbols"];
+        const auto &definition=symbols[data];
+        if(!definition.isObject())throw std::runtime_error("Неизвестный символ: "+data);
         if (editScope != SelectionDomain::Objects)
             setScope(SelectionDomain::Objects);
         activeSymbol = data;
         tool = Tool::Stamp;
-        status = "Символ: " + map.doc["symbols"][data]["name"].str(data);
-        if (map.doc["symbols"][data]["defaults"].isObject()) {
-            stroke = map.doc["symbols"][data]["defaults"]["stroke"].str(stroke);
-            brushSize = map.doc["symbols"][data]["defaults"]["size"].num(brushSize * 3) / 3;
+        status = "Символ: " + definition["name"].str(data);
+        if (definition["defaults"].isObject()) {
+            stroke = definition["defaults"]["stroke"].str(stroke);
+            brushSize = definition["defaults"]["size"].num(brushSize * 3) / 3;
         }
         break;
+    }
     case SavePreset: {
         if (selected.empty())
             return;
@@ -1196,7 +1180,7 @@ void App::command(int cmd, const std::string &data) {
     case ObjectsTab:
     case CampaignTab:
         sideTab = cmd - LibraryTab;
-        panel = panel == sideTab + 1 ? 0 : sideTab + 1;
+        panel = sideTab + 1;
         if (data == "places") {
             panel = 1;
             symbolFilter = "Поселения";
@@ -1208,7 +1192,7 @@ void App::command(int cmd, const std::string &data) {
         SetWindowTextW(searchBox, L"");
         break;
     case SelectObject: {
-        auto role = map.doc["features"][data]["role"].str();
+        auto role = static_cast<const Json &>(map.doc)["features"][data]["role"].str();
         setScope(role == "country" ? SelectionDomain::Borders
                  : role == "land"  ? SelectionDomain::Land
                                    : SelectionDomain::Objects);

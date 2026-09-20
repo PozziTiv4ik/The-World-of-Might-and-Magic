@@ -1,0 +1,45 @@
+{
+  "base": "history/documents/ba624739da366e058af47d4d03c54c4fbbcc9a99baf7188664f254a60b5eab94.json",
+  "changes": [
+    {
+      "after": "MAPVER-C4519058-C853-4AB4-9A1B-E105313B5A1F",
+      "before": "MAPVER-E703CFC4-4813-4732-95E6-DB39C4DC8844",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "chapters",
+      "before": "main",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "chain_id"
+      ]
+    },
+    {
+      "after": "Состояние мира после последней сцены главы 3. Все моменты главы доступны в цепочке «Вся история».",
+      "before": "Разломы Архипелага открыты. Аватар Ур-Серагона появился у Тар-Хиконы; Онсераг погиб, первый механизм разрушен.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": 3072,
+      "before": 117760,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

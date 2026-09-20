@@ -1,0 +1,251 @@
+{
+  "base": "history/documents/a7d687be10394c09633ae896bac65ed7260427354402f457a216c926ee7634c2.json",
+  "changes": [
+    {
+      "after": "вечер после коронации Вито; перед отбытием Михаэля из Алиманджада",
+      "before": "неделю спустя после побега от Тикормана; шесть дней после встречи с войсками Тар-Элама",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Письмо Аругала вызвало у Михаэля негодование: после передачи Белой Гавани Боромиру и знати оппозиция уже перешла к прямому ослаблению гильдии. Однако Принц не стал отвечать открытым сопротивлением. Михаэль приказал Аругалу пока не принимать требование Боромира. Гильдия должна продолжать исполнять обычные обязательства, не выводить из города имущество и деньги и не оказывать властям открытого сопротивления.",
+      "before": "Михаэль и Роксана спасены. В Алиманджаде Урион коронует Вито Императором возрождённого Вечного Солнца.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Алиманджад; путь в Империю Света",
+      "before": "Алиманджад",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0105",
+      "before": "SCENE-0104",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_042_Ответ_Аругалу,_доклад_Вито_и_отъезд_домой.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_041_Алиманджад,_коронация_Вито_и_письмо_Аругала.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "42860ec94ce3be9997e2d2ec24a4657c1de5885ae6ce6d2b57fafb37d24da474",
+      "before": "5255e91633c69aaf6433d58ec250c5448b419311c3421c01c507def332d87d28",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 114688,
+      "before": 113664,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 042. Ответ Аругалу, доклад Вито и отъезд домой",
+      "before": "Сцена 041. Алиманджад, коронация Вито и письмо Аругала",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0228"
+      ],
+      "before": [
+        "SRC-0224"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0105",
+      "before": "SCENE-0104",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Письмо Аругала вызвало у Михаэля негодование: после передачи Белой Гавани Боромиру и знати оппозиция уже перешла к прямому ослаблению гильдии. Однако Принц не стал отвечать открытым сопротивлением. Михаэль приказал Аругалу пока не принимать требование Боромира. Гильдия должна продолжать исполнять обычные обязательства, не выводить из города имущество и деньги и не оказывать властям открытого сопротивления.",
+      "before": "Михаэль и Роксана спасены. В Алиманджаде Урион коронует Вито Императором возрождённого Вечного Солнца.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0228"
+      ],
+      "before": [
+        "SRC-0224"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0105",
+      "before": "SCENE-0104",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0224"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0104",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-7CC9348E-C29E-4052-8C14-68F067D1E0B5",
+      "before": "MAPVER-6CAA45A8-B328-419F-B0A6-793D0A57D667",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Письмо Аругала вызвало у Михаэля негодование: после передачи Белой Гавани Боромиру и знати оппозиция уже перешла к прямому ослаблению гильдии. Однако Принц не стал отвечать открытым сопротивлением. Михаэль приказал Аругалу пока не принимать требование Боромира. Гильдия должна продолжать исполнять обычные обязательства, не выводить из города имущество и деньги и не оказывать властям открытого сопротивления.",
+      "before": "Михаэль и Роксана спасены. В Алиманджаде Урион коронует Вито Императором возрождённого Вечного Солнца.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0228"
+      ],
+      "before": [
+        "SRC-0224"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0105",
+      "before": "SCENE-0104",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "вечер после коронации Вито; перед отбытием Михаэля из Алиманджада",
+      "before": "неделю спустя после побега от Тикормана; шесть дней после встречи с войсками Тар-Элама",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 114688,
+      "before": 113664,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

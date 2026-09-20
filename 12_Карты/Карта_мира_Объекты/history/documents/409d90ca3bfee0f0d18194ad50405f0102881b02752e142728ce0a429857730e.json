@@ -1,0 +1,593 @@
+{
+  "base": "history/documents/94894c39cf051ef698f17e5c77bbd0f3075a06622ebf344b224967fd8a855001.json",
+  "changes": [
+    {
+      "after": "спустя неделю осады Хорнбурга",
+      "before": "спустя две недели после боя с темной гидрой",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Хорнбург освобождён. Портал уничтожен, Ван найден живым.",
+      "before": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Хорнбург; рабочий кабинет Лорда Вана; Башня Песков, Ланикея и Остров дракона как донесения",
+      "before": "Великая арена Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0089"
+      ],
+      "before": [
+        "LOC-0010"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1338,
+        628
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0112",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Александрос/Сцена_058_Штурм_Хорнбурга_и_ожерелье_затмения.md",
+      "before": "01_Кампания/Ветки/Никитосиос/Сцена_005_Первый_раунд_турнира_на_Великой_арене.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "c3b83f5c66444f924eb2663d9b9380c594f6a8910c0bcad0e6136cbaaee00052",
+      "before": "ea4d923fc514d9247fee2cf1981d9a8ebe9c4b6b736cec2b2488f9f9d524f388",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 104448,
+      "before": 103424,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 058. Штурм Хорнбурга и ожерелье затмения",
+      "before": "Сцена 005. Первый раунд турнира на Великой арене",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0219"
+      ],
+      "before": [
+        "SRC-0217"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0057",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0037",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2100,
+        614
+      ],
+      "before": [
+        2173,
+        656
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        2155,
+        678
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0059",
+        "story_position"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0219"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0054",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0100",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2064,
+        658
+      ],
+      "before": [
+        1756,
+        1162
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1774,
+        1140
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0137",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Хорнбург освобождён. Портал уничтожен, Ван найден живым.",
+      "before": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0010",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0219"
+      ],
+      "before": [
+        "SRC-0214"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Хорнбург",
+      "before": "Великая арена Либриария",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1338,
+        628
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0112",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "Освобождён; портал уничтожен",
+      "before": "Захвачен демонами",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0210",
+        "SRC-0219"
+      ],
+      "before": [
+        "SRC-0210"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0055",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "status_scene_id"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "stroke"
+      ]
+    },
+    {
+      "after": "#397B61",
+      "before": "#AF4949",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-LOC-0089",
+        "text_color"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0219"
+      ],
+      "before": [
+        "SRC-0217"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0057",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0059",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0219"
+      ],
+      "before": [],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0137",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0054",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0137",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        2155,
+        678
+      ],
+      "before": [
+        1774,
+        1140
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-0"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        2155,
+        678
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0059-1"
+      ]
+    },
+    {
+      "after": [
+        1774,
+        1140
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0137-0"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        1774,
+        1140
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0137-1"
+      ]
+    },
+    {
+      "after": "MAPVER-D9FDEFD0-78B1-46A5-8D4C-E1A4638B65CC",
+      "before": "MAPVER-00A78932-01C3-4963-8CA0-B4539AFE52DC",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Александрос",
+      "before": "Никитосиос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Хорнбург освобождён. Портал уничтожен, Ван найден живым.",
+      "before": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0219"
+      ],
+      "before": [
+        "SRC-0214"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-HORNBURG"
+      ],
+      "before": [
+        "FRONT-ABYSS-KINGDOM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0058",
+      "before": "SCENE-0112",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "спустя неделю осады Хорнбурга",
+      "before": "спустя две недели после боя с темной гидрой",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 104448,
+      "before": 103424,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

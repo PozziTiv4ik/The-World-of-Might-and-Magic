@@ -1,0 +1,261 @@
+{
+  "base": "history/documents/8f87ee391996f1337ee0d9d428b94cf9526347078a92ee530c9e1fd7de493b65.json",
+  "changes": [
+    {
+      "after": "за 1 неделю до Дня Единения Империи",
+      "before": "за 1 неделю и 3 дня до Дня Единения Империи, к концу дня",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+      "before": "Александрос поддержал позицию Императрицы Элейны. Империя не станет немедленно ввязываться в войну Тар-Элама против Шахибдии только на основании заявления Вито. Петиру и Рагдусу отданы приказы заняться делегацией и разузнать обстановку собственными силами. Послу Тар-Элама передан ответ для Архимага Вито: Империя расследует вопрос и проверит обвинения против Саладина прежде, чем примет решение о вступлении в конфликт.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Белая Гавань, порт и кабинет Михаэля",
+      "before": "Цитадель Вечного Света, тронный зал",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0007"
+      ],
+      "before": [
+        "LOC-0094"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0066",
+      "before": "SCENE-0005",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_003_Раон_и_поток_наемников.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_005_Аудиенция_Вито_и_Шахибдия.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "e74f47b4d9a83868507a678570d3970f0d992d66fb5e0426e556a5bb84ce3683",
+      "before": "5ce4c847442df695022739b12be75204fc34e79c956c2e6aaf6cf907d43b0479",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 8192,
+      "before": 7168,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 003. Раон и поток наемников",
+      "before": "Сцена 005. Аудиенция Вито и вопрос Шахибдии",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": "SCENE-0066",
+      "before": "SCENE-0065",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+      "before": "Александрос поддержал позицию Императрицы Элейны. Империя не станет немедленно ввязываться в войну Тар-Элама против Шахибдии только на основании заявления Вито. Петиру и Рагдусу отданы приказы заняться делегацией и разузнать обстановку собственными силами. Послу Тар-Элама передан ответ для Архимага Вито: Империя расследует вопрос и проверит обвинения против Саладина прежде, чем примет решение о вступлении в конфликт.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0007",
+      "before": "LOC-0094",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": "Белая Гавань",
+      "before": "Цитадель Вечного Света",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1825,
+        836
+      ],
+      "before": [
+        1920,
+        747
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0066",
+      "before": "SCENE-0005",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "MAPVER-0C8F11A7-8884-454B-9789-A931700A7F9B",
+      "before": "MAPVER-6FBAA97A-F70B-4983-8422-238D7776159A",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "Михаэль отправил приказ Гранд-Адмиралу Раону по пиратской линии, а затем обратился к лейтенанту разведки Дугалу, чтобы задействовать разведку по подозрительному потоку наемников. Дугал предупредил, что ресурсов разведки не хватает на обе задачи. Если разведка займется наемниками, Раону придется разбираться с пиратами без данных разведки Михаэля.",
+      "before": "Александрос поддержал позицию Императрицы Элейны. Империя не станет немедленно ввязываться в войну Тар-Элама против Шахибдии только на основании заявления Вито. Петиру и Рагдусу отданы приказы заняться делегацией и разузнать обстановку собственными силами. Послу Тар-Элама передан ответ для Архимага Вито: Империя расследует вопрос и проверит обвинения против Саладина прежде, чем примет решение о вступлении в конфликт.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WHITE-HARBOR"
+      ],
+      "before": [
+        "FRONT-TAR-ELAM"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0066",
+      "before": "SCENE-0005",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "за 1 неделю до Дня Единения Империи",
+      "before": "за 1 неделю и 3 дня до Дня Единения Империи, к концу дня",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 8192,
+      "before": 7168,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

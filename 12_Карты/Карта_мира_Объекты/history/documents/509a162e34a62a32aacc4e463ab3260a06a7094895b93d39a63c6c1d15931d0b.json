@@ -1,0 +1,341 @@
+{
+  "base": "history/documents/cfe5c35dfabee50fbd1a06ddb63e7498ba82dacc56848d9942ed75ad4e68e05f.json",
+  "changes": [
+    {
+      "after": "месяц спустя после освобождения Уайтбурга",
+      "before": "месяц спустя после распоряжений Александроса и Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "После освобождения Уайтбурга Михаэль принял предложение Вито и составил ответное письмо. Отдельным письмом он продублировал решение Александросу, изложил обоснование и выразил надежду на понимание отца. Как Лорд-Мастер экономики, Михаэль распорядился о будущих торговых предприятиях своей гильдии с Империей. Доступный бюджет восстановления Михаэль направил на Штормград.",
+      "before": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Хорнбург; Белая Гавань через доклады Картоса",
+      "before": "Хорнбург",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0074",
+      "before": "SCENE-0013",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_011_Картос,_казна_домов_и_эльфийское_продовольствие.md",
+      "before": "01_Кампания/Ветки/Александрос/Сцена_013_Хорнбург,_Богдан_и_тень_Демитриоса.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "ac2ef92992aa29f563fa3ecd29de6917d861f4f2adba0c8532ff1bbef157dae4",
+      "before": "401f935f0f8a35944423736fda462641aa91e5bfae396a0c97f5884a54f71360",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 25600,
+      "before": 24576,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 011. Картос, казна домов и эльфийское продовольствие",
+      "before": "Сцена 013. Хорнбург, Богдан и тень Демитриоса",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076"
+      ],
+      "before": [
+        "SRC-0074"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0074",
+      "before": "SCENE-0073",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0089",
+      "before": "LOC-0085",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": [
+        2064,
+        614
+      ],
+      "before": [
+        2068,
+        785
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        2086,
+        807
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "После освобождения Уайтбурга Михаэль принял предложение Вито и составил ответное письмо. Отдельным письмом он продублировал решение Александросу, изложил обоснование и выразил надежду на понимание отца. Как Лорд-Мастер экономики, Михаэль распорядился о будущих торговых предприятиях своей гильдии с Империей. Доступный бюджет восстановления Михаэль направил на Штормград.",
+      "before": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076"
+      ],
+      "before": [
+        "SRC-0076",
+        "SRC-0080"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0074",
+      "before": "SCENE-0013",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076"
+      ],
+      "before": [
+        "SRC-0074"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0074",
+      "before": "SCENE-0073",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136",
+        "scene_id"
+      ]
+    },
+    {
+      "after": [
+        2086,
+        807
+      ],
+      "before": [
+        1903,
+        816
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        2082,
+        636
+      ],
+      "before": [
+        2086,
+        807
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-30F5082A-7757-4026-B4F5-1C919F43CB74",
+      "before": "MAPVER-2A360BC9-13B9-4184-821E-C2E88358CE1F",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Михаэль",
+      "before": "Александрос",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "branch"
+      ]
+    },
+    {
+      "after": "После освобождения Уайтбурга Михаэль принял предложение Вито и составил ответное письмо. Отдельным письмом он продублировал решение Александросу, изложил обоснование и выразил надежду на понимание отца. Как Лорд-Мастер экономики, Михаэль распорядился о будущих торговых предприятиях своей гильдии с Империей. Доступный бюджет восстановления Михаэль направил на Штормград.",
+      "before": "После предыдущих донесений Александрос отдал серию распоряжений. Елене он подтвердил расширение штаба контрразведки, принял предложение Герхарда, но приказал не спускать с него глаз и проверить, не готовят ли Империи ловушку. Отдельно Елена получила задачу направить ресурсы разведки на Железную Орду и Империю Багровой Луны. Раону Александрос приказал приступать к блокаде Лордамера.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0076"
+      ],
+      "before": [
+        "SRC-0076",
+        "SRC-0080"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": [
+        "FRONT-WAR-TREASURY"
+      ],
+      "before": [
+        "FRONT-GRIFFON-HOUSE"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "front_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0074",
+      "before": "SCENE-0013",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "месяц спустя после освобождения Уайтбурга",
+      "before": "месяц спустя после распоряжений Александроса и Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 25600,
+      "before": 24576,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

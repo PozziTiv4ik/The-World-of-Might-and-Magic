@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 4,
+  "document_hash": "d72f3a2bce6d2f81db9da92975ae89bffdbc12d7767c12c57cae0bda1f0f8031",
+  "document_ref": "history/documents/94894c39cf051ef698f17e5c77bbd0f3075a06622ebf344b224967fd8a855001.json",
+  "format": 2,
+  "id": "MAPVER-D9FDEFD0-78B1-46A5-8D4C-E1A4638B65CC",
+  "integrity": "3dd752951389d56de9992dba41b12caf62aae7f8e8e8b893d161e47c9a775966",
+  "label": "Никитосиос · Первый раунд турнира на Великой арене",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-00A78932-01C3-4963-8CA0-B4539AFE52DC",
+  "recorded_at": "2026-09-20T14:02:50.190Z",
+  "sequence": 103,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Никитосиос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Спустя две недели после боя с темной гидрой Никитосиос восстановился от ранений. Следы ожогов еще долго будут напоминать о кислотном плевке, но сам он не жалеет, что закрыл Эгвин собой. Эгвин после этого стала менее холодной: по дороге в Либриарий она уже участвовала в разговорах Багровой гидры и даже смеялась над шутками товарищей. Через несколько часов отряд прибыл в Либриарий.",
+    "evidence_ids": [
+      "SRC-0214"
+    ],
+    "front_ids": [
+      "FRONT-ABYSS-KINGDOM"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0112",
+    "story_date": "спустя две недели после боя с темной гидрой",
+    "story_order": 103424
+  }
+}

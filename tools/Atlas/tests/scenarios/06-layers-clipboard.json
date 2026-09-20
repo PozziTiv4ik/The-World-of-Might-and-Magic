@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "name": "06-layers-clipboard",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "dpi": 1
+  },
+  "create": {
+    "name": "Проверка Atlas",
+    "width": 1600,
+    "height": 1000
+  },
+  "steps": [
+    {
+      "action": "camera",
+      "zoom": 1,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": "command",
+      "command": "symbol",
+      "data": "city"
+    },
+    {
+      "action": "click",
+      "at": [
+        500,
+        350
+      ],
+      "space": "world"
+    },
+    {
+      "action": "remember",
+      "name": "town",
+      "pointer": "/selection/0"
+    },
+    {
+      "action": "remember",
+      "name": "layer",
+      "pointer": "/active_layer"
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "layers"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "lock",
+        "data": "${layer}"
+      }
+    },
+    {
+      "action": "click",
+      "control": {
+        "command": "close_panel"
+      }
+    },
+    {
+      "action": "key",
+      "key": "V"
+    },
+    {
+      "action": "click",
+      "at": [
+        500,
+        350
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "/selection",
+      "count": 0
+    },
+    {
+      "action": "command",
+      "command": "lock",
+      "data": "${layer}"
+    },
+    {
+      "action": "click",
+      "at": [
+        500,
+        350
+      ],
+      "space": "world"
+    },
+    {
+      "action": "assert",
+      "pointer": "/selection",
+      "count": 1
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "remember",
+      "name": "before_copy",
+      "target": "document"
+    },
+    {
+      "action": "command",
+      "command": "select_object",
+      "data": "${town}"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+C"
+    },
+    {
+      "action": "assert",
+      "target": "document",
+      "equals_ref": "before_copy"
+    },
+    {
+      "action": "assert",
+      "pointer": "/dirty",
+      "equals": false
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+V"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 2
+    },
+    {
+      "action": "remember",
+      "name": "before_bad_clipboard",
+      "pointer": "",
+      "target": "document"
+    },
+    {
+      "action": "clipboard",
+      "text": "broken JSON"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+V",
+      "expect_error": ""
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "before_bad_clipboard"
+    },
+    {
+      "action": "clipboard",
+      "text": "{\"format\": \"atlas-selection-1\", \"nodes\": {}, \"arcs\": {}, \"symbols\": {}, \"features\": {\"x\": {\"id\": \"x\", \"kind\": \"region\", \"arcs\": [{\"id\": \"missing\"}]}}}"
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+V",
+      "expect_error": ""
+    },
+    {
+      "action": "assert",
+      "pointer": "",
+      "target": "document",
+      "equals_ref": "before_bad_clipboard"
+    },
+    {
+      "action": "answer",
+      "answer": {
+        "kind": "form",
+        "title": "Новый слой",
+        "values": {
+          "Название": "Проверочный слой"
+        }
+      }
+    },
+    {
+      "action": "command",
+      "command": "add_layer"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers",
+      "equals": 4
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Z"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers",
+      "equals": 3
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+Y"
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers",
+      "equals": 4
+    },
+    {
+      "action": "key",
+      "key": "Ctrl+S"
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "assert",
+      "pointer": "/features",
+      "equals": 2
+    },
+    {
+      "action": "assert",
+      "pointer": "/layers",
+      "equals": 4
+    },
+    {
+      "action": "assert_ui"
+    }
+  ]
+}

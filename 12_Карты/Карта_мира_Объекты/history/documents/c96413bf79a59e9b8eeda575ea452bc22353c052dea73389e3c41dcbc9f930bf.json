@@ -1,0 +1,251 @@
+{
+  "base": "history/documents/fb4720c9902aa246e54d5bee619d3a89055300691fee950bf29c9310f8f223f1.json",
+  "changes": [
+    {
+      "after": "на следующий день после прибытия Михаэля в Порт-Мантикору",
+      "before": "спустя почти две недели скитаний Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+      "before": "После почти двух недель скитаний по пустыне Михаэль и Хенги наконец вышли к саванне. Смена песков на травянистые просторы заметно подняла настроение Принца: вокруг были невиданные для него звери — полосатые лошади, грозные речные ящеры, стаи саванных рапторов, королевские львы и другие существа. Хенги привел Михаэля к пещере, которую называл домом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "Порт-Мантикора и саванна Кланов Закона",
+      "before": "саванна Кланов Закона, путь к Порт-Мантикоре",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": "SCENE-0097",
+      "before": "SCENE-0096",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_034_Письма,_охота_и_темный_эльф_в_Порт-Мантикоре.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_033_Саванна,_Одинарог_и_выбор_писем_в_Порт-Мантикоре.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "ab3e25b0b07077be1d4d53085563b364474fdd695517bec5a57576fe60a6cdc0",
+      "before": "c6587432b582f871efff6eca442950e047873a245ba984ca6c54e795f9713932",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 94208,
+      "before": 93184,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 034. Письма, охота и темный эльф в Порт-Мантикоре",
+      "before": "Сцена 033. Саванна, Одинарог и выбор писем в Порт-Мантикоре",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0208"
+      ],
+      "before": [
+        "SRC-0197"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0097",
+      "before": "SCENE-0096",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+      "before": "После почти двух недель скитаний по пустыне Михаэль и Хенги наконец вышли к саванне. Смена песков на травянистые просторы заметно подняла настроение Принца: вокруг были невиданные для него звери — полосатые лошади, грозные речные ящеры, стаи саванных рапторов, королевские львы и другие существа. Хенги привел Михаэля к пещере, которую называл домом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0208"
+      ],
+      "before": [
+        "SRC-0197"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0097",
+      "before": "SCENE-0096",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": null,
+      "before": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0197"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0096",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "had_after": false,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": "MAPVER-CE4C5026-5849-4E51-AC7C-09D95C147D9B",
+      "before": "MAPVER-340B596A-9FDE-4838-8232-0DA59244D012",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "На следующий день после прибытия в Порт-Мантикору Михаэль потратил оставшиеся средства на два коротких письма. Первое письмо ушло Аругалу. Михаэль сообщил, что жив, находится в Порт-Мантикоре в землях Кланов Закона, без денег и охраны. Для проверки он дал кодовые опоры: Картос, Бэтси, отчеты Елене и Императору, сорок два корабля против Орды.",
+      "before": "После почти двух недель скитаний по пустыне Михаэль и Хенги наконец вышли к саванне. Смена песков на травянистые просторы заметно подняла настроение Принца: вокруг были невиданные для него звери — полосатые лошади, грозные речные ящеры, стаи саванных рапторов, королевские львы и другие существа. Хенги привел Михаэля к пещере, которую называл домом.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0208"
+      ],
+      "before": [
+        "SRC-0197"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0097",
+      "before": "SCENE-0096",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "на следующий день после прибытия Михаэля в Порт-Мантикору",
+      "before": "спустя почти две недели скитаний Михаэля",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 94208,
+      "before": 93184,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}

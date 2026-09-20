@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 0,
+  "document_hash": "3e9dbfe4e2c47d054b5e91aa80f29c48d3b8bf36269c3571baf14f732406d4e1",
+  "document_ref": "history/documents/3e9dbfe4e2c47d054b5e91aa80f29c48d3b8bf36269c3571baf14f732406d4e1.json",
+  "format": 2,
+  "id": "MAPVER-84348A3C-3D28-4EFB-B489-BC8E5D888601",
+  "integrity": "18d9682cb930d4ff7351ba29d9e92d9052f153f70cb7e2f81a78195d43446a1a",
+  "label": "Александрос · Свадьба Харрингтона и тень Петира",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-BFF0E594-761D-451F-A20C-F5E42FE534F2",
+  "recorded_at": "2026-09-20T14:00:26.877Z",
+  "sequence": 35,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "На следующий день после совета Александрос вызывает Графа Александроса Вингарда на частную беседу. Император заходит издалека, тщательно подбирает слова и спрашивает о прошлых отношениях графа с Роксаной. Вингард отвечает, что это не больше чем слухи и между ним и Роксаной ничего не было. Внутренне граф оскорблен интересом к своей личной жизни, но внешне сохраняет самообладание.",
+    "evidence_ids": [
+      "SRC-0115"
+    ],
+    "front_ids": [
+      "FRONT-COUNTERINTEL"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0018",
+    "story_date": "три дня после совета примирения, день свадьбы Харрингтона и Роксаны",
+    "story_order": 33792
+  }
+}

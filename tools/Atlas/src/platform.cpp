@@ -40,8 +40,20 @@ std::string pathText(const fs::path &p) {
 fs::path pathOf(const std::string &s) {
     return fs::path(wide(s));
 }
+fs::path nativePath(const fs::path &path) {
+    auto raw=path.wstring();
+    std::replace(raw.begin(),raw.end(),L'/',L'\\');
+    if(raw.starts_with(L"\\\\?\\UNC\\"))raw=L"\\\\"+raw.substr(8);
+    else if(raw.starts_with(L"\\\\?\\"))raw=raw.substr(4);
+    auto normalized=fs::absolute(fs::path(raw)).lexically_normal();
+    normalized.make_preferred();
+    auto full=normalized.wstring();
+    if(full.starts_with(L"\\\\?\\"))return fs::path(full);
+    if(full.starts_with(L"\\\\"))return fs::path(L"\\\\?\\UNC\\"+full.substr(2));
+    return fs::path(L"\\\\?\\"+full);
+}
 Bytes readBytes(const fs::path &p, size_t limit) {
-    std::ifstream f(p, std::ios::binary | std::ios::ate);
+    std::ifstream f(nativePath(p), std::ios::binary | std::ios::ate);
     if (!f)
         throw std::runtime_error("Cannot read: " + pathText(p));
     auto n = f.tellg();
@@ -72,7 +84,7 @@ void atomicWrite(const fs::path &p, const Bytes &b) {
     fs::path temp = p;
     temp += pathOf("." + newId("") + ".tmp");
     HANDLE h =
-        CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CreateFileW(nativePath(temp).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE)
         throw std::runtime_error("Cannot write: " + pathText(p));
     size_t offset = 0;
@@ -89,9 +101,9 @@ void atomicWrite(const fs::path &p, const Bytes &b) {
         ok = false;
     CloseHandle(h);
     if (ok)
-        ok = MoveFileExW(temp.c_str(), p.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+        ok = MoveFileExW(nativePath(temp).c_str(), nativePath(p).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
     if (!ok) {
-        DeleteFileW(temp.c_str());
+        DeleteFileW(nativePath(temp).c_str());
         throw std::runtime_error("Atomic save failed: " + pathText(p));
     }
 }
@@ -131,8 +143,8 @@ std::string nowUtc() {
     SYSTEMTIME t;
     GetSystemTime(&t);
     char b[32];
-    std::snprintf(b, sizeof b, "%04u-%02u-%02uT%02u:%02u:%02uZ", t.wYear, t.wMonth, t.wDay, t.wHour,
-                  t.wMinute, t.wSecond);
+    std::snprintf(b, sizeof b, "%04u-%02u-%02uT%02u:%02u:%02u.%03uZ", t.wYear, t.wMonth, t.wDay, t.wHour,
+                  t.wMinute, t.wSecond,t.wMilliseconds);
     return b;
 }
 fs::path safeChild(const fs::path &root, const std::string &rel) {
@@ -153,10 +165,13 @@ fs::path safeChild(const fs::path &root, const std::string &rel) {
 FileLock::FileLock(const fs::path &directory) {
     fs::create_directories(directory);
     auto p = directory / L".atlas.lock";
-    h = CreateFileW(p.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN,
+    h = CreateFileW(nativePath(p).c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN,
                     nullptr);
-    if (h == INVALID_HANDLE_VALUE)
-        throw std::runtime_error("Map is being saved by another process. Retry after it finishes.");
+    if (h == INVALID_HANDLE_VALUE) {
+        auto code=GetLastError();
+        if(code==ERROR_SHARING_VIOLATION)throw std::runtime_error("Map is being saved by another process. Retry after it finishes.");
+        throw std::runtime_error("Cannot lock map ("+std::to_string(code)+"): "+utf8(nativePath(p).wstring()));
+    }
 }
 Image::Image(int w, int h) : width(w), height(h) {
     if (w <= 0 || h <= 0 || w > 16384 || h > 16384 || uint64_t(w) * h > 64000000)
@@ -173,7 +188,7 @@ std::shared_ptr<Image> loadImage(const fs::path &p) {
     auto f = factory();
     Com<IWICBitmapDecoder> d;
     check(
-        f->CreateDecoderFromFilename(p.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, d.put()),
+        f->CreateDecoderFromFilename(nativePath(p).c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, d.put()),
         "Decode image");
     Com<IWICBitmapFrameDecode> frame;
     check(d->GetFrame(0, frame.put()), "Image frame");
@@ -196,7 +211,7 @@ void savePng(const fs::path &p, const Image &im) {
     auto tmp = p;
     tmp += pathOf("." + newId("") + ".tmp");
     try {
-        check(stream->InitializeFromFilename(tmp.c_str(), GENERIC_WRITE), "PNG output");
+        check(stream->InitializeFromFilename(nativePath(tmp).c_str(), GENERIC_WRITE), "PNG output");
         Com<IWICBitmapEncoder> e;
         check(f->CreateEncoder(GUID_ContainerFormatPng, nullptr, e.put()), "PNG encoder");
         check(e->Initialize(stream.get(), WICBitmapEncoderNoCache), "PNG initialize");
@@ -217,11 +232,11 @@ void savePng(const fs::path &p, const Image &im) {
         frame.reset();
         e.reset();
         stream.reset();
-        if (!MoveFileExW(tmp.c_str(), p.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        if (!MoveFileExW(nativePath(tmp).c_str(), nativePath(p).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             throw std::runtime_error("PNG replace failed");
     } catch (...) {
         stream.reset();
-        DeleteFileW(tmp.c_str());
+        DeleteFileW(nativePath(tmp).c_str());
         throw;
     }
 }

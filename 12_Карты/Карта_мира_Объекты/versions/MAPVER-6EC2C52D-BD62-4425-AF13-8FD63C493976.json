@@ -1,0 +1,31 @@
+{
+  "asset_hashes": {},
+  "document_depth": 11,
+  "document_hash": "01911932f58ca59d5071b24f348e2b6270e10a9399340329dbe106ac52482395",
+  "document_ref": "history/documents/20c41e0c56c925ca69e898712642b229562c8e25b734596c9d6f3efda94d750d.json",
+  "format": 2,
+  "id": "MAPVER-6EC2C52D-BD62-4425-AF13-8FD63C493976",
+  "integrity": "8bde3e86dcef41dc7dfb34c47ea346df30d5eaab5bf1568eec6775488e84c9ef",
+  "label": "Александрос · Падение Порт-Белена и новые доклады",
+  "map_id": "MAP-78325F2B-3F17-4CBE-88F2-1C28D073D5DB",
+  "parent": "MAPVER-43D109F1-4C51-413B-B457-431990F83F6B",
+  "recorded_at": "2026-09-20T14:01:53.678Z",
+  "sequence": 78,
+  "status": "accepted",
+  "story_anchor": {
+    "branch": "Александрос",
+    "chain_id": "main",
+    "chapter": 3,
+    "description": "Неделю спустя после дуэли чести армия Александроса взяла Порт-Белен. Разгромить все главное войско Железной Орды не удалось: сорок тысяч орков уже успели переправиться назад на земли Орды. В занятом городе Император получил несколько донесений: - Герхард взял Порт-Елену. - Раон прибыл к Порт-Вингарду и соединился с флотом Тар-Элама под личным командованием Вито.",
+    "evidence_ids": [
+      "SRC-0185"
+    ],
+    "front_ids": [
+      "FRONT-IRON-HORDE"
+    ],
+    "relation": "after",
+    "scene_id": "SCENE-0045",
+    "story_date": "неделю спустя после дуэли чести",
+    "story_order": 77824
+  }
+}

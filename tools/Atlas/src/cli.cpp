@@ -19,6 +19,7 @@ int runCli(int argc, wchar_t **argv) {
                 return true;
         return false;
     };
+    if(arg(1)=="--version"){std::cout<<fields({{"application","Atlas"},{"version","5.2.0"},{"history_format",2},{"editor_scenario_format",1}}).dump()<<"\n";return 0;}
     if (argc < 2 || arg(1) == "help" || arg(1) == "--help") {
         std::cout
             << "ATLAS native Windows map editor\n\nCommands:\n  import <source.pdn|png> --out "
@@ -31,10 +32,33 @@ int runCli(int argc, wchar_t **argv) {
                "--output <file.png> --character <id>\n  pdn-info <file.pdn> [--verify-pixels]\n  self-test "
                "--out <temporary-directory> [--pdn <file>]\n  trace <map-directory> --x <x> --y <y> --name "
                "<name> [--layer <id>] [--dry-run]\n";
+        std::cout<<"\nAtlas 5 history:\n"
+            "  history <map> [--order story|date|saved|parents] [--chain <id>] [--chapter N] [--query <text>]\n"
+            "  timeline <map> --patch <json> [--dry-run] [--project <campaign>]\n"
+            "  snapshot <map> --name <label> [--chapter N --chain <id> --date <text> --order N]\n"
+            "      [--scene <id> --project <campaign>] [--from <version> --checkout] [--accepted]\n"
+            "  draft <map> [--name <label> | --restore <draft-id>]\n"
+            "  recoveries <map> [--restore <session-id>]\n"
+            "  validate <map> --history [--project <campaign>]\n";
+        std::cout<<"  claim-country <map> --id <country> --expected-hash <hash> [--dry-run]\n";
+        std::cout<<"\nWindowless editor replay (always edits an isolated copy):\n"
+            "  editor-test --scenario <file.json> --out <reports> [--map <source>] [--project <campaign>]\n"
+            "  workspace-test --out <reports>\n"
+            "  ui-preview <map> --state <N> --output <image.png>\n";
         return 0;
     }
     if (arg(1) == "self-test")
         return selfTest(pathOf(option("--out")), pathOf(option("--pdn")), pathOf(option("--map")));
+    if(arg(1)=="workspace-test") {
+        auto dir=pathOf(option("--out"));if(dir.empty())throw std::runtime_error("workspace-test requires --out");
+        int passed=workspaceSelfTest(dir);std::cout<<fields({{"passed",passed},{"failed",0}}).dump()<<"\n";return 0;
+    }
+    if(arg(1)=="editor-test") {
+        auto scenario=pathOf(option("--scenario"));if(scenario.empty())throw std::runtime_error("editor-test requires --scenario");
+        auto result=runEditorScenario(scenario,pathOf(option("--out")),pathOf(option("--map")),pathOf(option("--project")));
+        auto summary=result;summary.obj().erase("steps");summary.obj().erase("interactions");std::cout<<summary.dump()<<"\n";
+        return result["status"].str()=="passed"?0:1;
+    }
     if (arg(1) == "benchmark") {
         std::cout << benchmarkMap(pathOf(arg(2))).dump() << "\n";
         return 0;
@@ -118,9 +142,23 @@ int runCli(int argc, wchar_t **argv) {
     Map map;
     map.load(pathOf(arg(2)));
     Campaign campaign;
-    if (!option("--project").empty())
+    if (!option("--project").empty()) {
         campaign.load(pathOf(option("--project")));
+        if(campaign.entities.empty())throw std::runtime_error("Campaign registry is missing or empty: "+option("--project"));
+    }
     auto emit = [&](const Json &value) { std::cout << value.dump() << "\n"; };
+    if(auto handled=historyCli(map,campaign,arg(1),option,flag);handled>=0)return handled;
+    if(arg(1)=="claim-country") {
+        if(option("--expected-hash")!=map.diskHash)throw std::runtime_error("claim-country needs --expected-hash from inspect");
+        auto id=option("--id");
+        if(!map.doc["features"].contains(id) || map.doc["features"][id]["role"].str()!="country")
+            throw std::runtime_error("Country not found");
+        auto old=map.doc;
+        MapRenderer renderer;renderer.claimCountry(map,id);
+        auto result=map.diff(old);result["dry_run"]=flag("--dry-run");
+        if(!flag("--dry-run"))map.save();
+        emit(result);return 0;
+    }
     if (arg(1) == "hit-test") {
         Point p{std::stod(option("--x")), std::stod(option("--y"))};
         auto id = map.hit(p, option("--tolerance").empty() ? 4 : std::stod(option("--tolerance")));
@@ -204,7 +242,7 @@ int runCli(int argc, wchar_t **argv) {
             for (auto &[id, f] : map.doc["features"].obj())
                 if (id == entity || f["entity_id"].str() == entity) {
                     result["features"][id] = f;
-                    result["nodes"] = Json::object();
+                    if(!result.contains("nodes"))result["nodes"] = Json::object();
                     for (auto &n : map.featureNodes(f))
                         result["nodes"][n] = map.doc["nodes"][n];
                 }
@@ -214,6 +252,10 @@ int runCli(int argc, wchar_t **argv) {
     }
     if (arg(1) == "validate") {
         auto result = map.validate(campaign.entities.empty() ? nullptr : &campaign);
+        if(flag("--history")) {
+            auto h=map.validateHistory(campaign.entities.empty()?nullptr:&campaign);
+            for(auto key:{"errors","warnings"})for(const auto &e:h[key].arr())result[key].push(e);
+        }
         emit(result);
         return result["errors"].size() ? 1 : 0;
     }

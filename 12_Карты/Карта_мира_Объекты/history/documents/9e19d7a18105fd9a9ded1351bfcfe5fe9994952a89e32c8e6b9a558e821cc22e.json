@@ -1,0 +1,409 @@
+{
+  "base": "history/documents/585e7e3c73a181a84f5b6099b11beb24bc4e3a90c68a94c088bdd77d4f826658.json",
+  "changes": [
+    {
+      "after": "сразу после ультиматума Эрин",
+      "before": "на следующий день после боя у входа; через сутки после начала снятия печати",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "date_in_story"
+      ]
+    },
+    {
+      "after": "Сфера выбросила Михаэля из хранилища в пустыню. Это магическое перемещение, а не пеший маршрут.",
+      "before": "Ровно через сутки после начала работы Нилуфар печать поддалась и круглая дверь распахнулась. За ней открылся огромный зал, наполненный сокровищами. Истощенная Нилуфар осталась у входа восстанавливать силы, а Михаэль, Харагорн и люди Принца начали осмотр. Внимание Михаэля быстро привлекла необычная сфера из неизвестного ему материала. Изнутри она излучала тусклый серебристо-голубой свет.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "description"
+      ]
+    },
+    {
+      "after": "хранилище Бессмертного Императора; неизвестная пустыня под ночным небом",
+      "before": "хранилище Бессмертного Императора в Песчаных горах",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location"
+      ]
+    },
+    {
+      "after": [
+        "LOC-0091",
+        "LOC-0048"
+      ],
+      "before": [
+        "LOC-0091"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "location_ids"
+      ]
+    },
+    {
+      "after": [
+        1490,
+        1735
+      ],
+      "before": [
+        1430,
+        1420
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0093",
+      "before": "SCENE-0092",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "01_Кампания/Ветки/Михаэль/Сцена_030_Бой_с_Эрин_и_пробуждение_в_пустыне.md",
+      "before": "01_Кампания/Ветки/Михаэль/Сцена_029_Сокровища_хранилища_и_ультиматум_Эрин.md",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_path"
+      ]
+    },
+    {
+      "after": "c79da1dcf197bd3641975764492ec13946ed35114e254dc8536a3b9e5e2cb80d",
+      "before": "56d0dc9595f009c217dad5411118beac73a9cc51dace274c7bc6652d52ae0631",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "source_sha256"
+      ]
+    },
+    {
+      "after": 81920,
+      "before": 80896,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "story_order"
+      ]
+    },
+    {
+      "after": "Сцена 030. Бой с Эрин и пробуждение в пустыне",
+      "before": "Сцена 029. Сокровища хранилища и ультиматум Эрин",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "campaign_event",
+        "title"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0186"
+      ],
+      "before": [
+        "SRC-0178"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0093",
+      "before": "SCENE-0092",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "last_scene_id"
+      ]
+    },
+    {
+      "after": "LOC-0048",
+      "before": "LOC-0091",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "location_id"
+      ]
+    },
+    {
+      "after": "magic_displacement",
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "movement_kind"
+      ]
+    },
+    {
+      "after": [
+        1472,
+        1713
+      ],
+      "before": [
+        1412,
+        1398
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "position"
+      ]
+    },
+    {
+      "after": [
+        1490,
+        1735
+      ],
+      "before": [
+        1430,
+        1420
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CHAR-0136",
+        "story_position"
+      ]
+    },
+    {
+      "after": "Сфера выбросила Михаэля из хранилища в пустыню. Это магическое перемещение, а не пеший маршрут.",
+      "before": "Ровно через сутки после начала работы Нилуфар печать поддалась и круглая дверь распахнулась. За ней открылся огромный зал, наполненный сокровищами. Истощенная Нилуфар осталась у входа восстанавливать силы, а Михаэль, Харагорн и люди Принца начали осмотр. Внимание Михаэля быстро привлекла необычная сфера из неизвестного ему материала. Изнутри она излучала тусклый серебристо-голубой свет.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "campaign_state"
+      ]
+    },
+    {
+      "after": "LOC-0048",
+      "before": "LOC-0091",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "entity_id"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0186"
+      ],
+      "before": [
+        "SRC-0178"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "Неизвестная пустыня Михаэля",
+      "before": "Хранилище Бессмертного Императора в Песчаных горах",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "name"
+      ]
+    },
+    {
+      "after": [
+        1490,
+        1735
+      ],
+      "before": [
+        1430,
+        1420
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "position"
+      ]
+    },
+    {
+      "after": "SCENE-0093",
+      "before": "SCENE-0092",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "features",
+        "MAPOBJ-CAMPAIGN-CURRENT-EVENT",
+        "scene_id"
+      ]
+    },
+    {
+      "after": {
+        "arcs": [
+          {
+            "id": "ARC-MAPOBJ-ROUTE-CHAR-0136",
+            "reverse": false
+          }
+        ],
+        "closed": false,
+        "evidence_ids": [
+          "SRC-0186"
+        ],
+        "id": "MAPOBJ-ROUTE-CHAR-0136",
+        "kind": "route",
+        "known_to": [],
+        "layer_id": "LAYER-CAMPAIGN-ROUTES",
+        "name": "Путь: Михаэль",
+        "opacity": 0.72,
+        "provenance": {
+          "kind": "campaign_cartography",
+          "profile": "campaign-atlas-5-20260920"
+        },
+        "role": "campaign_route",
+        "route_interpretation": "editorial_connection_between_confirmed_positions",
+        "scene_id": "SCENE-0093",
+        "stroke": "#2F7CA4",
+        "stroke_width": 3,
+        "truth": "cartographic_projection",
+        "visibility": "gm",
+        "z_order": 4200
+      },
+      "before": null,
+      "had_after": true,
+      "had_before": false,
+      "path": [
+        "features",
+        "MAPOBJ-ROUTE-CHAR-0136"
+      ]
+    },
+    {
+      "after": [
+        1430,
+        1420
+      ],
+      "before": [
+        1377,
+        1564.5
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-0"
+      ]
+    },
+    {
+      "after": [
+        1490,
+        1735
+      ],
+      "before": [
+        1430,
+        1420
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "nodes",
+        "NODE-MAPOBJ-ROUTE-CHAR-0136-1"
+      ]
+    },
+    {
+      "after": "MAPVER-D08297F5-9015-4C8D-AD7E-BCDC42E012F9",
+      "before": "MAPVER-4BC68259-A6D0-4E05-9A0A-BE9601C21B39",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "parent_version"
+      ]
+    },
+    {
+      "after": "Сфера выбросила Михаэля из хранилища в пустыню. Это магическое перемещение, а не пеший маршрут.",
+      "before": "Ровно через сутки после начала работы Нилуфар печать поддалась и круглая дверь распахнулась. За ней открылся огромный зал, наполненный сокровищами. Истощенная Нилуфар осталась у входа восстанавливать силы, а Михаэль, Харагорн и люди Принца начали осмотр. Внимание Михаэля быстро привлекла необычная сфера из неизвестного ему материала. Изнутри она излучала тусклый серебристо-голубой свет.",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "description"
+      ]
+    },
+    {
+      "after": [
+        "SRC-0186"
+      ],
+      "before": [
+        "SRC-0178"
+      ],
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "evidence_ids"
+      ]
+    },
+    {
+      "after": "SCENE-0093",
+      "before": "SCENE-0092",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "scene_id"
+      ]
+    },
+    {
+      "after": "сразу после ультиматума Эрин",
+      "before": "на следующий день после боя у входа; через сутки после начала снятия печати",
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_date"
+      ]
+    },
+    {
+      "after": 81920,
+      "before": 80896,
+      "had_after": true,
+      "had_before": true,
+      "path": [
+        "story_anchor",
+        "story_order"
+      ]
+    }
+  ],
+  "storage": "atlas-delta-1"
+}
