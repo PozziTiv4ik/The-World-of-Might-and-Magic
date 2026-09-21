@@ -19,9 +19,12 @@ jobs:
       - name: Replay editor scenarios without desktop automation
         shell: pwsh
         run: ./tools/Atlas/test-editor.ps1
+      - name: Replay raster and campaign editing in long Windows paths
+        shell: pwsh
+        run: ./tools/Atlas/test-editor.ps1 -LongPaths -Scenario ./tools/Atlas/tests/scenarios/04-raster-cancellation.json,./tools/Atlas/tests/scenarios/10-campaign-copy.json
       - name: Upload editor replay reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, Node.js 24
         with:
           name: atlas-editor-reports
           path: .wmma/atlas-editor-tests/

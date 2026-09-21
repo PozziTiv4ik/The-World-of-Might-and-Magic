@@ -45,6 +45,12 @@ foreach ($atlasSource in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'sr
     }
 }
 $atlasLibraries = @('-ld2d1','-ldwrite','-lwindowscodecs','-lole32','-luuid','-lbcrypt','-ldwmapi','-lcomdlg32','-lshell32','-luser32','-lgdi32')
+$atlasResourceCompiler=Join-Path ([IO.Path]::GetDirectoryName($atlasCompiler)) 'windres.exe'
+if(-not(Test-Path -LiteralPath $atlasResourceCompiler)){throw 'The MinGW resource compiler windres.exe must be installed beside clang++.exe'}
+$atlasResource=Join-Path $atlasBuild 'atlas-resource.o'
+& $atlasResourceCompiler '-I' (Join-Path $PSScriptRoot 'src') '-i' (Join-Path $PSScriptRoot 'src/atlas.rc') '-O' 'coff' '-o' $atlasResource
+if($LASTEXITCODE -ne 0){throw 'Atlas application manifest compilation failed'}
+$atlasObjects += $atlasResource
 & $atlasCompiler '-static' '-municode' '-mwindows' (Join-Path $atlasBuild 'main.o') @atlasObjects @atlasLibraries '-o' (Join-Path $atlasBin 'Atlas.exe')
 if ($LASTEXITCODE -ne 0) { throw 'GUI link failed' }
 & $atlasCompiler '-static' '-municode' (Join-Path $atlasBuild 'cli_main.o') @atlasObjects @atlasLibraries '-o' (Join-Path $atlasBin 'Atlas.Cli.exe')
@@ -52,7 +58,7 @@ if ($LASTEXITCODE -ne 0) { throw 'CLI link failed' }
 [IO.File]::WriteAllText($atlasSignaturePath,$atlasSignature,[Text.UTF8Encoding]::new($false))
 Write-Output ('Built: ' + $atlasBin)
 $atlasBuildInfo = [ordered]@{
-    application='Atlas'; version='5.2.0'; history_format=2; editor_scenario_format=1
+    application='Atlas'; version='5.2.1'; history_format=2; editor_scenario_format=1
     compiler_sha256=(Get-FileHash -LiteralPath $atlasCompiler).Hash.ToLowerInvariant()
     compiler_version=(& $atlasCompiler '--version' | Select-Object -First 1)
     compile_flags=$atlasFlags; link_libraries=$atlasLibraries

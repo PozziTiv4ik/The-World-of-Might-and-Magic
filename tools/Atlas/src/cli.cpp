@@ -19,7 +19,7 @@ int runCli(int argc, wchar_t **argv) {
                 return true;
         return false;
     };
-    if(arg(1)=="--version"){std::cout<<fields({{"application","Atlas"},{"version","5.2.0"},{"history_format",2},{"editor_scenario_format",1}}).dump()<<"\n";return 0;}
+    if(arg(1)=="--version"){std::cout<<fields({{"application","Atlas"},{"version","5.2.1"},{"history_format",2},{"editor_scenario_format",1}}).dump()<<"\n";return 0;}
     if (argc < 2 || arg(1) == "help" || arg(1) == "--help") {
         std::cout
             << "ATLAS native Windows map editor\n\nCommands:\n  import <source.pdn|png> --out "

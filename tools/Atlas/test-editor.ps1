@@ -1,5 +1,6 @@
 param(
     [switch]$Build,
+    [switch]$LongPaths,
     [string]$CliPath,
     [string]$MapDirectory,
     [string]$OutputDirectory,
@@ -29,6 +30,10 @@ foreach($atlasSourceFile in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 
 if((Get-FileHash -LiteralPath $CliPath).Hash.ToLowerInvariant() -ne $atlasProvenance.binary_sha256.'Atlas.Cli.exe'){throw 'CLI checksum does not match its build provenance'}
 if (-not $MapDirectory) { $MapDirectory=Join-Path $atlasTestProject '12_Карты/Карта_мира_Объекты' }
 if (-not $OutputDirectory) { $OutputDirectory=Join-Path $atlasTestProject '.wmma/atlas-editor-tests' }
+if($LongPaths) {
+    $OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
+    while($OutputDirectory.Length -lt 180){$OutputDirectory=Join-Path $OutputDirectory 'nested-directory-for-windows-long-path-regression'}
+}
 $atlasSuitePath=Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) ('suite-'+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')+'-'+[guid]::NewGuid().ToString('N').Substring(0,6))
 New-Item -ItemType Directory -Path $atlasSuitePath -Force | Out-Null
 $atlasScenarioFiles=if($Scenario){@($Scenario | ForEach-Object { Get-Item -LiteralPath $_ })}else{@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests/scenarios') -Filter '*.json' -File | Sort-Object Name)}
@@ -57,7 +62,13 @@ foreach($atlasScenarioFile in $atlasScenarioFiles) {
     $atlasText=$atlasStdout.GetAwaiter().GetResult()
     $atlasError=$atlasStderr.GetAwaiter().GetResult()
     [IO.File]::WriteAllText((Join-Path $atlasSuitePath ($atlasScenarioFile.BaseName+'.log')),$atlasText+"`n"+$atlasError,[Text.UTF8Encoding]::new($false))
-    try{$atlasResult=$atlasText | ConvertFrom-Json -ErrorAction Stop}catch{$atlasResult=[pscustomobject]@{name=$atlasSpec.name;status='failed';error=$atlasError;exit_code=$atlasProcess.ExitCode}}
+    try{
+        $atlasResult=$atlasText | ConvertFrom-Json -ErrorAction Stop
+        if($null -eq $atlasResult -or $atlasResult.status -notin @('passed','failed')){throw 'CLI did not return a scenario result'}
+    }catch{
+        $atlasFailure=if($atlasError.Trim()){$atlasError.Trim()}else{'CLI did not return a valid scenario result (exit '+$atlasProcess.ExitCode+')'}
+        $atlasResult=[pscustomobject]@{name=$atlasSpec.name;status='failed';error=$atlasFailure;exit_code=$atlasProcess.ExitCode}
+    }
     if($atlasTimedOut){$atlasResult=[pscustomobject]@{name=$atlasSpec.name;status='failed';error='Scenario timed out';exit_code=$atlasProcess.ExitCode}}
     if($atlasProcess.ExitCode -ne 0 -and $atlasResult.status -eq 'passed'){$atlasResult.status='failed'}
     $atlasResults.Add($atlasResult)

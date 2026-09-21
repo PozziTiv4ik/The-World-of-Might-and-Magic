@@ -58,7 +58,7 @@ build-info.json связывает сборку с хешами исходник
 if ($LASTEXITCODE -ne 0) { throw 'Portable map does not validate independently' }
 $atlasCache = Join-Path $atlasStageMap '.atlas/versions-cache.json'
 if (Test-Path -LiteralPath $atlasCache) { Remove-Item -LiteralPath $atlasCache }
-$atlasManifest = [ordered]@{ application='Atlas'; version='5.2.0'; files=[ordered]@{} }
+$atlasManifest = [ordered]@{ application='Atlas'; version='5.2.1'; files=[ordered]@{} }
 foreach ($atlasFile in Get-ChildItem -LiteralPath $atlasStage -Recurse -File | Sort-Object FullName) {
     $atlasManifest.files[[IO.Path]::GetRelativePath($atlasStage,$atlasFile.FullName).Replace('\','/')] = (Get-FileHash -Algorithm SHA256 -LiteralPath $atlasFile.FullName).Hash.ToLowerInvariant()
 }
