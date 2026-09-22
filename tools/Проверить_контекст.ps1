@@ -4,13 +4,14 @@ $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
     $errors=[Collections.Generic.List[string]]::new();$warnings=[Collections.Generic.List[string]]::new()
-    $graph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
-    $state=Read-WmmaJson (Join-Path $root '09_Реестры/Контекст.json')
-    $knowledge=Read-WmmaJson (Join-Path $root '09_Реестры/Знания.json')
-    $decisions=Read-WmmaJson (Join-Path $root '09_Реестры/Решения.json')
-    $questions=Read-WmmaJson (Join-Path $root '09_Реестры/Вопросы.json')
+    try{$data=New-WmmaReadModel $root}catch{
+        if(-not $AsObject){throw}
+        return [pscustomobject]@{Errors=@($_.Exception.Message);Warnings=@();Entities=0;Facts=0}
+    }
+    $graph=$data.graph;$state=$data.state;$knowledge=$data.knowledge
+    $decisions=$data.decisions;$questions=$data.questions
     $events=Read-WmmaJson (Join-Path $root '09_Реестры/Хронология_связей.json')
-    $chapter=Get-WmmaCurrentChapter $root
+    $chapter=$data.chapter
     foreach($name in @('Сущности','Контекст','Знания','Хронология_связей')){
         try{
             $valid=Test-Json -Json (Read-WmmaText (Join-Path $root "09_Реестры/$name.json")) -SchemaFile (Join-Path $root '09_Реестры/Схемы/Память.schema.json') -ErrorAction Stop
@@ -24,7 +25,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     }catch{$errors.Add('Cannot rebuild expected graph: '+$_.Exception.Message)}
     try{
         $memory=Read-WmmaJson (Join-Path $root '09_Реестры/Память_персонажей.json')
-        if(($memory|ConvertTo-Json -Depth 50 -Compress) -cne ((New-WmmaCharacterMemory $root)|ConvertTo-Json -Depth 50 -Compress)){$errors.Add('Character memory is stale or differs from its evidence.')}
+        if(($memory|ConvertTo-Json -Depth 50 -Compress) -cne ((New-WmmaCharacterMemory $root -Data $data)|ConvertTo-Json -Depth 50 -Compress)){$errors.Add('Character memory is stale or differs from its evidence.')}
     }catch{$errors.Add('Cannot validate character memory: '+$_.Exception.Message)}
     $receiptIds=[Collections.Generic.HashSet[string]]::new()
     foreach($receipt in (Read-WmmaJson (Join-Path $root '09_Реестры/Входящие.json')).receipts){
@@ -44,7 +45,10 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     foreach($doc in @(Get-WmmaDocuments $root)){
         if(-not $doc.id -or -not $byId.ContainsKey($doc.id)){$errors.Add("Document missing from graph: $($doc.path)")}
     }
-    foreach($edge in $graph.edges){
+    $edgeKeys=[Collections.Generic.HashSet[string]]::new()
+    foreach($edge in @($graph.edges)+@($graph.references)){
+        if(-not $edgeKeys.Add("$($edge.from)|$($edge.to)|$($edge.kind)|$($edge.evidence)|$($edge.scope)")){$errors.Add('Duplicate graph relationship.')}
+        if($edge.from -eq $edge.to){$errors.Add("Self-referencing graph edge: $($edge.from)")}
         if(-not $byId.ContainsKey($edge.from) -or -not $byId.ContainsKey($edge.to)){$errors.Add("Dangling graph edge: $($edge.from) -> $($edge.to)")}
         if($edge.kind -in @('sourced_from','source_reference') -and $byId.ContainsKey($edge.to) -and $byId[$edge.to].type -notlike 'source*'){$errors.Add("Non-source provenance target: $($edge.to)")}
         if($edge.kind -eq 'participant' -and $byId.ContainsKey($edge.to) -and $byId[$edge.to].type -ne 'character'){$errors.Add("Participant is not a character: $($edge.to)")}
@@ -74,7 +78,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
             foreach($record in $proof){foreach($evidenceId in $record.evidence_ids){if(-not $byId.ContainsKey($evidenceId)){$errors.Add("Unknown knowledge evidence: $evidenceId")}}}
         }
     }
-    $frontIds=@((Read-WmmaJson (Join-Path $root '09_Реестры/Фронты.json')).fronts|ForEach-Object {$_.id})
+    $frontIds=@($data.fronts_by_id.Keys)
     $focusIds=@($questions.questions|ForEach-Object {$_.id})+@($decisions.decisions|ForEach-Object {$_.id;$_.resolved_from}|Where-Object {$_})+$frontIds
     foreach($id in $state.fact_ids){if(-not $factIds.ContainsKey($id)){$errors.Add("Unknown global fact: $id")}}
     foreach($id in $state.scene_ids){if(-not $byId.ContainsKey($id) -or $byId[$id].type -ne 'scene'){$errors.Add("Unknown global scene: $id")}}
@@ -88,25 +92,19 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         $profile=Read-WmmaText (Join-Path $root "01_Кампания/Ветки/$($branch.name)/00_Профиль_ветки.md")
         if((Get-WmmaMeta $profile 'current_chapter') -ne [string]$chapter){$errors.Add("Stale chapter in branch: $($branch.name)")}
         foreach($id in $branch.scene_ids){if($byId.ContainsKey($id) -and -not $profile.Contains($byId[$id].path)){$errors.Add("Branch omits linked shared scene: $($branch.name) -> $id")}}
-        $expected=Get-WmmaContext -Root $root -Branch $branch.name -MaxWords 1800
+        $expected=Get-WmmaContext -Root $root -Branch $branch.name -MaxWords 1800 -Data $data
         $actual=Read-WmmaText (Join-Path $root "01_Кампания/Контекст/$($branch.name).md")
         if($actual -cne $expected.text){$errors.Add("Stale branch packet: $($branch.name)")}
         if([regex]::Matches($actual,'\S+').Count -gt 1800){$errors.Add("Branch packet exceeds word budget: $($branch.name)")}
     }
     # An after relation must be acyclic. Overlaps is not an ordering edge.
-    $after=@{}
     foreach($event in $events.relations){
         if(-not $byId.ContainsKey($event.from) -or -not $byId.ContainsKey($event.to)){$errors.Add('Unknown event endpoint.')}
         if($event.relation -notin @('after','overlaps','learned_after')){$errors.Add('Unknown temporal relation.')}
         foreach($id in $event.evidence_ids){if(-not $byId.ContainsKey($id)){$errors.Add("Unknown chronology evidence: $id")}}
         if($event.from -eq $event.to){$errors.Add('An event cannot reference itself in chronology.')}
-        if($event.relation -in @('after','learned_after')){$after[$event.from]=@($after[$event.from])+@($event.to)}
     }
-    function Visit-Event([string]$Id,[string[]]$Trail){
-        if($Trail -contains $Id){$errors.Add("Cyclic event order: $Id");return}
-        foreach($next in @($after[$Id]|Where-Object {$_})){Visit-Event $next (@($Trail)+@($Id))}
-    }
-    foreach($id in $after.Keys){Visit-Event $id @()}
+    foreach($cycle in @(Get-WmmaOrderCycles @($events.relations))){$errors.Add("Cyclic event order: $cycle")}
     $manifestPath=Join-Path $root '10_Обслуживание/Миграция_v2.json'
     if(Test-Path -LiteralPath $manifestPath){
         $manifest=Read-WmmaJson $manifestPath
@@ -117,7 +115,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
             if((Get-WmmaHash $body) -cne $item.text_sha256){$errors.Add("Historical preservation check failed: $($item.history_path)")}
         }
     }
-    $selection=Get-WmmaSelection $root
+    $selection=Get-WmmaSelection $root -Data $data
     $panel=Read-WmmaText (Join-Path $root '01_Кампания/07_Следующий_ход.md')
     foreach($q in @($selection.questions|Select-Object -First 8)){if(-not $panel.Contains($q.id)){$errors.Add("Panel omits selected question: $($q.id)")}}
     foreach($f in @($selection.fronts|Select-Object -First 10)){if(-not $panel.Contains($f.id)){$errors.Add("Panel omits selected front: $($f.id)")}}

@@ -1,18 +1,19 @@
-param()
+param([object]$Data)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $graph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
+    $Data=Resolve-WmmaReadModel $root $Data
+    $graph=$Data.graph
     $memory=Read-WmmaJson (Join-Path $root '09_Реестры/Память_персонажей.json')
-    $knowledge=Read-WmmaJson (Join-Path $root '09_Реестры/Знания.json')
+    $knowledge=$Data.knowledge
     $characters=@{};foreach($person in $memory.characters){$characters[$person.character_id]=$person}
     $rows=@($graph.entities|ForEach-Object {
         $person=$characters[$_.id]
         [ordered]@{id=$_.id;type=$_.type;path=$_.path;provenance=$_.provenance;source_ids=@($_.source_ids);historical_source_ids=@($_.historical_source_ids);history_paths=@($_.history_paths);historical_sections=$(if($person){@($person.historical_sections|ForEach-Object {$_.heading})}else{@()});current_position_status=$(if($person){$person.current_position.status}else{$null});voice_status=$(if($person){$person.voice.status}else{$null})}
     })
     $summary=[ordered]@{
-        entities=$graph.entities.Count;edges=$graph.edges.Count
+        entities=$graph.entities.Count;edges=$graph.edges.Count;references=$graph.references.Count
         original_sources=@($rows|Where-Object provenance -eq original).Count
         linked_to_sources=@($rows|Where-Object provenance -eq linked).Count
         historical_provenance=@($rows|Where-Object provenance -eq historical).Count
@@ -24,7 +25,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         facts=$knowledge.facts.Count
     }
     Write-WmmaJson (Join-Path $root '10_Обслуживание/Покрытие_данных.json') ([ordered]@{
-        schema_version=1;type='data_coverage_view';generated_by='tools/Собрать_аудит_данных.ps1'
+        schema_version=2;type='data_coverage_view';generated_by='tools/Собрать_аудит_данных.ps1'
         interpretation='Отсутствие прямого источника, текущего положения или манеры речи означает незаполненную связь или незаданный факт. Это не доказательство сюжетной ошибки. Граф показывает ссылки, а не истинность всех утверждений.'
         summary=$summary;entities=$rows
     })
@@ -32,7 +33,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         'Это автоматически пересобираемый обзор полноты ссылок и памяти. Подробный список каждой сущности находится в [Покрытие_данных.json](Покрытие_данных.json).',
         '',"| Показатель | Количество |",'| --- | ---: |')
     foreach($item in @(
-        @('Сущности',$summary.entities),@('Явные связи',$summary.edges),@('Исходные документы',$summary.original_sources),
+        @('Сущности',$summary.entities),@('Связи участников и источников',$summary.edges),@('Навигационные упоминания',$summary.references),@('Исходные документы',$summary.original_sources),
         @('Сущности с прямой ссылкой на источник',$summary.linked_to_sources),@('Только исторический источник',$summary.historical_provenance),
         @('Без установленной прямой ссылки',$summary.unresolved_provenance),@('Персонажи',$summary.characters),
         @('Персонажи с доступными историческими разделами',$summary.characters_with_historical_sections),
@@ -50,4 +51,3 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     Write-WmmaText (Join-Path $root '10_Обслуживание/Покрытие_данных.md') (($lines -join [char]10)+[char]10)
     $summary|ConvertTo-Json
 }
-

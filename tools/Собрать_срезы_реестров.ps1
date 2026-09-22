@@ -40,7 +40,7 @@ function Save-JsonFile {
     )
 
     $json = $Value | ConvertTo-Json -Depth 12
-    Write-Utf8NoBom -Path $Path -Text ($json.TrimEnd() + "`n")
+    Write-WmmaGeneratedText -Path $Path -Text ($json.TrimEnd() + "`n") -Format json
 }
 
 function New-StatusCounts {

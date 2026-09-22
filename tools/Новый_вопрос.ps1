@@ -33,7 +33,7 @@ $today = Get-Date -Format 'yyyy-MM-dd'
 $registryPath = Join-Path $root '09_Реестры\Вопросы.json'
 
 if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Question registry is missing: 09_Реестры/Вопросы.json. Run .\tools\Собрать_вопросы.ps1 -ImportFromMarkdown once."
+    throw "Question registry is missing: 09_Реестры/Вопросы.json. Restore the authoritative JSON registry from a verified backup."
 }
 
 function Get-QuestionPrefix {

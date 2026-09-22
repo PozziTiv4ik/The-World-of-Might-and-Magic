@@ -1,11 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "type": "data_coverage_view",
   "generated_by": "tools/Собрать_аудит_данных.ps1",
   "interpretation": "Отсутствие прямого источника, текущего положения или манеры речи означает незаполненную связь или незаданный факт. Это не доказательство сюжетной ошибки. Граф показывает ссылки, а не истинность всех утверждений.",
   "summary": {
     "entities": 750,
-    "edges": 4803,
+    "edges": 965,
+    "references": 3838,
     "original_sources": 246,
     "linked_to_sources": 144,
     "historical_provenance": 0,

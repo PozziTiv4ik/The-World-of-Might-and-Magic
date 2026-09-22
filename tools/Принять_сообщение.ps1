@@ -19,28 +19,7 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
-function Convert-ToProjectFileName {
-    param([string]$Value)
-
-    $safe = $Value.Trim().ToLowerInvariant()
-    $safe = [regex]::Replace($safe, '\s+', '_')
-    $safe = $safe -replace '[\\/:*?"<>|]', ''
-    $safe = $safe.Trim('_', '.', ' ')
-
-    if ([string]::IsNullOrWhiteSpace($safe)) {
-        throw 'Cannot build a safe file name from an empty message title.'
-    }
-
-    return $safe
-}
-
-function Get-RelativeProjectPath {
-    param([string]$Path)
-
-    return (($Path.Substring($root.Length).TrimStart('\', '/')) -replace '\\', '/')
-}
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
@@ -72,17 +51,17 @@ $receipt=[pscustomobject]@{request_id=$RequestId;content_sha256=$messageHash;tit
 
 if ($Mode -eq 'source') {
     $sourceRoot = Join-Path $root '08_Источники'
-    $sourceFileName = "$today`_$(Convert-ToProjectFileName -Value $Title).md"
+    $sourceFileName = "$today`_$(Convert-WmmaFileName -Lowercase -Value $Title).md"
     $sourcePath = Join-Path $sourceRoot $sourceFileName
     if((Test-Path -LiteralPath $sourcePath) -and (Get-WmmaMeta (Read-WmmaText $sourcePath) 'request_id') -ne $RequestId){
-        $sourceFileName="$today`_$(Convert-ToProjectFileName -Value $Title)_$RequestId.md"
+        $sourceFileName="$today`_$(Convert-WmmaFileName -Lowercase -Value $Title)_$RequestId.md"
         $sourcePath=Join-Path $sourceRoot $sourceFileName
     }
 
     $reuseSource=$false
     if (Test-Path -LiteralPath $sourcePath) {
         $existingSource=Read-WmmaText $sourcePath
-        if((Get-WmmaMeta $existingSource 'request_id') -ne $RequestId -or (Get-WmmaMeta $existingSource 'content_sha256') -cne $messageHash){throw "Source file already exists for another message: $(Get-RelativeProjectPath $sourcePath)"}
+        if((Get-WmmaMeta $existingSource 'request_id') -ne $RequestId -or (Get-WmmaMeta $existingSource 'content_sha256') -cne $messageHash){throw "Source file already exists for another message: $(Get-WmmaRelativePath -Root $root $sourcePath)"}
         if(-not (Test-WmmaSourcePayload $existingSource $messageHash)){throw 'Existing source payload differs from the original message.'}
         $reuseSource=$true
     }
@@ -106,8 +85,8 @@ ${codeFence}
 "@
 
     if(-not $reuseSource){Write-WmmaText $sourcePath $sourceContent}
-    $sourceReference = "``$(Get-RelativeProjectPath $sourcePath)``"
-    $receipt.source_path=Get-RelativeProjectPath $sourcePath
+    $sourceReference = "``$(Get-WmmaRelativePath -Root $root $sourcePath)``"
+    $receipt.source_path=Get-WmmaRelativePath -Root $root $sourcePath
 }
 
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'

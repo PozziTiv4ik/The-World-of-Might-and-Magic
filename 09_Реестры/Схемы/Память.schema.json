@@ -14,6 +14,20 @@
       "type": "string"
     }
   },
+  "$defs": {
+    "graph_edge": {
+      "type": "object",
+      "required": ["from", "to", "kind", "evidence", "scope"],
+      "properties": {
+        "from": {"type": "string", "minLength": 1},
+        "to": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["participant", "sourced_from", "source_reference", "references"]},
+        "evidence": {"type": "string", "minLength": 1},
+        "scope": {"enum": ["current", "historical"]}
+      },
+      "additionalProperties": false
+    }
+  },
   "oneOf": [
     {
       "properties": {
@@ -220,6 +234,7 @@
         "type": {
           "const": "entity_graph"
         },
+        "schema_version": {"const": 3},
         "entities": {
           "type": "array",
           "items": {
@@ -268,12 +283,30 @@
           }
         },
         "edges": {
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/graph_edge"},
+              {"properties": {"kind": {"enum": ["participant", "sourced_from", "source_reference"]}}}
+            ]
+          }
+        },
+        "references": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/graph_edge"},
+              {"properties": {"kind": {"const": "references"}}}
+            ]
+          }
         }
       },
       "required": [
         "entities",
-        "edges"
+        "edges",
+        "references"
       ]
     }
   ]

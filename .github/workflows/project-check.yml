@@ -24,6 +24,10 @@ jobs:
         shell: pwsh
         run: .\tools\Проверить_систему_v2.ps1
 
+      - name: Check bounded connections and chronology
+        shell: pwsh
+        run: .\tools\Проверить_связи.ps1
+
       - name: Check intake integrity and Windows regressions
         shell: pwsh
         run: .\tools\Проверить_аудит.ps1

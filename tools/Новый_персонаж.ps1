@@ -19,25 +19,11 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
-function Convert-ToProjectFileName {
-    param([string]$Value)
-
-    $safe = [regex]::Replace($Value.Trim(), '\s+', '_')
-    $safe = $safe -replace '[\\/:*?"<>|]', ''
-    $safe = $safe.Trim('_', '.', ' ')
-
-    if ([string]::IsNullOrWhiteSpace($safe)) {
-        throw 'Cannot build a safe file name from an empty character name.'
-    }
-
-    return $safe
-}
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$fileName = Convert-ToProjectFileName -Value $Name
+$fileName = Convert-WmmaFileName -Value $Name
 $relativePath = "03_Персонажи/$fileName.md"
 $targetPath = Join-Path $root ($relativePath -replace '/', '\')
 

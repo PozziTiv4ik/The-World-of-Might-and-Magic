@@ -37,7 +37,6 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
@@ -55,7 +54,7 @@ function Normalize-LinkReference {
 }
 
 if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Front registry is missing: 09_Реестры/Фронты.json. Run .\tools\Собрать_фронты.ps1 -ImportFromMarkdown once."
+    throw "Front registry is missing: 09_Реестры/Фронты.json. Restore the authoritative JSON registry from a verified backup."
 }
 
 if ([string]::IsNullOrWhiteSpace($Description)) {

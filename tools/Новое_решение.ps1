@@ -46,10 +46,8 @@ $today = Get-Date -Format 'yyyy-MM-dd'
 $registryPath = Join-Path $root '09_Реестры\Решения.json'
 
 if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Decision registry is missing: 09_Реестры/Решения.json. Run .\tools\Собрать_решения.ps1 -ImportFromMarkdown once."
+    throw "Decision registry is missing: 09_Реестры/Решения.json. Restore the authoritative JSON registry from a verified backup."
 }
-
-
 
 function Test-ProjectPath {
     param([string]$Reference)

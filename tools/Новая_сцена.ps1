@@ -40,27 +40,7 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
-function Convert-ToProjectFileName {
-    param([string]$Value)
-
-    $safe = [regex]::Replace($Value.Trim(), '\s+', '_')
-    $safe = $safe -replace '[\\/:*?"<>|]', ''
-    $safe = $safe.Trim('_', '.', ' ')
-
-    if ([string]::IsNullOrWhiteSpace($safe)) {
-        throw 'Cannot build a safe file name from an empty scene title.'
-    }
-
-    return $safe
-}
-
-function Get-RelativeProjectPath {
-    param([string]$Path)
-
-    return (($Path.Substring($root.Length).TrimStart('\', '/')) -replace '\\', '/')
-}
 
 function Get-DeclaredFrontIds {
     param([string]$FrontTrackerPath)
@@ -134,10 +114,10 @@ if ([string]::IsNullOrWhiteSpace($cleanTitle)) {
     throw 'Scene title cannot be empty.'
 }
 
-$fileTitle = Convert-ToProjectFileName -Value $cleanTitle
+$fileTitle = Convert-WmmaFileName -Value $cleanTitle
 $fileName = "Сцена_${sceneNumber}_$fileTitle.md"
 $targetPath = Join-Path $branchRoot $fileName
-$relativePath = Get-RelativeProjectPath $targetPath
+$relativePath = Get-WmmaRelativePath -Root $root $targetPath
 
 if (Test-Path -LiteralPath $targetPath) {
     throw "Scene file already exists: $relativePath. Edit the existing document to preserve its ID and history; -Force cannot replace a scene."

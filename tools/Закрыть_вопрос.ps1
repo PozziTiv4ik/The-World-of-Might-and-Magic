@@ -13,7 +13,6 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
@@ -22,7 +21,7 @@ $today = Get-Date -Format 'yyyy-MM-dd'
 $registryPath = Join-Path $root '09_Реестры\Вопросы.json'
 
 if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Question registry is missing: 09_Реестры/Вопросы.json. Run .\tools\Собрать_вопросы.ps1 -ImportFromMarkdown once."
+    throw "Question registry is missing: 09_Реестры/Вопросы.json. Restore the authoritative JSON registry from a verified backup."
 }
 
 $registryText = Get-Content -Raw -Encoding UTF8 -LiteralPath $registryPath

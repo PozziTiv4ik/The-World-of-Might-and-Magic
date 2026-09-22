@@ -1,13 +1,12 @@
 function Get-WmmaSelection {
-    param([string]$Root, [string]$Branch = '', [string]$Query = '')
-    $questions = Read-WmmaJson (Join-Path $Root '09_Реестры/Вопросы.json')
-    $decisions = Read-WmmaJson (Join-Path $Root '09_Реестры/Решения.json')
-    $fronts = Read-WmmaJson (Join-Path $Root '09_Реестры/Фронты.json')
-    $chapter = Get-WmmaCurrentChapter $Root
-    $statePath = Join-Path $Root '09_Реестры/Контекст.json'
-    $state = if (Test-Path -LiteralPath $statePath) { Read-WmmaJson $statePath } else { $null }
-    $branchState = @($state.branches | Where-Object { $_.name -eq $Branch -or $_.character_id -eq $Branch }) | Select-Object -First 1
-    if ($Branch -and -not $branchState) { throw "Unknown branch: $Branch" }
+    param([string]$Root, [string]$Branch = '', [string]$Query = '', [object]$Data)
+    $Data = Resolve-WmmaReadModel $Root $Data
+    $questions = $Data.questions
+    $decisions = $Data.decisions
+    $fronts = $Data.fronts
+    $chapter = $Data.chapter
+    $state = $Data.state
+    $branchState = Resolve-WmmaBranch $Data $Branch
     $focusIds = @($state.focus_ids)
     if ($branchState) { $focusIds += @($branchState.focus_ids) }
     $terms = @($Query -split '\s+' | Where-Object { $_.Length -ge 3 })
@@ -31,12 +30,12 @@ function Get-WmmaSelection {
 }
 
 function Get-WmmaCharacterMemoryData {
-    param([string]$Root,[object]$Entity)
+    param([string]$Root,[object]$Entity,[object]$Data)
     $text=Read-WmmaText (Join-Path $Root $Entity.path);$current=[ordered]@{};$past=@()
     $wanted=@('Кратко','Характер','Известные черты','Цели','Связи','Близкие связи','Напряженные связи','Манера речи','Личные воспоминания','Текущее положение')
     foreach($section in @(Get-WmmaMarkdownSections $text 2)){if($wanted -contains $section.heading -and $section.text.Trim()){$current[$section.heading]=$section.text.Trim()}}
     $history=@($Entity.history_paths)
-    if(-not $history.Count){$index=Get-WmmaHistoryIndex $Root;$history=@($index[$Entity.path]|Where-Object {$_})}
+    if(-not $history.Count){$index=if($Data){$Data.history_index}else{Get-WmmaHistoryIndex $Root};$history=@($index[$Entity.path]|Where-Object {$_})}
     foreach($path in $history){
         $old=Read-WmmaText (Join-Path $Root $path)
         foreach($section in @(Get-WmmaMarkdownSections $old 2)){
@@ -48,33 +47,45 @@ function Get-WmmaCharacterMemoryData {
     return [pscustomobject]@{current=$current;historical=$past;history_paths=$history}
 }
 
-function Get-WmmaMemory {
-    param([string]$Root,[object]$Entity)
-    return (Get-WmmaCharacterMemoryData $Root $Entity).current
+function New-WmmaCharacterMemory {
+    param([string]$Root,[object]$Data)
+    $Data=Resolve-WmmaReadModel $Root $Data
+    $graph=$Data.graph
+    $knowledge=$Data.knowledge
+    $cards=@()
+    foreach($person in $graph.entities | Where-Object {$_.type -eq 'character'}){
+        $text=Read-WmmaText (Join-Path $root $person.path)
+        $profile=Get-WmmaCharacterMemoryData $root $person -Data $Data
+        $traits=@();foreach($heading in @('Характер','Известные черты','Цели','Биография и образ')){
+            $body=Get-WmmaSection $text $heading
+            if($body){$traits+=[ordered]@{section=$heading;text=$body;evidence=$person.path}}
+        }
+        $scenes=@($Data.scenes_by_participant[$person.id]|Where-Object {$_}|ForEach-Object {$_.id})
+    $known=@($knowledge.facts|Where-Object {Test-WmmaFactVisible $_ $person.id}|ForEach-Object {$_.id})
+        $voice=Get-WmmaSection $text 'Манера речи'
+        $cards+=[ordered]@{character_id=$person.id;name=$person.name;card=$person.path;traits=$traits;historical_sections=@($profile.historical);history_paths=@($profile.history_paths);voice=[ordered]@{status=$(if($voice -and $voice -notmatch '^(Не установлен|Не установлена|Уточнить)'){'recorded'}else{'not_established'});text=$voice};known_fact_ids=$known;world_fact_ids=@($Data.facts_by_subject[$person.id]|Where-Object {$_}|ForEach-Object {$_.id});current_position=[ordered]@{status=$(if($profile.current.Contains('Текущее положение')){'recorded'}else{'not_recorded'});text=$profile.current['Текущее положение']};scene_reference_ids=$scenes;scene_reference_note='Упоминание в участниках может означать докладчика или отсутствующее лицо; личное присутствие и воспоминание проверяются по сцене.';relationships=(Get-WmmaSection $text 'Связи')}
+    }
+    return [pscustomobject][ordered]@{schema_version=1;type='character_memory_view';generated_by='tools/Собрать_память.ps1';characters=$cards}
 }
 
 function Get-WmmaContext {
-    param([string]$Root,[string]$Branch='',[string]$Query='',[string]$Entity='',[ValidateSet('gm','character')][string]$Audience='gm',[ValidateRange(500,20000)][int]$MaxWords=2000)
+    param([string]$Root,[string]$Branch='',[string]$Query='',[string]$Entity='',[ValidateSet('gm','character')][string]$Audience='gm',[ValidateRange(500,20000)][int]$MaxWords=2000,[object]$Data)
     if($Audience -eq 'character' -and -not $Branch){throw 'Character audience requires an explicit branch.'}
-    $selection=Get-WmmaSelection $Root $Branch $Query
-    $graph=Read-WmmaJson (Join-Path $Root '09_Реестры/Сущности.json')
-    $knowledge=Read-WmmaJson (Join-Path $Root '09_Реестры/Знания.json')
-    $byId=@{};foreach($node in $graph.entities){$byId[$node.id]=$node}
-    $requested=$null
-    if($Entity){
-        $matches=@($graph.entities|Where-Object {$_.id -eq $Entity -or $_.name -eq $Entity -or $_.aliases -contains $Entity})
-        if($matches.Count -ne 1){throw "Entity is missing or ambiguous: $Entity ($($matches.Count) matches). Use a stable ID."}
-        $requested=$matches[0]
-    }
+    $Data=Resolve-WmmaReadModel $Root $Data
+    $selection=Get-WmmaSelection $Root $Branch $Query -Data $Data
+    $graph=$Data.graph
+    $knowledge=$Data.knowledge
+    $byId=$Data.entities_by_id
+    $requested=if($Entity){Resolve-WmmaEntity $Data $Entity}else{$null}
     $sceneIds=if($selection.branch){@($selection.branch.scene_ids)}else{@($selection.state.scene_ids)}
     if($requested){
-        $sceneIds=if($requested.type -eq 'scene'){@($requested.id)}else{@($graph.entities|Where-Object {$_.type -eq 'scene' -and $_.participant_ids -contains $requested.id}|Sort-Object @{Expression={[int]$_.chapter};Descending=$true},path|Select-Object -First 3|ForEach-Object {$_.id})}
+        $sceneIds=if($requested.type -eq 'scene'){@($requested.id)}else{@($Data.scenes_by_participant[$requested.id]|Where-Object {$_}|Sort-Object @{Expression={[int]$_.chapter};Descending=$true},path|Select-Object -First 3|ForEach-Object {$_.id})}
     }
     $factIds=@($selection.state.fact_ids)+@($selection.branch.fact_ids)
     $viewer=$selection.branch.character_id
     $facts=@($knowledge.facts|Where-Object {
         $relevant=if($requested){$_.subject_ids -contains $requested.id}else{$factIds -contains $_.id}
-        $visible=$Audience -eq 'gm' -or ($_.visibility -ne 'gm' -and ($_.visibility -eq 'public' -or $_.known_to -contains $viewer))
+        $visible=Test-WmmaFactVisible $_ $viewer $Audience
         $relevant -and $visible
     })
     $blocks=[Collections.Generic.List[object]]::new();$tick=[char]96
@@ -94,7 +105,7 @@ function Get-WmmaContext {
             Add-Block $Node.id ($Node.name+' — '+$heading) $section.text $Node.path $Reason
         }}
         if($History -and $Node.type -eq 'character'){
-            $memory=Get-WmmaCharacterMemoryData $Root $Node
+            $memory=Get-WmmaCharacterMemoryData $Root $Node -Data $Data
             foreach($section in $memory.historical|Where-Object {$_.heading -notin @('Кратко','Текущее положение')}){
                 Add-Block $Node.id ($Node.name+' — историческая запись: '+$section.heading) $section.text $section.path 'Сохранённая авторская запись; актуальность проверяется по последующим сценам' 'historical'
             }
@@ -125,20 +136,19 @@ function Get-WmmaContext {
         Add-Block $fact.id ('Сведение: '+$fact.truth) ($fact.text+' Основание: '+$refs) '09_Реестры/Знания.json' 'Факт, донесение или неизвестное с основанием'
     }
     if($Audience -eq 'gm'){
-        foreach($id in $sceneIds){
+        foreach($id in @($sceneIds|Select-Object -Unique)){
             if(-not $byId.ContainsKey($id)){continue}
             $node=$byId[$id];$text=Read-WmmaText (Join-Path $Root $node.path)
             Add-Block $id $node.name (Get-WmmaSection $text 'Что известно персонажу') $node.path 'Связанная сцена; её перспективу нельзя автоматически переносить на других лиц'
         }
         if(-not $requested -and $selection.branch){Add-Entity $byId[$viewer] 'Персонаж сюжетной линии' -History}
-        foreach($front in @($selection.fronts|Select-Object -First 3)){
-            if($requested -and $requested.front_ids -notcontains $front.id){continue}
+        foreach($front in @($selection.fronts|Where-Object {-not $requested -or $requested.front_ids -contains $_.id}|Select-Object -First 3)){
             Add-Block $front.id $front.front ($front.summary+' Следующее условие: '+$front.trigger) '09_Реестры/Фронты.json' 'Связанный фронт'
         }
     }
     $label=if($Branch){$Branch}elseif($requested){$requested.name}else{'Общий мир'}
     $lines=[Collections.Generic.List[string]]::new()
-    foreach($line in @("# Контекст: $label",'','---','type: context_packet','status: active','canon_level: support','generated_by: tools/Получить_контекст.ps1',"current_chapter: $(Get-WmmaCurrentChapter $Root)","audience: $Audience",'---','')){$lines.Add($line)}
+    foreach($line in @("# Контекст: $label",'','---','type: context_packet','status: active','canon_level: support','generated_by: tools/Получить_контекст.ps1',"current_chapter: $($Data.chapter)","audience: $Audience",'---','')){$lines.Add($line)}
     $included=[Collections.Generic.List[object]]::new();$omitted=[Collections.Generic.List[object]]::new()
     foreach($block in $blocks){
         $prefix='## '+$block.title+[Environment]::NewLine+[Environment]::NewLine
@@ -160,24 +170,4 @@ function Get-WmmaContext {
     if($omitted.Count){$lines.Add("Ограничение объёма: $($omitted.Count) блоков сокращены или опущены. Полные тексты доступны по ссылкам; Json содержит перечень.")}
     $rendered=(($lines -join [Environment]::NewLine).Replace([char]13+[string][char]10,[string][char]10)).TrimEnd()+[char]10
     return [pscustomobject]@{text=$rendered;included=@($included);omitted=@($omitted);facts=$facts;scene_ids=$(if($Audience -eq 'character'){@()}else{$sceneIds});selection=$(if($Audience -eq 'character'){$null}else{$selection})}
-}
-
-function New-WmmaCharacterMemory {
-    param([string]$Root)
-    $graph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
-    $knowledge=Read-WmmaJson (Join-Path $root '09_Реестры/Знания.json')
-    $cards=@()
-    foreach($person in $graph.entities | Where-Object {$_.type -eq 'character'}){
-        $text=Read-WmmaText (Join-Path $root $person.path)
-        $profile=Get-WmmaCharacterMemoryData $root $person
-        $traits=@();foreach($heading in @('Характер','Известные черты','Цели','Биография и образ')){
-            $body=Get-WmmaSection $text $heading
-            if($body){$traits+=[ordered]@{section=$heading;text=$body;evidence=$person.path}}
-        }
-        $scenes=@($graph.entities|Where-Object {$_.type -eq 'scene' -and $_.participant_ids -contains $person.id}|ForEach-Object {$_.id})
-    $known=@($knowledge.facts|Where-Object {$_.visibility -ne 'gm' -and ($_.known_to -contains $person.id -or $_.visibility -eq 'public')}|ForEach-Object {$_.id})
-        $voice=Get-WmmaSection $text 'Манера речи'
-        $cards+=[ordered]@{character_id=$person.id;name=$person.name;card=$person.path;traits=$traits;historical_sections=@($profile.historical);history_paths=@($profile.history_paths);voice=[ordered]@{status=$(if($voice -and $voice -notmatch '^(Не установлен|Не установлена|Уточнить)'){'recorded'}else{'not_established'});text=$voice};known_fact_ids=$known;world_fact_ids=@($knowledge.facts|Where-Object {$_.subject_ids -contains $person.id}|ForEach-Object {$_.id});current_position=[ordered]@{status=$(if($profile.current.Contains('Текущее положение')){'recorded'}else{'not_recorded'});text=$profile.current['Текущее положение']};scene_reference_ids=$scenes;scene_reference_note='Упоминание в участниках может означать докладчика или отсутствующее лицо; личное присутствие и воспоминание проверяются по сцене.';relationships=(Get-WmmaSection $text 'Связи')}
-    }
-    return [pscustomobject][ordered]@{schema_version=1;type='character_memory_view';generated_by='tools/Собрать_память.ps1';characters=$cards}
 }

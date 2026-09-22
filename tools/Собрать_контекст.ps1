@@ -1,15 +1,12 @@
-param([switch]$SkipCheck)
+param([switch]$SkipCheck,[object]$Data)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $state=Read-WmmaJson (Join-Path $root '09_Реестры/Контекст.json')
-    $knowledge=Read-WmmaJson (Join-Path $root '09_Реестры/Знания.json')
-    $graph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
-    $decisions=Read-WmmaJson (Join-Path $root '09_Реестры/Решения.json')
-    $questions=Read-WmmaJson (Join-Path $root '09_Реестры/Вопросы.json')
-    $chapter=Get-WmmaCurrentChapter $root
-    $byId=@{}; foreach($e in $graph.entities){$byId[$e.id]=$e}
+    $Data=Resolve-WmmaReadModel $root $Data
+    $state=$Data.state;$knowledge=$Data.knowledge
+    $decisions=$Data.decisions;$questions=$Data.questions
+    $chapter=$Data.chapter;$byId=$Data.entities_by_id
     $lines=[Collections.Generic.List[string]]::new()
     $lines.Add('# Текущий контекст кампании'); $lines.Add(''); $lines.Add('---')
     $lines.Add('type: ai_current_context');$lines.Add('status: active');$lines.Add('canon_level: support');$lines.Add("current_chapter: $chapter");$lines.Add('generated_by: tools/Собрать_контекст.ps1');$lines.Add('---');$lines.Add('')
@@ -30,7 +27,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     $lines.Add('- Закрытые главы сохраняются; противоречия сначала сверять с источниками. Технические изменения не являются сюжетом.')
     Write-WmmaText (Join-Path $root '01_Кампания/00_Текущий_контекст.md') (($lines -join "`n")+"`n")
     foreach($branch in $state.branches){
-        $packet=Get-WmmaContext -Root $root -Branch $branch.name -MaxWords 1800
+        $packet=Get-WmmaContext -Root $root -Branch $branch.name -MaxWords 1800 -Data $Data
         Write-WmmaText (Join-Path $root "01_Кампания/Контекст/$($branch.name).md") $packet.text
         $profile=@("# Ветка $($branch.name)",'','---','type: character_branch',"main_character: $($byId[$branch.character_id].name)",'status: active','canon_level: support',"last_closed_chapter: $($chapter-1)","current_chapter: $chapter",'generated_by: tools/Собрать_контекст.ps1','---','','## Текущее положение','',$branch.situation,'','## Последняя сцена','')
         foreach($id in $branch.scene_ids) { $profile += '- ' + $byId[$id].name + ': `' + $byId[$id].path + '`.' }

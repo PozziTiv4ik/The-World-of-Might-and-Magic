@@ -20,6 +20,15 @@ function Read-WmmaJson {
     return (Read-WmmaText $Path | ConvertFrom-Json)
 }
 
+function Read-WmmaRegistry {
+    param([string]$Root,[string]$Name)
+    $path=Resolve-WmmaPath $Root "09_Реестры/$Name.json"
+    if(-not (Test-Path -LiteralPath $path)){
+        throw "Registry missing: $Name.json. Restore the authoritative JSON from a verified backup."
+    }
+    return Read-WmmaJson $path
+}
+
 function Write-WmmaJson {
     param([string]$Path, [object]$Value)
     Write-WmmaText $Path (($Value | ConvertTo-Json -Depth 50).TrimEnd() + "`n")
@@ -52,13 +61,40 @@ function Get-WmmaRelativePath {
 }
 
 function Get-WmmaMeta {
-    param([string]$Text, [string]$Field)
+    param([string]$Text, [string]$Field, [AllowNull()][object]$Default = '')
     $block = [regex]::Match($Text, '(?s)\A(?:\uFEFF)?# [^\r\n]+\r?\n\s*---\r?\n(.*?)\r?\n---')
     if ($block.Success) {
         $entry = [regex]::Match($block.Groups[1].Value, '(?m)^' + [regex]::Escape($Field) + ':[ \t]*([^\r\n]*)')
         if ($entry.Success) { return $entry.Groups[1].Value.Trim() }
     }
-    return ''
+    return $Default
+}
+
+function Get-WmmaTitle {
+    param([string]$Text)
+    $heading=[regex]::Match($Text,'(?m)^#\s+(.+?)\s*$')
+    if($heading.Success){return $heading.Groups[1].Value.Trim()}
+    return 'Без названия'
+}
+
+function Convert-WmmaTableRow {
+    param([string]$Line)
+    if($Line -notmatch '^\|.+\|$' -or $Line -match '^\|\s*-'){return $null}
+    return ,($Line.Trim('|') -split '\|' | ForEach-Object {$_.Trim()})
+}
+
+function Format-WmmaTableCell {
+    param([AllowNull()][object]$Value,[string]$Empty='')
+    if($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)){return $Empty}
+    return (([string]$Value -replace '\|','/') -replace '\r?\n',' ').Trim()
+}
+
+function Convert-WmmaFileName {
+    param([string]$Value,[switch]$Lowercase)
+    $safe=([regex]::Replace($Value.Trim(),'\s+','_') -replace '[\\/:*?"<>|]','').Trim('_','.',' ')
+    if(-not $safe){throw 'Cannot build a file name from an empty title.'}
+    if($Lowercase){return $safe.ToLowerInvariant()}
+    return $safe
 }
 
 function Set-WmmaMeta {
@@ -77,6 +113,20 @@ function Get-WmmaSection {
     $section=@(Get-WmmaMarkdownSections $Text 2 | Where-Object {$_.heading -ceq $Heading})|Select-Object -First 1
     if ($section) { return $section.text.Trim() }
     return ''
+}
+
+# A generated view changes only when its contents change. Keep the previous
+# generation date and bytes if a rebuild merely proposes a newer date.
+function Write-WmmaGeneratedText {
+    param([string]$Path,[string]$Text,[ValidateSet('markdown','json')][string]$Format='markdown')
+    if(Test-Path -LiteralPath $Path){
+        $previous=Read-WmmaText $Path
+        $pattern=if($Format -eq 'json'){'(?m)^  "updated_real_date": "\d{4}-\d{2}-\d{2}"'}else{'(?m)^generated_real_date: \d{4}-\d{2}-\d{2}'}
+        $before=[regex]::Replace($previous.Replace("`r`n","`n"),$pattern,'<generation-date>')
+        $after=[regex]::Replace($Text.Replace("`r`n","`n"),$pattern,'<generation-date>')
+        if($before -ceq $after){return}
+    }
+    Write-WmmaText $Path $Text
 }
 
 function Get-WmmaMarkdownSections {

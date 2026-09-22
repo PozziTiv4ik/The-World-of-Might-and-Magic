@@ -586,6 +586,24 @@ try {
         Assert-TextContains -Path $assetIndexPath -Expected 'Принц Михаэль'
     }
 
+    Invoke-Step 'Единая проверка отклоняет повреждённые поля реестров' {
+        foreach($case in @(
+            @{name='Решения';list='decisions';field='state';message='invalid state'},
+            @{name='Вопросы';list='questions';field='scope';message='invalid scope'},
+            @{name='Фронты';list='urgent_forks';field='priority';message='invalid priority'}
+        )){
+            $path=Join-Path $copyRoot ('09_Реестры/'+$case.name+'.json')
+            $original=Read-WmmaText $path
+            try {
+                $broken=$original|ConvertFrom-Json
+                $broken.($case.list)[0].($case.field)='INVALID-TEST-VALUE'
+                Write-WmmaJson $path $broken
+                $result=& (Join-Path $copyRoot 'tools/Проверить_реестры.ps1') -Quiet -PassThru
+                if(-not @($result.Errors|Where-Object {$_ -like ('*'+$case.message+'*')}).Count){throw "Invalid field was accepted: $($case.name)/$($case.field)"}
+            } finally {Write-WmmaText $path $original}
+        }
+    }
+
     Invoke-Step 'Финальная проверка временной копии' {
         & (Join-Path $toolsRoot 'Собрать_связи.ps1') -AssignMissingIds -SkipCheck
         & (Join-Path $toolsRoot 'Собрать_индекс_сцен.ps1') -SkipCheck

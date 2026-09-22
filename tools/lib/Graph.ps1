@@ -1,5 +1,5 @@
 function Get-WmmaDocumentReferences {
-    param([string]$Root,[string]$DocumentPath,[string]$Text)
+    param([string]$Root,[string]$DocumentPath,[string]$Text,[System.Collections.IDictionary]$KnownPaths)
     $tick=[char]96
     $patterns=@(('['+$tick+']([^'+$tick+'\r\n]+\.md)['+$tick+']'),'\[[^\]]*\]\(\s*<?([^<>\r\n]+?\.md)(?:#[^)\s>]*)?>?\s*\)')
     $found=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -7,8 +7,18 @@ function Get-WmmaDocumentReferences {
         $ref=[Uri]::UnescapeDataString($match.Groups[1].Value).Replace('\','/')
         if($ref -match '^[a-z]+://' -or [IO.Path]::IsPathRooted($ref)){continue}
         foreach($candidate in @($ref,((Split-Path -Parent $DocumentPath).Replace('\','/')+'/'+$ref))){
-            try{$full=Resolve-WmmaPath $Root $candidate}catch{continue}
-            if(Test-Path -LiteralPath $full -PathType Leaf){[void]$found.Add((Get-WmmaRelativePath $Root $full));break}
+            if($null -ne $KnownPaths){
+                # The graph already enumerated its documents. Resolve against that
+                # inventory instead of walking the filesystem for every mention.
+                try{$full=[IO.Path]::GetFullPath((Join-Path $Root $candidate))}catch{continue}
+                $base=[IO.Path]::GetFullPath($Root).TrimEnd('\','/')+[IO.Path]::DirectorySeparatorChar
+                if(-not $full.StartsWith($base,[StringComparison]::OrdinalIgnoreCase)){continue}
+                $relative=Get-WmmaRelativePath $Root $full
+                if($KnownPaths.Contains($relative)){[void]$found.Add($relative);break}
+            }else{
+                try{$full=Resolve-WmmaPath $Root $candidate}catch{continue}
+                if(Test-Path -LiteralPath $full -PathType Leaf){[void]$found.Add((Get-WmmaRelativePath $Root $full));break}
+            }
         }
     }}
     return @($found|Sort-Object)
@@ -44,6 +54,7 @@ function New-WmmaGraph {
     $nodes=[Collections.Generic.List[object]]::new();$edges=[Collections.Generic.List[object]]::new()
     $keys=[Collections.Generic.HashSet[string]]::new()
     function Add-GraphEdge([string]$From,[string]$To,[string]$Kind,[string]$Evidence,[string]$Scope='current'){
+        if($From -eq $To -and $Kind -in @('references','source_reference')){return}
         $key="$From|$To|$Kind|$Evidence|$Scope"
         if($keys.Add($key)){$edges.Add([ordered]@{from=$From;to=$To;kind=$Kind;evidence=$Evidence;scope=$Scope})}
     }
@@ -58,7 +69,7 @@ function New-WmmaGraph {
         foreach($hp in @($history[$doc.path]|Where-Object {$_})){
             $documents+=[pscustomobject]@{path=$hp;text=(Read-WmmaText (Join-Path $Root $hp));scope='historical'}
         }
-        foreach($item in $documents){foreach($ref in @(Get-WmmaDocumentReferences $Root $item.path $item.text)){
+        foreach($item in $documents){foreach($ref in @(Get-WmmaDocumentReferences $Root $item.path $item.text -KnownPaths $byPath)){
             if(-not $byPath.ContainsKey($ref)){continue}
             $target=$byPath[$ref]
             $kind=if($byId[$target].type -like 'source*'){'source_reference'}else{'references'}
@@ -75,8 +86,8 @@ function New-WmmaGraph {
     }
     $inboxPath='07_Черновики_и_идеи/Входящие_сообщения.md'
     foreach($entry in @(Get-WmmaInboxEntries (Read-WmmaText (Join-Path $Root $inboxPath)))){
-        $sourceRefs=@(Get-WmmaDocumentReferences $Root $inboxPath (Get-WmmaEntryField $entry.Value 'Источник')|Where-Object {$byPath.ContainsKey($_) -and $byId[$byPath[$_]].type -like 'source*'})
-        $sceneRefs=@(Get-WmmaDocumentReferences $Root $inboxPath (Get-WmmaEntryField $entry.Value 'Связано')|Where-Object {$byPath.ContainsKey($_) -and $byId[$byPath[$_]].type -eq 'scene'})
+        $sourceRefs=@(Get-WmmaDocumentReferences $Root $inboxPath (Get-WmmaEntryField $entry.Value 'Источник') -KnownPaths $byPath|Where-Object {$byId[$byPath[$_]].type -like 'source*'})
+        $sceneRefs=@(Get-WmmaDocumentReferences $Root $inboxPath (Get-WmmaEntryField $entry.Value 'Связано') -KnownPaths $byPath|Where-Object {$byId[$byPath[$_]].type -eq 'scene'})
         foreach($scene in $sceneRefs){foreach($source in $sourceRefs){Add-GraphEdge $byPath[$scene] $byPath[$source] 'sourced_from' $inboxPath}}
     }
     $direct=@{};$past=@{}
@@ -89,5 +100,11 @@ function New-WmmaGraph {
         $node.historical_source_ids=@($past[$node.id]|Where-Object {$_}|Sort-Object -Unique)
         $node.provenance=if($node.type -like 'source*'){'original'}elseif($node.source_ids.Count){'linked'}elseif($node.historical_source_ids.Count){'historical'}else{'unresolved'}
     }
-    return [pscustomobject][ordered]@{schema_version=2;type='entity_graph';generated_by='tools/Собрать_связи.ps1';entities=@($nodes);edges=@($edges|Sort-Object from,to,kind,evidence,scope)}
+    $ordered=@($edges|Sort-Object from,to,kind,evidence,scope)
+    return [pscustomobject][ordered]@{
+        schema_version=3;type='entity_graph';generated_by='tools/Собрать_связи.ps1'
+        entities=@($nodes)
+        edges=@($ordered|Where-Object kind -ne 'references')
+        references=@($ordered|Where-Object kind -eq 'references')
+    }
 }

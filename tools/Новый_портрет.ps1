@@ -22,7 +22,6 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
@@ -33,12 +32,6 @@ function Convert-ToSlug {
     param([string]$Value)
 
     return (($Value.Trim() -replace '[\\/:*?"<>|]', '') -replace '\s+', '_')
-}
-
-function Get-RelativeProjectPath {
-    param([string]$Path)
-
-    return (($Path.Substring($root.Length).TrimStart('\', '/')) -replace '\\', '/')
 }
 
 function Get-ImageSize { param([string]$Path) return Get-WmmaImageSize $Path }
@@ -155,14 +148,14 @@ if ($ImagePath) {
     $targetImagePath = Join-Path $targetFolder $OutputName
 
     if ((Test-Path -LiteralPath $targetImagePath) -and -not $Force) {
-        throw "Target portrait already exists: $(Get-RelativeProjectPath $targetImagePath). Use -Force to replace it."
+        throw "Target portrait already exists: $(Get-WmmaRelativePath -Root $root $targetImagePath). Use -Force to replace it."
     }
 
     Copy-Item -LiteralPath $resolvedImage -Destination $targetImagePath -Force:$Force
-    $relativeImage = Get-RelativeProjectPath $targetImagePath
+    $relativeImage = Get-WmmaRelativePath -Root $root $targetImagePath
 }
 
-$relativePrompt = Get-RelativeProjectPath $promptPath
+$relativePrompt = Get-WmmaRelativePath -Root $root $promptPath
 
 if (-not $Prompt.Trim()) {
     $Prompt = "Вертикальный кинематографичный реалистичный портрет персонажа: $displayName. Формат 3:4, персонаж крупно в кадре, лицо хорошо видно, высокая детализация лица и глаз. Одежда, статус, фон и символика должны следовать карточке персонажа. Атмосфера: героическое темное фэнтези, серьезное эпическое настроение. Без текста, логотипов, рамок и водяных знаков."
@@ -192,7 +185,7 @@ $promptContent = @(
     '',
     $referenceLine,
     '- `00_Инструкции_для_ИИ/02_Портреты_персонажей.md`',
-    "- ``$(Get-RelativeProjectPath $characterPath)``",
+    "- ``$(Get-WmmaRelativePath -Root $root $characterPath)``",
     '',
     '## Готовый промпт',
     '',
@@ -216,7 +209,7 @@ if ($relativeImage) {
 
     $characterIndexPath = Join-Path $characterRoot '00_Индекс_персонажей.md'
     $characterIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterIndexPath
-    $characterRelative = Get-RelativeProjectPath $characterPath
+    $characterRelative = Get-WmmaRelativePath -Root $root $characterPath
     $escapedCharacterRelative = [regex]::Escape($characterRelative)
     $characterIndexPattern = '(?m)^(\|\s*[^|]+\|\s*[^|]+\|\s*)([^|]+?)(\s*\|\s*`' + $escapedCharacterRelative + '`\s*\|\s*)$'
     if ($characterIndex -match $characterIndexPattern) {

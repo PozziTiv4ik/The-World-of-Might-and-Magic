@@ -11,13 +11,12 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $graph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json');$byId=@{}
-    foreach($e in $graph.entities){$byId[$e.id]=$e}
+    $data=New-WmmaReadModel $root;$byId=$data.entities_by_id
     foreach($id in @($EvidenceIds)+@($SubjectIds)+@($KnownTo)+@($ReportedBy)|Where-Object {$_}){if(-not $byId.ContainsKey($id)){throw "Unknown evidence/entity ID: $id"}}
     foreach($id in $KnownTo){if($byId[$id].type -ne 'character'){throw "Knowledge holder must be a character: $id"}}
     if([string]::IsNullOrWhiteSpace($Text) -or @($EvidenceIds|Where-Object {$_}).Count -eq 0){throw 'Knowledge text and at least one evidence ID are required.'}
     if($ReportedBy -and $byId[$ReportedBy].type -ne 'character'){throw 'ReportedBy must identify a character.'}
-    $path=Join-Path $root '09_Реестры/Знания.json';$registry=Read-WmmaJson $path
+    $path=Join-Path $root '09_Реестры/Знания.json';$registry=$data.knowledge
     $max=0;foreach($fact in $registry.facts){if($fact.id -match '^FACT-(\d+)$'){$max=[Math]::Max($max,[int]$Matches[1])}}
     $id='FACT-{0:D3}' -f ($max+1)
     $proof=@($KnownTo|ForEach-Object {[pscustomobject]@{character_id=$_;evidence_ids=$EvidenceIds;basis='Круг знающих явно задан при записи факта.'}})

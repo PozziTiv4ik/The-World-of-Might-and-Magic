@@ -1,12 +1,13 @@
-param([int]$MaxDecisions=10,[int]$MaxQuestions=8,[int]$MaxFronts=10,[int]$MaxTimers=8,[string]$Branch='',[switch]$SkipCheck)
+param([int]$MaxDecisions=10,[int]$MaxQuestions=8,[int]$MaxFronts=10,[int]$MaxTimers=8,[string]$Branch='',[switch]$SkipCheck,[object]$Data)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $selection=Get-WmmaSelection -Root $root -Branch $Branch
+    $Data=Resolve-WmmaReadModel $root $Data
+    $selection=Get-WmmaSelection -Root $root -Branch $Branch -Data $Data
     $lines=[Collections.Generic.List[string]]::new()
     $lines.Add('# Следующий ход'); $lines.Add(''); $lines.Add('---'); $lines.Add('type: next_turn_panel'); $lines.Add('status: active'); $lines.Add('canon_level: support')
-    $lines.Add("current_chapter: $(Get-WmmaCurrentChapter $root)"); $lines.Add('generated_by: tools/Собрать_панель_хода.ps1'); $lines.Add('---'); $lines.Add('')
+    $lines.Add("current_chapter: $($Data.chapter)"); $lines.Add('generated_by: tools/Собрать_панель_хода.ps1'); $lines.Add('---'); $lines.Add('')
     $lines.Add('Собирается напрямую из реестров решений, вопросов, фронтов и контекста. Порядок: связь с текущим ходом, ветка, приоритет, стабильный ID. Вопросы прошлых глав сохраняют исходные ID.'); $lines.Add('')
     function Add-PanelTable([string]$Heading,[string[]]$Header,[object[]]$Rows) {
         $lines.Add("## $Heading"); $lines.Add('')
