@@ -5,6 +5,8 @@ function Get-WmmaFileInventory {
     while($folders.Count){foreach($file in Get-ChildItem -LiteralPath $folders.Pop() -Force){
         $relative=Get-WmmaRelativePath $Root $file.FullName
         if($relative -match '^(\.git|\.wmma|Все_MD_файлы)(/|$)' -or $relative -match '(^|/)desktop\.ini$|\.(tmp|bak|orig)$'){continue}
+        # Локальные сборки вне Git (кэш компиляции Regnum, тестовые программы) в снимки не входят.
+        if($relative -match '(^|/)(\.build|\.wmma|__pycache__)(/|$)|^tools/Regnum/bin/[^/]+/(regnum-test|platform-demo)'){continue}
         if($file.Attributes -band [IO.FileAttributes]::ReparsePoint){throw "Reparse point cannot be copied into a turn: $relative"}
         if($file.PSIsContainer){$folders.Push($file.FullName);continue}
         $result[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()

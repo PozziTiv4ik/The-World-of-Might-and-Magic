@@ -1,4 +1,4 @@
-param()
+param([switch]$KeepFixture)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -194,4 +194,5 @@ Step 'Graph schema rejects mixed layers and missing evidence' {
     $invalid.edges[0].evidence=''
     Expect-Failure {Test-Json -Json ($invalid|ConvertTo-Json -Depth 30) -SchemaFile $schema -ErrorAction Stop} 'Unproven relationship accepted'
 }
-[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$fixture}|ConvertTo-Json -Depth 5
+if(-not $KeepFixture){Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue}
+[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$(if(Test-Path -LiteralPath $fixture){$fixture})}|ConvertTo-Json -Depth 5

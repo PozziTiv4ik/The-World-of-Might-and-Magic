@@ -1,12 +1,35 @@
 name: Project Check
 
+# Проверка содержимого проекта: пуш в main и pull request. Изменения только в исходниках, ресурсах
+# и сборках редактора Regnum её не запускают. Сценарные наборы инструментов — в tools-check.yml.
 on:
   push:
+    branches: [main]
+    paths-ignore:
+      - 'tools/Regnum/src/**'
+      - 'tools/Regnum/assets/**'
+      - 'tools/Regnum/bin/linux-*/**'
+      - 'tools/Regnum/bin/macos-*/**'
+      - 'tools/Regnum/*.sh'
+      - 'tools/Regnum/Regnum.command'
   pull_request:
+    paths-ignore:
+      - 'tools/Regnum/src/**'
+      - 'tools/Regnum/assets/**'
+      - 'tools/Regnum/bin/linux-*/**'
+      - 'tools/Regnum/bin/macos-*/**'
+      - 'tools/Regnum/*.sh'
+      - 'tools/Regnum/Regnum.command'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   project-check:
     runs-on: windows-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -15,19 +38,3 @@ jobs:
       - name: Check project
         shell: pwsh
         run: .\tools\Проверить_проект.ps1
-
-      - name: Check tools
-        shell: pwsh
-        run: .\tools\Проверить_инструменты.ps1
-
-      - name: Check context and turn recovery
-        shell: pwsh
-        run: .\tools\Проверить_систему_v2.ps1
-
-      - name: Check bounded connections and chronology
-        shell: pwsh
-        run: .\tools\Проверить_связи.ps1
-
-      - name: Check intake integrity and Windows regressions
-        shell: pwsh
-        run: .\tools\Проверить_аудит.ps1

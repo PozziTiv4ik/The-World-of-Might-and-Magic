@@ -235,7 +235,8 @@ foreach ($requiredPath in @(
     'tools\README.md',
     '08_Источники\00_Индекс_источников.md',
     '05_Активы_персонажей\00_Индекс_активов.md',
-    '.github\workflows\project-check.yml'
+    '.github\workflows\project-check.yml',
+    '.github\workflows\tools-check.yml'
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $requiredPath))) {
         Add-Problem Error "Required support file is missing: $requiredPath"

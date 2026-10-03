@@ -1,4 +1,4 @@
-param()
+param([switch]$KeepFixture)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -141,4 +141,5 @@ Step 'Interrupted apply resumes once and restores its own changes' {
 Step 'Paths cannot escape project' {
     Expect-Failure {Resolve-WmmaPath $testRoot '../outside.txt'} 'Traversal accepted'
 }
-[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$testRoot}|ConvertTo-Json -Depth 6
+if(-not $KeepFixture){Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue}
+[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$(if(Test-Path -LiteralPath $testRoot){$testRoot})}|ConvertTo-Json -Depth 6

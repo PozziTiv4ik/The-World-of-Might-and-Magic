@@ -1,4 +1,4 @@
-param()
+param([switch]$KeepFixture)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -189,4 +189,5 @@ Step 'An empty prepared turn is valid and repeatable' {
     Assert-True ((Apply-WmmaTurn $tx TURN-empty).status -eq 'committed') 'Empty apply failed'
     Assert-True ((Undo-WmmaTurn $tx TURN-empty).status -eq 'restored') 'Empty restore failed'
 }
-[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$testRoot}|ConvertTo-Json -Depth 6
+if(-not $KeepFixture){Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue}
+[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$(if(Test-Path -LiteralPath $testRoot){$testRoot})}|ConvertTo-Json -Depth 6
