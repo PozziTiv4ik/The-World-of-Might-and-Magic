@@ -17,6 +17,7 @@ namespace rg::map {
 
 namespace art {
 class Index;
+struct Objects;
 }
 
 class Basemap {
@@ -39,6 +40,9 @@ class Basemap {
   Color landColor() const;
   const art::MapArt& art() const { return *art_; }
   const art::Index& index() const { return *index_; }
+  // Знаки и фигуры карты как записи мира (art::baseObjects): мир без своих объектов показывает их, первая правка
+  // карты переносит их в мир.
+  const art::Objects& objects() const { return *objects_; }
 
   geo::Coast coast() const;            // кольца суши; не загружено — UserError
   bool isOcean(Vec2 p) const;          // по маске; вне карты — false
@@ -58,6 +62,7 @@ class Basemap {
   std::string dir_;
   std::shared_ptr<const art::MapArt> art_;
   std::shared_ptr<const art::Index> index_;
+  std::shared_ptr<const art::Objects> objects_;
   int maskW_ = 0, maskH_ = 0;
   std::vector<u8> mask_;  // 1 — море
   std::shared_ptr<Lazy> lazy_;

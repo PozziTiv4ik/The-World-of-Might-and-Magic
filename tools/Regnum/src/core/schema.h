@@ -68,5 +68,9 @@ constexpr double kMaxTotalTax = 100.0;        // общий налог не бо
 constexpr double kRebellionPerContentment = 0.5;  // 1.a.vi: 2 довольства : 1 %
 constexpr double kObjectRadius = 34;          // радиус фигурки войска/флота на карте (единицы карты)
 constexpr double kMapWidth = 8000, kMapHeight = 4500;
+// Объекты карты: пределы масштаба знака и ширины линии (единицы карты), ширина новой стены и реки.
+constexpr float kMinSymbolScale = 0.2f, kMaxSymbolScale = 8.f;
+constexpr float kMinShapeWidth = 0.25f, kMaxShapeWidth = 100.f;
+constexpr float kWallWidth = 2.f, kRiverWidth = 4.f;
 
 }  // namespace rg::schema

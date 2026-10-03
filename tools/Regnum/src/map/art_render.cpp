@@ -14,7 +14,8 @@
 namespace rg::map::art {
 
 // ================================================================ индекс
-Index::Index(const MapArt& a) : a_(&a) {
+void Index::build(const MapArt& a) {
+  a_ = &a;
   auto ringBox = [](const Ring& r) {
     Box2 b;
     for (Vec2 p : r) b.add(p);
@@ -28,6 +29,15 @@ Index::Index(const MapArt& a) : a_(&a) {
   for (const Ring& r : a.water) boxes.push_back(ringBox(r));
   build(water_, boxes);
   boxes.clear();
+  for (const River& r : a.rivers) {
+    Box2 b;
+    for (Vec2 p : r.pts) b.add(p);
+    float w = 0;
+    for (float x : r.w) w = std::max(w, x);
+    boxes.push_back(b.inflated(w));
+  }
+  build(rivers_, boxes);
+  boxes.clear();
   for (const Line& l : a.lines) {
     Box2 b;
     for (Vec2 p : l.pts) b.add(p);
@@ -35,10 +45,7 @@ Index::Index(const MapArt& a) : a_(&a) {
   }
   build(lines_, boxes);
   boxes.clear();
-  for (const Symbol& s : a.symbols) {
-    const RectF r = symbolBounds(s.kind);
-    boxes.push_back(Box2(s.x + r.x * s.s, s.y + r.y * s.s, s.x + r.right() * s.s, s.y + r.bottom() * s.s));
-  }
+  for (const Symbol& s : a.symbols) boxes.push_back(symbolBox(s.kind, s.x, s.y, s.s));
   build(symbols_, boxes);
 }
 
@@ -359,6 +366,11 @@ void blurMask(std::vector<u8>& m, int w, int h, double sigma) {
 
 RectF symbolBounds(Sym kind) { return iconOf(kind).bounds; }
 
+Box2 symbolBox(Sym kind, double x, double y, double s) {
+  const RectF r = symbolBounds(kind);
+  return Box2(x + r.x * s, y + r.y * s, x + r.right() * s, y + r.bottom() * s);
+}
+
 void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant) { drawIcon(c, iconOf(kind, variant), at, scale); }
 
 std::string fitMountainIcon(const std::vector<i16>& ink, int w, int h, int ax, int ay, int design, int maxEvals, double* error) {
@@ -450,13 +462,31 @@ void drawSea(gfx::Image& img, const Index& idx, const Xf& P) {
 
 void drawWater(gfx::Image& img, const Index& idx, const Xf& P) {
   const MapArt& a = idx.art();
-  std::vector<u32> ids;
-  idx.water(P.mapBox(img.w, img.h).inflated(1), ids);
-  if (ids.empty()) return;
-  gfx::Path path;
-  for (u32 i : ids) addRing(path, a.water[i], P);
+  const Box2 box = P.mapBox(img.w, img.h).inflated(1);
+  std::vector<u32> ids, rivers;
+  idx.water(box, ids);
+  idx.rivers(box, rivers);
+  if (ids.empty() && rivers.empty()) return;
   gfx::Canvas c(img);
-  c.fillPath(path, a.style.water, gfx::FillRule::EvenOdd);
+  if (!ids.empty()) {
+    gfx::Path path;
+    for (u32 i : ids) addRing(path, a.water[i], P);
+    c.fillPath(path, a.style.water, gfx::FillRule::NonZero);
+  }
+  for (u32 i : rivers) {
+    const River& r = a.rivers[i];
+    if (r.pts.size() < 2) continue;
+    float w = 0;
+    for (float x : r.w) w += x;
+    w = r.w.empty() ? 2.f : w / float(r.w.size());
+    gfx::Path p;
+    for (size_t k = 0; k < r.pts.size(); k++) {
+      const gfx::Pt q = P(r.pts[k]);
+      if (k == 0) p.moveTo(q.x, q.y);
+      else p.lineTo(q.x, q.y);
+    }
+    c.strokePath(p, strokeOf(float(w * P.ds)), a.style.water);
+  }
 }
 
 void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P) {

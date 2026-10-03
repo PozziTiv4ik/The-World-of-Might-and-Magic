@@ -1,5 +1,6 @@
 // Regnum — общие помощники инструментов правки карты: наложения, прилипание, ввод контура, панель параметров.
 #include "app/tools_edit.h"
+#include "app/tools_map.h"
 
 #include <set>
 
@@ -503,6 +504,9 @@ void installAll() {
   registerDrawTools();
   registerClickTools();
   registerRouteTool();
+  mapedit::registerObjectsTool();
+  mapedit::registerDrawTools();
+  mapedit::registerCoastTool();
 }
 
 }  // namespace rg::app::tools

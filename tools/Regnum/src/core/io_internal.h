@@ -8,13 +8,14 @@ namespace rg::io::detail {
 
 // Файлы проекта (порядок записи: данные, затем world.json).
 enum FileId : int {
-  F_CATALOGS, F_GEO, F_PROVINCES, F_FACTIONS, F_CHARACTERS, F_RELATIONS, F_MODIFIERS,
+  F_CATALOGS, F_GEO, F_MAP, F_PROVINCES, F_FACTIONS, F_CHARACTERS, F_RELATIONS, F_MODIFIERS,
   F_BUILDINGS, F_TECHS, F_ARMIES, F_ROUTES, F_DEALS, F_LOG, F_WORLD, F_COUNT
 };
 struct FileDef {
   const char* path;  // относительный путь
   const char* key;   // ключ массива записей (пусто — особая структура)
   u32 tables;
+  bool optional = false;  // может отсутствовать без предупреждения (мир прежней версии)
 };
 extern const FileDef kFiles[F_COUNT];
 int fileIndex(std::string_view rel);  // -1 — не файл таблиц
@@ -27,6 +28,8 @@ struct Parts {
   Catalogs catalogs;
   std::vector<Node> nodes;
   std::vector<Edge> edges;
+  std::vector<MapSymbol> symbols;
+  std::vector<MapShape> shapes;
   std::vector<Province> provinces;
   std::vector<Faction> factions;
   std::vector<Character> characters;
@@ -42,7 +45,7 @@ struct Parts {
 
 // Значение JSON одного файла.
 json::Value encode(const World& w, FileId f);
-// Текст файла: отступ 2, ключи по алфавиту, LF, перевод строки в конце; geo и relations — запись на строку.
+// Текст файла: отступ 2, ключи по алфавиту, LF, перевод строки в конце; geo, map и relations — запись на строку.
 std::string format(const json::Value& v, FileId f);
 // Разобрать значение файла в parts (файлы независимы — можно параллельно). world.json: версия — checkVersion.
 void decode(const json::Value& v, FileId f, Parts& parts, Warnings& warns);

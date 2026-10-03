@@ -6,6 +6,7 @@
 #include "base/fs.h"
 #include "base/jobs.h"
 #include "codec/png.h"
+#include "map/art_scene.h"
 #include "map/map_internal.h"
 
 namespace rg::map {
@@ -16,6 +17,31 @@ namespace {
 
 constexpr double kAnimSec = 0.18;
 constexpr size_t kTileBudget = size_t(256) << 20;
+constexpr double kSeaMargin = 10;        // мягкий край моря у берега (3 σ), единицы карты: столько тайлов вокруг правки берега
+constexpr double kPreviewDelay = 0.3;    // превью карты мира перерисовывается, когда правка затихла на столько секунд
+
+// Дуга, правка которой меняет сушу или море (берег, рамка; граница с разным рельефом по сторонам).
+bool coastEdge(const Edge& e) { return e.kind != EdgeKind::Border || (e.tl == Terrain::Land) != (e.tr == Terrain::Land); }
+
+bool coastChanged(const World& before, const World& after) {
+  bool r = false;
+  before.edges.diff(after.edges, [&](Id id) {
+    if (r) return;
+    const Edge* a = before.edges.get(id);
+    const Edge* b = after.edges.get(id);
+    r = (a && coastEdge(*a)) || (b && coastEdge(*b));
+  });
+  if (r || before.nodes.same(after.nodes)) return r;
+  std::unordered_set<Id> moved;
+  before.nodes.diff(after.nodes, [&](Id id) { moved.insert(id); });
+  after.edges.each([&](const Edge& e) { r = r || (coastEdge(e) && (moved.count(e.a) || moved.count(e.b))); });
+  return r;
+}
+
+bool sameSymbol(const MapSymbol& a, const MapSymbol& b) { return a.kind == b.kind && a.p == b.p && a.s == b.s && a.v == b.v && a.z == b.z; }
+bool sameShape(const MapShape& a, const MapShape& b) {
+  return a.kind == b.kind && a.pts == b.pts && a.holes == b.holes && a.w == b.w && a.dash == b.dash;
+}
 
 double easeOut(double t) {
   t = clamp(t, 0.0, 1.0);
@@ -56,11 +82,17 @@ struct MapView::Impl {
   u64 frame = 0;
   std::function<void()> wake;
 
-  // базовая карта целиком (запасной слой)
-  std::shared_ptr<const gfx::Image> thumb;
+  // сцена карты (суша, воды, знаки — нарисованные кодом по миру)
+  std::shared_ptr<const art::Scene> art;
+  u64 artVersion = 0;
+  double artChanged = 0;       // время последней смены сцены
+
+  // карта целиком (запасной слой, мини-карта): превью и миниатюра сцены рисуются в фоне
+  std::shared_ptr<const gfx::Image> thumb;   // миниатюра базовой карты (пока нет миниатюры мира)
   std::mutex previewMu;
-  std::shared_ptr<const gfx::Image> preview;
-  bool previewRequested = false;
+  std::shared_ptr<const gfx::Image> preview, worldThumb;
+  u64 previewFor = 0;          // версия сцены, по которой нарисованы preview и worldThumb
+  bool previewBusy = false;
   std::atomic<bool> previewArrived{false};
 
   LabelCache labels;
@@ -82,6 +114,7 @@ struct MapView::Impl {
 
   // мини-карта
   gfx::Image miniTint;
+  const gfx::Image* miniThumb = nullptr;   // миниатюра, по которой собран miniTint
   u64 miniVer = 0;              // растёт при каждой пересборке miniTint
   gfx::Image miniDev;           // miniTint в пикселях устройства со скруглёнными углами
   u64 miniDevVer = ~u64(0);
@@ -215,9 +248,103 @@ struct MapView::Impl {
     sc->style = style;
     sc->styleKey = style.key();
     sc->looks = looks;
+    sc->art = art;
     sc->gen = gen;
     scene = sc;
     store.setScene(sc);
+  }
+
+  // Сцена карты по миру: перестраивается, когда меняются знаки и фигуры мира или берег. Габариты изменённых
+  // объектов добавляются в dirty (all — перерисовать всё).
+  void updateArt(const World& before, const World& after, u32 what, std::vector<Box2>& dirty, bool& all) {
+    const bool ownB = before.ownMapObjects(), ownA = after.ownMapObjects();
+    const bool objs = !art || (what & TB_MAPART) || ownB != ownA;
+    const bool coast = !art || ((what & TB_GEO) && coastChanged(before, after));
+    if (!objs && !coast) return;
+    art = art::Scene::build(after, bm ? &bm->art() : nullptr, bm ? &bm->objects() : nullptr, coast ? nullptr : art->land());
+    artVersion++;
+    artChanged = now;
+    if (all || !objs) return;
+    auto sym = [&](const MapSymbol* s) {
+      if (s) dirty.push_back(art::symbolBox(*s));
+    };
+    auto shp = [&](const MapShape* s) {
+      if (s) dirty.push_back(art::shapeBox(*s));
+    };
+    if (ownB == ownA) {
+      if (!ownA) return;   // оба — объекты базовой карты
+      before.symbols.diff(after.symbols, [&](Id id) { sym(before.symbol(id)); sym(after.symbol(id)); });
+      before.shapes.diff(after.shapes, [&](Id id) { shp(before.shape(id)); shp(after.shape(id)); });
+      return;
+    }
+    // Перенос объектов базовой карты в мир (или его отмена): перерисовать только то, что отличается от них.
+    if (!bm) {
+      all = true;
+      return;
+    }
+    const World& own = ownA ? after : before;
+    const art::Objects& base = bm->objects();
+    std::unordered_set<Id> seen;
+    for (const MapSymbol& b : base.symbols) {
+      seen.insert(b.id);
+      const MapSymbol* x = own.symbol(b.id);
+      if (x && sameSymbol(*x, b)) continue;
+      dirty.push_back(art::symbolBox(b));
+      sym(x);
+    }
+    own.symbols.each([&](const MapSymbol& x) {
+      if (!seen.count(x.id)) sym(&x);
+    });
+    seen.clear();
+    for (const MapShape& b : base.shapes) {
+      seen.insert(b.id);
+      const MapShape* x = own.shape(b.id);
+      if (x && sameShape(*x, b)) continue;
+      dirty.push_back(art::shapeBox(b));
+      shp(x);
+    }
+    own.shapes.each([&](const MapShape& x) {
+      if (!seen.count(x.id)) shp(&x);
+    });
+  }
+
+  // Превью и миниатюра карты мира: по сцене, в фоне; после правки — когда она затихнет.
+  bool previewDue() {
+    std::lock_guard<std::mutex> lk(previewMu);
+    return art && previewFor != artVersion && !previewBusy;
+  }
+  void ensurePreview() {
+    {
+      std::lock_guard<std::mutex> lk(previewMu);
+      if (!art || previewFor == artVersion || previewBusy) return;
+      if (previewFor != 0 && now - artChanged < kPreviewDelay) return;
+      previewBusy = true;
+    }
+    if (previewJob.valid()) previewJob.wait();
+    auto sc = art;
+    const u64 ver = artVersion;
+    auto self = this;
+    // Impl живёт дольше задачи: деструктор ждёт её (см. ~Impl).
+    previewJob = jobs::submit([self, sc, ver] {
+      std::shared_ptr<const gfx::Image> pv, th;
+      try {
+        pv = std::make_shared<gfx::Image>(art::renderScene(*sc, 2000));
+        th = std::make_shared<gfx::Image>(art::renderScene(*sc, 480));
+      } catch (const std::exception& e) {
+        logError("Превью карты не нарисовано: %s", e.what());
+      }
+      std::function<void()> w;
+      {
+        std::lock_guard<std::mutex> lk(self->previewMu);
+        if (pv) self->preview = pv;
+        if (th) self->worldThumb = th;
+        self->previewFor = ver;
+        self->previewBusy = false;
+        w = self->wake;
+      }
+      self->previewArrived = true;
+      if (w) w();
+    });
   }
 
   void setStyle(const TileStyle& s) {
@@ -245,6 +372,9 @@ struct MapView::Impl {
 
     std::vector<Box2> dirty;
     bool all = !oldLooks || gen == 1;
+    const bool coast = (what & TB_GEO) && coastChanged(before, after);
+    updateArt(before, after, what, dirty, all);
+    const size_t artDirty = dirty.size();
     if (!all && (what & TB_GEO)) {
       std::unordered_set<Id> nodes;
       before.nodes.diff(after.nodes, [&](Id id) { nodes.insert(id); });
@@ -261,6 +391,9 @@ struct MapView::Impl {
         touch(before);
         touch(after);
       }
+      // Правка берега меняет и мягкий край моря вокруг.
+      if (coast)
+        for (size_t i = artDirty; i < dirty.size(); i++) dirty[i] = dirty[i].inflated(kSeaMargin);
     }
     if (!all) {
       if (oldLooks->fillAlpha != looks->fillAlpha) all = true;
@@ -292,26 +425,7 @@ struct MapView::Impl {
 
   // ---------------------------------------------------------------- превью (асинхронно)
   std::shared_ptr<const gfx::Image> backdrop() {
-    if (!bm) return nullptr;
-    if (!previewRequested) {
-      previewRequested = true;
-      auto self = this;
-      // Impl живёт дольше задачи: деструктор ждёт её (см. ~Impl). Превью рисуется кодом по объектам карты.
-      previewJob = jobs::submit([self] {
-        auto img = self->bm->preview();
-        {
-          std::lock_guard<std::mutex> lk(self->previewMu);
-          self->preview = img;
-        }
-        self->previewArrived = true;
-        std::function<void()> w;
-        {
-          std::lock_guard<std::mutex> lk(self->previewMu);
-          w = self->wake;
-        }
-        if (w) w();
-      });
-    }
+    ensurePreview();
     std::lock_guard<std::mutex> lk(previewMu);
     return preview ? preview : thumb;
   }
@@ -606,7 +720,7 @@ void MapView::update(double t) { d_->step(t); }
 bool MapView::animating() const { return d_->anim; }
 
 bool MapView::needsRedraw() const {
-  if (d_->previewArrived.load() || d_->labelsPending) return true;
+  if (d_->previewArrived.load() || d_->labelsPending || d_->previewDue()) return true;
   if (d_->store.arrived()) return true;
   bool wakeSet;
   {
@@ -614,6 +728,16 @@ bool MapView::needsRedraw() const {
     wakeSet = bool(d_->wake);
   }
   return !wakeSet && d_->store.busy();
+}
+
+std::shared_ptr<const art::Scene> MapView::artScene() const { return d_->art; }
+
+std::shared_ptr<const gfx::Image> MapView::mapThumbnail() const {
+  {
+    std::lock_guard<std::mutex> lk(d_->previewMu);
+    if (d_->worldThumb) return d_->worldThumb;
+  }
+  return d_->bm ? d_->bm->thumb() : nullptr;
 }
 
 bool MapView::loading() const { return d_->labelsPending || d_->store.busy(); }
@@ -626,6 +750,7 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
   d.frame++;
   d.previewArrived = false;
   d.store.takeArrived();
+  d.ensurePreview();
   const View& v = d.v;
   if (v.viewport.empty()) return;
   TileStyle st;
@@ -723,27 +848,36 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
 void MapView::renderMinimap(gfx::Canvas& c, RectF rect, float dpi) {
   Impl& d = *d_;
   if (rect.empty()) return;
-  // Подкрашенная миниатюра: заливка политической карты поверх thumb (умножение — символы остаются тёмными).
-  if (!d.thumb && d.bm) d.thumb = d.bm->thumb();
-  // Перерисовывается, только когда меняются геометрия или политические цвета провинций.
+  // Подкрашенная миниатюра: заливка политической карты поверх миниатюры карты мира (до её готовности — базовой
+  // карты; умножение — символы остаются тёмными).
+  std::shared_ptr<const gfx::Image> thumb;
+  {
+    std::lock_guard<std::mutex> lk(d.previewMu);
+    thumb = d.worldThumb;
+  }
+  if (!thumb && !d.thumb && d.bm) d.thumb = d.bm->thumb();
+  if (!thumb) thumb = d.thumb;
+  const bool thumbChanged = thumb.get() != d.miniThumb;
+  // Перерисовывается, только когда меняются геометрия, политические цвета провинций или миниатюра карты.
   std::shared_ptr<const Looks> looks;
-  if (d.miniGen != d.gen || d.miniTint.empty()) {
+  if (d.miniGen != d.gen || d.miniTint.empty() || thumbChanged) {
     d.miniGen = d.gen;
     TileStyle ps;
     ps.mode = schema::MapMode::Political;
     looks = computeLooks(d.world, ps);
-    const bool same = !d.miniTint.empty() && d.miniLooks && d.miniNodes.same(d.world.nodes) && d.miniEdges.same(d.world.edges) &&
-                      d.miniLooks->prov == looks->prov;
+    const bool same = !thumbChanged && !d.miniTint.empty() && d.miniLooks && d.miniNodes.same(d.world.nodes) &&
+                      d.miniEdges.same(d.world.edges) && d.miniLooks->prov == looks->prov;
     if (same) looks = nullptr;
   }
   if (looks) {
     d.miniVer++;
+    d.miniThumb = thumb.get();
     d.miniLooks = looks;
     d.miniNodes = d.world.nodes;
     d.miniEdges = d.world.edges;
     auto fs = geo::faces(d.world);
-    if (d.thumb) {
-      d.miniTint = *d.thumb;
+    if (thumb) {
+      d.miniTint = *thumb;
     } else {
       // Без базовой карты: белая суша и море по граням.
       d.miniTint = gfx::Image(480, int(std::lround(480 * d.mapH() / d.mapW())), gfx::premul(Color(255, 255, 255)));

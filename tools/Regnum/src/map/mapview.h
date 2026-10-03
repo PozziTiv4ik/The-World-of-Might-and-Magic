@@ -19,6 +19,9 @@
 namespace rg::map {
 
 class Basemap;
+namespace art {
+class Scene;
+}
 
 // Снимок камеры для инструментов и наложений.
 struct View {
@@ -131,6 +134,12 @@ class MapView {
 
   // Размер фигурки войска на экране (логические пиксели) при текущем масштабе.
   float figureSize() const;
+
+  // ---- объекты карты, нарисованные кодом ----
+  // Сцена текущего мира: суша из графа, знаки и фигуры мира или базовой карты (попадание мышью при правке карты).
+  std::shared_ptr<const art::Scene> artScene() const;
+  // Миниатюра карты мира шириной 480 (рисуется в фоне после правки; до того — миниатюра базовой карты).
+  std::shared_ptr<const gfx::Image> mapThumbnail() const;
 
  private:
   struct Impl;

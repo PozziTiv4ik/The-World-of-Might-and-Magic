@@ -44,6 +44,7 @@ void enterEditor(App& a) {
   a.ui.editor.clear();
   a.ui.viewTurn.reset();
   a.setEditBorders(false);
+  a.setEditMap(false);
   a.setTool(ToolId::Select);
   d.fitPending = true;
   d.mapKey = 0;
@@ -622,9 +623,10 @@ void writeThumbnail(App& a) {
   App::Impl& d = a.impl();
   if (!d.basemap || d.path.empty()) return;
   try {
+    // Подложка — миниатюра карты мира (после правки карты — с её сушей, водами и знаками).
     static gfx::Image base;
     static const gfx::Image* baseFrom = nullptr;
-    const std::shared_ptr<const gfx::Image> thumb = d.basemap->thumb();
+    const std::shared_ptr<const gfx::Image> thumb = d.map->mapThumbnail();
     if (baseFrom != thumb.get()) {
       baseFrom = thumb.get();
       base = gfx::Image();

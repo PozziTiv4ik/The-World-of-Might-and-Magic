@@ -3,6 +3,7 @@
 // уведомления, полноэкранные редакторы, диалоги, глобальные сочетания, ввод мышью над картой.
 #include "app/app_internal.h"
 #include "app/logo.h"
+#include "map/art_scene.h"
 #include "base/fs.h"
 #include "gfx/text.h"
 
@@ -224,13 +225,15 @@ void drawerPanel(App& a, const DrawerDef& dr, RectF r, float maxW) {
 
 // ---------------------------------------------------------------- панель инструментов карты
 struct ToolLayout {
-  std::vector<const ToolDef*> base, edit, extra;
+  std::vector<const ToolDef*> base, edit, map, extra;
 };
 ToolLayout toolLayout(App& a) {
   ToolLayout L;
   for (auto& t : toolDefs()) {
     if (t.id == ToolId::Select || t.id == ToolId::Pan) L.base.push_back(&t);
-    else if (t.editMode) {
+    else if (t.mapMode) {
+      if (a.ui.editMap) L.map.push_back(&t);
+    } else if (t.editMode) {
       if (a.ui.editBorders) L.edit.push_back(&t);
     } else {
       L.extra.push_back(&t);
@@ -239,7 +242,7 @@ ToolLayout toolLayout(App& a) {
   return L;
 }
 float toolbarHeight(const ToolLayout& L) {
-  int items = int(L.base.size()) + 1 + int(L.edit.size()) + int(L.extra.size());
+  int items = int(L.base.size()) + 2 + int(L.edit.size()) + int(L.map.size()) + int(L.extra.size());
   int seps = 1 + (L.extra.empty() ? 0 : 1);
   float h = 2 * 7 + items * kBtn + seps * 9 + std::max(0, items + seps - 1) * 4;
   return h;
@@ -250,7 +253,9 @@ void toolButton(App& a, const ToolDef& t) {
   std::string tip = t.title;
   if (ui::iconButton(t.icon, tip, {.toggled = a.ui.tool == t.id})) a.setTool(t.id);
   if (t.shortcut && *t.shortcut) ui::tooltip(tip, parseShortcut(t.shortcut));
-  static const char* names[] = {"select", "pan", "borders-tool", "new-province", "add-area", "remove-area", "fill", "knife", "merge", "delete", "army", "fleet", "route"};
+  static const char* names[] = {"select", "pan",        "borders-tool", "new-province", "add-area", "remove-area", "fill",
+                                "knife",  "merge",      "delete",       "army",         "fleet",    "route",       "map-objects",
+                                "symbol", "lake",       "river",        "wall",         "land-add", "land-remove", "coast"};
   a.markUi(std::string("tool.") + (int(t.id) < int(std::size(names)) ? names[int(t.id)] : "other"));
 }
 
@@ -261,6 +266,18 @@ void toolbar(App& a, RectF r, const ToolLayout& L) {
   ui::gap(4);
   for (auto* t : L.base) toolButton(a, *t);
   vsep(kBtn);
+  // Флажок в углу кнопки режима.
+  auto modeCheck = [&](bool on, bool ro) {
+    RectF br = ui::lastItem().rect;
+    RectF cb{br.right() - 11, br.bottom() - 11, 10, 10};
+    ui::draw::rect(cb.expand(1.5f), th.surface1, 4);
+    if (on) {
+      ui::draw::rect(cb, th.accent, 3);
+      ui::draw::icon("check", cb.inset(0.5f), th.onAccent);
+    } else {
+      ui::draw::rectStroke(cb, ro ? th.border : th.borderStrong, 3, 1.2f);
+    }
+  };
   // «Галочка» правки границ (ТЗ 1.a.ii): закрытый замок — границы закреплены, открытый — правка. На прошлом ходу
   // (только просмотр) недоступна.
   {
@@ -271,19 +288,23 @@ void toolbar(App& a, RectF r, const ToolLayout& L) {
                            : "Режим правки границ выключен: границы и области закреплены — нажмите, чтобы править";
     if (ui::iconButton(bordersToggleIcon(on), tip, {.toggled = on, .disabled = ro})) a.setEditBorders(!on);
     ui::tooltip(tip, ro ? ui::Shortcut{} : parseShortcut("E"));
-    RectF br = ui::lastItem().rect;
     a.markUi("tool.borders");
-    // Флажок в углу кнопки.
-    RectF cb{br.right() - 11, br.bottom() - 11, 10, 10};
-    ui::draw::rect(cb.expand(1.5f), th.surface1, 4);
-    if (on) {
-      ui::draw::rect(cb, th.accent, 3);
-      ui::draw::icon("check", cb.inset(0.5f), th.onAccent);
-    } else {
-      ui::draw::rectStroke(cb, ro ? th.border : th.borderStrong, 3, 1.2f);
-    }
+    modeCheck(on, ro);
   }
   for (auto* t : L.edit) toolButton(a, *t);
+  // Правка карты: суша и берег, воды, горы, замки, башни, стены — свой режим со своими инструментами.
+  {
+    bool on = a.ui.editMap;
+    bool ro = a.readOnly();
+    std::string tip = ro   ? "Прошлый ход: только просмотр — правка карты недоступна"
+                      : on ? "Правка карты включена — нажмите, чтобы закончить"
+                           : "Правка карты: суша и берег, озёра и реки, горы, замки, башни и стены";
+    if (ui::iconButton("map-edit", tip, {.toggled = on, .disabled = ro})) a.setEditMap(!on);
+    ui::tooltip(tip, ro ? ui::Shortcut{} : parseShortcut("T"));
+    a.markUi("tool.mapedit");
+    modeCheck(on, ro);
+  }
+  for (auto* t : L.map) toolButton(a, *t);
   if (!L.extra.empty()) {
     vsep(kBtn);
     for (auto* t : L.extra) toolButton(a, *t);
@@ -391,7 +412,10 @@ void statusBar(App& a, float x, float y, float maxW) {
   std::string coords = a.ui.cursorMap ? fmtInt(i64(std::lround(a.ui.cursorMap->x))) + " · " + fmtInt(i64(std::lround(a.ui.cursorMap->y))) : std::string("—");
   const char* hint = nullptr;
   if (MapTool* t = a.activeTool()) hint = t->hint(a);
-  if (!hint) hint = a.ui.editBorders ? "Щелчок по провинции — правка её границ" : "Щелчок — сведения · колесо — масштаб";
+  if (!hint)
+    hint = a.ui.editMap       ? "Правка карты: выберите инструмент слева"
+           : a.ui.editBorders ? "Щелчок по провинции — правка её границ"
+                              : "Щелчок — сведения · колесо — масштаб";
   const float pad = 12, gap = 10, cw = 92;
   float tw = ui::measure(hint, ui::Font::Small) + 2;
   float fixed = pad + 20 + cw + 2 * gap + 1 + 2 * gap + 1 + tw + pad;
@@ -912,7 +936,16 @@ void mapInput(App& a) {
   // Наведение и координаты
   if (it.hovered || it.held) {
     a.ui.cursorMap = mp;
-    if (!d.panning) {
+    if (!d.panning && a.ui.editMap) {
+      // Правка карты: под указателем — знак или фигура карты.
+      Selection h;
+      if (auto sc = mv.artScene()) {
+        const double tol = mv.view().toMapLen(4);
+        if (Id s = sc->symbolAt(mp, tol)) h = {SelType::Symbol, s};
+        else if (Id f = sc->shapeAt(mp, tol)) h = {SelType::Shape, f};
+      }
+      a.ui.hover = h;
+    } else if (!d.panning) {
       Id army = mv.armyAt(lx, ly);
       // Видимая линия маршрута (режимы гильдий и торговли или выбранный маршрут) — над провинцией: так же решает
       // и щелчок инструмента «Выбор».

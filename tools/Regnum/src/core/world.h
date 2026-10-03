@@ -41,6 +41,9 @@ enum class DealMode : u8 { Once = 0, PerTurn = 1 };
 enum class DealStatus : u8 { Active = 0, Done = 1, Cancelled = 2 };
 enum class OccupiedIncome : u8 { Owner = 0, Occupier = 1, None = 2 };
 enum class LogKind : u8 { Turn, Economy, Build, Tech, War, Battle, Army, Fleet, Diplomacy, Trade, Province, Guild, Population, Note, Count };
+// Объекты карты, нарисованные кодом: знаки и фигуры (суша и берег — граф провинций, см. Edge).
+enum class SymbolKind : u8 { Mountain = 0, Peak = 1, Castle = 2, Tower = 3, Count };   // гора, крупная гора, замок, башня
+enum class ShapeKind : u8 { Water = 0, Islet = 1, Wall = 2, River = 3, Count };      // вода, островок, стена, река линией
 
 // Эффекты модификаторов (ТЗ 1.g.ii). Пределы и подписи — schema.h (kEffects).
 enum class Fx : u8 {
@@ -53,7 +56,7 @@ constexpr int kFxCount = int(Fx::Count);
 // Последовательности идентификаторов.
 enum class Seq : u8 {
   Province, Faction, Character, Modifier, Building, Tech, Army, Route, Deal, Log, Row, Council,
-  Node, Edge, Resource, Race, Culture, Religion, Government, Position, Count
+  Node, Edge, Resource, Race, Culture, Religion, Government, Position, Symbol, Shape, Count
 };
 constexpr int kSeqCount = int(Seq::Count);
 
@@ -232,6 +235,30 @@ struct Army {
   Id leader() const { return groups.empty() ? 0 : groups[0].faction; }
 };
 
+// Знак карты: гора (рисунок v: 0 или 1), крупная гора, замок, башня. Точка привязки p — середина основания значка,
+// s — масштаб относительно обычного размера. Порядок отрисовки — по z (больше — выше), при равных z — по ID.
+struct MapSymbol {
+  Id id = 0;
+  SymbolKind kind = SymbolKind::Mountain;
+  Vec2 p;
+  float s = 1;
+  u8 v = 0;
+  double z = 0;
+};
+
+// Фигура карты. Water — озеро или река контуром (pts — внешний контур, holes — острова внутри), Islet — островок
+// (контур; суша рисунка, в граф провинций не входит), Wall — стена (ломаная шириной w, dash > 0 — пунктир),
+// River — река линией (ломаная шириной w цветом воды).
+struct MapShape {
+  Id id = 0;
+  ShapeKind kind = ShapeKind::Water;
+  std::vector<Vec2> pts;
+  std::vector<std::vector<Vec2>> holes;
+  float w = 0;
+  float dash = 0;
+  bool closed() const { return kind == ShapeKind::Water || kind == ShapeKind::Islet; }
+};
+
 struct Route {
   Id id = 0;
   std::string name;
@@ -306,6 +333,9 @@ struct Meta {
   int turn = 1;
   std::array<u32, kSeqCount> seq{};
   std::string basemap = "wmm-expanded-v1";
+  // Знаки и фигуры карты хранятся в мире (data/map.json) и правятся в редакторе. false — мир показывает объекты
+  // базовой карты (assets/basemap/map.json); первая правка карты переносит их в мир.
+  bool mapObjects = false;
   std::string notes;
 };
 
@@ -433,8 +463,8 @@ enum TableBit : u32 {
   TB_META = 1u << 0, TB_SETTINGS = 1u << 1, TB_CATALOGS = 1u << 2, TB_NODES = 1u << 3, TB_EDGES = 1u << 4,
   TB_PROVINCES = 1u << 5, TB_FACTIONS = 1u << 6, TB_CHARACTERS = 1u << 7, TB_RELATIONS = 1u << 8,
   TB_MODIFIERS = 1u << 9, TB_BUILDINGS = 1u << 10, TB_TECHS = 1u << 11, TB_ARMIES = 1u << 12,
-  TB_ROUTES = 1u << 13, TB_DEALS = 1u << 14, TB_LOG = 1u << 15,
-  TB_GEO = TB_NODES | TB_EDGES, TB_ALL = 0xFFFFu
+  TB_ROUTES = 1u << 13, TB_DEALS = 1u << 14, TB_LOG = 1u << 15, TB_SYMBOLS = 1u << 16, TB_SHAPES = 1u << 17,
+  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0x3FFFFu
 };
 
 struct World {
@@ -454,6 +484,8 @@ struct World {
   Table<Route> routes;
   Table<Deal> deals;
   Table<LogEntry> log;
+  Table<MapSymbol> symbols;
+  Table<MapShape> shapes;
 
   int turn() const { return meta->turn; }
   const Province* province(Id id) const { return provinces.get(id); }
@@ -465,6 +497,10 @@ struct World {
   const Army* army(Id id) const { return armies.get(id); }
   const Route* route(Id id) const { return routes.get(id); }
   const Deal* deal(Id id) const { return deals.get(id); }
+  const MapSymbol* symbol(Id id) const { return symbols.get(id); }
+  const MapShape* shape(Id id) const { return shapes.get(id); }
+  // Объекты карты хранятся в мире (иначе показываются объекты базовой карты).
+  bool ownMapObjects() const { return meta->mapObjects || !symbols.empty() || !shapes.empty(); }
   Relation relation(Id a, Id b) const;                 // по умолчанию: 0, «незнакомы»; a == b — союз 100
   const CatalogItem* resource(Id id) const { return Catalogs::find(catalogs->resources, id); }
   std::string factionName(Id id) const;                // «—» если нет
@@ -506,6 +542,8 @@ class Tx {
   Army& army(Id id);
   Route& route(Id id);
   Deal& deal(Id id);
+  MapSymbol& symbol(Id id);
+  MapShape& shape(Id id);
 
   // Добавление: ID выдаётся автоматически (поле id заполняется), если value.id == 0.
   Node& add(Node v);
@@ -520,6 +558,8 @@ class Tx {
   Route& add(Route v);
   Deal& add(Deal v);
   LogEntry& add(LogEntry v);
+  MapSymbol& add(MapSymbol v);
+  MapShape& add(MapShape v);
 
   // Удаление записи без очистки ссылок (ссылки чистит rules::entities).
   void eraseNode(Id id);
@@ -533,6 +573,8 @@ class Tx {
   void eraseArmy(Id id);
   void eraseRoute(Id id);
   void eraseDeal(Id id);
+  void eraseSymbol(Id id);
+  void eraseShape(Id id);
 
   // Отношения пары (симметричны).
   void setRelation(Id a, Id b, Relation r);
@@ -564,6 +606,8 @@ class Tx {
   TableEdit<Route> routes_;
   TableEdit<Deal> deals_;
   TableEdit<LogEntry> log_;
+  TableEdit<MapSymbol> symbols_;
+  TableEdit<MapShape> shapes_;
 };
 
 // ================================================================ хранилище

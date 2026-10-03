@@ -587,7 +587,7 @@ TEST(io_recent_projects) {
 
 TEST(io_project_files) {
   auto& files = io::projectFiles();
-  CHECK_EQ(files.size(), size_t(14));
+  CHECK_EQ(files.size(), size_t(15));
   CHECK_EQ(std::string(files.back().path), std::string("world.json"));
   u32 all = 0;
   for (auto& f : files) {
@@ -596,6 +596,7 @@ TEST(io_project_files) {
   }
   CHECK_EQ(all, u32(TB_ALL));
   CHECK_EQ(io::tablesOfFile("data/geo.json"), u32(TB_GEO));
+  CHECK_EQ(io::tablesOfFile("data/map.json"), u32(TB_MAPART));
   CHECK_EQ(io::tablesOfFile("world.json"), u32(TB_META | TB_SETTINGS));
   CHECK_EQ(io::tablesOfFile("data/unknown.json"), 0u);
   CHECK(io::isBundlePath("a/b/Мир.REGNUM"));

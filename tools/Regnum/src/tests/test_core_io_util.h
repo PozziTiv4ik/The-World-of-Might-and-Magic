@@ -311,6 +311,37 @@ inline World richWorld() {
   r2.pts = {{10, 10}, {20, 20}};
   tx.add(r2);
 
+  // Объекты карты: знаки всех видов (z — порядок отрисовки), вода с островом, островок, стена с пунктиром, река.
+  tx.meta().mapObjects = true;
+  tx.add(MapSymbol{1, SymbolKind::Mountain, {1200.25, 800.5}, 1, 1, 0});
+  tx.add(MapSymbol{2, SymbolKind::Peak, {1300, 820}, 2.25f, 0, 1.5});
+  tx.add(MapSymbol{3, SymbolKind::Castle, {1500.75, 900}, 0.875f, 0, -2});
+  tx.add(MapSymbol{4, SymbolKind::Tower, {1600, 950.25}, 1, 0, 3});
+  MapShape lake;
+  lake.id = 1;
+  lake.kind = ShapeKind::Water;
+  lake.pts = {{2000, 2000}, {2100, 2000}, {2100, 2100}, {2000, 2100}};
+  lake.holes = {{{2040, 2040}, {2040, 2060}, {2060, 2060}, {2060, 2040}}};
+  tx.add(lake);
+  MapShape islet;
+  islet.id = 2;
+  islet.kind = ShapeKind::Islet;
+  islet.pts = {{3000, 3000}, {3010, 3000}, {3005, 3008}};
+  tx.add(islet);
+  MapShape wall;
+  wall.id = 3;
+  wall.kind = ShapeKind::Wall;
+  wall.pts = {{100, 4000}, {200, 4010.5}, {300, 4000}};
+  wall.w = 2.5f;
+  wall.dash = 3;
+  tx.add(wall);
+  MapShape river;
+  river.id = 5;
+  river.kind = ShapeKind::River;
+  river.pts = {{500, 500}, {600, 650}};
+  river.w = 6;
+  tx.add(river);
+
   Deal d1;
   d1.id = 1;
   d1.kind = DealKind::Trade;
@@ -502,6 +533,15 @@ inline std::string diffWorld(const World& a, const World& b) {
   d = diffTable(a.log, b.log, "log", [](const LogEntry& x, const LogEntry& y) {
     return x.turn == y.turn && x.kind == y.kind && x.text == y.text && x.province == y.province && x.army == y.army && x.factions == y.factions &&
                    x.at == y.at ? "" : "поля";
+  });
+  if (!d.empty()) return d;
+  RG_D(a.meta->mapObjects == b.meta->mapObjects, "meta.mapObjects");
+  d = diffTable(a.symbols, b.symbols, "symbol", [](const MapSymbol& x, const MapSymbol& y) {
+    return x.kind == y.kind && x.p == y.p && x.s == y.s && x.v == y.v && x.z == y.z ? "" : "поля";
+  });
+  if (!d.empty()) return d;
+  d = diffTable(a.shapes, b.shapes, "shape", [](const MapShape& x, const MapShape& y) {
+    return x.kind == y.kind && x.pts == y.pts && x.holes == y.holes && x.w == y.w && x.dash == y.dash ? "" : "поля";
   });
   return d;
 }

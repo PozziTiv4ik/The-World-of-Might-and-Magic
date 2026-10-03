@@ -268,7 +268,7 @@ struct Help : Dialog {
       for (auto& t : toolDefs()) {
         if (!t.shortcut || !*t.shortcut) continue;
         ui::IdScope ts(int(t.id) + 500);
-        row(t.editMode ? std::string(t.title) + " · правка" : std::string(t.title), t.shortcut);
+        row(t.editMode ? std::string(t.title) + " · правка границ" : t.mapMode ? std::string(t.title) + " · правка карты" : std::string(t.title), t.shortcut);
       }
       ui::spacer(6);
       ui::caption("Панели");

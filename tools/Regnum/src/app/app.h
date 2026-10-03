@@ -49,7 +49,7 @@ namespace rg::app {
 class App;
 
 // ---------------------------------------------------------------- выделение
-enum class SelType : u8 { None, Province, Faction, Army, Route, Character };
+enum class SelType : u8 { None, Province, Faction, Army, Route, Character, Symbol, Shape };   // Symbol, Shape — объекты карты
 struct Selection {
   SelType type = SelType::None;
   Id id = 0;
@@ -71,6 +71,15 @@ enum class ToolId : u8 {
   DeleteProvince,
   NewArmy, NewFleet,
   Route,         // торговый маршрут
+  // Правка карты (режим «Правка карты»): объекты, знаки, воды, стены, суша, берег.
+  MapObjects,    // выбор, перемещение и точки объектов карты
+  MapSymbol,     // поставить знак (гора, крупная гора, замок, башня)
+  MapLake,       // новое озеро (контур)
+  MapRiver,      // новая река (линия)
+  MapWall,       // новая стена (линия)
+  LandAdd,       // суша контуром
+  LandRemove,    // море контуром
+  Coast,         // точки береговой линии
   Count
 };
 
@@ -166,6 +175,7 @@ struct ToolDef {
   bool editMode;                       // доступен только при включённой правке границ
   std::function<std::unique_ptr<MapTool>()> make;
   int order = 100;                     // порядок на панели инструментов
+  bool mapMode = false;                // доступен только при включённой правке карты
 };
 struct ToolReg { explicit ToolReg(const ToolDef& d); };
 const ToolDef* findTool(ToolId id);
@@ -236,6 +246,8 @@ struct UiState {
   Selection sel, hover;                    // hover — объект под указателем на карте
   ToolId tool = ToolId::Select;
   bool editBorders = false;                // ТЗ 1.a.ii — «галочка» режима правки границ
+  bool editMap = false;                    // режим правки карты: суша и берег, воды, горы, замки, башни, стены
+  std::vector<Id> symbolGroup;             // выделенные знаки карты (рамкой или Shift+щелчок); ui.sel — один из них
   schema::MapMode mapMode = schema::MapMode::Political;
   std::string drawer;                      // открытая левая панель ("" — нет)
   std::map<SelType, std::string> tabOf;    // активная вкладка инспектора по типу
@@ -293,6 +305,7 @@ class App : public platform::App {
   void clearSelection() { select(Selection{}); }
   void setTool(ToolId t);                  // инструмент правки при выключенной правке границ — отказ с подсказкой
   void setEditBorders(bool on);            // переключает доступные инструменты
+  void setEditMap(bool on);                // режим правки карты (выключает правку границ, и наоборот)
   void setMapMode(schema::MapMode m);
   void openDrawer(std::string_view id);    // повторный вызов закрывает
   void openEditor(std::string_view id, Id arg = 0);

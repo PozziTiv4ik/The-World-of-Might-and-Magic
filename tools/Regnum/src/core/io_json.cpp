@@ -13,6 +13,7 @@ using schema::EnumInfo;
 const FileDef kFiles[F_COUNT] = {
   {"data/catalogs.json", "", TB_CATALOGS},
   {"data/geo.json", "", TB_GEO},
+  {"data/map.json", "", TB_MAPART, true},
   {"data/provinces.json", "provinces", TB_PROVINCES},
   {"data/factions.json", "factions", TB_FACTIONS},
   {"data/characters.json", "characters", TB_CHARACTERS},
@@ -48,10 +49,12 @@ const EnumInfo kEdgeKindE[] = {{"border", "", ""}, {"coast", "", ""}, {"frame", 
 const EnumInfo kArmyKindE[] = {{"army", "", ""}, {"fleet", "", ""}};
 const EnumInfo kDealSideE[] = {{"a", "", ""}, {"b", "", ""}};
 const EnumInfo kDealStatusE[] = {{"active", "", ""}, {"done", "", ""}, {"cancelled", "", ""}};
+const EnumInfo kSymbolKindE[] = {{"mountain", "", ""}, {"peak", "", ""}, {"castle", "", ""}, {"tower", "", ""}};
+const EnumInfo kShapeKindE[] = {{"water", "", ""}, {"islet", "", ""}, {"wall", "", ""}, {"river", "", ""}};
 
 const char* const kSeqNames[kSeqCount] = {
   "province", "faction", "character", "modifier", "building", "tech", "army", "route", "deal", "log", "row",
-  "council", "node", "edge", "resource", "race", "culture", "religion", "government", "position",
+  "council", "node", "edge", "resource", "race", "culture", "religion", "government", "position", "symbol", "shape",
 };
 
 const char* const kCatalogKeys[6] = {"resources", "races", "cultures", "religions", "governments", "positions"};
@@ -173,6 +176,7 @@ Value encMeta(const Meta& m) {
   for (int i = 0; i < kSeqCount; i++) seq.set(kSeqNames[i], m.seq[size_t(i)]);
   o.set("seq", std::move(seq));
   o.set("basemap", m.basemap);
+  o.set("mapObjects", m.mapObjects);
   o.set("notes", m.notes);
   return o;
 }
@@ -236,6 +240,44 @@ Value encGeo(const World& w) {
   Value o = Value::object();
   o.set("nodes", Value(std::move(nodes)));
   o.set("edges", Value(std::move(edges)));
+  return o;
+}
+
+// Знаки — компактно [id, вид, x, y, масштаб, рисунок, z]; фигуры — объектами.
+Value encMap(const World& w) {
+  json::Array symbols, shapes;
+  symbols.reserve(w.symbols.size());
+  shapes.reserve(w.shapes.size());
+  w.symbols.each([&](const MapSymbol& s) {
+    json::Array a;
+    a.reserve(7);
+    a.emplace_back(s.id);
+    a.emplace_back(enumV(en(kSymbolKindE), int(s.kind)));
+    a.emplace_back(r2(s.p.x));
+    a.emplace_back(r2(s.p.y));
+    a.emplace_back(floatV(s.s));
+    a.emplace_back(int(s.v));
+    a.emplace_back(fin(s.z));
+    symbols.emplace_back(std::move(a));
+  });
+  w.shapes.each([&](const MapShape& s) {
+    Value o = Value::object();
+    o.set("id", s.id);
+    o.set("kind", enumV(en(kShapeKindE), int(s.kind)));
+    o.set("pts", ptsV(s.pts));
+    if (!s.holes.empty()) {
+      json::Array h;
+      h.reserve(s.holes.size());
+      for (const auto& r : s.holes) h.push_back(ptsV(r));
+      o.set("holes", Value(std::move(h)));
+    }
+    if (!s.closed()) o.set("w", floatV(s.w));
+    if (s.dash > 0) o.set("dash", floatV(s.dash));
+    shapes.push_back(std::move(o));
+  });
+  Value o = Value::object();
+  o.set("symbols", Value(std::move(symbols)));
+  o.set("shapes", Value(std::move(shapes)));
   return o;
 }
 
@@ -538,6 +580,7 @@ Value encode(const World& w, FileId f) {
     }
     case F_CATALOGS: return encCatalogs(*w.catalogs);
     case F_GEO: return encGeo(w);
+    case F_MAP: return encMap(w);
     case F_PROVINCES: return encTable(w.provinces, "provinces", encProvince);
     case F_FACTIONS: return encTable(w.factions, "factions", encFaction);
     case F_CHARACTERS: return encTable(w.characters, "characters", encCharacter);
@@ -605,7 +648,7 @@ static std::string formatLines(const Value& v) {
 }
 
 std::string format(const Value& v, FileId f) {
-  if (f == F_GEO || f == F_RELATIONS) return formatLines(v);
+  if (f == F_GEO || f == F_MAP || f == F_RELATIONS) return formatLines(v);
   std::string out;
   json::write(out, v, json::WriteOptions{2, true, true});
   out.push_back('\n');
@@ -962,6 +1005,7 @@ void decMeta(Rec& r, Meta& m) {
     }
   });
   m.basemap = r.str("basemap", m.basemap);
+  m.mapObjects = r.flag("mapObjects", false);
   m.notes = r.str("notes");
 }
 
@@ -1038,6 +1082,84 @@ void decGeo(Rec& r, Parts& p) {
       d.pts = e.pts("pts");
       e.done();
       p.edges.push_back(std::move(d));
+    }
+  }
+}
+
+// Плоский массив координат [x1, y1, ...] (для островов воды); ошибки — предупреждение и пропуск точки.
+std::vector<Vec2> flatPts(Rec& r, const Value& a, const std::string& where) {
+  std::vector<Vec2> out;
+  if (!a.isArr()) {
+    r.ctx().warn(where, "ожидался массив координат [x1, y1, ...] — пропущено");
+    return out;
+  }
+  const auto& items = a.items();
+  out.reserve(items.size() / 2);
+  for (size_t i = 0; i + 1 < items.size(); i += 2) {
+    if (items[i].isNum() && items[i + 1].isNum()) out.push_back({items[i].asNum(), items[i + 1].asNum()});
+    else r.ctx().warn(where + "[" + std::to_string(i) + "]", "ожидались числа x, y — точка пропущена");
+  }
+  if (items.size() % 2) r.ctx().warn(where, "нечётное число координат — последняя отброшена");
+  return out;
+}
+
+void decMap(Rec& r, Parts& p) {
+  if (const Value* a = r.arr("symbols")) {
+    const auto& items = a->items();
+    p.symbols.reserve(items.size());
+    for (size_t i = 0; i < items.size(); i++) {
+      const Value& x = items[i];
+      auto where = [i] { return "symbols[" + std::to_string(i) + "]"; };
+      const bool shapeOk = x.isArr() && (x.size() == 6 || x.size() == 7);
+      bool nums = shapeOk;
+      for (size_t k = 2; shapeOk && k < x.size(); k++) nums = nums && x[k].isNum();
+      if (!nums || !x[1].isStr()) {
+        r.ctx().warn(where(), "ожидалось [id, вид, x, y, масштаб, рисунок, z], получено " + show(x) + " — знак пропущен");
+        continue;
+      }
+      auto id = parseRef(x[0], Seq::Symbol);
+      if (!id || !*id) {
+        r.ctx().warn(where(), "неверный ID знака " + show(x[0]) + " — знак пропущен");
+        continue;
+      }
+      const int kind = schema::findEnum(kSymbolKindE, int(std::size(kSymbolKindE)), x[1].asStr());
+      if (kind < 0) {
+        r.ctx().warn(where(), "неизвестный вид знака " + show(x[1]) + " (допустимо: " + enumChoices(en(kSymbolKindE)) + ") — знак пропущен");
+        continue;
+      }
+      MapSymbol s;
+      s.id = *id;
+      s.kind = SymbolKind(kind);
+      s.p = {x[2].asNum(), x[3].asNum()};
+      s.s = float(x[4].asNum());
+      const double v = x[5].asNum();
+      s.v = u8(v >= 0 && v <= 255 ? v : 0);
+      s.z = x.size() == 7 ? x[6].asNum() : 0.0;
+      p.symbols.push_back(s);
+    }
+  }
+  if (const Value* a = r.arr("shapes")) {
+    const auto& items = a->items();
+    p.shapes.reserve(items.size());
+    for (size_t i = 0; i < items.size(); i++) {
+      if (!items[i].isObj()) {
+        r.ctx().warn("shapes[" + std::to_string(i) + "]", "ожидался объект {...} — фигура пропущена");
+        continue;
+      }
+      Rec e(items[i], r.ctx(), &r, "shapes", int(i));
+      MapShape d;
+      d.id = e.id(Seq::Shape);
+      if (d.id) e.setBase("shapes." + std::to_string(d.id));
+      d.kind = ShapeKind(e.enumv("kind", en(kShapeKindE), 0));
+      d.pts = e.pts("pts");
+      if (const Value* h = e.arr("holes")) {
+        const auto& hs = h->items();
+        for (size_t k = 0; k < hs.size(); k++) d.holes.push_back(flatPts(e, hs[k], e.where("holes") + "[" + std::to_string(k) + "]"));
+      }
+      d.w = float(e.num("w", 0));
+      d.dash = float(e.num("dash", 0));
+      e.done();
+      p.shapes.push_back(std::move(d));
     }
   }
 }
@@ -1375,6 +1497,16 @@ void decode(const Value& v, FileId f, Parts& p, Warnings& warns) {
       r.done();
       return;
     }
+    case F_MAP: {
+      if (!v.isObj()) {
+        c.warn("", "ожидался объект {\"symbols\": [...], \"shapes\": [...]} — объектов карты нет");
+        return;
+      }
+      Rec r(v, c);
+      decMap(r, p);
+      r.done();
+      return;
+    }
     case F_RELATIONS: {
       const Value* rel = nullptr;
       std::optional<Rec> top;
@@ -1489,6 +1621,12 @@ World assemble(Parts&& p, Warnings& warns, u32* fixed) {
   putAll(tx, p.routes, tx.w().routes, Seq::Route, F_ROUTES, meta, warns);
   putAll(tx, p.deals, tx.w().deals, Seq::Deal, F_DEALS, meta, warns);
   putAll(tx, p.log, tx.w().log, Seq::Log, F_LOG, meta, warns);
+  putAll(tx, p.symbols, tx.w().symbols, Seq::Symbol, F_MAP, meta, warns);
+  putAll(tx, p.shapes, tx.w().shapes, Seq::Shape, F_MAP, meta, warns);
+  if (meta.mapObjects && !p.present[F_MAP]) {
+    warns.push_back({kFiles[F_WORLD].path, "meta.mapObjects", "нет файла data/map.json — показаны объекты базовой карты"});
+    meta.mapObjects = false;
+  }
   tx.meta() = meta;
   tx.settings() = p.settings;
   tx.catalogs() = std::move(p.catalogs);

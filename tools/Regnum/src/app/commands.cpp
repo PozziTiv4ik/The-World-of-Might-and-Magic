@@ -54,6 +54,8 @@ CommandReg cBack({"turn.current", "Вернуться к текущему ход
 // ---- карта
 CommandReg cBorders({"map.borders", "Правка границ", "unlock", "E", [](App& a) { a.setEditBorders(!a.ui.editBorders); },
                      [](App& a) { return onMap(a) && !a.readOnly(); }, false, "Карта"});
+CommandReg cMapEdit({"map.edit", "Правка карты: суша, воды, горы, замки и башни", "map-edit", "T", [](App& a) { a.setEditMap(!a.ui.editMap); },
+                     [](App& a) { return onMap(a) && !a.readOnly(); }, false, "Карта"});
 CommandReg cFit({"map.fit", "Показать всю карту", "zoom-fit", "Home", [](App& a) {
                    // Весь мир — в свободной части между панелями, а не во всём окне.
                    a.map().setSafeArea(a.mapArea());

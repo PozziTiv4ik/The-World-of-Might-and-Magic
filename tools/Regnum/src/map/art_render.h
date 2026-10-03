@@ -13,14 +13,18 @@ struct Xf {
   Box2 mapBox(int w, int h) const { return Box2(ox / ds, oy / ds, (ox + w) / ds, (oy + h) / ds); }
 };
 
-// Пространственный индекс объектов карты (строится один раз; только чтение).
+// Пространственный индекс объектов карты (строится один раз; только чтение). Хранит указатель на MapArt: тот
+// должен жить дольше индекса и не перемещаться.
 class Index {
  public:
-  explicit Index(const MapArt& a);
+  Index() = default;
+  explicit Index(const MapArt& a) { build(a); }
+  void build(const MapArt& a);
   const MapArt& art() const { return *a_; }
   // Номера объектов, габарит которых пересекает b (без повторов, по возрастанию).
   void land(const Box2& b, std::vector<u32>& out) const { query(land_, b, out); }      // land, затем islets (номер ≥ land.size())
   void water(const Box2& b, std::vector<u32>& out) const { query(water_, b, out); }
+  void rivers(const Box2& b, std::vector<u32>& out) const { query(rivers_, b, out); }
   void lines(const Box2& b, std::vector<u32>& out) const { query(lines_, b, out); }
   void symbols(const Box2& b, std::vector<u32>& out) const { query(symbols_, b, out); }
 
@@ -33,13 +37,14 @@ class Index {
   };
   void build(Grid& g, const std::vector<Box2>& boxes) const;
   static void query(const Grid& g, const Box2& b, std::vector<u32>& out);
-  const MapArt* a_;
-  Grid land_, water_, lines_, symbols_;
+  const MapArt* a_ = nullptr;
+  Grid land_, water_, rivers_, lines_, symbols_;
 };
 
 // Море: цвет моря поверх img с непрозрачностью «море минус суша» и мягким краем берега.
 void drawSea(gfx::Image& img, const Index& idx, const Xf& P);
-// Реки и озёра.
+// Реки и озёра: кольца воды (внешние контуры против часовой, острова — по часовой; правило NonZero, так что
+// пересекающиеся озёра сливаются) и реки линией.
 void drawWater(gfx::Image& img, const Index& idx, const Xf& P);
 // Стены и знаки (горы, замки, башни) — в порядке отрисовки.
 void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P);
@@ -48,8 +53,9 @@ gfx::Image render(const Index& idx, double ds, int w, int h, double ox = 0, doub
 
 // Значок знака в пикселях устройства: точка привязки (середина основания) в at, масштаб ds · s; variant — рисунок.
 void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant = 0);
-// Габарит значка относительно точки привязки (единицы карты при s = 1).
+// Габарит значка относительно точки привязки (единицы карты при s = 1) и габарит знака на карте.
 RectF symbolBounds(Sym kind);
+Box2 symbolBox(Sym kind, double x, double y, double s);
 // Разработка: подбор параметров рисунка горы (design 0 или 1) под образец исходника ink (w × h, −1 — не важно) с
 // точкой привязки (ax, ay). Возвращает параметры как инициализатор C++; error — итоговая ошибка.
 std::string fitMountainIcon(const std::vector<i16>& ink, int w, int h, int ax, int ay, int design, int maxEvals, double* error);

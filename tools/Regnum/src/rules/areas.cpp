@@ -67,6 +67,14 @@ AreaEdit removeArea(Tx& tx, Id province, const std::vector<Vec2>& poly, double s
   return r;
 }
 
+AreaEdit paintTerrain(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, double snap) {
+  const auto before = withArea(tx.w());
+  geo::paintTerrain(tx, poly, terrain, geo::EditOptions{snap});
+  AreaEdit r;
+  r.removed = dropEmptied(tx, before);
+  return r;
+}
+
 AreaEdit fillAt(Tx& tx, Vec2 p, Id province) {
   if (province) needProvince(tx.w(), province);
   const auto before = withArea(tx.w());

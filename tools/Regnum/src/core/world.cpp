@@ -32,6 +32,8 @@ u32 World::diff(const World& a, const World& b) {
   if (!a.routes.same(b.routes)) m |= TB_ROUTES;
   if (!a.deals.same(b.deals)) m |= TB_DEALS;
   if (!a.log.same(b.log)) m |= TB_LOG;
+  if (!a.symbols.same(b.symbols)) m |= TB_SYMBOLS;
+  if (!a.shapes.same(b.shapes)) m |= TB_SHAPES;
   return m;
 }
 
@@ -69,7 +71,7 @@ Tx::Tx(const World& base)
     : w_(base),
       nodes_(&w_.nodes), edges_(&w_.edges), provinces_(&w_.provinces), factions_(&w_.factions),
       characters_(&w_.characters), modifiers_(&w_.modifiers), buildings_(&w_.buildings), techs_(&w_.techs),
-      armies_(&w_.armies), routes_(&w_.routes), deals_(&w_.deals), log_(&w_.log) {}
+      armies_(&w_.armies), routes_(&w_.routes), deals_(&w_.deals), log_(&w_.log), symbols_(&w_.symbols), shapes_(&w_.shapes) {}
 
 Meta& Tx::meta() {
   if (!metaOwned_) { meta_ = std::make_shared<Meta>(*w_.meta); w_.meta = meta_; metaOwned_ = true; touched_ |= TB_META; }
@@ -121,6 +123,8 @@ RG_TX_TABLE(Tech, tech, techs_, TB_TECHS, Seq::Tech, "Технология")
 RG_TX_TABLE(Army, army, armies_, TB_ARMIES, Seq::Army, "Войско")
 RG_TX_TABLE(Route, route, routes_, TB_ROUTES, Seq::Route, "Маршрут")
 RG_TX_TABLE(Deal, deal, deals_, TB_DEALS, Seq::Deal, "Сделка")
+RG_TX_TABLE(MapSymbol, symbol, symbols_, TB_SYMBOLS, Seq::Symbol, "Знак карты")
+RG_TX_TABLE(MapShape, shape, shapes_, TB_SHAPES, Seq::Shape, "Фигура карты")
 #undef RG_TX_TABLE
 
 LogEntry& Tx::add(LogEntry v) {
@@ -143,6 +147,8 @@ RG_TX_ERASE(eraseTech, techs_, TB_TECHS)
 RG_TX_ERASE(eraseArmy, armies_, TB_ARMIES)
 RG_TX_ERASE(eraseRoute, routes_, TB_ROUTES)
 RG_TX_ERASE(eraseDeal, deals_, TB_DEALS)
+RG_TX_ERASE(eraseSymbol, symbols_, TB_SYMBOLS)
+RG_TX_ERASE(eraseShape, shapes_, TB_SHAPES)
 #undef RG_TX_ERASE
 
 void Tx::replaceWorld(const World& w) {
@@ -164,6 +170,8 @@ void Tx::replaceWorld(const World& w) {
   routes_ = TableEdit<Route>(&w_.routes);
   deals_ = TableEdit<Deal>(&w_.deals);
   log_ = TableEdit<LogEntry>(&w_.log);
+  symbols_ = TableEdit<MapSymbol>(&w_.symbols);
+  shapes_ = TableEdit<MapShape>(&w_.shapes);
   touched_ = TB_ALL;
 }
 

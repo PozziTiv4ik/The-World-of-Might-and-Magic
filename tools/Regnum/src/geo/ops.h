@@ -32,6 +32,7 @@ void removeArea(Tx& tx, Id province, const std::vector<Vec2>& poly);
 // Назначить грань в точке p провинции (0 — создать новую). Возвращает ID провинции.
 Id fillAt(Tx& tx, Vec2 p, Id province);
 
+
 // Разрезать провинцию линией (нож) от границы до границы. Меньшая часть получает новую провинцию,
 // созданную функцией makeNew(tx, исходная) (по умолчанию — пустая запись). Возвращает её ID.
 // makeNew создаёт только запись провинции того же типа (sea как у исходной) и не меняет узлы и дуги;
@@ -48,6 +49,12 @@ Id createProvince(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, const 
 void addArea(Tx& tx, Id province, const std::vector<Vec2>& poly, const EditOptions& opt);
 void removeArea(Tx& tx, Id province, const std::vector<Vec2>& poly, const EditOptions& opt);
 Id split(Tx& tx, Id province, const std::vector<Vec2>& line, const NewProvinceFn& makeNew, const EditOptions& opt);
+
+// Суша или море внутри многоугольника (правка берега): грани внутри получают рельеф terrain (Land или Sea),
+// дуга становится берегом, если рельеф по её сторонам разный. Провинции другого типа (сухопутная на новом море,
+// морская на новой суше) теряют попавшую площадь. Возвращает площадь, сменившую рельеф; контур, который ничего
+// не меняет, — отказ.
+double paintTerrain(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, const EditOptions& opt = {});
 
 // Геометрия: грани source становятся target, лишние границы удаляются. Запись source не трогается.
 // Провинции могут быть несмежными (острова); сухопутную с морской объединить нельзя.
@@ -68,22 +75,26 @@ struct Handle {
 };
 struct EdgeHit { Id edge = 0; int segment = 0; Vec2 p; double dist = 0; };
 
-// Ближайшая ручка в радиусе tol (единицы карты). province != 0 — только на границе этой провинции.
-Handle hitHandle(const World& w, Vec2 p, double tol, Id province = 0);
-std::optional<EdgeHit> hitEdge(const World& w, Vec2 p, double tol, Id province = 0);
+// Ручки бывают двух режимов. Границы (coast = false): точки пограничных дуг и узлы; береговые точки и рамка
+// заблокированы, стык границы с берегом скользит вдоль берега. Берег (coast = true, правка карты): точки и узлы
+// береговых дуг, включая стыки (они двигают берег вместе с концом границы); рамка заблокирована.
+
+// Ближайшая ручка в радиусе tol (единицы карты). province != 0 — только на границе этой провинции (режим границ).
+Handle hitHandle(const World& w, Vec2 p, double tol, Id province = 0, bool coast = false);
+std::optional<EdgeHit> hitEdge(const World& w, Vec2 p, double tol, Id province = 0, bool coast = false);
 Vec2 handlePos(const World& w, const Handle& h);
-// Заблокированные ручки: точки береговых дуг и рамки, узлы рамки.
-bool handleLocked(const World& w, const Handle& h);
-// Узел на береговой линии (стык границы с берегом) — двигается скольжением вдоль берега.
+// Заблокированные ручки (см. режимы выше).
+bool handleLocked(const World& w, const Handle& h, bool coast = false);
+// Узел на береговой линии (стык границы с берегом) — в режиме границ двигается скольжением вдоль берега.
 bool isCoastJunction(const World& w, Id node);
 // Можно ли переместить ручку в точку (без пересечений и вырожденных отрезков).
-bool canMove(const World& w, const Handle& h, Vec2 to);
-// Перемещение: общая граница меняет обе соседние провинции.
-void moveHandle(Tx& tx, const Handle& h, Vec2 to);
-// Вставить точку в дугу (двойной щелчок по границе). Возвращает новую ручку.
-Handle insertPoint(Tx& tx, Id edge, int segment, Vec2 p);
-// Удалить промежуточную точку (или узел степени 2 между двумя пограничными дугами).
-void deletePoint(Tx& tx, const Handle& h);
+bool canMove(const World& w, const Handle& h, Vec2 to, bool coast = false);
+// Перемещение: общая граница меняет обе соседние провинции; береговая точка меняет сушу и море.
+void moveHandle(Tx& tx, const Handle& h, Vec2 to, bool coast = false);
+// Вставить точку в дугу (двойной щелчок по границе или берегу). Возвращает новую ручку.
+Handle insertPoint(Tx& tx, Id edge, int segment, Vec2 p, bool coast = false);
+// Удалить промежуточную точку (или узел степени 2 между двумя дугами одного вида).
+void deletePoint(Tx& tx, const Handle& h, bool coast = false);
 // Сдвинуть стык границы с берегом вдоль береговой линии к ближайшей к to точке берега.
 void slideJunction(Tx& tx, Id node, Vec2 to);
 // Ближайшая точка берега для скольжения (предпросмотр).

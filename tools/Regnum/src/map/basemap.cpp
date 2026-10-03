@@ -6,6 +6,7 @@
 #include "base/fs.h"
 #include "gfx/canvas.h"
 #include "map/art_render.h"
+#include "map/art_scene.h"
 
 namespace rg::map {
 
@@ -55,6 +56,7 @@ bool Basemap::load(const std::string& dirIn, std::string* error) {
     b.dir_ = dir;
     b.art_ = a;
     b.index_ = std::make_shared<art::Index>(*a);
+    b.objects_ = std::make_shared<art::Objects>(art::baseObjects(*a));
     // Маска моря: клетка — море, если её центр вне колец суши и островков.
     b.maskW_ = (a->width + kMaskScale - 1) / kMaskScale;
     b.maskH_ = (a->height + kMaskScale - 1) / kMaskScale;

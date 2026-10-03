@@ -1065,6 +1065,43 @@ Id fillAt(Tx& tx, Vec2 p, Id province) {
   return pid;
 }
 
+double paintTerrain(Tx& tx, const std::vector<Vec2>& polyIn, Terrain ter, const EditOptions& opt) {
+  if (ter != Terrain::Land && ter != Terrain::Sea) fail("Контур может сделать только сушу или море");
+  Graph g;
+  g.load(tx.w());
+  requireMap(g);
+  std::vector<Vec2> poly = preparePolygon(polyIn);
+  FaceInput in0 = FaceInput::from(g);
+  FaceBuild f0 = buildFaceCore(in0);
+  std::vector<Side> side0 = faceSides(g, f0);
+  Inserter ins(g, snapOf(opt));
+  InsertResult res = ins.run({PathIn{poly, true}}, f0, side0, EdgeKind::Border, nullptr);
+  FaceInput in1 = FaceInput::from(g);
+  FaceBuild f1 = buildFaceCore(in1);
+  auto inside = classifyInside(g, f1, res.arcs[0], res.paths);
+  std::vector<Side> side1 = faceSides(g, f1);
+  double changed = 0;
+  for (int f = 0; f < f1.nfaces(); f++) {
+    if (inside[size_t(f)] != 1) continue;
+    const Side s = side1[size_t(f)];
+    if (s.ter == ter || s.ter == Terrain::None) continue;
+    // Рельеф граней провинции согласован с её типом: провинция другого типа теряет эту площадь.
+    Id prov = s.prov;
+    if (const Province* p = prov ? tx.w().province(prov) : nullptr; !p || p->sea != (ter == Terrain::Sea)) prov = 0;
+    relabelFace(g, f1, f, Side{prov, ter});
+    changed += f1.faceArea[size_t(f)];
+  }
+  if (!(changed > kMinArea)) fail(ter == Terrain::Land ? "Контур не захватывает море" : "Контур не захватывает сушу");
+  // Берег — там, где рельеф по сторонам дуги разный; прочие дуги — границы (лишние уберёт очистка).
+  for (GEdge& e : g.edges) {
+    if (!e.alive || e.kind == EdgeKind::Frame) continue;
+    e.kind = (e.tl == Terrain::Land) != (e.tr == Terrain::Land) ? EdgeKind::Coast : EdgeKind::Border;
+  }
+  cleanup(g);
+  finalize(tx, g);
+  return changed;
+}
+
 Id split(Tx& tx, Id province, const std::vector<Vec2>& lineIn, const NewProvinceFn& makeNew, const EditOptions& opt) {
   const Province* src = tx.w().province(province);
   if (!src) fail("Провинция не найдена");
@@ -1429,13 +1466,13 @@ bool planMove(const World& w, const Handle& h, Vec2 to, std::vector<NewSeg>& ns,
 
 }  // namespace
 
-Handle hitHandle(const World& w, Vec2 p, double tol, Id province) {
+Handle hitHandle(const World& w, Vec2 p, double tol, Id province, bool coast) {
   if (!finite(p) || !(tol >= 0)) return {};
   struct Cand { Handle h; double d; };
   std::vector<Cand> cands;
   std::vector<Id> seenNodes;
   w.edges.each([&](const Edge& e) {
-    if (province != 0 && e.pl != province && e.pr != province) return;
+    if (coast ? e.kind != EdgeKind::Coast : (province != 0 && e.pl != province && e.pr != province)) return;
     for (Id nid : {e.a, e.b}) {
       const Node* n = w.nodes.get(nid);
       if (!n) continue;
@@ -1463,7 +1500,7 @@ Handle hitHandle(const World& w, Vec2 p, double tol, Id province) {
   int bl = 0, bk = 0;
   double bd = kInf;
   for (auto& c : cands) {
-    int locked = handleLocked(w, c.h) ? 1 : 0;
+    int locked = handleLocked(w, c.h, coast) ? 1 : 0;
     int kind = c.h.kind == Handle::Node ? 0 : 1;
     bool better = !best || locked < bl || (locked == bl && (kind < bk || (kind == bk && c.d < bd)));
     if (better) { best = c.h; bl = locked; bk = kind; bd = c.d; }
@@ -1471,11 +1508,11 @@ Handle hitHandle(const World& w, Vec2 p, double tol, Id province) {
   return best;
 }
 
-std::optional<EdgeHit> hitEdge(const World& w, Vec2 p, double tol, Id province) {
+std::optional<EdgeHit> hitEdge(const World& w, Vec2 p, double tol, Id province, bool coast) {
   if (!finite(p) || !(tol >= 0)) return std::nullopt;
   std::optional<EdgeHit> best;
   w.edges.each([&](const Edge& e) {
-    if (province != 0 && e.pl != province && e.pr != province) return;
+    if (coast ? e.kind != EdgeKind::Coast : (province != 0 && e.pl != province && e.pr != province)) return;
     Vec2 prev;
     forCoords(w, e, [&](int k, Vec2 q, int) {
       if (k > 0) {
@@ -1507,24 +1544,25 @@ bool isCoastJunction(const World& w, Id node) {
   return s.coast == 2 && s.frame == 0 && s.border >= 1;
 }
 
-bool handleLocked(const World& w, const Handle& h) {
+bool handleLocked(const World& w, const Handle& h, bool coast) {
   if (h.kind == Handle::Point) {
     const Edge* e = w.edges.get(h.edge);
-    return !e || e->kind != EdgeKind::Border || h.index < 0 || h.index >= int(e->pts.size());
+    return !e || e->kind != (coast ? EdgeKind::Coast : EdgeKind::Border) || h.index < 0 || h.index >= int(e->pts.size());
   }
   if (h.kind == Handle::Node) {
     if (!w.nodes.get(h.node)) return true;
     Star s = starOf(w, h.node);
     if (s.frame > 0) return true;
+    if (coast) return s.coast == 0;
     if (s.coast > 0) return !(s.coast == 2 && s.border >= 1);
     return s.edges.empty();
   }
   return true;
 }
 
-bool canMove(const World& w, const Handle& h, Vec2 to) {
-  if (!h || !finite(to) || handleLocked(w, h)) return false;
-  if (h.kind == Handle::Node && isCoastJunction(w, h.node)) return false;
+bool canMove(const World& w, const Handle& h, Vec2 to, bool coast) {
+  if (!h || !finite(to) || handleLocked(w, h, coast)) return false;
+  if (!coast && h.kind == Handle::Node && isCoastJunction(w, h.node)) return false;
   if (handlePos(w, h) == to) return true;
   std::vector<NewSeg> ns;
   std::vector<SegId> removed;
@@ -1534,25 +1572,27 @@ bool canMove(const World& w, const Handle& h, Vec2 to) {
   return localOk(w, ns, removed, swept, exclude, {to});
 }
 
-void moveHandle(Tx& tx, const Handle& h, Vec2 to) {
+void moveHandle(Tx& tx, const Handle& h, Vec2 to, bool coast) {
   const World& w = tx.w();
-  if (!h) fail("Не выбрана точка границы");
-  if (handleLocked(w, h)) fail("Береговая линия и рамка карты не редактируются");
-  if (h.kind == Handle::Node && isCoastJunction(w, h.node)) fail("Узел на берегу перемещается только вдоль берега");
+  if (!h) fail(coast ? "Не выбрана точка берега" : "Не выбрана точка границы");
+  if (handleLocked(w, h, coast)) fail(coast ? "Двигать можно только точки берега (рамка карты закреплена)" : "Береговая линия и рамка карты не редактируются");
+  if (!coast && h.kind == Handle::Node && isCoastJunction(w, h.node)) fail("Узел на берегу перемещается только вдоль берега");
   if (!finite(to)) fail("Недопустимые координаты точки");
   Box2 fb = frameBoxOf(w);
   if (!fb.empty() && !(to.x > fb.x0 && to.x < fb.x1 && to.y > fb.y0 && to.y < fb.y1)) fail("Точку нельзя вынести на край или за пределы карты");
-  if (!canMove(w, h, to)) fail("Точку нельзя переместить сюда: граница пересечёт другую линию");
+  if (!canMove(w, h, to, coast))
+    fail(coast ? "Точку берега нельзя переместить сюда: берег пересечёт другую линию" : "Точку нельзя переместить сюда: граница пересечёт другую линию");
   if (handlePos(w, h) == to) return;
   if (h.kind == Handle::Node) tx.node(h.node).p = to;
   else tx.edge(h.edge).pts[size_t(h.index)] = to;
 }
 
-Handle insertPoint(Tx& tx, Id edge, int segment, Vec2 p) {
+Handle insertPoint(Tx& tx, Id edge, int segment, Vec2 p, bool coast) {
   const World& w = tx.w();
   const Edge* e = w.edges.get(edge);
-  if (!e) fail("Граница не найдена");
-  if (e->kind != EdgeKind::Border) fail("Береговая линия и рамка карты не редактируются");
+  if (!e) fail(coast ? "Берег не найден" : "Граница не найдена");
+  if (e->kind != (coast ? EdgeKind::Coast : EdgeKind::Border))
+    fail(coast ? "Точку можно добавить только на берег" : "Береговая линия и рамка карты не редактируются");
   auto c = coordsOf(w, *e);
   if (c.empty()) fail("Граница повреждена: нет узла");
   if (segment < 0 || segment + 1 >= int(c.size())) fail("Неверный номер отрезка границы");
@@ -1572,12 +1612,13 @@ Handle insertPoint(Tx& tx, Id edge, int segment, Vec2 p) {
   return h;
 }
 
-void deletePoint(Tx& tx, const Handle& h) {
+void deletePoint(Tx& tx, const Handle& h, bool coast) {
   const World& w = tx.w();
   if (h.kind == Handle::Point) {
     const Edge* e = w.edges.get(h.edge);
-    if (!e || h.index < 0 || h.index >= int(e->pts.size())) fail("Точка границы не найдена");
-    if (e->kind != EdgeKind::Border) fail("Береговая линия и рамка карты не редактируются");
+    if (!e || h.index < 0 || h.index >= int(e->pts.size())) fail(coast ? "Точка берега не найдена" : "Точка границы не найдена");
+    if (e->kind != (coast ? EdgeKind::Coast : EdgeKind::Border))
+      fail(coast ? "Удалить можно только точку берега" : "Береговая линия и рамка карты не редактируются");
     if (e->a == e->b && e->pts.size() <= 2) fail("Замкнутая граница должна содержать не менее двух промежуточных точек");
     auto c = coordsOf(w, *e);
     if (c.empty()) fail("Граница повреждена: нет узла");
@@ -1595,8 +1636,13 @@ void deletePoint(Tx& tx, const Handle& h) {
   const Node* n = w.nodes.get(h.node);
   if (!n) fail("Узел не найден");
   Star s = starOf(w, h.node);
-  if (s.coast || s.frame) fail("Узел на берегу или рамке удалить нельзя");
-  if (s.border != 2 || s.edges.size() != 2) fail("Удалить можно только узел, соединяющий две части одной границы");
+  if (coast) {
+    if (s.frame || s.border) fail("Узел, где к берегу подходит граница провинции, удалить нельзя");
+    if (s.coast != 2 || s.edges.size() != 2) fail("Удалить можно только узел, соединяющий две части одного берега");
+  } else {
+    if (s.coast || s.frame) fail("Узел на берегу или рамке удалить нельзя");
+    if (s.border != 2 || s.edges.size() != 2) fail("Удалить можно только узел, соединяющий две части одной границы");
+  }
   const Edge &E1 = *s.edges[0], &E2 = *s.edges[1];
   Edge A = E1, B = E2;
   auto rev = [](Edge& e) {

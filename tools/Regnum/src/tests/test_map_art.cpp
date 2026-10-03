@@ -7,7 +7,11 @@
 #include "map/art.h"
 #include "map/art_extract.h"
 #include "map/art_render.h"
+#include "geo/geom.h"
+#include "map/art_scene.h"
 #include "map/basemap_build.h"
+#include "map/mapview.h"
+#include "rules/rules.h"
 #include "tests/test_map_view_util.h"
 
 using namespace rg;
@@ -156,4 +160,95 @@ TEST(map_art_extract_matches_assets) {
   std::printf("  карта кодом против исходника: средняя ошибка %.3f на канал, пикселей с ошибкой > 32: %.2f %%\n", mean, share);
   CHECK(mean < 0.7);
   CHECK(share < 1.0);
+}
+
+TEST(map_art_scene_world_objects) {
+  // Сцена мира без своих объектов показывает объекты базовой карты; перенос их в мир картинку не меняет.
+  const Basemap& bm = mvtest::basemap();
+  const World& w0 = mvtest::emptyWorld();
+  const double t0 = nowSeconds();
+  auto s0 = art::Scene::build(w0, &bm.art(), &bm.objects());
+  const double ms0 = (nowSeconds() - t0) * 1000;
+  CHECK(!s0->fromWorld());
+  CHECK(s0->hasLand());
+  CHECK_EQ(s0->art().symbols.size(), bm.art().symbols.size());
+  CHECK_EQ(s0->art().land.size(), bm.art().land.size());
+  World w1 = w0;
+  {
+    Tx tx(w1);
+    rules::ensureMapObjects(tx, bm.objects().symbols, bm.objects().shapes);
+    w1 = std::move(tx).finish();
+  }
+  CHECK(w1.ownMapObjects());
+  const double t1 = nowSeconds();
+  auto s1 = art::Scene::build(w1, &bm.art(), &bm.objects());
+  const double ms1 = (nowSeconds() - t1) * 1000;
+  std::printf("  сцена: базовая карта %.1f мс, объекты мира %.1f мс\n", ms0, ms1);
+  CHECK(s1->fromWorld());
+  CHECK(ms1 < test::perf(60));
+  // Кусок карты при масштабе 1 с городами и горами: попиксельно одинаково.
+  const art::Symbol& c = bm.art().symbols[bm.art().symbols.size() / 2];
+  const double ox = std::floor(c.x) - 200, oy = std::floor(c.y) - 150;
+  gfx::Image a(400, 300, gfx::premul(Color(255, 255, 255))), b = a;
+  for (auto [img, sc] : {std::pair{&a, s0}, std::pair{&b, s1}}) {
+    const art::Xf P{1, ox, oy};
+    art::drawSea(*img, sc->index(), P);
+    art::drawWater(*img, sc->index(), P);
+    art::drawSymbols(*img, sc->index(), P);
+  }
+  CHECK(a.px == b.px);
+  // Попадание: знак по середине значка, вода внутри озера, ничего — в открытом море.
+  const MapSymbol& ms = bm.objects().symbols[123];
+  CHECK_EQ(s1->symbolAt(art::symbolBox(ms).center(), 0.5), ms.id);
+  for (const MapShape& sh : bm.objects().shapes) {
+    if (sh.kind != ShapeKind::Water || !sh.holes.empty() || std::fabs(geo::signedArea(sh.pts)) < 2000) continue;
+    const Vec2 in = geo::polylabel({sh.pts}, 0.5);
+    CHECK_EQ(s1->shapeAt(in, 0.1), sh.id);
+    break;
+  }
+  CHECK_EQ(s1->shapeAt(Vec2(5, 5), 0.5), Id(0));
+  CHECK_EQ(s1->symbolAt(Vec2(5, 5), 0.5), Id(0));
+  CHECK(!s1->symbolsIn(art::symbolBox(ms).inflated(1)).empty());
+}
+
+TEST(map_art_scene_edit_invalidates_little) {
+  // Правка одного знака перерисовывает только тайлы вокруг него, и картинка следует за миром.
+  const Basemap& bm = mvtest::basemap();
+  map::MapView mv(&bm);
+  World w = mvtest::emptyWorld();
+  {
+    Tx tx(w);
+    rules::ensureMapObjects(tx, bm.objects().symbols, bm.objects().shapes);
+    w = std::move(tx).finish();
+  }
+  mv.setWorld(w);
+  const MapSymbol s = bm.objects().symbols[500];
+  mv.setViewport(RectF(0, 0, 800, 600), 1);
+  mv.centerOn(s.p, 1.0, false);
+  map::RenderOptions opt;
+  gfx::Image before = mvtest::renderFull(mv, opt, 800, 600, 1);
+  World w2 = w;
+  {
+    Tx tx(w2);
+    rules::placeSymbol(tx, s.id, s.p + Vec2(40, 0), s.z);
+    w2 = std::move(tx).finish();
+  }
+  const double t0 = nowSeconds();
+  mv.worldChanged(w, w2, World::diff(w, w2));
+  const double ms = (nowSeconds() - t0) * 1000;
+  std::printf("  смена мира после правки знака: %.1f мс\n", ms);
+  CHECK(ms < test::perf(40));
+  CHECK(mv.artScene()->fromWorld());
+  gfx::Image after = mvtest::renderFull(mv, opt, 800, 600, 1);
+  // Знак сдвинут на 40 точек вправо: в старом месте и в новом картинка изменилась, вдали — нет.
+  const gfx::Pt at = mv.view().toScreen(s.p);
+  auto changed = [&](int x0, int y0, int x1, int y1) {
+    int n = 0;
+    for (int y = std::max(0, y0); y < std::min(600, y1); y++)
+      for (int x = std::max(0, x0); x < std::min(800, x1); x++) n += before.at(x, y) != after.at(x, y);
+    return n;
+  };
+  CHECK(changed(int(at.x) - 8, int(at.y) - 12, int(at.x) + 8, int(at.y)) > 10);
+  CHECK(changed(int(at.x) + 32, int(at.y) - 12, int(at.x) + 48, int(at.y)) > 10);
+  CHECK_EQ(changed(0, 0, 150, 150), 0);
 }

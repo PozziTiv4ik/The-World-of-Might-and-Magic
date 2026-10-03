@@ -4,7 +4,10 @@
 #include "app/app_internal.h"
 #include "base/fs.h"
 #include "codec/png.h"
+#include "geo/geom.h"
 #include "geo/topo.h"
+#include "map/art_scene.h"
+#include "map/basemap.h"
 
 namespace rg::app::detail {
 
@@ -233,8 +236,45 @@ std::string entityName(const World& w, Selection s) {
       if (!c) return {};
       return c->name.empty() ? std::string("Персонаж без имени") : c->name;
     }
+    case SelType::Symbol: {
+      static const char* const names[] = {"Гора", "Крупная гора", "Замок", "Башня"};
+      const MapSymbol* m = mapSymbol(w, s.id);
+      return m && int(m->kind) < 4 ? names[int(m->kind)] : std::string();
+    }
+    case SelType::Shape: {
+      const MapShape* m = mapShape(w, s.id);
+      return m ? mapShapeName(*m) : std::string();
+    }
     default: return {};
   }
+}
+
+std::string mapShapeName(const MapShape& s) {
+  switch (s.kind) {
+    case ShapeKind::Water: {
+      // Отношение площади к квадрату периметра (у круга 1): река — длинная и узкая.
+      double area = std::fabs(geo::signedArea(s.pts)), per = 0;
+      for (const auto& h : s.holes) area -= std::fabs(geo::signedArea(h));
+      for (size_t i = 0; i < s.pts.size(); i++) per += dist(s.pts[i], s.pts[(i + 1) % s.pts.size()]);
+      return per > 0 && 4 * kPi * area / (per * per) < 0.12 ? "Река" : "Озеро";
+    }
+    case ShapeKind::Islet: return "Островок";
+    case ShapeKind::Wall: return "Стена";
+    case ShapeKind::River: return "Река";
+    default: return "Фигура";
+  }
+}
+
+const MapSymbol* mapSymbol(const World& w, Id id) {
+  if (w.ownMapObjects() || !hasApp() || !app().basemap()) return w.symbol(id);
+  const auto& list = app().basemap()->objects().symbols;
+  return id >= 1 && id <= list.size() && list[id - 1].id == id ? &list[id - 1] : nullptr;
+}
+
+const MapShape* mapShape(const World& w, Id id) {
+  if (w.ownMapObjects() || !hasApp() || !app().basemap()) return w.shape(id);
+  const auto& list = app().basemap()->objects().shapes;
+  return id >= 1 && id <= list.size() && list[id - 1].id == id ? &list[id - 1] : nullptr;
 }
 
 const char* selIcon(SelType t) {
@@ -244,6 +284,8 @@ const char* selIcon(SelType t) {
     case SelType::Army: return "army";
     case SelType::Route: return "route";
     case SelType::Character: return "character";
+    case SelType::Symbol: return "mountain";
+    case SelType::Shape: return "tool-lake";
     default: return "info";
   }
 }
@@ -255,6 +297,8 @@ const char* selCaption(SelType t) {
     case SelType::Army: return "Войско";
     case SelType::Route: return "Торговый маршрут";
     case SelType::Character: return "Персонаж";
+    case SelType::Symbol: return "Знак карты";
+    case SelType::Shape: return "Фигура карты";
     default: return "";
   }
 }
@@ -266,6 +310,8 @@ bool selectionExists(const World& w, Selection s) {
     case SelType::Army: return w.army(s.id) != nullptr;
     case SelType::Route: return w.route(s.id) != nullptr;
     case SelType::Character: return w.character(s.id) != nullptr;
+    case SelType::Symbol: return mapSymbol(w, s.id) != nullptr;
+    case SelType::Shape: return mapShape(w, s.id) != nullptr;
     default: return false;
   }
 }
@@ -323,6 +369,12 @@ Box2 selectionBox(const World& w, Selection s) {
       if (c->faction) return selectionBox(w, {SelType::Faction, c->faction});
       break;
     }
+    case SelType::Symbol:
+      if (const MapSymbol* m = mapSymbol(w, s.id)) b = map::art::symbolBox(*m).inflated(60);
+      break;
+    case SelType::Shape:
+      if (const MapShape* m = mapShape(w, s.id)) b = map::art::shapeBox(*m).inflated(30);
+      break;
     default: break;
   }
   return b;

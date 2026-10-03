@@ -220,7 +220,10 @@ int runInspect(const std::vector<std::string>& args) {
     c.set("nodes", w.nodes.size());
     c.set("edges", w.edges.size());
     c.set("points", points);
+    c.set("mapSymbols", w.symbols.size());
+    c.set("mapShapes", w.shapes.size());
     v.set("counts", std::move(c));
+    v.set("mapObjects", w.ownMapObjects());
     json::Array facs;
     w.factions.each([&](const Faction& f) {
       json::Value x = json::Value::object();
@@ -262,6 +265,8 @@ int runInspect(const std::vector<std::string>& args) {
   outLine("Провинции: " + fmtInt(w.provinces.size()) + " (морских " + fmtInt(s.sea) + ", без владельца " + fmtInt(s.unowned) +
           ", оккупировано " + fmtInt(s.occupied) + ")");
   outLine("Геометрия: узлов " + fmtInt(i64(w.nodes.size())) + ", дуг " + fmtInt(i64(w.edges.size())) + ", точек " + fmtInt(i64(points)));
+  outLine(w.ownMapObjects() ? "Объекты карты (мир): знаков " + fmtInt(i64(w.symbols.size())) + ", фигур " + fmtInt(i64(w.shapes.size()))
+                            : std::string("Объекты карты: базовой карты (мир их не менял)"));
   outLine("Государства: " + fmtInt(s.states) + ", гильдии: " + fmtInt(s.guilds) + ", персонажи: " + fmtInt(w.characters.size()));
   outLine("Модификаторы: " + fmtInt(w.modifiers.size()) + ", постройки: " + fmtInt(w.buildings.size()) + ", технологии: " +
           fmtInt(w.techs.size()));

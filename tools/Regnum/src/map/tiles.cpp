@@ -5,7 +5,7 @@
 #include <mutex>
 
 #include "gfx/stroke.h"
-#include "map/art_render.h"
+#include "map/art_scene.h"
 #include "map/map_internal.h"
 
 namespace rg::map::detail {
@@ -219,16 +219,16 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
     blendImage(img, fill, 0, 0, gfx::RectI(0, 0, T, T), L.fillAlpha);
   }
 
-  // 2. Море, реки и озёра — объекты карты, нарисованные кодом.
+  // 2. Море, реки и озёра — объекты карты, нарисованные кодом (сцена мира: берег из графа, воды из мира).
   const art::Xf AX{ds, P.ox, P.oy};
-  if (bm) {
-    art::drawSea(img, bm->index(), AX);
-    art::drawWater(img, bm->index(), AX);
-  }
+  const art::Scene* as = sc.art.get();
+  const bool seaArt = as && as->hasLand();
+  if (seaArt) art::drawSea(img, as->index(), AX);
+  if (as) art::drawWater(img, as->index(), AX);
 
   gfx::Canvas c(img);
-  // Без базовой карты море — грани с рельефом «море» цветом моря.
-  if (!bm && fs) {
+  // Без суши в сцене (нет ни графа мира, ни базовой карты) море — грани с рельефом «море» цветом моря.
+  if (!seaArt && fs) {
     gfx::Path sea;
     for (const geo::Face& f : fs->faces) {
       if (f.terrain != Terrain::Sea || !f.box.intersects(qb)) continue;
@@ -346,7 +346,7 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
   }
 
   // 6. Знаки карты (стены, горы, замки, башни) — поверх всего, без подкраски.
-  if (bm) art::drawSymbols(img, bm->index(), AX);
+  if (as) art::drawSymbols(img, as->index(), AX);
   return img;
 }
 

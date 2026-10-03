@@ -62,6 +62,62 @@ std::vector<Vec2> edgeCoords(const World& w, const Edge& e) {
   return c;
 }
 
+bool hasGeometry(const World& w) {
+  bool frame = false;
+  w.edges.each([&](const Edge& e) { frame = frame || e.kind == EdgeKind::Frame; });
+  return frame;
+}
+
+std::vector<std::vector<Vec2>> landRings(const World& w) {
+  // Полудуги границы суши (суша слева): узел начала, узел конца, координаты без последней точки.
+  struct Half {
+    Id from = 0, to = 0;
+    std::vector<Vec2> pts;
+    bool used = false;
+  };
+  std::vector<Half> hs;
+  std::unordered_map<Id, std::vector<size_t>> out;
+  w.edges.each([&](const Edge& e) {
+    const bool l = e.tl == Terrain::Land, r = e.tr == Terrain::Land;
+    if (l == r) return;
+    std::vector<Vec2> c = edgeCoords(w, e);
+    if (c.size() < 2) return;
+    Half h;
+    h.from = l ? e.a : e.b;
+    h.to = l ? e.b : e.a;
+    if (!l) std::reverse(c.begin(), c.end());
+    c.pop_back();
+    h.pts = std::move(c);
+    out[h.from].push_back(hs.size());
+    hs.push_back(std::move(h));
+  });
+  std::vector<std::vector<Vec2>> rings;
+  for (size_t i = 0; i < hs.size(); i++) {
+    if (hs[i].used) continue;
+    std::vector<Vec2> ring;
+    const Id start = hs[i].from;
+    size_t cur = i;
+    for (size_t guard = 0; guard <= hs.size(); guard++) {
+      Half& h = hs[cur];
+      h.used = true;
+      ring.insert(ring.end(), h.pts.begin(), h.pts.end());
+      if (h.to == start) break;
+      size_t next = SIZE_MAX;
+      auto it = out.find(h.to);
+      if (it != out.end())
+        for (size_t k : it->second)
+          if (!hs[k].used) {
+            next = k;
+            break;
+          }
+      if (next == SIZE_MAX) break;   // цепочка оборвалась (повреждённый граф): кольцо замыкается как есть
+      cur = next;
+    }
+    if (ring.size() >= 3) rings.push_back(std::move(ring));
+  }
+  return rings;
+}
+
 std::shared_ptr<const FaceSet> buildFaces(const World& w) {
   WorldInput wi = inputFrom(w);
   detail::FaceBuild fb = detail::buildFaceCore(wi.in);

@@ -13,7 +13,9 @@ struct ToolGuard {
   std::vector<app::ToolDef> saved;
   ToolGuard() {
     for (app::ToolId id : {app::ToolId::EditBorders, app::ToolId::NewProvince, app::ToolId::AddArea, app::ToolId::RemoveArea, app::ToolId::Fill,
-                           app::ToolId::Knife, app::ToolId::Merge, app::ToolId::DeleteProvince, app::ToolId::Route})
+                           app::ToolId::Knife, app::ToolId::Merge, app::ToolId::DeleteProvince, app::ToolId::Route, app::ToolId::MapObjects,
+                           app::ToolId::MapSymbol, app::ToolId::MapLake, app::ToolId::MapRiver, app::ToolId::MapWall, app::ToolId::LandAdd,
+                           app::ToolId::LandRemove, app::ToolId::Coast})
       if (const app::ToolDef* d = app::findTool(id)) saved.push_back(*d);
     app::tools::installAll();
   }

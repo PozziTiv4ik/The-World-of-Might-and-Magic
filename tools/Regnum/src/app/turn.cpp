@@ -243,6 +243,7 @@ bool App::viewTurn(int turn) {
   viewWorld_ = std::move(*w);
   ui.viewTurn = turn;
   setEditBorders(false);
+  setEditMap(false);
   setTool(ToolId::Select);
   d.map->setWorld(viewWorld_);
   d.mapGen++;

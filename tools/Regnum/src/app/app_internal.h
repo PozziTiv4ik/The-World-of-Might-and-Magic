@@ -173,6 +173,11 @@ const char* selIcon(SelType t);
 const char* selCaption(SelType t);
 Box2 selectionBox(const World& w, Selection s);       // область объекта на карте (пусто — нет)
 bool selectionExists(const World& w, Selection s);
+// Знак или фигура карты мира w — или, пока мир не хранит своих объектов, базовой карты приложения (те же ID).
+const MapSymbol* mapSymbol(const World& w, Id id);
+const MapShape* mapShape(const World& w, Id id);
+// Название фигуры карты: вода контуром — «Река» (длинная и узкая) или «Озеро»; «Островок», «Стена», «Река».
+std::string mapShapeName(const MapShape& s);
 
 // ---- оболочка (shell.cpp)
 // Значок «галочки» режима правки границ (ТЗ 1.a.ii): замок закрыт — границы закреплены, открыт — правка.

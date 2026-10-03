@@ -214,7 +214,7 @@ LoadResult loadFrom(const Source& src) {
     if (!errors[i].empty()) fail(errors[i]);
   decode(world, F_WORLD, parts, warnFiles[F_WORLD]);
   for (size_t i = 0; i < F_WORLD; i++) {
-    if (!present[i]) warnFiles[i].push_back({kFiles[i].path, "", "файл не найден — таблица пуста"});
+    if (!present[i] && !kFiles[i].optional) warnFiles[i].push_back({kFiles[i].path, "", "файл не найден — таблица пуста"});
     if (!r.bundle) r.files.files[kFiles[i].path] = stamps[i];
   }
   r.warnings = std::move(warnFiles[F_WORLD]);
@@ -882,7 +882,7 @@ LoadResult fromJson(std::string_view text, const std::string& origin) {
   jobs::parallelFor(size_t(F_COUNT), [&](size_t i) {
     const Value* v = files.find(kFiles[i].path);
     if (v) decode(*v, FileId(i), parts, warnFiles[i]);
-    else warnFiles[i].push_back({kFiles[i].path, "", "файла нет в снимке — таблица пуста"});
+    else if (!kFiles[i].optional) warnFiles[i].push_back({kFiles[i].path, "", "файла нет в снимке — таблица пуста"});
   }, 1);
   r.warnings = std::move(warnFiles[F_WORLD]);
   for (size_t i = 0; i < F_WORLD; i++) r.warnings.insert(r.warnings.end(), warnFiles[i].begin(), warnFiles[i].end());

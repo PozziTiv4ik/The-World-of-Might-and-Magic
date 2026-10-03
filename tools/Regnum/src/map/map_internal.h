@@ -19,6 +19,10 @@
 #include "map/mapview.h"
 #include "rules/rules.h"
 
+namespace rg::map::art {
+class Scene;
+}
+
 namespace rg::map::detail {
 
 constexpr int kTile = 512;            // сторона составного тайла, пиксели устройства
@@ -109,6 +113,7 @@ struct TileScene {
   TileStyle style;
   u64 styleKey = 0;
   std::shared_ptr<const Looks> looks;
+  std::shared_ptr<const art::Scene> art;   // суша, воды, знаки (сцена мира)
   u64 gen = 0;
 };
 // Нарисовать тайл (tx, ty) при масштабе ds (пикселей устройства на единицу карты). Потокобезопасно.

@@ -153,6 +153,8 @@ const char* idPrefix(Seq s) {
     case Seq::Religion: return "rl";
     case Seq::Government: return "gv";
     case Seq::Position: return "po";
+    case Seq::Symbol: return "";
+    case Seq::Shape: return "";
     default: return "x";
   }
 }

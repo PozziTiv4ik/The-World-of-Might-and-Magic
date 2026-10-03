@@ -255,12 +255,16 @@ void App::setTool(ToolId t) {
     if (t != ToolId::Select) toast("Этот инструмент пока недоступен", ToastKind::Info, "info");
     return;
   }
-  if (def->editMode && readOnly()) {
+  if ((def->editMode || def->mapMode) && readOnly()) {
     toast("Прошлый ход: только просмотр — инструменты правки недоступны", ToastKind::Info, "lock");
     return;
   }
   if (def->editMode && !ui.editBorders) {
     toast("Включите правку границ (E), чтобы менять провинции", ToastKind::Info, "lock");
+    return;
+  }
+  if (def->mapMode && !ui.editMap) {
+    toast("Включите правку карты (T), чтобы менять сушу, воды, горы, замки и башни", ToastKind::Info, "lock");
     return;
   }
   if (tool_ && ui.tool == t) return;
@@ -289,6 +293,7 @@ void App::setEditBorders(bool on) {
   if (ui.editBorders == on) return;
   // Прошлый ход — только просмотр: режим правки границ не включается (ТЗ 1.a.ii, 1.f).
   if (on && readOnly()) return;
+  if (on && ui.editMap) setEditMap(false);
   ui.editBorders = on;
   if (!on) {
     const ToolDef* cur = findTool(ui.tool);
@@ -296,6 +301,25 @@ void App::setEditBorders(bool on) {
   } else if (ui.tool == ToolId::Select && findTool(ToolId::EditBorders)) {
     // ТЗ 1.a.iv: в режиме правки щелчок по провинции открывает её границы — сразу инструмент границ.
     setTool(ToolId::EditBorders);
+  }
+  d_->mapGen++;
+  requestRedraw();
+}
+
+void App::setEditMap(bool on) {
+  if (ui.editMap == on) return;
+  if (on && readOnly()) return;
+  if (on && ui.editBorders) setEditBorders(false);
+  ui.editMap = on;
+  if (!on) {
+    const ToolDef* cur = findTool(ui.tool);
+    if (cur && cur->mapMode) setTool(ToolId::Select);
+    ui.symbolGroup.clear();
+    if (ui.sel.type == SelType::Symbol || ui.sel.type == SelType::Shape) ui.sel = {};
+    if (ui.hover.type == SelType::Symbol || ui.hover.type == SelType::Shape) ui.hover = {};
+  } else if (findTool(ToolId::MapObjects)) {
+    if (ui.sel.type != SelType::Symbol && ui.sel.type != SelType::Shape) ui.sel = {};
+    setTool(ToolId::MapObjects);
   }
   d_->mapGen++;
   requestRedraw();
