@@ -92,6 +92,10 @@ struct MapView::Impl {
 
   // мини-карта
   gfx::Image miniTint;
+  u64 miniVer = 0;              // растёт при каждой пересборке miniTint
+  gfx::Image miniDev;           // miniTint в пикселях устройства со скруглёнными углами
+  u64 miniDevVer = ~u64(0);
+  float miniDevDpi = 0;
   u64 miniGen = ~u64(0);
   std::shared_ptr<const Looks> miniLooks;
   Table<Node> miniNodes;
@@ -745,6 +749,7 @@ void MapView::renderMinimap(gfx::Canvas& c, RectF rect, float dpi) {
     if (same) looks = nullptr;
   }
   if (looks) {
+    d.miniVer++;
     d.miniLooks = looks;
     d.miniNodes = d.world.nodes;
     d.miniEdges = d.world.edges;
@@ -799,11 +804,27 @@ void MapView::renderMinimap(gfx::Canvas& c, RectF rect, float dpi) {
       d.miniTint.px[i] = (dpx & 0xFF000000u) | (r << 16) | (g << 8) | b;
     }
   }
+  // Подложка в пикселях устройства (уменьшенная миниатюра со скруглёнными углами) пересобирается только при смене
+  // миниатюры, размера или масштаба; в кадре — простое наложение.
+  const gfx::Affine base = c.transform();
+  const gfx::RectI dev(int(std::lround(rect.x * dpi + base.e)), int(std::lround(rect.y * dpi + base.f)), int(std::lround(rect.w * dpi)),
+                       int(std::lround(rect.h * dpi)));
+  if (!dev.empty() && base.isTranslateScale() && base.a == 1 && base.d == 1) {
+    if (d.miniDev.w != dev.w || d.miniDev.h != dev.h || d.miniDevVer != d.miniVer || d.miniDevDpi != dpi) {
+      d.miniDev = gfx::Image(dev.w, dev.h, 0);
+      gfx::Canvas mc(d.miniDev);
+      mc.clipRoundRect(RectF(0, 0, float(dev.w), float(dev.h)), 8 * dpi);
+      mc.drawImage(d.miniTint, RectF(0, 0, float(dev.w), float(dev.h)));
+      d.miniDevVer = d.miniVer;
+      d.miniDevDpi = dpi;
+    }
+    detail::blendImage(c.target(), d.miniDev, dev.x, dev.y, c.clipBounds());
+  }
   c.save();
   c.scale(dpi, dpi);
   c.save();
   c.clipRoundRect(rect, 6);
-  c.drawImage(d.miniTint, rect);
+  if (dev.empty() || !(base.isTranslateScale() && base.a == 1 && base.d == 1)) c.drawImage(d.miniTint, rect);
   // Видимая область.
   const Box2 vb = d.v.visibleBox();
   const double kx = rect.w / d.mapW(), ky = rect.h / d.mapH();

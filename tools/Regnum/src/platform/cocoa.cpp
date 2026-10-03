@@ -365,6 +365,7 @@ bool renderFrame() {
   f.reset = g.bufferReset;
   f.index = g.frameIndex++;
   guarded([&] { g.client->onFrame(f); });
+  detail::adoptSource(f);
   g.bufferReset = false;
   return true;
 }

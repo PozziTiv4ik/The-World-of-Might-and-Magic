@@ -5,8 +5,10 @@
 // (ближайший, билинейный или площадной фильтр при сильном уменьшении). Временные буферы — на поток.
 #include "gfx/canvas.h"
 
+#include <functional>
 #include <mutex>
 
+#include "base/jobs.h"
 #include "gfx/blend.h"
 #include "gfx/raster.h"
 #include "gfx/stroke.h"
@@ -1060,7 +1062,7 @@ void Canvas::fillMask(const Mask& m, float x, float y, const Paint& paint) {
   }
 }
 
-void Canvas::boxShadow(const RectF& r, float radius, float blur, float spread, Color c, Pt offset) {
+void Canvas::boxShadow(const RectF& r, float radius, float blur, float spread, Color c, Pt offset, bool outsideOnly) {
   State& s = *st_;
   if (s.clip.empty() || c.a == 0 || !(s.opacity > 0)) return;
   if (!std::isfinite(spread)) spread = 0;
@@ -1127,16 +1129,43 @@ void Canvas::boxShadow(const RectF& r, float radius, float blur, float spread, C
         return j - (full - canon);
       };
       const RectI vis = RectI{ox, oy, DW, DH}.intersect(s.clip);
-      Span spans[3];
+      // Пропуск под самим прямоугольником (outsideOnly): внутренняя часть без скруглённых углов.
+      int ex0 = 0, ex1 = 0, ey0 = 0, ey1 = 0, eR = 0;
+      if (outsideOnly) {
+        double qx0 = double(m.a) * r.x + m.e, qx1 = double(m.a) * (double(r.x) + r.w) + m.e;
+        double qy0 = double(m.d) * r.y + m.f, qy1 = double(m.d) * (double(r.y) + r.h) + m.f;
+        if (qx0 > qx1) std::swap(qx0, qx1);
+        if (qy0 > qy1) std::swap(qy0, qy1);
+        ex0 = int(std::ceil(qx0));
+        ex1 = int(std::floor(qx1));
+        ey0 = int(std::ceil(qy0));
+        ey1 = int(std::floor(qy1));
+        eR = int(std::ceil(std::min({double(radius) * sc, (qx1 - qx0) * 0.5, (qy1 - qy0) * 0.5})));
+      }
+      Span spans[6];
       for (int y = vis.y; y < vis.bottom(); y++) {
         const int jy = mapIdx(y - oy, sy, K, pad, DH, tm.h);
         const u8* mrow = tm.row(jy);
         int n = 0;
-        // Отрезки: левая плитка, средний столбец (постоянное значение), правая плитка.
+        int hx0 = 0, hx1 = 0;  // пропуск в строке
+        if (outsideOnly && y >= ey0 && y < ey1) {
+          const bool corner = y < ey0 + eR || y >= ey1 - eR;
+          hx0 = corner ? ex0 + eR : ex0;
+          hx1 = corner ? ex1 - eR : ex1;
+        }
+        // Отрезки: левая плитка, средний столбец (постоянное значение), правая плитка; без пропуска.
         auto addSpan = [&](int dx0, int dx1, const u8* cov, u8 val) {
           int a = std::max(dx0 + ox, vis.x), e = std::min(dx1 + ox, vis.right());
           if (e <= a) return;
-          spans[n++] = Span{a, e - a, cov ? cov + (a - ox - dx0) : nullptr, val};
+          auto emit = [&](int p, int q) {
+            if (q > p) spans[n++] = Span{p, q - p, cov ? cov + (p - ox - dx0) : nullptr, val};
+          };
+          if (hx1 > hx0 && hx0 < e && hx1 > a) {
+            emit(a, std::min(e, hx0));
+            emit(std::max(a, hx1), e);
+          } else {
+            emit(a, e);
+          }
         };
         if (!sx) {
           addSpan(0, DW, mrow, 0);
@@ -1193,34 +1222,44 @@ void Canvas::blurRegion(const RectI& region, float radius) {
   const int w = r.w, h = r.h, sw = (w + f - 1) / f, sh = (h + f - 1) / f;
   const size_t rowLen = size_t(sw) * 4;
   std::vector<u32> a(rowLen * size_t(sh)), b(a.size());
+  // Строки независимы: большие области — частями в пуле (размытие стеклянных панелей идёт в каждом кадре).
+  const bool par = size_t(w) * size_t(h) >= (size_t(1) << 16);
+  auto rowsDo = [par](int n, const std::function<void(size_t, size_t)>& fn) {
+    if (par && n > 1) jobs::parallelRanges(size_t(n), fn, size_t(std::max(1, n / 16)));
+    else fn(0, size_t(n));
+  };
   // Уменьшение: среднее блока f×f (каналы ×256).
-  for (int sy = 0; sy < sh; sy++) {
-    u32* dst = a.data() + size_t(sy) * rowLen;
-    const int y0 = sy * f, y1 = std::min(h, y0 + f);
-    for (int y = y0; y < y1; y++) {
-      const u32* src = img_->row(r.y + y) + r.x;
-      for (int x = 0; x < w; x++) {
-        const u32 p = src[x];
-        u32* o = dst + size_t(x / f) * 4;
-        o[0] += p >> 24;
-        o[1] += (p >> 16) & 255;
-        o[2] += (p >> 8) & 255;
-        o[3] += p & 255;
+  rowsDo(sh, [&](size_t s0, size_t s1) {
+    for (int sy = int(s0); sy < int(s1); sy++) {
+      u32* dst = a.data() + size_t(sy) * rowLen;
+      const int y0 = sy * f, y1 = std::min(h, y0 + f);
+      for (int y = y0; y < y1; y++) {
+        const u32* src = img_->row(r.y + y) + r.x;
+        for (int x = 0; x < w; x++) {
+          const u32 p = src[x];
+          u32* o = dst + size_t(x / f) * 4;
+          o[0] += p >> 24;
+          o[1] += (p >> 16) & 255;
+          o[2] += (p >> 8) & 255;
+          o[3] += p & 255;
+        }
+      }
+      for (int sx = 0; sx < sw; sx++) {
+        const u32 cnt = u32((std::min(w, sx * f + f) - sx * f) * (y1 - y0));
+        for (int c = 0; c < 4; c++) dst[size_t(sx) * 4 + size_t(c)] = (dst[size_t(sx) * 4 + size_t(c)] * 256 + cnt / 2) / cnt;
       }
     }
-    for (int sx = 0; sx < sw; sx++) {
-      const u32 cnt = u32((std::min(w, sx * f + f) - sx * f) * (y1 - y0));
-      for (int c = 0; c < 4; c++) dst[size_t(sx) * 4 + size_t(c)] = (dst[size_t(sx) * 4 + size_t(c)] * 256 + cnt / 2) / cnt;
-    }
-  }
+  });
   // Три ящика по строкам, затем по столбцам.
-  std::vector<u32> l1(rowLen), l2(rowLen);
-  for (int y = 0; y < sh; y++) {
-    u32* row = a.data() + size_t(y) * rowLen;
-    boxRow4(row, l1.data(), sw, br[0]);
-    boxRow4(l1.data(), l2.data(), sw, br[1]);
-    boxRow4(l2.data(), row, sw, br[2]);
-  }
+  rowsDo(sh, [&](size_t s0, size_t s1) {
+    std::vector<u32> l1(rowLen), l2(rowLen);
+    for (int y = int(s0); y < int(s1); y++) {
+      u32* row = a.data() + size_t(y) * rowLen;
+      boxRow4(row, l1.data(), sw, br[0]);
+      boxRow4(l1.data(), l2.data(), sw, br[1]);
+      boxRow4(l2.data(), row, sw, br[2]);
+    }
+  });
   std::vector<u64> acc;
   boxCols(a.data(), b.data(), rowLen, sh, br[0], acc);
   boxCols(b.data(), a.data(), rowLen, sh, br[1], acc);
@@ -1252,27 +1291,29 @@ void Canvas::blurRegion(const RectI& region, float radius) {
     fr = u32((s - fl) * 256 + 0.5);
   };
   for (int x = 0; x < w; x++) axis(x, sw, cx0[size_t(x)], cx1[size_t(x)], cfx[size_t(x)]);
-  for (int y = 0; y < h; y++) {
-    i32 y0, y1;
-    u32 fy;
-    axis(y, sh, y0, y1, fy);
-    const u32* r0 = res + size_t(y0) * rowLen;
-    const u32* r1 = res + size_t(y1) * rowLen;
-    u32* d = img_->row(r.y + y) + r.x;
-    for (int x = 0; x < w; x++) {
-      const u32* p00 = r0 + size_t(cx0[size_t(x)]) * 4;
-      const u32* p10 = r0 + size_t(cx1[size_t(x)]) * 4;
-      const u32* p01 = r1 + size_t(cx0[size_t(x)]) * 4;
-      const u32* p11 = r1 + size_t(cx1[size_t(x)]) * 4;
-      const u32 fx = cfx[size_t(x)], ifx = 256 - fx, ify = 256 - fy;
-      u32 v[4];
-      for (int c = 0; c < 4; c++) {
-        const u32 top = (p00[c] * ifx + p10[c] * fx) >> 8, bot = (p01[c] * ifx + p11[c] * fx) >> 8;
-        v[c] = (((top * ify + bot * fy) >> 8) + 128) >> 8;
+  rowsDo(h, [&](size_t ya, size_t yb) {
+    for (int y = int(ya); y < int(yb); y++) {
+      i32 y0, y1;
+      u32 fy;
+      axis(y, sh, y0, y1, fy);
+      const u32* r0 = res + size_t(y0) * rowLen;
+      const u32* r1 = res + size_t(y1) * rowLen;
+      u32* d = img_->row(r.y + y) + r.x;
+      for (int x = 0; x < w; x++) {
+        const u32* p00 = r0 + size_t(cx0[size_t(x)]) * 4;
+        const u32* p10 = r0 + size_t(cx1[size_t(x)]) * 4;
+        const u32* p01 = r1 + size_t(cx0[size_t(x)]) * 4;
+        const u32* p11 = r1 + size_t(cx1[size_t(x)]) * 4;
+        const u32 fx = cfx[size_t(x)], ifx = 256 - fx, ify = 256 - fy;
+        u32 v[4];
+        for (int c = 0; c < 4; c++) {
+          const u32 top = (p00[c] * ifx + p10[c] * fx) >> 8, bot = (p01[c] * ifx + p11[c] * fx) >> 8;
+          v[c] = (((top * ify + bot * fy) >> 8) + 128) >> 8;
+        }
+        d[x] = pack(v[0], v[1], v[2], v[3]);
       }
-      d[x] = pack(v[0], v[1], v[2], v[3]);
     }
-  }
+  });
 }
 
 }  // namespace rg::gfx

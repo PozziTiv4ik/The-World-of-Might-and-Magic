@@ -67,6 +67,7 @@ struct App::Impl {
   std::function<void(App&)> afterSave;     // продолжение после «Сохранить как»
   // ---- кадр
   gfx::Image frameImg, mapImg;
+  bool mapImgValid = false;              // mapImg — копия неподвижной карты (ключ mapKey)
   u64 mapKey = 0, mapGen = 1;
   float lw = 0, lh = 0, dpi = 1;           // логический размер окна и масштаб
   std::string title;

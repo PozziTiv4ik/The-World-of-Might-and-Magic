@@ -2,6 +2,7 @@
 #include "platform/common.h"
 
 #include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -112,7 +113,26 @@ std::string shortcutText(Key k, u32 mods) {
   return s;
 }
 
+namespace {
+PresentStats gPresent;   // только главный поток
+}  // namespace
+
+PresentStats presentStats() { return gPresent; }
+
 namespace detail {
+
+void adoptSource(Frame& f) {
+  if (!f.source || f.source == f.px) return;
+  for (int y = 0; y < f.h; y++) std::memcpy(f.row(y), f.source + size_t(y) * size_t(f.w), size_t(f.w) * sizeof(u32));
+}
+
+void recordPresent(double frameMs, double presentMs, double waitMs, double periodMs) {
+  gPresent.frameMs = frameMs;
+  gPresent.presentMs = presentMs;
+  gPresent.waitMs = waitMs;
+  gPresent.periodMs = periodMs;
+  gPresent.frames++;
+}
 
 double monotonicSeconds() {
   using namespace std::chrono;

@@ -92,7 +92,9 @@ class Canvas {
 
   // Мягкая тень прямоугольника со скруглением (кешируется по размеру/радиусу/размытию).
   // blur — как в CSS box-shadow (σ = blur / 2), spread расширяет прямоугольник и радиус.
-  void boxShadow(const RectF& r, float radius, float blur, float spread, Color c, Pt offset = {});
+  // outsideOnly — как box-shadow в CSS: под самим прямоугольником r (внутри скругления) тень не рисуется
+  // (элемент всё равно рисуется поверх; это экономит заполнение площади панели).
+  void boxShadow(const RectF& r, float radius, float blur, float spread, Color c, Pt offset = {}, bool outsideOnly = false);
   // Размытие области цели (фон под стеклянными панелями). Область — в пикселях устройства,
   // ограничивается отсечением; radius — как blur тени (σ = radius / 2); за краем — крайние пиксели.
   void blurRegion(const RectI& region, float radius);

@@ -606,6 +606,7 @@ void renderNow() {
   f.reset = g.bufferReset;
   f.index = g.frameIndex++;
   guarded([&] { g.app->onFrame(f); });
+  detail::adoptSource(f);
   g.bufferReset = false;
   putImage(0, 0, g.bw, g.bh);
   X.Flush(g.dpy);

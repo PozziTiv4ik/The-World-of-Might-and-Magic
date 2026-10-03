@@ -1,6 +1,7 @@
 // Regnum — запись команд отрисовки, кеш раскладок текста, примитивы draw::, сведение слоёв на холст
 // (привязка к пикселям устройства, размытый фон модальных окон с кешем).
 #include <bit>
+#include <cstring>
 
 #include "ui/ui_internal.h"
 
@@ -255,7 +256,8 @@ void exec(gfx::Canvas& cv, const DrawList& L, float ds, float oy) {
         break;
       }
       case Op::Shadow:
-        cv.boxShadow(RectF{k.r.x * ds, (k.r.y + oy) * ds, k.r.w * ds, k.r.h * ds}, k.rad * ds, k.w * ds, k.spread * ds, k.c, gfx::Pt{0, k.dy * ds});
+        cv.boxShadow(RectF{k.r.x * ds, (k.r.y + oy) * ds, k.r.w * ds, k.r.h * ds}, k.rad * ds, k.w * ds, k.spread * ds, k.c, gfx::Pt{0, k.dy * ds},
+                     true);
         break;
       case Op::Circle:
         cv.fillCircle(k.r.x * ds, (k.r.y + oy) * ds, k.r.w * ds, k.c);
@@ -356,6 +358,70 @@ void exec(gfx::Canvas& cv, const DrawList& L, float ds, float oy) {
 
 inline u64 mixF(u64 h, float f) { return hashMix(h, u64(std::bit_cast<u32>(f))); }
 
+// Размытие фона стеклянной панели с памятью: если пиксели под панелью те же, что в прошлый раз (хеш содержимого),
+// берётся прежний результат. Карта в покое (наведение, работа в панелях) не размывается заново каждый кадр.
+struct BlurMemo {
+  gfx::RectI r;
+  float radius = 0;
+  u64 hash = 0, used = 0;
+  std::vector<u32> px;
+};
+std::vector<BlurMemo> gBlurMemo;
+u64 gBlurClock = 0;
+
+u64 regionHash(const gfx::Image& img, const gfx::RectI& r) {
+  u64 h = 0x9E3779B97F4A7C15ull ^ ((u64(u32(r.w)) << 32) | u32(r.h));
+  for (int y = r.y; y < r.bottom(); y++) {
+    const u32* p = img.row(y) + r.x;
+    int x = 0;
+    for (; x + 1 < r.w; x += 2) {
+      u64 v;
+      std::memcpy(&v, p + x, sizeof v);
+      h = (h ^ v) * 0x100000001B3ull;
+      h ^= h >> 29;
+    }
+    if (x < r.w) h = (h ^ p[x]) * 0x100000001B3ull;
+  }
+  return h;
+}
+
+void blurCached(gfx::Canvas& cv, const gfx::RectI& region, float radius) {
+  gfx::Image& img = cv.target();
+  const gfx::RectI r = region.intersect(cv.clipBounds()).intersect(gfx::RectI(0, 0, img.w, img.h));
+  if (r.empty() || !(radius > 0)) return;
+  const u64 h = regionHash(img, r);
+  ++gBlurClock;
+  BlurMemo* slot = nullptr;
+  for (BlurMemo& m : gBlurMemo) {
+    if (m.r != r || m.radius != radius) continue;
+    if (m.hash == h && m.px.size() == size_t(r.w) * size_t(r.h)) {
+      for (int y = 0; y < r.h; y++) std::memcpy(img.row(r.y + y) + r.x, m.px.data() + size_t(y) * size_t(r.w), size_t(r.w) * sizeof(u32));
+      m.used = gBlurClock;
+      return;
+    }
+    slot = &m;
+  }
+  cv.save();
+  cv.clipRect(RectF(float(r.x), float(r.y), float(r.w), float(r.h)));
+  cv.blurRegion(r, radius);
+  cv.restore();
+  if (!slot) {
+    if (gBlurMemo.size() < 12) {
+      slot = &gBlurMemo.emplace_back();
+    } else {
+      slot = &gBlurMemo.front();
+      for (BlurMemo& m : gBlurMemo)
+        if (m.used < slot->used) slot = &m;
+    }
+  }
+  slot->r = r;
+  slot->radius = radius;
+  slot->hash = h;
+  slot->used = gBlurClock;
+  slot->px.resize(size_t(r.w) * size_t(r.h));
+  for (int y = 0; y < r.h; y++) std::memcpy(slot->px.data() + size_t(y) * size_t(r.w), img.row(r.y + y) + r.x, size_t(r.w) * sizeof(u32));
+}
+
 u64 hashList(u64 h, const DrawList& L) {
   for (const Cmd& k : L.cmds) {
     h = hashMix(h, u64(k.op) | (u64(k.flags) << 8) | (u64(k.a) << 16) | (u64(k.n) << 40));
@@ -453,10 +519,7 @@ void renderAll(gfx::Canvas& cv) {
     if (l.backdrop) cv.fillRect(full, l.scrim < 1 ? c.th.scrim.alpha(l.scrim) : c.th.scrim);
     if (l.blur && l.blurRadius > 0) {
       RectF d = snapR(l.rect, ds, 0);
-      cv.save();
-      cv.clipRoundRect(d, l.radius * ds);
-      cv.blurRegion(gfx::RectI{int(d.x), int(d.y), int(d.w), int(d.h)}, l.blurRadius * ds);
-      cv.restore();
+      blurCached(cv, gfx::RectI{int(d.x), int(d.y), int(d.w), int(d.h)}, l.blurRadius * ds);
     }
     if (l.alpha <= 0.001f) continue;
     cv.save();

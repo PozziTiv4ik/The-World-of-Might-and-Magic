@@ -9,6 +9,10 @@ namespace rg::platform::detail {
 
 // Монотонные секунды (steady_clock).
 double monotonicSeconds();
+// Кадр, нарисованный приложением в свой буфер (Frame::source), — в буфер платформы px (если это другой буфер).
+void adoptSource(Frame& f);
+// Записать показанный кадр для presentStats() (реальные мс; главный поток).
+void recordPresent(double frameMs, double presentMs, double waitMs, double periodMs);
 
 // Счётчик щелчков подряд: двойной/тройной щелчок по времени и расстоянию.
 class ClickCounter {

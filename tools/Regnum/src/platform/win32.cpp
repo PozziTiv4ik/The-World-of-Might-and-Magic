@@ -183,6 +183,7 @@ struct State {
   HGDIOBJ oldBmp = nullptr;
   u32* bits = nullptr;
   int bw = 0, bh = 0;
+  const u32* source = nullptr;          // кадр в буфере приложения (Frame::source): выводится вместо DIB
   bool bufferReset = true;
   u64 frameIndex = 0;
 
@@ -236,6 +237,7 @@ struct State {
   double lastPace = 0;
   double lastRender = -1;
   double period = 1.0 / 60;
+  double frameMs = 0, presentMs = 0;   // последний кадр: onFrame и вывод в окно (presentStats)
   HANDLE frameTimer = nullptr;
   bool timePeriodRaised = false;
 };
@@ -347,6 +349,7 @@ bool callAnimating() {
 
 // ---------------------------------------------------------------- кадр
 void freeBuffer() {
+  g.source = nullptr;
   if (g.dib) {
     SelectObject(g.memDC, g.oldBmp);
     DeleteObject(g.dib);
@@ -383,7 +386,18 @@ bool ensureBuffer(int w, int h) {
 
 // Вывести буфер в DC окна; области вне буфера (пока кадр не догнал размер) — цветом фона.
 void blit(HDC dc) {
-  if (g.dib) BitBlt(dc, 0, 0, g.bw, g.bh, g.memDC, 0, 0, SRCCOPY);
+  if (g.source) {
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = g.bw;
+    bi.bmiHeader.biHeight = -g.bh;  // строки сверху вниз
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(dc, 0, 0, DWORD(g.bw), DWORD(g.bh), 0, 0, 0, UINT(g.bh), g.source, &bi, DIB_RGB_COLORS);
+  } else if (g.dib) {
+    BitBlt(dc, 0, 0, g.bw, g.bh, g.memDC, 0, 0, SRCCOPY);
+  }
   HBRUSH bg = CreateSolidBrush(RGB(0x0e, 0x11, 0x17));
   if (g.cw > g.bw) {
     RECT r{g.bw, 0, g.cw, g.ch};
@@ -417,10 +431,14 @@ void renderNow(bool present) {
   f.scale = g.scale;
   f.reset = g.bufferReset;
   f.index = g.frameIndex++;
+  const double t0 = time();
   g.rendering = true;
+  g.source = nullptr;
   guarded([&] { g.app->onFrame(f); });
   g.rendering = false;
   g.bufferReset = false;
+  g.source = f.source;
+  const double t1 = time();
   if (present) {
     HWND h = g.hwnd.load();
     HDC dc = GetDC(h);
@@ -428,6 +446,8 @@ void renderNow(bool present) {
     ReleaseDC(h, dc);
     ValidateRect(h, nullptr);
   }
+  g.frameMs = (t1 - t0) * 1000;
+  g.presentMs = (time() - t1) * 1000;
 }
 
 double refreshPeriod() {
@@ -1266,7 +1286,9 @@ int run(App& app, const WindowConfig& cfg) {
       bool burst = now - g.lastRender < g.period * 1.5;
       g.lastRender = now;
       renderNow(true);
+      const double w0 = time();
       if (anim || g.dirty || burst) paceFrame();
+      detail::recordPresent(g.frameMs, g.presentMs, (time() - w0) * 1000, g.period * 1000);
       continue;
     }
     MsgWaitForMultipleObjectsEx(0, nullptr, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);

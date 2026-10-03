@@ -1002,14 +1002,21 @@ void renderMap(App& a, gfx::Canvas& c) {
   const map::View& v = d.map->view();
   u64 key = hashOf(o, v, d.mapGen);
   gfx::Image& out = c.target();
-  bool need = key != d.mapKey || d.map->needsRedraw() || d.map->animating() || d.mapImg.w != out.w || d.mapImg.h != out.h;
-  if (need) {
-    if (d.mapImg.w != out.w || d.mapImg.h != out.h) d.mapImg.resize(out.w, out.h);
-    gfx::Canvas mc(d.mapImg);
-    d.map->render(mc, o);
+  // Меняющаяся карта (панорама, масштаб, догрузка тайлов) рисуется прямо в кадр. Копия для неподвижной карты
+  // снимается с первого кадра без изменений; дальше, пока карта стоит, кадр начинается с этой копии.
+  const bool changed = key != d.mapKey || d.map->needsRedraw() || d.map->animating();
+  if (changed || !d.mapImgValid || d.mapImg.w != out.w || d.mapImg.h != out.h) {
+    d.map->render(c, o);
     d.mapKey = key;
+    d.mapImgValid = false;
+    if (!changed) {
+      if (d.mapImg.w != out.w || d.mapImg.h != out.h) d.mapImg.resize(out.w, out.h);
+      std::memcpy(d.mapImg.px.data(), out.px.data(), out.px.size() * sizeof(u32));
+      d.mapImgValid = true;
+    }
+  } else {
+    std::memcpy(out.px.data(), d.mapImg.px.data(), out.px.size() * sizeof(u32));
   }
-  std::memcpy(out.px.data(), d.mapImg.px.data(), out.px.size() * sizeof(u32));
   if (MapTool* t = a.activeTool()) {
     c.save();
     c.scale(d.dpi, d.dpi);

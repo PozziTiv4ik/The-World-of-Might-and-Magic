@@ -628,6 +628,7 @@ bool App::onCloseRequest() {
 // ================================================================ кадр
 void App::onFrame(platform::Frame& f) {
   Impl& d = *d_;
+  const double p0 = nowSeconds();
   frames_++;
   time_ = platform::time();
   d.lw = f.logicalW();
@@ -659,6 +660,7 @@ void App::onFrame(platform::Frame& f) {
     d.map->fitAll(false);
     d.fitPending = false;
   }
+  const double p1 = nowSeconds();
   gfx::Canvas c(d.frameImg);
   try {
     if (ui.screen == Screen::Editor && ui.editor.empty()) detail::renderMap(*this, c);
@@ -668,7 +670,9 @@ void App::onFrame(platform::Frame& f) {
     c.clear(ui::theme().bg);
     error(e);
   }
+  const double p2 = nowSeconds();
   ui::endFrame(c);
+  const double p3 = nowSeconds();
   d.rects.swap(d.rectsNext);
 
   // Курсор: интерфейс, иначе инструмент карты.
@@ -688,8 +692,16 @@ void App::onFrame(platform::Frame& f) {
     platform::setTitle(title);
   }
 
-  // Кадр в буфер окна.
-  for (int y = 0; y < f.h; y++) std::memcpy(f.row(y), d.frameImg.row(y), size_t(f.w) * sizeof(u32));
+  // Кадр для окна — прямо из буфера кадра (Windows выводит его без копии, прочие платформы копируют сами). Если ждут
+  // отложенные действия, кадр копируется в буфер окна: системный диалог крутит свой цикл сообщений, и окно под ним
+  // перерисовывается из этого буфера.
+  const double p4 = nowSeconds();
+  if (d.later.empty())
+    f.source = d.frameImg.px.data();
+  else
+    for (int y = 0; y < f.h; y++) std::memcpy(f.row(y), d.frameImg.row(y), size_t(f.w) * sizeof(u32));
+  const double p5 = nowSeconds();
+  profile_ = FrameProfile{(p1 - p0) * 1000, (p2 - p1) * 1000, (p3 - p2) * 1000, (p5 - p4) * 1000, (p5 - p0) * 1000};
 
   // Отложенные действия (после сведения кадра: системные диалоги, открытие файлов).
   Impl& fs = *d_;

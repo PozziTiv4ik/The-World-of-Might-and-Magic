@@ -86,6 +86,9 @@ struct Frame {
   float scale = 1;               // физических пикселей на логический
   bool reset = true;             // буфер создан заново
   u64 index = 0;                 // номер кадра с начала run()
+  // Кадр можно нарисовать и в свой буфер w × h (строки подряд) и указать его здесь вместо заполнения px: Windows
+  // выводит его без промежуточной копии, прочие платформы копируют в px. Буфер должен жить до следующего кадра.
+  const u32* source = nullptr;
   u32* row(int y) const { return px + size_t(y) * size_t(stride); }
   float logicalW() const { return float(w) / scale; }
   float logicalH() const { return float(h) / scale; }
@@ -148,6 +151,14 @@ bool openPath(const std::string& path);       // файл или папка в �
 bool openUrl(const std::string& url);         // только http, https, mailto
 void showFatal(const std::string& title, const std::string& text);   // работает и до run()
 double time();                                // монотонные секунды; для анимаций интерфейса (в headless — виртуальное время)
+
+// Последний показанный кадр (реальные мс): onFrame приложения, вывод в окно, ожидание смены кадра экрана; periodMs —
+// период экрана, frames — показано кадров с запуска. Где не измеряется (headless) — нули.
+struct PresentStats {
+  double frameMs = 0, presentMs = 0, waitMs = 0, periodMs = 0;
+  u64 frames = 0;
+};
+PresentStats presentStats();
 
 // ---------------------------------------------------------------- headless
 // Только в сборках с headless.cpp (тесты, regnum-cli). Без окна: события ставятся в очередь

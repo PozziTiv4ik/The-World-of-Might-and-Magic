@@ -307,7 +307,9 @@ Frame& renderFrame() {
   s.frame.scale = s.scale;
   s.frame.reset = s.reset;
   s.frame.index = s.frames;
+  s.frame.source = nullptr;
   s.app->onFrame(s.frame);
+  detail::adoptSource(s.frame);
   s.frames++;
   s.reset = false;
   return s.frame;

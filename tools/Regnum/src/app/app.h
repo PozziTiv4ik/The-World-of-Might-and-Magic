@@ -379,6 +379,10 @@ class App : public platform::App {
   double time() const { return time_; }
   void waitBackground();                   // дождаться фонового автосохранения
   u64 frameCount() const { return frames_; }
+  // Время фаз последнего кадра, мс (реальное время): сборка интерфейса, карта, отрисовка интерфейса, копирование
+  // кадра в буфер окна.
+  struct FrameProfile { double build = 0, map = 0, ui = 0, copy = 0, total = 0; };
+  const FrameProfile& frameProfile() const { return profile_; }
   struct Impl;                             // внутреннее состояние (app/*.cpp)
   Impl& impl() { return *d_; }
 
@@ -395,6 +399,7 @@ class App : public platform::App {
   double time_ = 0;
   u64 toastSeq_ = 0;
   u64 frames_ = 0;
+  FrameProfile profile_;
   int storeSub_ = 0;
   friend struct Shell;
 };

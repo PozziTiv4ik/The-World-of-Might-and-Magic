@@ -84,4 +84,4 @@ regnum-cli build-basemap <png> <папка>            собрать базов
 
 ## Сборка и проверки
 
-`tools/Regnum/build.sh` собирает в Git Bash на Windows и в терминале Linux/macOS: `build.sh --test` запускает все тесты, `build.sh regnum regnum-cli` собирает программы, `build.sh --target linux-x64|linux-arm64|macos-arm64|macos-x64 regnum regnum-cli` собирает для другой системы через Zig. Компиляторы скачиваются в .wmma/toolchains с проверкой SHA-256. Устройство кода — [ARCHITECTURE.md](docs/ARCHITECTURE.md), интерфейс — [UI.md](docs/UI.md).
+`tools/Regnum/build.sh` собирает в Git Bash на Windows и в терминале Linux/macOS: `build.sh --test` запускает все тесты, `build.sh regnum regnum-cli` собирает программы, `build.sh --target linux-x64|linux-arm64|macos-arm64|macos-x64 regnum regnum-cli` собирает для другой системы через Zig. Компиляторы скачиваются в .wmma/toolchains с проверкой SHA-256. `regnum --bench [мир]` открывает окно на несколько секунд и печатает частоту кадров и время фаз кадра при наведении, панораме и масштабировании. Устройство кода — [ARCHITECTURE.md](docs/ARCHITECTURE.md), интерфейс — [UI.md](docs/UI.md).
