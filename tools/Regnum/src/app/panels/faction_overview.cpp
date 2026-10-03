@@ -107,7 +107,6 @@ void drawOverview(App& a, Id id) {
       Id cap = f->capital;
       if (w::provincePicker("capital", cap, id, "Не выбрана")) a.act("Столица", [&](Tx& tx) { rules::setCapital(tx, id, cap); });
       a.markUi("overview.capital");
-      if (fc && fc->provinces.empty()) ui::label("Столица выбирается из провинций государства", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
     }
   } else {
     if (ui::Section s("Расположение", "map-pin"); s) {

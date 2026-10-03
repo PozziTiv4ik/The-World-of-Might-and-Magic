@@ -104,7 +104,7 @@ TEST(app_new_world_in_folder) {
   CHECK(fs::isFile(fs::join(folder, "data/geo.json")));
   CHECK(!h->dirty());
   CHECK(h->store.world().edges.size() > 10);   // береговая линия базовой карты
-  CHECK(platform::headless::title() == "Земли Ардена — Regnum");
+  CHECK(platform::headless::title() == "Regnum");
   h.waitMap();
   h.dropToasts();
   h.settle();

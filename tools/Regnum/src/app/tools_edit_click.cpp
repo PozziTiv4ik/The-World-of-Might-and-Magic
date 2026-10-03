@@ -84,12 +84,10 @@ class FillTool final : public MapTool {
   void options(App& a) {
     const World& w = a.world();
     Id sel = selectedProvince(a);
-    const char* tip = sel ? "Shift+щелчок — добавить к выбранной" : "Щелчок по ничьей земле — новая провинция";
-    float width = (sel ? provinceTagW(w, sel) + 6 : 0) + textW(tip, ui::Font::Small);
+    float width = sel ? provinceTagW(w, sel) : 0;
     OptionsBar bar(a, "tool-fill", "Заливка", width);
     if (!bar) return;
     if (sel) provinceTag(w, sel);
-    ui::label(tip, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   }
 
   platform::Cursor cursor(App& a) override {
@@ -97,10 +95,6 @@ class FillTool final : public MapTool {
     Mode m = mode(a, &face);
     fsKeep_.reset();
     return m == Mode::New || m == Mode::Add ? platform::Cursor::Crosshair : platform::Cursor::Arrow;
-  }
-  const char* hint(App& a) override {
-    if (selectedProvince(a)) return "Щелчок по ничьей земле — провинция · Shift — к выбранной";
-    return "Щелчок по ничьей области (острову) — новая провинция";
   }
 
  private:
@@ -182,22 +176,17 @@ class MergeTool final : public MapTool {
   void options(App& a) {
     const World& w = a.world();
     Id sel = selectedProvince(a);
-    const char* tip = sel ? "Щелчок по соседней — объединить" : "Выберите провинцию";
-    float width = (sel ? provinceTagW(w, sel) + 6 + 22 : 0) + textW(tip, ui::Font::Small);
+    float width = sel ? provinceTagW(w, sel) + 6 + 22 : 0;
     OptionsBar bar(a, "tool-merge", "Объединение", width);
     if (!bar) return;
     if (sel) {
       provinceTag(w, sel);
       ui::icon("plus", ui::Ink::Muted, 16);
     }
-    ui::label(tip, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   }
 
   platform::Cursor cursor(App& a) override {
     return a.ui.hover.type == SelType::Province ? platform::Cursor::Hand : platform::Cursor::Arrow;
-  }
-  const char* hint(App& a) override {
-    return selectedProvince(a) ? "Щелчок по соседней — присоединить к выбранной" : "Щелчок — выбрать провинцию, к которой присоединять";
   }
 
  private:
@@ -230,14 +219,11 @@ class DeleteTool final : public MapTool {
       highlightProvince(c, a.world(), v, hov, P.danger.alpha(0.26f), P.danger, 2.2f);
       if (a.ui.cursorMap) cursorBadge(c, v.toScreen(*a.ui.cursorMap), "trash", P.danger);
     }
-    const char* tip = "Щелчок по провинции — удалить";
-    OptionsBar bar(a, "tool-delete-province", "Удаление", textW(tip, ui::Font::Small));
-    if (bar) ui::label(tip, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    OptionsBar bar(a, "tool-delete-province", "Удаление", 0);
   }
   platform::Cursor cursor(App& a) override {
     return a.ui.hover.type == SelType::Province ? platform::Cursor::Hand : platform::Cursor::Arrow;
   }
-  const char* hint(App&) override { return "Щелчок по провинции — удалить её (земли станут ничьими)"; }
 };
 
 ToolDef fillDef() {

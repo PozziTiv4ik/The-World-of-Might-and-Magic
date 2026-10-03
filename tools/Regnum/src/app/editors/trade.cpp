@@ -299,10 +299,7 @@ bool resourceCombo(std::string_view id, Id& res, Id payer) {
 void stocks(const World& w, Id fid) {
   const Faction* f = w.faction(fid);
   ui::HStack hs(20, ui::Align::Left, 6);
-  if (!f) {
-    ui::label("Государство или гильдия", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    return;
-  }
+  if (!f) return;
   std::vector<std::pair<Id, double>> rs;
   for (auto& [r, v] : f->res)
     if (r != kGold && v > 0) rs.push_back({r, v});
@@ -415,8 +412,6 @@ void composer(App& a, const World& w) {
       startDraft(0, 0);
     a.markUi("trade.clear");
   }
-  ui::label("Обмен ресурсами и золотом между государствами и гильдиями: разово или каждый ход на срок. Подарок — позиции только одной стороны.",
-            {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
   {
     ui::Row r({ui::fr(1), ui::px(32), ui::fr(1)}, ui::kAuto, 12);
     partyColumn(a, w, d, DealSide::A);
@@ -440,7 +435,6 @@ void composer(App& a, const World& w) {
   bool gift = hasA != hasB;
   if (!ready) {
     ui::Card c({.pad = 12, .icon = "info", .title = "Выберите стороны и добавьте позиции", .tone = ui::Tone::Info});
-    ui::label("Сделка исполняется сразу (разовые позиции) или каждый ход до конца срока.", {.font = ui::Font::Small, .ink = ui::Ink::Dim, .wrap = true});
   } else if (chk.ok) {
     ui::Card c({.pad = 12, .icon = gift ? "star" : "check-circle", .title = gift ? "Подарок можно передать" : "Сделку можно заключить", .tone = ui::Tone::Success});
     for (int sd = 0; sd < 2; sd++) {

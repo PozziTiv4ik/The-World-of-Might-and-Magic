@@ -50,6 +50,7 @@ struct RenderOptions {
   std::vector<Id> hideArmies;        // объекты, которые сейчас перетаскиваются (рисует инструмент)
   bool labels = true;
   bool darkUi = true;                // для цвета рамки/фона за пределами карты
+  bool edgeLine = true;              // тонкая линия по краю карты (экспорт в изображение — без неё)
 };
 
 struct LegendItem { Color color; std::string label; std::string icon; };
@@ -113,7 +114,8 @@ class MapView {
   bool needsRedraw() const;
   // Вызывается из фоновых потоков, когда готовы новые тайлы (например, platform::wake). Необязательно.
   void setWakeCallback(std::function<void()> fn);
-  bool loading() const;                       // есть тайлы в очереди или в работе
+  bool loading() const;                       // есть тайлы в очереди или в работе (или отложены подписи)
+  bool tilesBusy() const;                     // есть тайлы в очереди или в работе
   bool waitIdle(double timeoutSec = 10);      // дождаться фоновой отрисовки запрошенных тайлов (тесты, CLI)
   const RenderStats& stats() const;
   // Мини-карта в прямоугольнике экрана (логические пиксели) с рамкой видимой области.

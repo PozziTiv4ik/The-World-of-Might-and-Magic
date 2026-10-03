@@ -72,7 +72,6 @@ struct SplitDialog final : Dialog {
     const Army* ar = w.army(army);
     if (!ar) return false;
     bool fleet = ar->isFleet();
-    ui::text(std::string("Выберите, что уйдёт в новый ") + (fleet ? "флот" : "объект") + " — он появится рядом на карте.", ui::Font::Body, ui::Ink::Dim);
     float maxH = std::max(140.f, ui::viewport().h - 400);
     float h = std::min(bodyH > 0 ? bodyH : 220.f, maxH);
     {

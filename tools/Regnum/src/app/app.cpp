@@ -709,11 +709,10 @@ void App::onFrame(platform::Frame& f) {
   platform::setCursor(cur);
   if (auto r = ui::textInputRect()) platform::setTextInputRect(*r);
 
-  // Заголовок окна: «• Мир — Regnum».
-  std::string title = ui.screen == Screen::Editor ? (dirty() ? "• " : "") + worldTitle() + " — Regnum" : std::string("Regnum");
-  if (title != d.title) {
-    d.title = title;
-    platform::setTitle(title);
+  // Заголовок окна — просто «Regnum» (название мира и состояние сохранения — в верхней панели).
+  if (d.title.empty()) {
+    d.title = "Regnum";
+    platform::setTitle(d.title);
   }
 
   // Кадр для окна — прямо из буфера кадра (Windows выводит его без копии, прочие платформы копируют сами). Если ждут

@@ -95,8 +95,6 @@ struct ReportDlg : Dialog {
       ui::tag("Ход " + std::to_string(rep.turnFrom), ui::Tone::Neutral, "hourglass");
       ui::icon("arrow-right", ui::Ink::Muted, 16);
       ui::tag("Ход " + std::to_string(rep.turnTo), ui::Tone::Accent, "next-turn");
-      ui::flex();
-      ui::label("Щелчок по записи — показать на карте", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "target"});
     }
     {
       ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);

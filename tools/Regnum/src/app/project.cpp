@@ -410,7 +410,7 @@ bool App::newWorld(const std::string& nameIn, const std::string& folder) {
   if (!folder.empty()) {
     if (!saveTo(folder)) return false;
   }
-  toast("Мир «" + name + "» создан. Включите правку границ (E), чтобы нарисовать провинции.", ToastKind::Success, "sparkles");
+  toast("Мир «" + name + "» создан", ToastKind::Success, "sparkles");
   return true;
 }
 

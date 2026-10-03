@@ -46,8 +46,6 @@ void turnArrow(int from, int to) {
   ui::tag("Ход " + std::to_string(from), ui::Tone::Neutral, "hourglass");
   ui::icon("arrow-right", ui::Ink::Muted, 16);
   ui::tag("Ход " + std::to_string(to), ui::Tone::Accent, "next-turn");
-  ui::flex();
-  ui::label("Мир до хода сохранится в истории · отмена Ctrl+Z", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
 }
 
 // Строка «значок ресурса + изменение» (в ячейке).
@@ -221,7 +219,7 @@ struct ConfirmDlg : Dialog {
       default: treasuryTab(a); break;
     }
     if (a.store.world().settings->rebellionRoll)
-      ui::label("Бросок восстаний включён: итог восстаний предсказан по зерну хода.", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "dice"});
+      ui::label("Бросок восстаний включён", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "dice"});
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     a.markUi("dialog.cancel");

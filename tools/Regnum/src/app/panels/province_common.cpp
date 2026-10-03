@@ -368,7 +368,6 @@ void startMerge(App& a, Id pid) {
   if (findTool(ToolId::Merge)) {
     a.setEditBorders(true);
     a.setTool(ToolId::Merge);
-    a.toast("Щёлкните соседнюю провинцию — она присоединится к выбранной", ToastKind::Info, "tool-merge");
   } else {
     a.toast("Объединение — инструментом «Объединить» на панели карты (правка границ, E)", ToastKind::Info, "tool-merge");
   }

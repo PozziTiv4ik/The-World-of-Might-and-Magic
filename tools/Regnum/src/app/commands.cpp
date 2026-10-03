@@ -33,6 +33,7 @@ CommandReg cOpen({"file.open", "Открыть папку мира…", "folder-
 CommandReg cOpenBundle({"file.openBundle", "Открыть файл .regnum…", "archive", nullptr, [](App& a) { a.openBundleDialog(); }, nullptr, false, "Файл"});
 CommandReg cSave({"file.save", "Сохранить", "save", "Ctrl+S", [](App& a) { a.save(); }, inEditor, false, "Файл"});
 CommandReg cSaveAs({"file.saveAs", "Сохранить как…", "save-as", "Ctrl+Shift+S", [](App& a) { a.saveAs(); }, inEditor, false, "Файл"});
+CommandReg cExport({"file.export", "Экспорт карты в картинку…", "image", "Ctrl+E", [](App& a) { a.openDialog("map.export"); }, inEditor, false, "Файл"});
 CommandReg cReveal({"file.reveal", "Показать папку мира", "folder", nullptr,
                     [](App& a) { platform::openPath(a.projectIsBundle() ? fs::parent(a.projectPath()) : a.projectPath()); },
                     [](App& a) { return inEditor(a) && !a.projectPath().empty(); }, false, "Файл"});

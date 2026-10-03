@@ -176,14 +176,6 @@ class CoastTool final : public MapTool {
     return platform::Cursor::Arrow;
   }
 
-  const char* hint(App& a) override {
-    if (a.readOnly()) return "Прошлый ход: только просмотр";
-    if (drag_.active) return drag_.valid ? "Отпустите — поставить точку берега · Esc — отмена" : "Берег пересечёт другую линию";
-    if (hover_) return "Тяните точку берега · Delete или правая кнопка — удалить";
-    if (hoverEdge_) return "Двойной щелчок — новая точка берега";
-    return "Наведите на берег — точки появятся рядом с указателем";
-  }
-
  private:
   struct Drag {
     bool active = false, moved = false, valid = true;
@@ -260,12 +252,10 @@ class CoastTool final : public MapTool {
     const World& w = a.world();
     const bool junc = selH_ && selH_.kind == geo::Handle::Node && junction(w, selH_.node);
     const std::string kind = !selH_ ? "" : selH_.kind == geo::Handle::Point ? "Точка берега" : junc ? "Стык с границей" : "Узел берега";
-    const char* empty = "Наведите на берег";
-    float width = (kind.empty() ? tools::textW(empty, ui::Font::Small) : tools::textW(kind, ui::Font::Strong) + 34) + 6 + 30 + 6 + 18;
+    float width = (kind.empty() ? 0 : tools::textW(kind, ui::Font::Strong) + 34 + 6) + 30;
     tools::OptionsBar bar(a, "tool-coast", "Берег", width);
     if (!bar) return;
-    if (kind.empty()) ui::label(empty, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    else ui::tag(kind, junc ? ui::Tone::Info : ui::Tone::Accent, junc ? "anchor" : "tool-coast");
+    if (!kind.empty()) ui::tag(kind, junc ? ui::Tone::Info : ui::Tone::Accent, junc ? "anchor" : "tool-coast");
     a.markUi("tool.options.handle");
     ui::flex();
     {
@@ -275,10 +265,6 @@ class CoastTool final : public MapTool {
       ui::tooltip("Удалить точку", {Key::Delete, 0});
       a.markUi("tool.options.delete");
     }
-    ui::icon("help", ui::Ink::Muted, 18,
-             "● точка берега · ■ узел · ◆ стык с границей провинции (двигает и её конец)\n"
-             "Двойной щелчок по берегу — новая точка · стрелки — сдвиг (Shift — ×10)\n"
-             "Целые острова и заливы — «Добавить сушу» и «Убрать сушу»");
   }
 
   void drawHandles(App& a, gfx::Canvas& c, const map::View& v) {

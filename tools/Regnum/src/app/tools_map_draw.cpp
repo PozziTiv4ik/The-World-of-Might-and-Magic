@@ -90,9 +90,6 @@ class SymbolTool final : public MapTool {
   }
 
   platform::Cursor cursor(App&) override { return platform::Cursor::Crosshair; }
-  const char* hint(App&) override {
-    return stroke_.size() > 1 ? "Отпустите — поставить знаки" : "Щелчок — поставить знак · протяжка — кисть (хребет) · вид и размер — на панели";
-  }
 
  private:
   std::vector<Vec2> stroke_;
@@ -125,7 +122,7 @@ class SymbolTool final : public MapTool {
   void options(App& a) {
     float segW = 0;
     for (const KindItem& k : kKinds) segW += tools::textW(k.label, ui::Font::Small) + 22;
-    const float width = segW + 8 + 118 + 6 + 18;
+    const float width = segW + 8 + 118;
     tools::OptionsBar bar(a, "tool-symbol", "Знак", width);
     if (!bar) return;
     int idx = 0;
@@ -142,7 +139,6 @@ class SymbolTool final : public MapTool {
                     {.min = schema::kMinSymbolScale, .max = schema::kMaxSymbolScale, .step = 0.1, .digits = 2, .label = "×", .steppers = true,
                      .tooltip = "Размер знака (1 — как на карте)"});
     a.markUi("tool.options.scale");
-    ui::icon("help", ui::Ink::Muted, 18, "Щелчок — один знак\nПротяжка — кисть: знаки вдоль пути (горный хребет)\nНовый знак встаёт за знаками ниже по карте");
   }
 };
 
@@ -173,11 +169,6 @@ class MapSketchTool : public MapTool {
     return r != Result::Ignored;
   }
   platform::Cursor cursor(App&) override { return platform::Cursor::Crosshair; }
-  const char* hint(App&) override {
-    if (sk_.drawingFreehand()) return "Отпустите кнопку — готово";
-    if (!sk_.active()) return idleHint();
-    return sk_.closed ? "Щелчок — вершина · Enter — готово · Esc — отмена" : "Щелчок — точка линии · Enter — готово · Esc — отмена";
-  }
   void drawOverlay(App& a, gfx::Canvas& c, const map::View& v) override {
     const Color line = lineColor();
     sk_.draw(a, c, v, line, sk_.closed ? line.alpha(0.17f) : Color(0, 0, 0, 0));
@@ -191,7 +182,6 @@ class MapSketchTool : public MapTool {
   virtual const char* badge() const = 0;
   virtual const char* icon() const = 0;
   virtual const char* title() const = 0;
-  virtual const char* idleHint() const = 0;
   virtual bool commit(App& a, const std::vector<Vec2>& pts) = 0;
   virtual float extraW(App&) { return 0; }
   virtual void extra(App&) {}
@@ -226,7 +216,6 @@ class LakeTool final : public MapSketchTool {
   const char* badge() const override { return "plus"; }
   const char* icon() const override { return "tool-lake"; }
   const char* title() const override { return "Озеро"; }
-  const char* idleHint() const override { return "Щелчки — вершины озера · протяжка — от руки"; }
   bool commit(App& a, const std::vector<Vec2>& pts) override {
     Id id = 0;
     MapShape s;
@@ -256,7 +245,6 @@ class LineTool final : public MapSketchTool {
   const char* badge() const override { return "plus"; }
   const char* icon() const override { return river() ? "tool-river" : "tool-wall"; }
   const char* title() const override { return river() ? "Река" : "Стена"; }
-  const char* idleHint() const override { return river() ? "Щелчки — точки реки от истока к устью · протяжка — от руки" : "Щелчки — точки стены · протяжка — от руки"; }
   float extraW(App&) override { return 118 + 6; }
   void extra(App& a) override {
     ui::numberField("width", width(),
@@ -290,9 +278,6 @@ class LandTool final : public MapSketchTool {
   const char* badge() const override { return add_ ? "plus" : "minus"; }
   const char* icon() const override { return add_ ? "tool-land-plus" : "tool-land-minus"; }
   const char* title() const override { return add_ ? "Добавить сушу" : "Убрать сушу"; }
-  const char* idleHint() const override {
-    return add_ ? "Обведите море — оно станет сушей (новый остров или мыс)" : "Обведите сушу — она станет морем (залив, пролив)";
-  }
   bool commit(App& a, const std::vector<Vec2>& pts) override {
     const double snap = a.map().view().toMapLen(tools::kSnapPx);
     std::vector<std::string> removed;

@@ -59,7 +59,6 @@ void drawDrawer(App& a) {
   const bool ro = a.readOnly();
   std::vector<const Building*> list = treeOf(w, 0);
   auto use = usage(w, 0);
-  ui::text("Общее дерево одинаково для всех государств: любая их провинция может строить эти постройки.", ui::Font::Small, ui::Ink::Dim);
   if (ui::button("Открыть дерево построек", {.variant = ui::Variant::Primary, .icon = "building", .fill = true})) openBuildingTree(a, 0);
   a.markUi("drawer.buildings.open");
   for (int c = 0; c < int(BuildingCat::Count); c++) {

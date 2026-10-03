@@ -880,9 +880,6 @@ void sideOverview(App& a, Ed& ed, Id owner, const std::vector<BN>& bs, const Lan
     ui::caption(f ? "Уникальные постройки" : "Общее дерево");
     ui::label(f ? f->name : std::string("Для всех государств"), {.font = ui::Font::Subtitle});
   }
-  ui::text(f ? "Постройки, доступные только провинциям этого государства — дополнение к общему дереву."
-             : "Постройки общего дерева одинаковы для всех государств и доступны любой их провинции.",
-           ui::Font::Small, ui::Ink::Dim);
   int built = 0;
   for (const BN& b : bs) built += b.built + b.building;
   // Постройки общего дерева (ТЗ 1.h.i: дерево государства = общее дерево + уникальные постройки). Здесь — только
@@ -917,8 +914,6 @@ void sideOverview(App& a, Ed& ed, Id owner, const std::vector<BN>& bs, const Lan
   }
   if (f) {
     if (ui::Section s("Постройки общего дерева", "globe", {.badge = std::to_string(common.size())}); s) {
-      ui::label("Доступны и этому государству. Здесь — только просмотр: щелчок открывает постройку в общем дереве.",
-                {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
       if (common.empty()) ui::label("В общем дереве пока нет построек", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
       for (const Building* b : common) {
         ui::IdScope cs{i64(b->id)};
@@ -943,14 +938,6 @@ void sideOverview(App& a, Ed& ed, Id owner, const std::vector<BN>& bs, const Lan
       ui::label(bld::catName(BuildingCat(c)));
       ui::label(std::to_string(L.count[c]), {.ink = ui::Ink::Dim, .align = ui::Align::Right});
     }
-  }
-  if (ui::Section s("Управление", "info", {.defaultOpen = bs.size() < 3}); s) {
-    ui::label("Двойной щелчок по дорожке — новая постройка этой категории", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "plus", .wrap = true});
-    ui::label("Перетащите карточку на другую дорожку — сменить категорию", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "layers", .wrap = true});
-    ui::label("Тяните от гнезда карточки к другой — требование", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "link", .wrap = true});
-    if (f)
-      ui::label("Плашка слева от карточки — требуемая постройка общего дерева", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "globe", .wrap = true});
-    ui::label("Колесо — масштаб, фон — перетаскивание, F — всё дерево", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "zoom-fit", .wrap = true});
   }
 }
 

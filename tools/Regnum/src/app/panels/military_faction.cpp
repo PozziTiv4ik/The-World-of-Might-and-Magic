@@ -474,8 +474,7 @@ void drawForces(App& a, Id fid, bool fleet, bool fullscreen) {
             st.shownRow = st.selRow;
           }
         } else {
-          ui::label(wide ? (fleet ? "Выберите строку — покажем, где стоят корабли." : "Выберите строку — покажем, где стоят отряды.") : "Выберите строку, чтобы изменить её.",
-                    {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info"});
+          ui::label("Строка не выбрана", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
         }
       }
     }

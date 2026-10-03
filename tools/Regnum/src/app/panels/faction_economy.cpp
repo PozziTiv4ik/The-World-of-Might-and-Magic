@@ -69,7 +69,6 @@ void taxSection(App& a, const Faction& f, Id id, bool ro) {
                                      .tooltip = "Одинаков для всех провинций государства, не меньше 0"}))
       a.act("Налог государства", [&](Tx& tx) { tx.faction(id).tax = std::max(0.0, tax); }, {.coalesce = "faction.tax:" + std::to_string(id)});
     a.markUi("economy.tax");
-    ui::label("Общий налог провинции = налог государства + местный налог, не меньше 1 %.", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
   }
 }
 

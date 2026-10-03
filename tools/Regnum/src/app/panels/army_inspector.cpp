@@ -126,8 +126,7 @@ void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
   }
   if (avail.empty()) return;
   if (lines.empty())
-    ui::label(fleet ? "Кораблей нет — назначьте из резерва фракции." : "Отрядов нет — назначьте из резерва фракции.",
-              {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info"});
+    ui::label(fleet ? "Кораблей нет" : "Отрядов нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   auto& st = ui::state<AddUnit>(ui::id("addunit"));
   if (ui::button(fleet ? "Корабли из резерва" : "Отряд из резерва", {.variant = ui::Variant::Ghost, .icon = "plus", .size = ui::Size::Small}))
     ui::openPopup("addunit");

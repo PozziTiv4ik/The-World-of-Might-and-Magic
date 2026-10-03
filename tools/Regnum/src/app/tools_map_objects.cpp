@@ -186,7 +186,6 @@ class ObjectsTool final : public MapTool {
           ids = std::move(cur);
         }
         selectSymbols(a, ids);
-        if (!ids.empty()) a.toast(ids.size() == 1 ? std::string("Выбран знак") : "Выбрано знаков: " + std::to_string(ids.size()), ToastKind::Info, "mountain");
         break;
       }
       default: break;
@@ -316,22 +315,6 @@ class ObjectsTool final : public MapTool {
     if (hoverEdge_) return platform::Cursor::Crosshair;
     if (a.ui.hover.type == SelType::Symbol || a.ui.hover.type == SelType::Shape) return platform::Cursor::Grab;
     return platform::Cursor::Arrow;
-  }
-
-  const char* hint(App& a) override {
-    if (a.readOnly()) return "Прошлый ход: только просмотр";
-    switch (drag_.kind) {
-      case Kind::Rubber: return "Отпустите — выбрать знаки в рамке";
-      case Kind::Symbols:
-      case Kind::Shape: return "Отпустите — поставить · Esc — отмена";
-      case Kind::Vertex: return "Отпустите — поставить точку · Esc — отмена";
-      default: break;
-    }
-    if (hoverV_.valid()) return "Тяните точку · Delete или правая кнопка — удалить";
-    if (hoverEdge_) return "Двойной щелчок — новая точка";
-    if (a.ui.hover.type == SelType::Symbol) return "Щелчок — выбрать · Shift — добавить к выбору · тяните — переместить";
-    if (a.ui.hover.type == SelType::Shape) return "Щелчок — выбрать фигуру и её точки · тяните — переместить";
-    return "Щелчок — объект карты · рамка — выбрать знаки · Delete — удалить выбранное";
   }
 
  private:
@@ -554,12 +537,10 @@ class ObjectsTool final : public MapTool {
       what = detail::mapShapeName(*s) + " · " + std::to_string(n) + " " + plural(int(n), "точка", "точки", "точек");
       icon = shapeIcon(s->kind);
     }
-    const char* empty = "Щелчок — объект карты, рамка — знаки";
-    float width = (what.empty() ? tools::textW(empty, ui::Font::Small) : tools::textW(what, ui::Font::Strong) + 34) + 6 + 30 + 6 + 18;
+    float width = (what.empty() ? 0 : tools::textW(what, ui::Font::Strong) + 34 + 6) + 30;
     tools::OptionsBar bar(a, "tool-map-objects", "Объекты карты", width);
     if (!bar) return;
-    if (what.empty()) ui::label(empty, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    else ui::tag(what, ui::Tone::Accent, icon);
+    if (!what.empty()) ui::tag(what, ui::Tone::Accent, icon);
     a.markUi("tool.options.selection");
     ui::flex();
     {
@@ -569,10 +550,6 @@ class ObjectsTool final : public MapTool {
       ui::tooltip("Удалить выбранное", {Key::Delete, 0});
       a.markUi("tool.options.delete");
     }
-    ui::icon("help", ui::Ink::Muted, 18,
-             "Щелчок — выбрать · Shift+щелчок — добавить знак · рамка — выбрать знаки\n"
-             "Тяните — переместить · стрелки — сдвиг (Shift — ×10) · Delete — удалить\n"
-             "У выбранной фигуры: тяните точки, двойной щелчок по контуру — новая точка");
   }
 };
 

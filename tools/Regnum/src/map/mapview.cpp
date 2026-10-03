@@ -741,6 +741,7 @@ std::shared_ptr<const gfx::Image> MapView::mapThumbnail() const {
 }
 
 bool MapView::loading() const { return d_->labelsPending || d_->store.busy(); }
+bool MapView::tilesBusy() const { return d_->store.busy(); }
 bool MapView::waitIdle(double timeoutSec) { return d_->store.wait(timeoutSec); }
 const RenderStats& MapView::stats() const { return d_->stats; }
 
@@ -797,8 +798,9 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
   }
   d.drawTiles(c.target(), clip, X0, Y0, ds, !d.anim);
   // Тонкая рамка края карты.
-  c.strokeRoundRect(RectF(float(mapDev.x) - 0.5f, float(mapDev.y) - 0.5f, float(mapDev.w) + 1, float(mapDev.h) + 1), 0, 1,
-                    opt.darkUi ? Color(255, 255, 255, 28) : Color(0, 0, 0, 40));
+  if (opt.edgeLine)
+    c.strokeRoundRect(RectF(float(mapDev.x) - 0.5f, float(mapDev.y) - 0.5f, float(mapDev.w) + 1, float(mapDev.h) + 1), 0, 1,
+                      opt.darkUi ? Color(255, 255, 255, 28) : Color(0, 0, 0, 40));
   const double t1 = nowSeconds();
 
   // Наложения.

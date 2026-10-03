@@ -26,17 +26,6 @@ constexpr KindItem kKinds[] = {
 
 bool editable(const App& a) { return !a.readOnly() && a.ui.editMap; }
 
-// Подсказка, когда правка карты выключена.
-void needMapEdit(App& a) {
-  if (a.readOnly() || a.ui.editMap) return;
-  ui::spacer(4);
-  ui::HStack hs(30, ui::Align::Left, 8);
-  ui::label("Правка — в режиме «Правка карты»", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-  ui::flex();
-  if (ui::button("Включить", {.icon = "map-edit", .size = ui::Size::Small})) a.setEditMap(true);
-  ui::tooltip("Правка карты", {Key::T, 0});
-}
-
 // ---------------------------------------------------------------- знак
 void symbolHeader(App& a, Id id) {
   const MapSymbol* s = detail::mapSymbol(a.world(), id);
@@ -54,8 +43,6 @@ void symbolProps(App& a, Id id) {
   const bool ro = !editable(a);
   const std::vector<Id> group = mapedit::selectedSymbols(a);
   if (group.size() > 1) {
-    ui::text("Тяните любой из выбранных знаков на карте — сдвинутся все. Shift+щелчок — добавить или убрать знак.", ui::Font::Small, ui::Ink::Dim);
-    ui::spacer(4);
     ui::HStack hs(30, ui::Align::Left, 8);
     if (ui::button("Снять выбор", {.icon = "close"})) mapedit::selectSymbols(a, {});
     ui::flex();
@@ -138,7 +125,6 @@ void symbolProps(App& a, Id id) {
     ui::tooltip("Удалить знак", {Key::Delete, 0});
     a.markUi("mapobject.delete");
   }
-  needMapEdit(a);
 }
 
 // ---------------------------------------------------------------- фигура
@@ -213,7 +199,6 @@ void shapeProps(App& a, Id id) {
     }
     a.markUi("mapobject.delete");
   }
-  needMapEdit(a);
 }
 
 HeaderReg symbolHeaderReg({"mapsymbol.header", SelType::Symbol, 0, symbolHeader});

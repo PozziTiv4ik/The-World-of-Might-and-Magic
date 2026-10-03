@@ -75,6 +75,7 @@ void topBar(App& a, RectF r) {
     ui::menuSeparator();
     item("file.save");
     item("file.saveAs");
+    item("file.export");
     item("file.reveal");
     ui::menuSeparator();
     item("turn.history");
@@ -283,9 +284,7 @@ void toolbar(App& a, RectF r, const ToolLayout& L) {
   {
     bool on = a.ui.editBorders;
     bool ro = a.readOnly();
-    std::string tip = ro   ? "Прошлый ход: только просмотр — правка границ недоступна"
-                      : on ? "Режим правки границ включён — нажмите, чтобы закрепить границы"
-                           : "Режим правки границ выключен: границы и области закреплены — нажмите, чтобы править";
+    std::string tip = ro ? "Прошлый ход: только просмотр" : "Правка границ";
     if (ui::iconButton(bordersToggleIcon(on), tip, {.toggled = on, .disabled = ro})) a.setEditBorders(!on);
     ui::tooltip(tip, ro ? ui::Shortcut{} : parseShortcut("E"));
     a.markUi("tool.borders");
@@ -296,9 +295,7 @@ void toolbar(App& a, RectF r, const ToolLayout& L) {
   {
     bool on = a.ui.editMap;
     bool ro = a.readOnly();
-    std::string tip = ro   ? "Прошлый ход: только просмотр — правка карты недоступна"
-                      : on ? "Правка карты включена — нажмите, чтобы закончить"
-                           : "Правка карты: суша и берег, озёра и реки, горы, замки, башни и стены";
+    std::string tip = ro ? "Прошлый ход: только просмотр" : "Правка карты";
     if (ui::iconButton("map-edit", tip, {.toggled = on, .disabled = ro})) a.setEditMap(!on);
     ui::tooltip(tip, ro ? ui::Shortcut{} : parseShortcut("T"));
     a.markUi("tool.mapedit");
@@ -365,11 +362,7 @@ void inspector(App& a, RectF r, float maxW) {
     }
     if (vis) list.push_back(&t);
   }
-  if (list.empty()) {
-    ui::spacer(8);
-    ui::emptyState(selIcon(sel.type), "Подробности появятся здесь.");
-    return;
-  }
+  if (list.empty()) return;
   std::string& cur = a.ui.tabOf[sel.type];
   int idx = 0;
   for (size_t i = 0; i < list.size(); i++)
@@ -407,20 +400,20 @@ void inspector(App& a, RectF r, float maxW) {
 
 // ---------------------------------------------------------------- строка состояния и легенда
 void statusBar(App& a, float x, float y, float maxW) {
+  // Координаты под указателем и объект под ним — без подсказок.
   const World& w = a.world();
   const ui::Theme& th = ui::theme();
   std::string coords = a.ui.cursorMap ? fmtInt(i64(std::lround(a.ui.cursorMap->x))) + " · " + fmtInt(i64(std::lround(a.ui.cursorMap->y))) : std::string("—");
-  const char* hint = nullptr;
-  if (MapTool* t = a.activeTool()) hint = t->hint(a);
-  if (!hint)
-    hint = a.ui.editMap       ? "Правка карты: выберите инструмент слева"
-           : a.ui.editBorders ? "Щелчок по провинции — правка её границ"
-                              : "Щелчок — сведения · колесо — масштаб";
   const float pad = 12, gap = 10, cw = 92;
-  float tw = ui::measure(hint, ui::Font::Small) + 2;
-  float fixed = pad + 20 + cw + 2 * gap + 1 + 2 * gap + 1 + tw + pad;
-  float hw = clamp(maxW - fixed, 150.f, 230.f);   // объект под указателем уступает место подсказке
-  float W = std::min(maxW, fixed + hw);
+  const Selection h = a.ui.hover;
+  std::string name = h ? entityName(w, h) : std::string(), sub;
+  const Province* pr = h.type == SelType::Province ? w.province(h.id) : nullptr;
+  const Faction* own = pr ? w.faction(pr->owner) : nullptr;
+  if (own) sub = own->name;
+  else if (pr && !pr->sea) sub = "без владельца";
+  float hw = 0;
+  if (!name.empty()) hw = 16 + ui::measure(name, ui::Font::Small) + 2 + (sub.empty() ? 0 : 6 + ui::measure(sub, ui::Font::Small) + 2);
+  const float W = std::min(maxW, pad + 20 + cw + (hw > 0 ? gap + 1 + gap + hw : 0) + pad);
   RectF r{x, y, std::round(W), 30};
   ui::Panel p("status", r, {.pad = 0, .radius = 10, .glass = true});
   a.markUi("status", r);
@@ -429,40 +422,20 @@ void statusBar(App& a, float x, float y, float maxW) {
   cx += 20;
   ui::draw::text(coords, RectF{cx, r.y, cw, r.h}, ui::Font::Mono, th.textDim);
   cx += cw + gap;
-  auto sep = [&] {
-    ui::draw::line(cx, r.y + 8, cx, r.bottom() - 8, th.border, 1);
-    cx += 1 + gap;
-  };
-  sep();
-  // Объект под указателем (точка цвета владельца, название, владелец).
-  {
-    float right = std::min(r.right() - pad, cx + hw);
-    Selection h = a.ui.hover;
-    if (h && right - cx > 40) {
-      std::string name = entityName(w, h), sub;
-      if (h.type == SelType::Province) {
-        const Province* pr = w.province(h.id);
-        const Faction* own = pr ? w.faction(pr->owner) : nullptr;
-        if (own) ui::draw::circle(cx + 4, r.cy(), 4.f, own->color);
-        else ui::draw::ring(cx + 4, r.cy(), 3.5f, 1.2f, th.textMuted);
-        if (own) sub = own->name;
-        else if (pr && !pr->sea) sub = "без владельца";
-      } else {
-        ui::draw::icon(selIcon(h.type), RectF{cx - 2, r.cy() - 7, 14, 14}, th.textDim);
-      }
-      float nx = cx + 16;
-      float nw = std::min(ui::measure(name, ui::Font::Small) + 2, right - nx);
-      ui::draw::text(name, RectF{nx, r.y, nw, r.h}, ui::Font::Small, th.text);
-      if (!sub.empty() && right - (nx + nw + 6) > 30) ui::draw::text(sub, RectF{nx + nw + 6, r.y, right - (nx + nw + 6), r.h}, ui::Font::Small, th.textMuted);
-    } else {
-      ui::draw::text("—", RectF{cx, r.y, 20, r.h}, ui::Font::Small, th.textMuted);
-    }
-    cx = right + gap;
+  if (hw <= 0 || r.right() - pad - cx < 40) return;
+  ui::draw::line(cx, r.y + 8, cx, r.bottom() - 8, th.border, 1);
+  cx += 1 + gap;
+  const float right = r.right() - pad;
+  if (pr) {
+    if (own) ui::draw::circle(cx + 4, r.cy(), 4.f, own->color);
+    else ui::draw::ring(cx + 4, r.cy(), 3.5f, 1.2f, th.textMuted);
+  } else {
+    ui::draw::icon(selIcon(h.type), RectF{cx - 2, r.cy() - 7, 14, 14}, th.textDim);
   }
-  if (r.right() - pad - cx > 40) {
-    sep();
-    ui::draw::text(hint, RectF{cx, r.y, r.right() - pad - cx, r.h}, ui::Font::Small, th.textMuted);
-  }
+  const float nx = cx + 16;
+  const float nw = std::min(ui::measure(name, ui::Font::Small) + 2, right - nx);
+  ui::draw::text(name, RectF{nx, r.y, nw, r.h}, ui::Font::Small, th.text);
+  if (!sub.empty() && right - (nx + nw + 6) > 30) ui::draw::text(sub, RectF{nx + nw + 6, r.y, right - (nx + nw + 6), r.h}, ui::Font::Small, th.textMuted);
 }
 
 float legendHeight(int rows) { return 12 + 24 + 4 + rows * 22 + 10; }

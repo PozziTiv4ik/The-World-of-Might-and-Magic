@@ -83,7 +83,7 @@ void drawProvinces(App& a, Id id) {
   ui::spacer(2);
   if (ui::Section s("Провинции", "province", {.badge = list.empty() ? std::string() : std::to_string(list.size())}); s) {
     if (list.empty()) {
-      if (ui::emptyState("province", "У государства пока нет провинций — назначьте владельца в панели провинции.", "Вся карта", "zoom-fit"))
+      if (ui::emptyState("province", "Провинций пока нет.", "Вся карта", "zoom-fit"))
         runCommand(a, "map.fit");
     } else {
       ui::Column cols[] = {{"Провинция · лорд", nullptr, ui::fr(1, 120), ui::Align::Left, true},
@@ -207,7 +207,7 @@ void drawHqs(App& a, Id id) {
   ui::spacer(2);
   if (ui::Section s("Штабы", "hq", {.badge = rows.empty() ? std::string() : std::to_string(rows.size())}); s) {
     if (rows.empty()) {
-      ui::emptyState("hq", ro ? "Штабов нет." : "Штабов пока нет — выберите провинцию ниже.");
+      ui::emptyState("hq", "Штабов пока нет.");
     } else {
       {  // таблица закрывается до подписи под ней
         ui::Column cols[] = {{"Провинция", nullptr, ui::fr(1, 100), ui::Align::Left, true},

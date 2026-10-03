@@ -93,17 +93,8 @@ class PlaceTool final : public MapTool {
     return valid(a, *a.ui.cursorMap, nullptr) ? platform::Cursor::Crosshair : platform::Cursor::NotAllowed;
   }
 
-  const char* hint(App& a) override {
-    std::string why;
-    if (a.ui.cursorMap && !valid(a, *a.ui.cursorMap, &why) && !why.empty()) hint_ = why;
-    else hint_ = kind_ == ArmyKind::Fleet ? "Щелчок по морю — новый флот · Shift — ещё один · Esc — выход"
-                                          : "Щелчок по суше — новое войско · Shift — ещё одно · Esc — выход";
-    return hint_.c_str();
-  }
-
  private:
   ArmyKind kind_;
-  std::string hint_;
 
   static Id defaultFaction(App& a) {
     const World& w = frameWorld(a);

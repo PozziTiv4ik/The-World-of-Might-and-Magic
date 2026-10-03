@@ -27,7 +27,7 @@ TEST(app_project_save_reload) {
   CHECK(!h->dirty());
   CHECK_EQ(h->projectPath(), fs::absolute(dir));
   h.step();
-  CHECK_EQ(hl::title(), std::string("Демонстрационный мир — Regnum"));
+  CHECK_EQ(hl::title(), std::string("Regnum"));
   // Сохранённое совпадает с памятью.
   io::LoadResult r = io::load(dir);
   CHECK(r.warnings.empty());
@@ -37,7 +37,8 @@ TEST(app_project_save_reload) {
   i64 geoTime = fs::mtime(fs::join(dir, "data/geo.json")).value_or(0);
   CHECK(h->act("Переименовать", [&](Tx& tx) { tx.province(pid).name = "Новое имя"; }));
   h.step();
-  CHECK(hl::title().rfind("• ", 0) == 0);
+  CHECK(h->dirty());
+  CHECK_EQ(hl::title(), std::string("Regnum"));
   hl::advance(1);
   h.key(Key::S, ctrl());
   CHECK(!h->dirty());

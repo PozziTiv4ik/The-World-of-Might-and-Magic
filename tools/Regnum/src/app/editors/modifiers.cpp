@@ -366,7 +366,6 @@ void effectRow(App& a, const Modifier& m, Fx f, bool ro) {
     ui::label(e.name, {.font = ui::Font::Body, .ink = on ? ui::Ink::Normal : ui::Ink::Dim});
     std::string sub = rangeText(f);
     if (e.perTurn) sub += " · каждый ход";
-    if (e.extra) sub += " · слоты ТЗ 1.f.i";
     ui::label(sub, {.font = ui::Font::Caption, .ink = ui::Ink::Muted});
   }
   bool dis = ro || !on;
@@ -465,9 +464,6 @@ void effectGroup(App& a, const Modifier& m, bool local, bool ro) {
   ui::Section sec(local ? "Локальные (провинция)" : "Глобальные (государство)", local ? "province" : "crown", {.badge = badge});
   a.markUi(local ? "modifiers.local" : "modifiers.global");
   if (!sec) return;
-  ui::label(local ? "Действуют в провинции; у государства — во всех его провинциях; у гильдии — в провинциях её штабов."
-                  : "Действуют на государство или гильдию целиком.",
-            {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
   ui::gap(2);
   for (int f = 0; f < kFxCount; f++) {
     if (schema::kEffects[f].local != local) continue;
@@ -504,7 +500,7 @@ void usageSection(App& a, const Modifier& m, bool ro) {
   a.markUi("modifiers.usage");
   if (!sec) return;
   if (u.total() == 0)
-    ui::label("Пока нигде — добавьте модификатор провинции или государству.", {.ink = ui::Ink::Muted, .wrap = true});
+    ui::label("Пока нигде", {.ink = ui::Ink::Muted});
   auto group = [&](const char* title, size_t n) {
     if (!n) return false;
     ui::caption(std::string(title) + " · " + std::to_string(n));
@@ -640,7 +636,7 @@ void usageSection(App& a, const Modifier& m, bool ro) {
                     return ui::Option{f->name, nullptr, f->color, f->isGuild() ? "гильдия" : ""};
                   },
                   {.placeholder = "Добавить государству", .search = 1, .icon = "plus", .disabled = fs.empty(),
-                   .tooltip = "Добавить модификатор в список государства (ТЗ 1.b.iii) или гильдии"}) &&
+                   .tooltip = "Добавить модификатор государству или гильдии"}) &&
         idx >= 0 && idx < int(fs.size())) {
       Id fid = fs[size_t(idx)]->id;
       a.act(fs[size_t(idx)]->isGuild() ? "Модификатор гильдии" : "Модификатор государства", [&](Tx& tx) { tx.faction(fid).modifiers.push_back(mid); });
@@ -804,7 +800,7 @@ void drawEditor(App& a, Id arg) {
     const Modifier* m = a.world().modifier(sel);
     if (!m) {
       ui::spacer(std::max(0.f, D.h * 0.3f));
-      ui::emptyState("sparkles", "Выберите модификатор слева или создайте новый.");
+      ui::emptyState("sparkles", "Модификатор не выбран.");
     } else {
       drawDetail(a, st, *m, neighbor(sel));
     }

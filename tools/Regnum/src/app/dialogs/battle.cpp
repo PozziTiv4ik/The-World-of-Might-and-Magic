@@ -273,17 +273,10 @@ struct BattleDialog final : Dialog {
       }
       if (cardsH <= 0) cardsH = keep;
     }
-    {
-      const Army& loser = winner == 0 ? *D : *A;
-      ui::label("Победитель встанет на месте боя, «" + objectName(loser) + "» отступит. Объект без отрядов исчезнет, его герои останутся у фракции.",
-                {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info", .wrap = true});
-    }
     // Введённые потери «Отступить» не учитывает — предупреждаем заранее и переспрашиваем.
     const i64 entered = lossTotal(losses, attacker) + lossTotal(losses, defender);
     if (entered > 0) {
-      ui::label("Введены потери (" + fmtCount(entered) + "): «Отступить» их не учтёт — нападающий вернётся на исходную позицию без потерь. "
-                "Чтобы списать потери, выберите победителя и нажмите «Применить итог».",
-                {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
+      ui::label("Введены потери (" + fmtCount(entered) + "): «Отступить» их не учтёт", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
       a.markUi("battle.retreatNote");
     }
     ui::ModalFooter f;
@@ -296,7 +289,7 @@ struct BattleDialog final : Dialog {
       auto ok = retreatOk;
       a.confirm("Отступить без потерь?",
                 "Введённые потери (" + fmtCount(entered) + ") не будут учтены: нападающий вернётся на исходную позицию, численность обеих сторон "
-                "не изменится. Чтобы списать потери, выберите победителя и нажмите «Применить итог».",
+                "не изменится.",
                 "Отступить без потерь", false, [ok](App&) { *ok = true; });
     }
     a.markUi("battle.retreat");

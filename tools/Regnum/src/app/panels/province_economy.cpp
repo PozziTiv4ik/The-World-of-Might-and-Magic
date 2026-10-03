@@ -279,7 +279,7 @@ void guildIncome(App& a, const rules::ProvinceCalc& pc) {
   for (const rules::GuildShare& s : pc.guilds)
     if (s.hq) rows.push_back(&s);
   if (rows.empty()) {
-    ui::label("Доход получают только гильдии со штабом в провинции.", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    ui::label("Штабов гильдий нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   } else {
     // Узкая панель — значки вместо подписей столбцов (подсказки те же).
     bool narrow = ui::avail().w < 300;

@@ -228,13 +228,6 @@ class RouteTool final : public MapTool {
     return a.readOnly() ? platform::Cursor::Arrow : platform::Cursor::Crosshair;
   }
 
-  const char* hint(App& a) override {
-    if (a.readOnly()) return "Прошлый ход: щелчок по маршруту — сведения";
-    if (sk_.active()) return "Щелчок — точка · Enter — готово · Esc — отмена";
-    if (selectedRoute(a)) return "Тяните точки · двойной щелчок — новая точка";
-    return "Щелчки — новый маршрут · щелчок по маршруту — правка";
-  }
-
  private:
   Sketch sk_;
   static inline Id guild_ = 0;       // гильдия новых маршрутов (запоминается между включениями)

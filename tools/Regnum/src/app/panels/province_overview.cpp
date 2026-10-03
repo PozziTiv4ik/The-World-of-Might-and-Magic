@@ -171,7 +171,7 @@ void drawOverview(App& a, Id pid) {
 void drawSea(App& a, Id pid) {
   ui::spacer(8);
   bool ro = a.readOnly();
-  if (ui::emptyState("sea", "Морская провинция: без сведений и заливки на карте. Данные суши сохранены.", ro ? std::string_view() : "Сделать сухопутной", "land"))
+  if (ui::emptyState("sea", "Морская провинция.", ro ? std::string_view() : "Сделать сухопутной", "land"))
     a.act("Сделать провинцию сухопутной", [&](Tx& tx) { rules::setProvinceSea(tx, pid, false); });
   a.markUi("province.seanote");
 }

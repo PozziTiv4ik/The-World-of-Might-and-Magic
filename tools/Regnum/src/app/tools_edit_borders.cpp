@@ -172,15 +172,6 @@ class BordersTool final : public MapTool {
     return a.ui.hover.type == SelType::Province && a.ui.hover.id != selectedProvince(a) ? platform::Cursor::Hand : platform::Cursor::Arrow;
   }
 
-  const char* hint(App& a) override {
-    if (a.readOnly()) return "Прошлый ход: только просмотр";
-    if (!selectedProvince(a)) return "Щелчок по провинции — её границы";
-    if (drag_.active && drag_.slide) return "Стык скользит вдоль берега";
-    if (hover_ && hover_.kind == geo::Handle::Node && junction(hover_.node)) return "Стык с берегом: тяните вдоль берега";
-    if (hoverEdge_ && !hover_) return isBorder(a.world(), hoverEdge_->edge) ? "Двойной щелчок — новая точка границы" : "Берег не редактируется";
-    return "Тяните ручки · двойной щелчок — новая точка";
-  }
-
  private:
   struct Drag {
     bool active = false, moved = false, committed = false, valid = true, slide = false;
@@ -396,16 +387,14 @@ class BordersTool final : public MapTool {
   void options(App& a) {
     const World& w = a.world();
     Id sel = selectedProvince(a);
-    const char* empty = "Щелчок по провинции — её границы";
     bool junc = selH_ && selH_.kind == geo::Handle::Node && junction(selH_.node);
     std::string kind = selH_ ? kindName(selH_, junc) : "";
-    float width = sel ? provinceTagW(w, sel) + 6 : textW(empty, ui::Font::Small) + 6;
+    float width = sel ? provinceTagW(w, sel) + 6 : 0;
     if (!kind.empty()) width += textW(kind, ui::Font::Strong) + 34 + 6;
-    width += 30 + 6 + 18;
+    width += 30;
     OptionsBar bar(a, "tool-edit", "Границы", width);
     if (!bar) return;
     if (sel) provinceTag(w, sel);
-    else ui::label(empty, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
     if (!kind.empty()) {
       ui::tag(kind, junc ? ui::Tone::Info : ui::Tone::Accent, junc ? "anchor" : "tool-edit");
       a.markUi("tool.options.handle");
@@ -418,9 +407,6 @@ class BordersTool final : public MapTool {
       ui::tooltip("Удалить точку", {Key::Delete, 0});
       a.markUi("tool.options.delete");
     }
-    ui::icon("help", ui::Ink::Muted, 18,
-             "■ узел — стык нескольких границ\n● точка границы\n◆ стык с берегом — скользит вдоль берега\n"
-             "Двойной щелчок по границе — новая точка · стрелки — сдвиг (Shift — ×10)");
   }
 
   // ---- ручки

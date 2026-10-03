@@ -241,7 +241,7 @@ void drawChronicle(App& a) {
   const Cache& c = entries(w);
   if (w.log.empty()) {
     ui::spacer(16);
-    if (ui::emptyState("chronicle", "Хроника пуста: события появятся по ходу игры.", a.readOnly() ? std::string_view() : "Записать событие", "quill"))
+    if (ui::emptyState("chronicle", "Хроника пуста.", a.readOnly() ? std::string_view() : "Записать событие", "quill"))
       openNote(a);
     return;
   }

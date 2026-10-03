@@ -155,8 +155,6 @@ void drawModifiers(App& a, Id id) {
   const bool state = f->isState();
 
   if (ui::Section s("Модификаторы", "sparkles", {.badge = f->modifiers.empty() ? std::string() : std::to_string(f->modifiers.size())}); s) {
-    ui::label(state ? "Действуют во всех провинциях государства" : "Локальные эффекты действуют в провинциях штабов",
-              {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
     std::vector<Id> ids = f->modifiers;
     if (modifierChips(a, w, ids, ro)) a.act("Модификаторы фракции", [&](Tx& tx) { tx.faction(id).modifiers = ids; });
     a.markUi("mods.add");

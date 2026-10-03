@@ -114,7 +114,6 @@ class MapTool {
   // Поправить параметры отрисовки карты (например, спрятать перетаскиваемое войско — hideArmies).
   virtual void renderOptions(App&, map::RenderOptions&) {}
   virtual platform::Cursor cursor(App&) { return platform::Cursor::Arrow; }
-  virtual const char* hint(App&) { return nullptr; }   // подсказка в строке состояния
   // true — инструменту нужен следующий кадр (анимация предпросмотра).
   virtual bool animating(App&) { return false; }
 };

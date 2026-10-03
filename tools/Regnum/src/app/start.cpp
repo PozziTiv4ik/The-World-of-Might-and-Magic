@@ -35,7 +35,7 @@ std::string shortPath(const std::string& p) {
 }
 
 // Плитка большого действия.
-bool actionTile(App& a, const char* id, RectF r, const char* icon, std::string_view title, std::string_view hint, bool primary) {
+bool actionTile(App& a, const char* id, RectF r, const char* icon, std::string_view title, bool primary) {
   const ui::Theme& th = ui::theme();
   ui::WidgetId wid = ui::id(id);
   ui::Interaction it = ui::interact(wid, r, ui::IfFocusable);
@@ -54,7 +54,6 @@ bool actionTile(App& a, const char* id, RectF r, const char* icon, std::string_v
   ui::draw::icon(icon, ic.inset(11), primary ? th.onAccent : th.accent);
   ui::draw::icon("arrow-right", RectF{rr.right() - 34 + 4 * hv, rr.y + 30, 18, 18}, th.textMuted.alpha(0.4f + 0.6f * hv));
   ui::draw::text(title, RectF{rr.x + 20, rr.y + 76, rr.w - 40, 22}, ui::Font::Subtitle, th.text);
-  ui::draw::text(hint, RectF{rr.x + 20, rr.y + 98, rr.w - 40, 18}, ui::Font::Small, th.textMuted);
   if (it.focused) ui::draw::rectStroke(rr.expand(3), th.accent, 17, 2);
   a.markUi(id, r);
   return it.clicked;
@@ -197,26 +196,25 @@ void drawStartScreen(App& a) {
     ui::custom(lr, [](gfx::Canvas& c, RectF dev, float) { drawLogoTile(c, dev); });
     bool dark = th.dark;
     Color tc = th.text;
-    RectF tr{x0 + 96, y + 2, colW - 96, 52};
+    RectF tr{x0 + 96, y, colW - 96, 76};   // во всю высоту знака: хвост «g» не обрезается
     ui::custom(tr, [tc, dark](gfx::Canvas& c, RectF dev, float scale) {
       gfx::TextStyle st = ui::textStyle(ui::Font::Display);
       st.size = 46 * scale;
       st.weight = gfx::FontWeight::Bold;
       st.letterSpacing = 0.5f * scale;
       (void)dark;
-      gfx::drawText(c, "Regnum", st, dev.x, dev.y - 4 * scale, gfx::Paint(tc));
+      gfx::drawText(c, "Regnum", st, dev.x, dev.y + 10 * scale, gfx::Paint(tc));
     });
-    ui::draw::text("Редактор мира Меча и Магии", RectF{x0 + 98, y + 54, colW - 98, 22}, ui::Font::Subtitle, th.textDim);
     y += 76 + 36;
   }
 
   // Действия.
   {
-    float gap = 16, tw = std::floor((colW - 2 * gap) / 3), th2 = 124;
+    float gap = 16, tw = std::floor((colW - 2 * gap) / 3), th2 = 112;
     RectF r0{x0, y, tw, th2}, r1{x0 + tw + gap, y, tw, th2}, r2{x0 + 2 * (tw + gap), y, tw, th2};
-    if (actionTile(a, "start.new", r0, "plus", "Новый мир", "Береговая линия уже готова", true)) later(a, [](App& x) { x.newWorldDialog(); });
-    if (actionTile(a, "start.open", r1, "folder-open", "Открыть папку мира", "Папка с world.json", false)) later(a, [](App& x) { x.openWorldDialog(); });
-    if (actionTile(a, "start.bundle", r2, "archive", "Открыть файл .regnum", "Мир одним файлом", false)) later(a, [](App& x) { x.openBundleDialog(); });
+    if (actionTile(a, "start.new", r0, "plus", "Новый мир", true)) later(a, [](App& x) { x.newWorldDialog(); });
+    if (actionTile(a, "start.open", r1, "folder-open", "Открыть папку мира", false)) later(a, [](App& x) { x.openWorldDialog(); });
+    if (actionTile(a, "start.bundle", r2, "archive", "Открыть файл .regnum", false)) later(a, [](App& x) { x.openBundleDialog(); });
     y += th2 + 24;
   }
 
@@ -251,11 +249,11 @@ void drawStartScreen(App& a) {
   }
   if (!d.recovery.empty()) y += 12;
 
-  // Недавние миры.
+  // Недавние миры (пустой список не показывается).
   float listTop = y;
-  float footer = 44;
+  float footer = 24;
   float avail = V.h - footer - listTop;
-  if (avail > 90) {
+  if (avail > 90 && !d.recent.empty()) {
     ui::draw::text("НЕДАВНИЕ МИРЫ", RectF{x0 + 4, listTop, 300, 16}, ui::Font::Caption, th.textMuted);
     listTop += 24;
     avail -= 24;
@@ -264,22 +262,15 @@ void drawStartScreen(App& a) {
     RectF pr{x0, listTop, colW, std::round(h)};
     ui::Panel p("recent", pr, {.pad = 8, .radius = 14, .glass = true});
     a.markUi("start.recent", pr);
-    if (d.recent.empty()) {
-      ui::draw::icon("map", RectF{pr.x + 24, pr.cy() - 11, 22, 22}, th.textMuted);
-      ui::draw::text("Здесь появятся миры, которые вы откроете или создадите.", RectF{pr.x + 58, pr.y, pr.w - 80, pr.h}, ui::Font::Body, th.textMuted);
-    } else {
-      ui::Scroll sc("list");
-      ui::gap(rowGap);
-      for (size_t i = 0; i < d.recent.size(); i++) {
-        RectF r = ui::next(rowH);
-        a.markUi("start.recent." + std::to_string(i), r);
-        recentRow(a, d.recent[i], r, int(i));
-        if (d.recentDirty) break;
-      }
+    ui::Scroll sc("list");
+    ui::gap(rowGap);
+    for (size_t i = 0; i < d.recent.size(); i++) {
+      RectF r = ui::next(rowH);
+      a.markUi("start.recent." + std::to_string(i), r);
+      recentRow(a, d.recent[i], r, int(i));
+      if (d.recentDirty) break;
     }
   }
-  ui::draw::text("Перетащите папку мира или файл .regnum в окно · F1 — сочетания клавиш", RectF{x0, V.h - footer + 6, colW, 20}, ui::Font::Small,
-                 th.textMuted, ui::Align::Center);
   drawToasts(a, RectF{V.w - 380, 60, 356, V.h - 84});
 }
 

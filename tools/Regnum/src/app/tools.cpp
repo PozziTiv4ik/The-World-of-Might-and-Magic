@@ -289,21 +289,8 @@ class SelectTool final : public MapTool {
     return platform::Cursor::Arrow;
   }
 
-  const char* hint(App& a) override {
-    if (d_->phase == DragState::Dragging) {
-      hint_ = statusOf(a, *d_).text + " · Esc — вернуть";
-      return hint_.c_str();
-    }
-    if (a.readOnly()) return "Прошлый ход: только просмотр";
-    if (a.ui.hover.type == SelType::Army) return "Перетащите фигурку — переместить · Delete — расформировать выделенное";
-    if (a.ui.editBorders) return "Щелчок по провинции — правка её границ";
-    if (a.ui.hover.type == SelType::Route) return "Щелчок — сведения о торговом маршруте";
-    return "Щелчок — сведения · двойной щелчок — показать";
-  }
-
  private:
   std::shared_ptr<DragState> d_ = std::make_shared<DragState>();
-  std::string hint_;
 
   // Отпускание: решение по встрече (ТЗ 1.c.iv).
   void drop(App& a) {
@@ -356,7 +343,6 @@ class SelectTool final : public MapTool {
 class PanTool final : public MapTool {
  public:
   platform::Cursor cursor(App&) override { return platform::Cursor::Grab; }
-  const char* hint(App&) override { return "Перетаскивание — перемещение карты · колесо — масштаб"; }
 };
 
 ToolReg selectReg({ToolId::Select, "tool-select", "Выбор", "V", false, [] { return std::make_unique<SelectTool>(); }, 0});

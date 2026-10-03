@@ -77,9 +77,8 @@ struct SettingsDlg : Dialog {
     ui::spacer(4);
     bool roll = s.rebellionRoll;
     if (ui::toggle("Бросок восстания в конце хода", roll)) a.act("Бросок восстания", [roll](Tx& tx) { tx.settings().rebellionRoll = roll; });
+    ui::tooltip("Каждая провинция восстаёт с вероятностью своего риска восстания; без броска риск только показывается");
     a.markUi("settings.rebellion");
-    ui::text("При броске каждая провинция восстаёт с вероятностью своего риска восстания. Без броска риск только показывается.", ui::Font::Small,
-             ui::Ink::Muted);
   }
 
   void saveSection(App& a) {
@@ -92,8 +91,8 @@ struct SettingsDlg : Dialog {
     a.markUi("settings.autosave");
     bool folder = s.autosaveFolder;
     if (ui::toggle("Автосохранение в папку мира", folder)) a.act("Автосохранение в папку", [folder](Tx& tx) { tx.settings().autosaveFolder = folder; });
+    ui::tooltip("Копия для восстановления после сбоя сохраняется всегда — в папке данных программы");
     a.markUi("settings.autosaveFolder");
-    ui::text("Копия для восстановления после сбоя сохраняется всегда — в папке данных программы.", ui::Font::Small, ui::Ink::Muted);
   }
 
   bool draw(App& a) override {

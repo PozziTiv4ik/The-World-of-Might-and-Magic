@@ -103,7 +103,7 @@ void drawGarrison(App& a, Id pid) {
   }
   if (p->garrison.empty()) {
     ui::Disabled dis(ro);
-    if (ui::emptyState("castle", "Гарнизона нет. Отряды берутся из резерва владельца.", "Назначить отряды", "plus")) ui::openPopup("garrison-add");
+    if (ui::emptyState("castle", "Гарнизона нет.", "Назначить отряды", "plus")) ui::openPopup("garrison-add");
     a.markUi("garrison.add");
     addPopup(a, *p, avail);
     return;

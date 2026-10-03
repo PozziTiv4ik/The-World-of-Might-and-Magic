@@ -30,7 +30,6 @@ class SketchTool : public MapTool {
     if (needsTarget() && !targetOk(a) && !sk_.active()) {
       if (e.button != 0) return false;
       if (Id p = provinceUnder(a, e)) a.select(SelType::Province, p);
-      else a.toast("Выберите провинцию щелчком", ToastKind::Info, "province");
       return true;
     }
     Result r = sk_.down(a, e);
@@ -56,13 +55,6 @@ class SketchTool : public MapTool {
     if (needsTarget() && !targetOk(a) && !sk_.active()) return a.ui.hover.type == SelType::Province ? platform::Cursor::Hand : platform::Cursor::Arrow;
     return platform::Cursor::Crosshair;
   }
-  const char* hint(App& a) override {
-    if (needsTarget() && !targetOk(a) && !sk_.active()) return "Щелчок по провинции — выбрать её";
-    if (sk_.drawingFreehand()) return "Отпустите кнопку — контур готов";
-    if (!sk_.active()) return idleHint();
-    return sk_.closed ? "Щелчок — вершина · Enter — готово · Esc — отмена"
-                      : "Щелчок — точка линии · Enter — разрезать · Esc — отмена";
-  }
 
   void drawOverlay(App& a, gfx::Canvas& c, const map::View& v) override {
     Color line = lineColor(), fill = line.alpha(0.17f);
@@ -78,7 +70,6 @@ class SketchTool : public MapTool {
   virtual const char* badge() const = 0;
   virtual const char* icon() const = 0;
   virtual const char* title() const = 0;
-  virtual const char* idleHint() const = 0;
   virtual bool commit(App& a, const std::vector<Vec2>& pts) = 0;
   // Дополнительные элементы панели (до счётчика и кнопок) и их ширина.
   virtual float extraW(App&) { return 0; }
@@ -100,13 +91,10 @@ class SketchTool : public MapTool {
     const World& w = a.world();
     std::string count = sk_.active() ? pointsText(sk_.count()) : std::string();
     float width = extraW(a) + (count.empty() ? 0 : textW(count, ui::Font::Small) + 6) + sketchButtonsW();
-    if (needsTarget()) width += (targetOk(a) ? provinceTagW(w, selectedProvince(a)) : textW("Выберите провинцию", ui::Font::Small)) + 6;
+    if (needsTarget() && targetOk(a)) width += provinceTagW(w, selectedProvince(a)) + 6;
     OptionsBar bar(a, icon(), title(), width);
     if (!bar) return;
-    if (needsTarget()) {
-      if (targetOk(a)) provinceTag(w, selectedProvince(a));
-      else ui::label("Выберите провинцию", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    }
+    if (needsTarget() && targetOk(a)) provinceTag(w, selectedProvince(a));
     extra(a);
     if (!count.empty()) ui::label(count, {.font = ui::Font::Small, .ink = ui::Ink::Dim});
     ui::flex();
@@ -124,7 +112,6 @@ class NewProvinceTool final : public SketchTool {
   const char* badge() const override { return "plus"; }
   const char* icon() const override { return "tool-polygon"; }
   const char* title() const override { return "Новая провинция"; }
-  const char* idleHint() const override { return "Щелчки — вершины новой провинции · протяжка — от руки"; }
 
   // Суша или море: по первой вершине (а до неё — по указателю). Берег «прилипает».
   Terrain terrain(App& a) const {
@@ -178,9 +165,6 @@ class AreaTool final : public SketchTool {
   const char* badge() const override { return add_ ? "plus" : "minus"; }
   const char* icon() const override { return add_ ? "tool-polygon-plus" : "tool-polygon-minus"; }
   const char* title() const override { return add_ ? "Расширение" : "Вырезание"; }
-  const char* idleHint() const override {
-    return add_ ? "Обведите земли для провинции · соседи уменьшатся" : "Обведите часть провинции — она станет ничьей";
-  }
   bool commit(App& a, const std::vector<Vec2>& pts) override {
     Id pid = selectedProvince(a);
     double snap = snapTol(a);
@@ -204,7 +188,6 @@ class KnifeTool final : public SketchTool {
   const char* badge() const override { return "tool-knife"; }
   const char* icon() const override { return "tool-knife"; }
   const char* title() const override { return "Нож"; }
-  const char* idleHint() const override { return "Проведите линию через провинцию от края до края"; }
   bool commit(App& a, const std::vector<Vec2>& pts) override {
     Id pid = selectedProvince(a), nid = 0;
     bool ok = a.act("Разрезать провинцию", [&](Tx& tx) { nid = rules::splitProvince(tx, pid, pts); });

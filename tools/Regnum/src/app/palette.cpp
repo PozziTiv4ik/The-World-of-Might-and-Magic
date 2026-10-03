@@ -205,8 +205,6 @@ struct Palette : Dialog {
         }
       }
     }
-    ui::separator();
-    ui::label("↑↓ — выбор · Enter — выполнить · Esc — закрыть", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
     return true;
   }
 };

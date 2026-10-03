@@ -107,7 +107,7 @@ void portraitBlock(App& a, const Character& c, const chars::Roles& roles, bool r
       }
     }
     ui::stat(fmtNum(c.upkeep, std::fabs(c.upkeep - std::round(c.upkeep)) > 1e-9 ? 1 : 0), "Содержание за ход",
-             {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Платит фракция, которой персонаж служит: правитель, советник или герой — расход «специалисты» (ТЗ 1.e.i)"});
+             {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Платит фракция, которой персонаж служит: правитель, советник или герой — расход «специалисты»"});
     ui::stat(fmtInt(i64(roles.total())), plural(i64(roles.total()), "Роль", "Роли", "Ролей"),
              {.icon = "council", .tone = ui::Tone::Info, .tooltip = roles.total() ? chars::rolesText(a.world(), roles) : std::string_view("Пока без ролей")});
   }
@@ -160,7 +160,7 @@ void drawInfo(App& a, Id cid) {
     ui::prop("Содержание", "coins");
     double up = c.upkeep;
     if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 1, .unit = "за ход", .disabled = ro,
-                                       .tooltip = "Начисляется, пока персонаж правитель, советник или герой фракции (ТЗ 1.e.i)"}))
+                                       .tooltip = "Начисляется, пока персонаж правитель, советник или герой фракции"}))
       a.act("Содержание персонажа", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "upkeep:" + std::to_string(cid)});
     a.markUi("character.upkeep");
     if (c.faction) {

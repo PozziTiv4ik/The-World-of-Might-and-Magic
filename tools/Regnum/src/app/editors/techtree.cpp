@@ -465,11 +465,6 @@ void sideOverview(App& a, Ed& ed, Id faction, const std::vector<TN>& ts) {
       ui::iconColored(stIcon(st), ui::toneColor(stTone(st)), 16);
       ui::label(stName(st), {.ink = ui::Ink::Dim});
     }
-    ui::separator();
-    ui::label("Двойной щелчок по фону — новая технология", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "plus", .wrap = true});
-    ui::label("Тяните от гнезда карточки к другой — зависимость", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "link", .wrap = true});
-    ui::label("Щелчок по связи — выбрать, Delete — удалить", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "unlink", .wrap = true});
-    ui::label("Колесо — масштаб, фон — перетаскивание, F — всё дерево", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "zoom-fit", .wrap = true});
   }
 }
 

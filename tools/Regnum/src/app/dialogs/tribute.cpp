@@ -21,8 +21,6 @@ struct TributeDlg : Dialog {
     const World& w = a.world();
     if (receiver && !w.faction(receiver)) receiver = 0;
     if (payer && (!w.faction(payer) || payer == receiver)) payer = 0;
-    ui::label("Выплата золотом каждый ход на указанный срок: из казны плательщика — в казну получателя.",
-              {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
     {
       ui::Row r({ui::fr(1), ui::px(28), ui::fr(1)}, ui::kAuto, 8);
       {

@@ -80,7 +80,6 @@ struct FakeBorders final : app::MapTool {
     downs++;
     return e.button == 0;
   }
-  const char* hint(app::App&) override { return "Тяните ручки границы"; }
 };
 app::ToolReg bordersTool({app::ToolId::EditBorders, "tool-edit", "Правка границ провинции", "B", true, [] { return std::make_unique<FakeBorders>(); }, 10});
 app::ToolReg knifeTool({app::ToolId::Knife, "tool-knife", "Нож", "K", true, [] { return std::make_unique<FakeBorders>(); }, 20});
@@ -216,7 +215,7 @@ TEST(app_editor_undo_redo) {
   std::string old = h->world().province(pid)->name;
   CHECK(h->act("Переименовать", [&](Tx& tx) { tx.province(pid).name = "Новое имя"; }));
   CHECK(h->dirty());
-  CHECK(platform::headless::title().rfind("• ", 0) == 0);
+  CHECK_EQ(platform::headless::title(), std::string("Regnum"));   // заголовок окна — только название программы
   h.key(Key::Z, ctrl());
   CHECK_EQ(h->world().province(pid)->name, old);
   h.key(Key::Y, ctrl());

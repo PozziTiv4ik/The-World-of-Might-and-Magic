@@ -142,8 +142,6 @@ struct NewWorld : Dialog {
   const char* id() const override { return "world.new"; }
   Style style(App&) override { return {"Новый мир", "plus", ui::Tone::Accent, 500}; }
   bool draw(App& a) override {
-    ui::text("Береговая линия возьмётся с базовой карты. Провинции, государства и гильдии вы добавите сами.", ui::Font::Body, ui::Ink::Dim);
-    ui::spacer(4);
     ui::caption("Название");
     ui::textField("name", name, {.placeholder = "Название мира", .live = true, .maxLength = 80, .autofocus = true, .selectAllOnFocus = true});
     a.markUi("newworld.name");
