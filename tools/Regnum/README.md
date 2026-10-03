@@ -4,7 +4,7 @@
 type: tool_documentation
 status: active
 canon_level: support
-updated_real_date: 2026-10-02
+updated_real_date: 2026-10-03
 ---
 
 Regnum — нативный редактор стратегической карты мира: провинции, государства, торговые гильдии, войска и флот, экономика, постройки, технологии, модификаторы и ходы. Написан на C++20 только со стандартной библиотекой: окно, отрисовка, шрифты, интерфейс, PNG/JPEG, zip и JSON — собственные. Работает на Windows, Linux и macOS без установки.
@@ -13,7 +13,7 @@ Regnum — нативный редактор стратегической кар
 
 | Система | Как открыть |
 | --- | --- |
-| Windows | Открыть_Regnum.cmd в корне проекта или tools/Regnum/bin/windows/regnum.exe |
+| Windows | Открыть_Regnum.cmd в корне проекта — сразу открывает мир из 12_Карты (перетащенную на него папку мира или файл .regnum — их); tools/Regnum/bin/windows/regnum.exe — экран запуска |
 | Linux | tools/Regnum/regnum.sh (готовая сборка — bin/linux-x64; при отсутствии собирается системным компилятором) |
 | macOS | tools/Regnum/Regnum.command (готовая сборка — bin/macos-arm64 или bin/macos-x64) |
 
