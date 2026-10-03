@@ -171,7 +171,7 @@ $folders.Push($root)
 while($folders.Count){
     foreach($item in Get-ChildItem -LiteralPath $folders.Pop() -Force){
         if($item.PSIsContainer){
-            if($item.Name -in @('.git','.wmma') -or $item.Name -match '_MD_' -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){continue}
+            if($item.Name -in @('.git','.wmma','.build') -or $item.Name -match '_MD_' -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){continue}
             $folders.Push($item.FullName)
         }else{$projectFiles.Add($item)}
     }
@@ -1451,6 +1451,19 @@ if(Test-Path -LiteralPath (Join-Path $root '09_Реестры/Контекст.j
     $contextResult=& (Join-Path $root 'tools/Проверить_контекст.ps1') -AsObject
     foreach($problem in $contextResult.Errors){Add-Problem Error $problem}
     foreach($problem in $contextResult.Warnings){Add-Problem Warning $problem}
+}
+
+# Миры редактора Regnum: целостность данных и геометрии (если собран regnum-cli).
+$regnumCli = Join-Path $root 'tools/Regnum/bin/windows/regnum-cli.exe'
+if ($IsWindows -ne $false -and (Test-Path -LiteralPath $regnumCli)) {
+    foreach ($worldFile in @(Get-ChildItem -LiteralPath (Join-Path $root '12_Карты') -Filter 'world.json' -Recurse -File -ErrorAction SilentlyContinue)) {
+        $worldDir = $worldFile.DirectoryName
+        $global:LASTEXITCODE = 0
+        $out = & $regnumCli validate $worldDir 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            Add-Problem Error "Regnum world is invalid: $(Get-RelativePath $worldDir)`n$out"
+        }
+    }
 }
 
 $result = [pscustomobject]@{
