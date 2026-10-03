@@ -1,10 +1,11 @@
 // Regnum — составные тайлы карты: белая суша → заливка провинций → море → реки и озёра → заливка сухопутных
 // провинций на морской части → штриховка оккупации → границы провинций → границы государств (внутренняя обводка)
-// → символы базовой карты.
+// → знаки карты. Море, воды и знаки рисуются кодом по объектам базовой карты (map.json, см. art_render.h).
 #include <future>
 #include <mutex>
 
 #include "gfx/stroke.h"
+#include "map/art_render.h"
 #include "map/map_internal.h"
 
 namespace rg::map::detail {
@@ -166,7 +167,7 @@ Id stateOf(const Looks& L, Id p) {
 
 }  // namespace
 
-gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm, RasterCache* rc, double ds, int tx, int ty) {
+gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm, double ds, int tx, int ty) {
   const int T = kTile;
   const Looks& L = *sc.looks;
   const float dpi = sc.style.dpi;
@@ -218,15 +219,16 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
     blendImage(img, fill, 0, 0, gfx::RectI(0, 0, T, T), L.fillAlpha);
   }
 
-  // 2. Море, реки и озёра.
-  const int iOcean = bm ? bm->layerIndex("ocean") : -1, iInland = bm ? bm->layerIndex("inland") : -1;
-  const int iSymbols = bm ? bm->layerIndex("symbols") : -1;
-  if (iOcean >= 0) composeBasemap(img, bm, rc, ds, P.ox, P.oy, iOcean, iOcean + 1);
-  if (iInland >= 0) composeBasemap(img, bm, rc, ds, P.ox, P.oy, iInland, iInland + 1);
+  // 2. Море, реки и озёра — объекты карты, нарисованные кодом.
+  const art::Xf AX{ds, P.ox, P.oy};
+  if (bm) {
+    art::drawSea(img, bm->index(), AX);
+    art::drawWater(img, bm->index(), AX);
+  }
 
   gfx::Canvas c(img);
   // Без базовой карты море — грани с рельефом «море» цветом моря.
-  if (iOcean < 0 && fs) {
+  if (!bm && fs) {
     gfx::Path sea;
     for (const geo::Face& f : fs->faces) {
       if (f.terrain != Terrain::Sea || !f.box.intersects(qb)) continue;
@@ -343,8 +345,8 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
     if (!seams.empty()) c.strokePath(seams, strokeOf(std::max(0.75f, 0.7f * dpi)), Color(24, 20, 16, u8(255 * L.seamAlpha)));
   }
 
-  // 6. Символы базовой карты (горы, замки, башни) — поверх всего, без подкраски.
-  if (iSymbols >= 0) composeBasemap(img, bm, rc, ds, P.ox, P.oy, iSymbols, iSymbols + 1);
+  // 6. Знаки карты (стены, горы, замки, башни) — поверх всего, без подкраски.
+  if (bm) art::drawSymbols(img, bm->index(), AX);
   return img;
 }
 

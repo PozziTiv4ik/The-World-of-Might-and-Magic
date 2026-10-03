@@ -1,5 +1,5 @@
 // Тесты отрисовки карты: снимки 1920 × 1080 (dpi 1,25) демонстрационного мира во всех режимах, масштабы,
-// выделение и наведение, правка границ, мини-карта, сравнение пустого мира с превью базовой карты.
+// выделение и наведение, правка границ, мини-карта, сравнение пустого мира с картой, нарисованной кодом, и с исходником.
 #include "geo/ops.h"
 #include "rules/rules.h"
 #include "tests/test_map_view_util.h"
@@ -207,13 +207,15 @@ TEST(map_view_minimap) {
   CHECK_NEAR(m.y, 2250, 1e-6);
 }
 
-// ================================================================ пустой мир = превью базовой карты
+// ================================================================ пустой мир = карта, нарисованная кодом
 TEST(map_view_empty_matches_preview) {
-  const gfx::Image pv = loadPngImage(mvtest::basemap().previewPath());
+  const std::shared_ptr<const gfx::Image> pvp = mvtest::basemap().preview();
+  CHECK(pvp != nullptr);
+  const gfx::Image& pv = *pvp;
   CHECK_EQ(pv.w, 2000);
   map::MapView mv(&mvtest::basemap());
   mv.setWorld(mvtest::emptyWorld());
-  // Масштаб превью (уровень 2 пирамиды, 0,25 пикселя на единицу): совпадение до пикселя.
+  // Масштаб превью (0,25 пикселя на единицу): тайлы и превью рисуются одним кодом — совпадение до пикселя.
   mv.setViewport(RectF(0, 0, 2000, 1125), 1);
   mv.centerOn({4000, 2250}, 0.25, false);
   map::RenderOptions opt;
@@ -236,10 +238,11 @@ TEST(map_view_empty_matches_preview) {
   rc.drawImage(pv, RectF(float(X0), float(Y0), float(8000 * ds), float(4500 * ds)));
   const Diff e = diff(f, ref, mr);
   std::printf("  empty vs preview at fit: mean %.3f, max %d, >8: %lld of %d px\n", e.mean, e.max, (long long)e.over8, mr.w * mr.h);
-  CHECK(e.mean < 2.0);
+  // Знаки при другом масштабе рисуются заново, а не уменьшаются из превью: мелкие различия неизбежны.
+  CHECK(e.mean < 3.0);
 }
 
-// ================================================================ 1 пиксель устройства = 1 пиксель карты: исходный рисунок без искажений
+// ================================================================ 1 пиксель устройства = 1 пиксель карты: как исходное изображение
 TEST(map_view_empty_matches_source_l0) {
   const map::Basemap& bm = mvtest::basemap();
   map::MapView mv(&bm);
@@ -248,39 +251,24 @@ TEST(map_view_empty_matches_source_l0) {
   mv.centerOn({3000, 1000}, 1.0, false);
   map::RenderOptions opt;
   gfx::Image img = mvtest::renderFull(mv, opt, 1600, 900, 1);
-  // Эталон: тайлы уровня 0 поверх белого, обычное наложение в числах с плавающей точкой.
+  mvtest::savePng(img, "map_view_empty_l0.png");
+  // Эталон — исходное изображение (только для проверки: редактор его не загружает).
+  const gfx::Image src = loadPngImage(fs::join(bm.dir(), "../source/Expanded Map.png"));
   const int x0 = 2200, y0 = 550;
-  std::vector<float> ref(size_t(1600) * 900 * 3, 255.f);
-  for (const char* layer : {"ocean", "inland", "symbols"})
-    for (int ty = y0 / 512; ty <= (y0 + 899) / 512; ty++)
-      for (int tx = x0 / 512; tx <= (x0 + 1599) / 512; tx++) {
-        if (!bm.tileExists(layer, 0, tx, ty)) continue;
-        auto t = bm.readTile(layer, 0, tx, ty);
-        CHECK(t.has_value());
-        for (int y = 0; y < t->h; y++)
-          for (int x = 0; x < t->w; x++) {
-            const int X = tx * 512 + x - x0, Y = ty * 512 + y - y0;
-            if (X < 0 || Y < 0 || X >= 1600 || Y >= 900) continue;
-            const u8* p = t->rgba.data() + (size_t(y) * size_t(t->w) + size_t(x)) * 4;
-            const float a = p[3] / 255.f;
-            float* r = &ref[(size_t(Y) * 1600 + size_t(X)) * 3];
-            for (int c = 0; c < 3; c++) r[c] = p[c] * a + r[c] * (1 - a);
-          }
-      }
-  int worst = 0;
-  i64 over1 = 0;
+  double sum = 0;
+  i64 over32 = 0;
   for (int y = 0; y < 900; y++)
     for (int x = 0; x < 1600; x++) {
-      const Color c = gfx::unpremul(img.at(x, y));
-      const float* r = &ref[(size_t(y) * 1600 + size_t(x)) * 3];
-      const int e = std::max({std::abs(int(c.r) - int(std::lround(r[0]))), std::abs(int(c.g) - int(std::lround(r[1]))),
-                              std::abs(int(c.b) - int(std::lround(r[2])))});
-      worst = std::max(worst, e);
-      over1 += e > 1;
+      const Color c = gfx::unpremul(img.at(x, y)), r = gfx::unpremul(src.at(x + x0, y + y0));
+      const Color rw = Color::mix(Color(255, 255, 255), Color(r.r, r.g, r.b), r.a / 255.f);   // исходник поверх белого
+      const int e[3] = {std::abs(int(c.r) - int(rw.r)), std::abs(int(c.g) - int(rw.g)), std::abs(int(c.b) - int(rw.b))};
+      sum += e[0] + e[1] + e[2];
+      over32 += std::max({e[0], e[1], e[2]}) > 32;
     }
-  std::printf("  empty vs L0 source at 1:1: max %d, >1: %lld px\n", worst, (long long)over1);
-  CHECK(worst <= 2);
-  mvtest::savePng(img, "map_view_empty_l0.png");
+  const double mean = sum / (3.0 * 1600 * 900), share = 100.0 * double(over32) / (1600.0 * 900);
+  std::printf("  empty vs source at 1:1: mean %.3f, >32: %.2f %%\n", mean, share);
+  CHECK(mean < 1.2);
+  CHECK(share < 1.5);
 }
 
 // ================================================================ заливка не выходит за берег

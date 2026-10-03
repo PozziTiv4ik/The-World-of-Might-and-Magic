@@ -23,17 +23,6 @@ const Segmented& segmented() {
   return s;
 }
 
-// Композиция пикселя поверх основы base (как у отрисовщика: основа → ocean → inland → symbols), без округления.
-void compositeOver(const Layers& L, size_t i, const double base[3], double out[3]) {
-  const double ao = L.ocean[i] / 255.0, ai = L.inland[i] / 255.0, as = L.symA[i] / 255.0;
-  const double blue[3] = {double(kOcean.r), double(kOcean.g), double(kOcean.b)};
-  for (int c = 0; c < 3; c++) {
-    double v = base[c] * (1 - ao) + blue[c] * ao;
-    v = v * (1 - ai) + blue[c] * ai;
-    out[c] = v * (1 - as) + L.symV[i] * as;
-  }
-}
-
 }  // namespace
 
 TEST(map_basemap_segment_water_classes) {
@@ -108,18 +97,8 @@ TEST(map_basemap_segment_composite_reproduces_source) {
   const CompositeError e = compareComposite(s.m.img, s.L);
   CHECK_MSG(e.mean < 0.05, strf("mean %.4f", e.mean));
   CHECK_MSG(e.max <= 2, strf("max %d", e.max));
-  // Символы — только нейтральный серый: в тайле символов R = G = B.
-  bool empty = false;
-  const codec::RgbaImage t = tileImage(s.L, 2, 0, 0, s.L.w, s.L.h, &empty);
-  CHECK(!empty);
-  i64 colored = 0;
-  for (size_t i = 0; i < t.rgba.size(); i += 4) colored += t.rgba[i] != t.rgba[i + 1] || t.rgba[i + 1] != t.rgba[i + 2];
-  CHECK_EQ(colored, i64(0));
-  // Вода в тайлах — ровно #0026FF.
-  const codec::RgbaImage o = tileImage(s.L, 0, 0, 0, s.L.w, s.L.h, &empty);
-  for (size_t i = 0; i < o.rgba.size(); i += 4)
-    if (o.rgba[i + 3]) colored += o.rgba[i] != 0 || o.rgba[i + 1] != 38 || o.rgba[i + 2] != 255;
-  CHECK_EQ(colored, i64(0));
+  // Знаки — только нейтральный серый (R = G = B).
+  CHECK(e.symbolsNeutral);
   // Артефакты для просмотра: исходник, композиция с заливкой провинции и классы.
   const std::string dir = bmtest::freshDir("basemap_segment");
   writePng(fs::join(dir, "source.png"), s.m.img, 6);
@@ -176,51 +155,4 @@ TEST(map_basemap_flatten_on_white) {
 TEST(map_basemap_segment_rejects_empty) {
   codec::RgbaImage im;
   CHECK_THROWS(segment(im, Options{}));
-}
-
-TEST(map_basemap_downsample_is_composite_exact) {
-  // Случайные слои: вода моря и внутренних вод (в том числе вперемешку — устья), краска разной плотности.
-  Rng rng(77);
-  Layers L;
-  L.w = 131;
-  L.h = 97;
-  const size_t n = size_t(L.w) * size_t(L.h);
-  L.ocean.assign(n, 0);
-  L.inland.assign(n, 0);
-  L.symA.assign(n, 0);
-  L.symV.assign(n, 0);
-  for (size_t i = 0; i < n; i++) {
-    const int x = int(i % size_t(L.w)), y = int(i / size_t(L.w));
-    const int region = (x / 9 + y / 7) % 4;
-    if (region == 0) L.ocean[i] = u8(rng.range(0, 255));
-    else if (region == 1) L.inland[i] = u8(rng.range(0, 255));
-    else if (region == 2) (rng.uniform() < 0.5 ? L.ocean : L.inland)[i] = 255;
-    if (rng.uniform() < 0.3) {
-      L.symA[i] = u8(rng.uniform() < 0.5 ? 255 : rng.range(1, 255));
-      L.symV[i] = u8(rng.range(0, 255));
-    }
-  }
-  const double bases[2][3] = {{255, 255, 255}, {227, 147, 147}};
-  for (int f : {2, 4, 8}) {
-    const Layers D = downsample(L, f);
-    CHECK_EQ(D.w, (L.w + f - 1) / f);
-    CHECK_EQ(D.h, (L.h + f - 1) / f);
-    for (const auto& base : bases) {
-      double worst = 0;
-      for (int oy = 0; oy < D.h; oy++)
-        for (int ox = 0; ox < D.w; ox++) {
-          double ref[3] = {0, 0, 0}, v[3];
-          int cnt = 0;
-          for (int y = oy * f; y < std::min(L.h, oy * f + f); y++)
-            for (int x = ox * f; x < std::min(L.w, ox * f + f); x++) {
-              compositeOver(L, size_t(y) * size_t(L.w) + size_t(x), base, v);
-              for (int c = 0; c < 3; c++) ref[c] += v[c];
-              cnt++;
-            }
-          compositeOver(D, size_t(oy) * size_t(D.w) + size_t(ox), base, v);
-          for (int c = 0; c < 3; c++) worst = std::max(worst, std::fabs(v[c] - ref[c] / cnt));
-        }
-      CHECK_MSG(worst <= 2.5, strf("f=%d: ошибка %.2f", f, worst));
-    }
-  }
 }

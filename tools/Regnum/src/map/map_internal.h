@@ -1,7 +1,8 @@
 // Regnum — внутренности отрисовщика карты (общие для файлов src/map/*.cpp, кроме basemap*).
 //
-// Схема кадра. Всё, что лежит под подписями (белая суша, заливка, море, реки, границы, штриховка, символы),
-// собирается в фоне в непрозрачные «составные» тайлы kTile × kTile пикселей устройства при точном масштабе
+// Схема кадра. Всё, что лежит под подписями (белая суша, заливка, море, реки, границы, штриховка, знаки карты —
+// всё нарисовано кодом по объектам map.json и миру), собирается в фоне в непрозрачные «составные» тайлы
+// kTile × kTile пикселей устройства при точном масштабе
 // камеры. Кадр в покое — копирование готовых тайлов; при анимации и до прихода тайлов — лучшие доступные тайлы
 // других масштабов, опорный уровень kBaseScale (вся карта) или превью базовой карты. Поверх — подписи, маршруты,
 // диаграммы, знаки, фигурки и выделение (векторно, в каждом кадре; подписи — из кеша спрайтов).
@@ -21,7 +22,7 @@
 namespace rg::map::detail {
 
 constexpr int kTile = 512;            // сторона составного тайла, пиксели устройства
-constexpr double kBaseScale = 0.25;   // опорный уровень: пикселей устройства на единицу карты (= уровень 2 пирамиды)
+constexpr double kBaseScale = 0.25;   // опорный уровень: пикселей устройства на единицу карты (вся карта — 2000 × 1125)
 
 // ---------------------------------------------------------------- стиль тайлов и цвета режимов
 struct TileStyle {
@@ -102,31 +103,6 @@ void clipPolyline(const std::vector<Vec2>& pts, const Box2& box, F&& emit) {
   }
 }
 
-// ---------------------------------------------------------------- растры базовой карты
-class RasterCache {
- public:
-  RasterCache(const Basemap* bm, size_t budgetBytes);
-  // Тайл слоя (premultiplied); пустой тайл или ошибка — nullptr. Декодирует при промахе в вызывающем потоке.
-  std::shared_ptr<const gfx::Image> get(int layer, int z, int x, int y);
-  std::shared_ptr<const gfx::Image> peek(int layer, int z, int x, int y) const;
-  size_t bytes() const;
-
- private:
-  struct Entry {
-    std::shared_ptr<const gfx::Image> img;
-    bool loading = false;
-    u64 used = 0;
-  };
-  const Basemap* bm_;
-  size_t budget_;
-  mutable std::mutex mu_;
-  std::condition_variable cv_;
-  std::unordered_map<u64, Entry> map_;
-  size_t bytes_ = 0;
-  u64 clock_ = 0;
-  void evictLocked();
-};
-
 // ---------------------------------------------------------------- составной тайл
 struct TileScene {
   World world;
@@ -136,9 +112,7 @@ struct TileScene {
   u64 gen = 0;
 };
 // Нарисовать тайл (tx, ty) при масштабе ds (пикселей устройства на единицу карты). Потокобезопасно.
-gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm, RasterCache* rc, double ds, int tx, int ty);
-// Только базовая карта (белая суша + слои) в изображение out: пиксель (i, j) = точка карты ((ox + i + 0,5) / ds, ...).
-void composeBasemap(gfx::Image& out, const Basemap* bm, RasterCache* rc, double ds, double ox, double oy, int fromLayer, int toLayer);
+gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm, double ds, int tx, int ty);
 
 // ---------------------------------------------------------------- хранилище и фоновая отрисовка тайлов
 struct TileKey {
@@ -153,7 +127,7 @@ struct TileView { TileKey key; std::shared_ptr<const gfx::Image> img; bool stale
 
 class TileStore {
  public:
-  TileStore(const Basemap* bm, size_t rasterBudget, size_t tileBudget);
+  TileStore(const Basemap* bm, size_t tileBudget);
   ~TileStore();   // останавливает работу и ждёт выполняющиеся задачи
   TileStore(const TileStore&) = delete;
   TileStore& operator=(const TileStore&) = delete;
@@ -175,7 +149,6 @@ class TileStore {
   void setWake(std::function<void()> fn);
   int pending() const;
   size_t bytes() const;
-  RasterCache& raster();
 
   struct Shared;
 

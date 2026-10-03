@@ -330,7 +330,7 @@ std::string defaultBasemap() {
     "tools/Regnum/assets/basemap",
   };
   for (const std::string& c : candidates)
-    if (fs::isFile(fs::join(c, "manifest.json"))) return fs::absolute(c);
+    if (fs::isFile(fs::join(c, "map.json"))) return fs::absolute(c);
   return {};
 }
 
@@ -356,7 +356,7 @@ int runNew(const std::vector<std::string>& args) {
     const bool explicitDir = !dir.empty();
     if (!explicitDir) dir = defaultBasemap();
     if (dir.empty()) {
-      note = "Базовая карта не найдена — мир создан без геометрии. Соберите её: regnum-cli build-basemap \"assets/source/Expanded Map.png\" "
+      note = "Базовая карта не найдена — мир создан без геометрии. Соберите её: regnum-cli build-map \"assets/source/Expanded Map.png\" "
              "assets/basemap, затем повторите или укажите --basemap=<папка>.";
     } else {
       map::Basemap bm;

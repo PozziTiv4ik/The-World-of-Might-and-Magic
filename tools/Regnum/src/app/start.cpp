@@ -119,9 +119,9 @@ void renderStartBackdrop(App& a, gfx::Canvas& c) {
   if (d.backdropW != out.w || d.backdropH != out.h || d.backdropDark != th.dark) {
     if (!d.previewTried) {
       d.previewTried = true;
-      if (d.basemap) {
-        if (auto img = loadImage(d.basemap->previewPath(), 1000)) d.preview = std::move(*img);
-      }
+      // Миниатюра карты, нарисованная кодом (фон всё равно сильно размыт).
+      if (d.basemap)
+        if (auto img = d.basemap->thumb()) d.preview = *img;
     }
     d.backdrop.resize(out.w, out.h);
     gfx::Canvas bc(d.backdrop);

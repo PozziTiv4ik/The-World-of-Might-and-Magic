@@ -31,11 +31,10 @@ Box2 tileBox(const TileKey& k) {
 }  // namespace
 
 struct TileStore::Shared {
-  explicit Shared(const Basemap* b, size_t rasterBudget) : bm(b), raster(b, rasterBudget) {}
+  explicit Shared(const Basemap* b) : bm(b) {}
   mutable std::mutex mu;
   std::condition_variable cv;
   const Basemap* bm;
-  RasterCache raster;
   std::unordered_map<TileKey, Entry, TileKeyHash> tiles;
   std::shared_ptr<const TileScene> scene;
   int active = 0, maxActive = 1;
@@ -100,7 +99,7 @@ void runJob(const std::shared_ptr<TileStore::Shared>& s) {
   std::shared_ptr<gfx::Image> img;
   try {
     auto g = geoIndex(sc->world);
-    img = std::make_shared<gfx::Image>(renderTile(*sc, *g, s->bm, &s->raster, key.ds, key.tx, key.ty));
+    img = std::make_shared<gfx::Image>(renderTile(*sc, *g, s->bm, key.ds, key.tx, key.ty));
   } catch (const std::exception& ex) {
     // Ошибка не роняет карту: тайл — цветом суши, повтор — после следующего изменения мира.
     logError("Тайл карты (%d, %d) не нарисован: %s", key.tx, key.ty, ex.what());
@@ -135,7 +134,7 @@ void runJob(const std::shared_ptr<TileStore::Shared>& s) {
 
 }  // namespace
 
-TileStore::TileStore(const Basemap* bm, size_t rasterBudget, size_t tileBudget) : s_(std::make_shared<Shared>(bm, rasterBudget)) {
+TileStore::TileStore(const Basemap* bm, size_t tileBudget) : s_(std::make_shared<Shared>(bm)) {
   s_->budget = tileBudget;
   // Часть пула остаётся свободной для полос кадра (jobs::parallelFor в render).
   s_->maxActive = std::max(1, jobs::workers() * 2 / 3);
@@ -260,7 +259,5 @@ size_t TileStore::bytes() const {
   std::lock_guard<std::mutex> lk(s_->mu);
   return s_->bytes;
 }
-
-RasterCache& TileStore::raster() { return s_->raster; }
 
 }  // namespace rg::map::detail

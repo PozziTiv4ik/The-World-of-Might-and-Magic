@@ -15,21 +15,11 @@ using namespace detail;
 namespace {
 
 constexpr double kAnimSec = 0.18;
-constexpr size_t kRasterBudget = size_t(384) << 20;
 constexpr size_t kTileBudget = size_t(256) << 20;
 
 double easeOut(double t) {
   t = clamp(t, 0.0, 1.0);
   return 1 - (1 - t) * (1 - t) * (1 - t);
-}
-
-std::shared_ptr<const gfx::Image> loadPng(const std::string& path) {
-  if (path.empty()) return nullptr;
-  auto bytes = fs::readFile(path);
-  if (!bytes) return nullptr;
-  auto img = codec::decodePng(*bytes);
-  if (!img) return nullptr;
-  return std::make_shared<gfx::Image>(gfx::Image::fromRgba(img->rgba.data(), img->w, img->h));
 }
 
 Box2 edgeBox(const World& w, const Edge& e) {
@@ -101,9 +91,7 @@ struct MapView::Impl {
   Table<Node> miniNodes;
   Table<Edge> miniEdges;
 
-  explicit Impl(const Basemap* b) : bm(b && b->loaded() ? b : nullptr), store(bm, kRasterBudget, kTileBudget) {
-    if (bm) thumb = loadPng(bm->thumbPath());
-  }
+  explicit Impl(const Basemap* b) : bm(b && b->loaded() ? b : nullptr), store(bm, kTileBudget) {}
 
   double mapW() const { return bm ? bm->width() : schema::kMapWidth; }
   double mapH() const { return bm ? bm->height() : schema::kMapHeight; }
@@ -307,11 +295,10 @@ struct MapView::Impl {
     if (!bm) return nullptr;
     if (!previewRequested) {
       previewRequested = true;
-      const std::string path = bm->previewPath();
       auto self = this;
-      // Impl живёт дольше задачи: деструктор ждёт её (см. ~Impl).
-      previewJob = jobs::submit([self, path] {
-        auto img = loadPng(path);
+      // Impl живёт дольше задачи: деструктор ждёт её (см. ~Impl). Превью рисуется кодом по объектам карты.
+      previewJob = jobs::submit([self] {
+        auto img = self->bm->preview();
         {
           std::lock_guard<std::mutex> lk(self->previewMu);
           self->preview = img;
@@ -737,6 +724,7 @@ void MapView::renderMinimap(gfx::Canvas& c, RectF rect, float dpi) {
   Impl& d = *d_;
   if (rect.empty()) return;
   // Подкрашенная миниатюра: заливка политической карты поверх thumb (умножение — символы остаются тёмными).
+  if (!d.thumb && d.bm) d.thumb = d.bm->thumb();
   // Перерисовывается, только когда меняются геометрия или политические цвета провинций.
   std::shared_ptr<const Looks> looks;
   if (d.miniGen != d.gen || d.miniTint.empty()) {

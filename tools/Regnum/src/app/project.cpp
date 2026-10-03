@@ -623,11 +623,12 @@ void writeThumbnail(App& a) {
   if (!d.basemap || d.path.empty()) return;
   try {
     static gfx::Image base;
-    static std::string baseFrom;
-    if (baseFrom != d.basemap->thumbPath()) {
-      baseFrom = d.basemap->thumbPath();
+    static const gfx::Image* baseFrom = nullptr;
+    const std::shared_ptr<const gfx::Image> thumb = d.basemap->thumb();
+    if (baseFrom != thumb.get()) {
+      baseFrom = thumb.get();
       base = gfx::Image();
-      if (auto img = loadImage(baseFrom)) {
+      if (const gfx::Image* img = thumb.get()) {
         gfx::Image t = img->scaled(320, 180);
         for (u32& p : t.px) {
           float r = float((p >> 16) & 255) / 255.f, g = float((p >> 8) & 255) / 255.f;

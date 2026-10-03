@@ -1,21 +1,17 @@
-// Regnum — сборка базовой карты из исходного изображения (regnum-cli build-basemap).
+// Regnum — разбор исходного изображения карты (regnum-cli build-map, map/art_extract.cpp): разложение на слои
+// (открытое море, внутренние воды, знаки) и береговая линия.
 //
 // Модель исходника: каждый пиксель (поверх белого) = t · синий #0026FF + (1 − t) · серый(g),
 // где t = (B − R) / 255 — доля воды, а 255 − B = (1 − t)(255 − g) — количество «краски» условных знаков.
 //
-// Слои (белая суша → заливка провинций → ocean → inland → symbols) поверх белого дают исходник:
+// Слои (белая суша → ocean → inland → symbols) поверх белого дают исходник:
 //   ocean   — синий с альфой воды, только открытое море: вода (t > 0,5) с мелкими островками, эрозия на r,
 //             связь с краем карты, дилатация на r + 2, мягкий край берега (0 < t ≤ 0,5) рядом с морем;
 //   inland  — то же для рек и озёр (вся прочая вода);
-//   symbols — нейтральный серый с альфой: внутри гор (выпуклая оболочка области краски с «телом» ровного серого)
-//             непрозрачно всё, кроме фона между слившимися горами и сглаженного края, — снежные шапки (малые
-//             замкнутые белые области) белые и не окрашиваются заливкой провинции; башни, замки, стены и пунктиры —
-//             краска с альфой (внутренность замков прозрачна).
-// Под непрозрачными знаками вода и поле берега продолжаются от соседей (на уровне 0 их не видно).
-// Уменьшенные уровни точны для композиции поверх однородной основы (см. downsample).
-// Далее: пирамиды тайлов, береговая линия (marching squares, упрощение с сохранением топологии, проверка
-// ядром геометрии), маска моря, превью, миниатюра и манифест. Всё детерминировано: один и тот же исходник даёт
-// побайтно те же файлы.
+//   symbols — нейтральный серый с альфой (горы со снежными шапками, башни, замки, стены).
+// Под непрозрачными знаками вода и поле берега продолжаются от соседей.
+// Береговая линия: marching squares по полю берега, упрощение с сохранением топологии, проверка ядром геометрии.
+// Всё детерминировано: один и тот же исходник даёт тот же результат.
 #pragma once
 #include "base/base.h"
 #include "codec/png.h"
@@ -31,17 +27,11 @@ struct Options {
   std::string id = "wmm-expanded-v1";
   std::string sourceName = "Expanded Map.png";
   std::string sourceSha256;     // SHA-256 файла исходника (hex), пусто — не записывать
-  int tile = 512;               // сторона тайла
-  int levels = 4;               // уровни 0..levels-1, уровень z уменьшен в 2^z раз
   int erodeRadius = 6;          // эрозия воды: протоки уже 2r+1 не соединяют воду с морем
   int isletFillArea = 160;      // островки до этой площади (пиксели²) при поиске моря считаются водой
   int isletFillSide = 17;       // ... и с габаритом меньше этого (пиксели): дельты рек крупнее
   double simplifyTol = 0.75;    // допуск упрощения берега, пиксели
   double minIsletArea = 12;     // острова меньшей площади (пиксели²) не входят в береговую линию
-  int maskScale = 4;            // пиксель маски моря = maskScale × maskScale пикселей карты
-  int previewLevel = 2;         // уровень пирамиды для preview.png
-  int thumbWidth = 480;         // ширина thumb.png
-  int pngLevel = 9;             // сжатие PNG
 };
 
 // ---------------------------------------------------------------- слои
@@ -52,7 +42,7 @@ struct Layers {
   std::vector<u8> ocean, inland;  // альфа синего kOcean
   std::vector<u8> symA, symV;     // символы: альфа и серый (не premultiplied; при альфе 0 серый = 0)
   std::vector<u8> field;          // поле берега: доля открытого моря 0..255 (вне моря 0); море — field ≥ 128
-  std::vector<u8> kind;           // биты Kind (проверки и тесты); на уменьшенных уровнях пусто
+  std::vector<u8> kind;           // биты Kind (разбор и проверки)
 };
 
 struct SegmentStats {
@@ -86,15 +76,6 @@ struct CompositeError {
   bool symbolsNeutral = true;   // в слое символов нет цвета (R = G = B)
 };
 CompositeError compareComposite(const codec::RgbaImage& flat, const Layers& L);
-
-// ---------------------------------------------------------------- пирамида
-struct Level { int z = 0, w = 0, h = 0, cols = 0, rows = 0; };
-std::vector<Level> levelGrid(int w, int h, int tile, int levels);
-// Уменьшение в factor раз усреднением по площади (premultiplied); края — по существующим пикселям.
-Layers downsample(const Layers& L, int factor);
-// Тайл слоя ("ocean", "inland", "symbols") в RGBA; пустой — все альфы 0 (empty = true).
-codec::RgbaImage tileImage(const Layers& L, int layer, int x0, int y0, int w, int h, bool* empty);
-extern const char* const kLayerNames[3];
 
 // ---------------------------------------------------------------- берег
 struct IPt {
@@ -152,33 +133,8 @@ struct GeoCheck {
 };
 GeoCheck geoCheck(const geo::Coast& coast);
 
-// ---------------------------------------------------------------- сборка
-struct Report {
-  SegmentStats seg;
-  CoastStats coast;
-  RingCheck check;
-  GeoCheck geo;                  // береговая линия в ядре геометрии
-  CompositeError error;          // уровень 0 против исходника
-  CompositeError previewError;   // превью против исходника, уменьшенного так же
-  int tiles = 0, emptyTiles = 0;
-  u64 bytes = 0;                 // объём всех файлов
-  u64 tileBytes = 0;
-  double tSegment = 0, tCoast = 0, tGeo = 0, tPyramid = 0, tWrite = 0, seconds = 0;
-};
-
-struct Artifacts {
-  codec::RgbaImage flat;   // исходник поверх белого
-  Layers layers;           // уровень 0
-  std::vector<IRing> rings;
-};
-
-// Полная сборка в папку outDir (заменяется целиком). Ошибки — UserError.
-Report build(codec::RgbaImage src, const std::string& outDir, const Options& opt, Artifacts* keep = nullptr);
-
 // Запись PNG из RGBA с проверкой.
 void writePng(const std::string& path, const codec::RgbaImage& img, int level);
-// Уменьшение RGBA усреднением по площади (дробные доли пикселей).
-codec::RgbaImage resampleArea(const codec::RgbaImage& src, int nw, int nh);
 // SHA-256 в нижнем регистре.
 std::string sha256Hex(const void* data, size_t size);
 

@@ -198,7 +198,7 @@ std::string findBasemapDir() {
   bases.push_back(fs::join(cwd, "tools/Regnum/assets/basemap"));
   bases.push_back(fs::join(cwd, "assets/basemap"));
   for (auto& b : bases)
-    if (fs::isFile(fs::join(b, "manifest.json"))) return fs::absolute(b);
+    if (fs::isFile(fs::join(b, "map.json"))) return fs::absolute(b);
   return {};
 }
 
