@@ -980,7 +980,7 @@ void drawDetail(App& a, EdState& st, const Modifier& m, Id next, const std::map<
         }
       }
       std::string desc = m.desc;
-      if (ui::textArea("desc", desc, 64, {.placeholder = "Описание: откуда берётся и что даёт", .readOnly = ro}) && desc != m.desc)
+      if (ui::textArea("desc", desc, 64, {.placeholder = "Описание", .readOnly = ro}) && desc != m.desc)
         editMod(a, m, "Описание модификатора", [&](Modifier& x) { x.desc = desc; });
       a.markUi("modifiers.desc");
     }

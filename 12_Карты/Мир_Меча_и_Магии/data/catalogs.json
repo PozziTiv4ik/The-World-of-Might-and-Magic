@@ -50,42 +50,54 @@
       "color": "#888888",
       "icon": "",
       "id": "po1",
-      "name": "Канцлер"
+      "modifiers": [],
+      "name": "Канцлер",
+      "vacantModifiers": []
     },
     {
       "builtin": false,
       "color": "#888888",
       "icon": "",
       "id": "po2",
-      "name": "Казначей"
+      "modifiers": [],
+      "name": "Казначей",
+      "vacantModifiers": []
     },
     {
       "builtin": false,
       "color": "#888888",
       "icon": "",
       "id": "po3",
-      "name": "Маршал"
+      "modifiers": [],
+      "name": "Маршал",
+      "vacantModifiers": []
     },
     {
       "builtin": false,
       "color": "#888888",
       "icon": "",
       "id": "po4",
-      "name": "Адмирал"
+      "modifiers": [],
+      "name": "Адмирал",
+      "vacantModifiers": []
     },
     {
       "builtin": false,
       "color": "#888888",
       "icon": "",
       "id": "po5",
-      "name": "Тайный советник"
+      "modifiers": [],
+      "name": "Тайный советник",
+      "vacantModifiers": []
     },
     {
       "builtin": false,
       "color": "#888888",
       "icon": "",
       "id": "po6",
-      "name": "Придворный маг"
+      "modifiers": [],
+      "name": "Придворный маг",
+      "vacantModifiers": []
     }
   ],
   "races": [],
@@ -96,6 +108,7 @@
       "color": "#e2b33c",
       "icon": "coins",
       "id": "rs1",
+      "key": "",
       "name": "Золото"
     },
     {
@@ -103,13 +116,15 @@
       "color": "#d9c36b",
       "icon": "grain",
       "id": "rs2",
-      "name": "Зерно"
+      "key": "provisions",
+      "name": "Провизия"
     },
     {
       "builtin": false,
       "color": "#8a6a43",
       "icon": "wood",
       "id": "rs3",
+      "key": "",
       "name": "Древесина"
     },
     {
@@ -117,6 +132,7 @@
       "color": "#9aa0a8",
       "icon": "stone",
       "id": "rs4",
+      "key": "",
       "name": "Камень"
     },
     {
@@ -124,6 +140,7 @@
       "color": "#6d7c8f",
       "icon": "iron",
       "id": "rs5",
+      "key": "",
       "name": "Железо"
     },
     {
@@ -131,6 +148,7 @@
       "color": "#a0714f",
       "icon": "horse",
       "id": "rs6",
+      "key": "",
       "name": "Лошади"
     }
   ]

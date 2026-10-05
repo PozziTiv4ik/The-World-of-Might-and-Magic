@@ -208,6 +208,8 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
       ui::label(kindTitle(d), {.font = ui::Font::Strong});
       statusTag(d);
       ui::flex();
+      const std::string since = "Заключена на ходу " + std::to_string(d.turn);
+      ui::label("ход " + std::to_string(d.turn), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "clock", .tooltip = since});
       if (active) {
         std::string tip = d.kind == DealKind::Trade ? "Расторгнуть сделку" : d.kind == DealKind::Tribute ? "Отменить дань" : "Отменить репарации";
         if (ui::iconButton("trash", tip, {.size = ui::Size::Small, .disabled = a.readOnly(), .tone = ui::Tone::Danger})) cancel = true;
@@ -277,9 +279,7 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
       double done = double(total - dealLeft(d)) / double(total);
       ui::progress(done, {.tone = ui::Tone::Accent, .height = 4});
     }
-    std::string foot = "Заключена на ходу " + std::to_string(d.turn);
-    if (!d.note.empty()) foot += " · " + d.note;
-    ui::label(foot, {.font = ui::Font::Caption, .ink = ui::Ink::Muted});
+    if (!d.note.empty()) ui::label(d.note, {.font = ui::Font::Caption, .ink = ui::Ink::Muted});
   }
   RectF cr = ui::lastItem().rect;
   bool clicked = false;
@@ -568,7 +568,7 @@ void composer(App& a, const World& w) {
   for (auto& it : d.items) (it.from == DealSide::A ? hasA : hasB) = true;
   bool gift = hasA != hasB;
   if (!ready) {
-    ui::Card c({.pad = 12, .icon = "info", .title = "Выберите стороны и добавьте позиции", .tone = ui::Tone::Info});
+    // Пока нет сторон и позиций — без подсказок: «Заключить сделку» недоступна.
   } else if (chk.ok) {
     ui::Card c({.pad = 12, .icon = gift ? "star" : "check-circle", .title = gift ? "Подарок можно передать" : "Сделку можно заключить", .tone = ui::Tone::Success});
     for (int sd = 0; sd < 2; sd++) {
@@ -593,7 +593,7 @@ void composer(App& a, const World& w) {
       ui::label(chk.problems[i], {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
     }
   }
-  a.markUi("trade.check");
+  if (ready) a.markUi("trade.check");
   {
     ui::HStack hs(32, ui::Align::Left, 8);
     if (ui::button("Дань или репарации", {.icon = "tribute", .tooltip = "Навязать выплаты золотом на срок"})) a.openDialog("tribute", d.a);
@@ -657,8 +657,20 @@ void dealsList(App& a, const World& w) {
     ui::emptyState("handshake", ls.status == 0 ? "Активных сделок нет." : "Сделок нет.");
     return;
   }
-  for (const Deal* x : list)
+  auto card = [&](const Deal* x) {
+    ui::IdScope s{i64(x->id)};
     if (dealCard(a, w, *x, {.clickable = true, .highlight = d.highlight == x->id})) d.highlight = d.highlight == x->id ? 0 : x->id;
+  };
+  // Широкий список — карточки в две колонки (по очереди).
+  if (ui::avail().w >= 960 && list.size() > 1) {
+    ui::Row r({ui::fr(1), ui::fr(1)}, ui::kAuto, 10);
+    for (size_t col = 0; col < 2; col++) {
+      ui::Group g(0, 10);
+      for (size_t i = col; i < list.size(); i += 2) card(list[i]);
+    }
+    return;
+  }
+  for (const Deal* x : list) card(x);
 }
 
 void drawEditor(App& a, Id arg) {
@@ -675,7 +687,8 @@ void drawEditor(App& a, Id arg) {
   const World& w = a.world();
   RectF all = ui::avail();
   const float gap = 24;
-  float lw = std::round(clamp((all.w - gap) * 0.55f, std::min(520.f, all.w), all.w));
+  // Новая сделка — не шире 760: остальное место списку сделок.
+  float lw = std::round(clamp((all.w - gap) * 0.5f, std::min(520.f, all.w), std::min(760.f, all.w)));
   bool stacked = all.w < 980;
   if (stacked) lw = all.w;
   RectF L{all.x, all.y, lw, stacked ? all.h * 0.6f : all.h};

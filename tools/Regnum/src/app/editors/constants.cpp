@@ -420,12 +420,20 @@ void drawEditor(App& a, Id) {
       newButton(a, "constants.new");
     }
     ui::Scroll sc("list");
-    for (const Constant& c : list) {
-      ui::IdScope s(c.key);
-      if (edkit::entityRow(orName(c.name), summary(w, c), typeIcon(c.type), th.accent, c.builtin ? std::string_view("встроенная") : std::string_view(),
-                           c.key == st.sel, false, c.desc))
-        st.sel = c.key;
-      a.markUi("constants.list." + c.key);
+    // Группы «Встроенные» и «Свои» вместо метки у каждой строки.
+    for (int pass = 0; pass < 2; pass++) {
+      const bool builtin = pass == 0;
+      i64 n = 0;
+      for (const Constant& c : list) n += c.builtin == builtin;
+      if (!n) continue;
+      ui::caption(std::string(builtin ? "Встроенные" : "Свои") + " · " + fmtInt(n));
+      for (const Constant& c : list) {
+        if (c.builtin != builtin) continue;
+        ui::IdScope s(c.key);
+        if (edkit::entityRow(orName(c.name), summary(w, c), typeIcon(c.type), th.accent, std::string_view(), c.key == st.sel, false, c.desc))
+          st.sel = c.key;
+        a.markUi("constants.list." + c.key);
+      }
     }
   }
   {

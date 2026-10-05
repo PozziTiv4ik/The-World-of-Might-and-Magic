@@ -527,10 +527,11 @@ void minimap(App& a, RectF r) {
 
 // ---------------------------------------------------------------- полноэкранный редактор
 void editorHost(App& a, const EditorDef& ed, RectF V) {
-  RectF r{kM, kM, V.w - 2 * kM, V.h - 2 * kM};
-  ui::Panel p("editor", r, {.pad = 0});
+  // Полноэкранный редактор занимает всё окно: без полей, рамки и тени.
+  RectF r{0, 0, V.w, V.h};
+  ui::Panel p("editor", r, {.pad = 0, .shadow = false, .border = false, .radius = 0});
   a.markUi("editor", r);
-  RectF head{r.x + 12, r.y + 10, r.w - 24, 34};
+  RectF head{r.x + 14, r.y + 10, r.w - 28, 34};
   {
     ui::Area ar(head, 0);
     ui::HStack hs(34, ui::Align::Left, 8);

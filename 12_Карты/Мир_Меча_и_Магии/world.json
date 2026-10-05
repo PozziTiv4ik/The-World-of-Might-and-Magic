@@ -2,7 +2,8 @@
   "format": "regnum-world",
   "meta": {
     "basemap": "wmm-expanded-v1",
-    "createdAt": "2026-10-02T13:37:48Z",
+    "createdAt": "2026-10-05T15:56:46Z",
+    "mapObjects": false,
     "name": "Мир Меча и Магии",
     "notes": "",
     "seq": {
@@ -25,20 +26,24 @@
       "resource": 6,
       "route": 0,
       "row": 0,
+      "shape": 0,
+      "symbol": 0,
       "tech": 0
     },
     "turn": 1,
-    "updatedAt": "2026-10-02T13:37:48Z"
+    "updatedAt": "2026-10-05T15:56:46Z"
   },
   "settings": {
     "autosaveFolder": true,
     "autosaveSec": 60,
+    "figureSize": 34,
     "fillOpacity": 0.5,
     "labelArmies": true,
     "labelProvinces": true,
     "labelStates": true,
     "occupiedIncome": "owner",
-    "rebellionRoll": false
+    "rebellionRoll": false,
+    "showArmies": true
   },
   "version": 1
 }

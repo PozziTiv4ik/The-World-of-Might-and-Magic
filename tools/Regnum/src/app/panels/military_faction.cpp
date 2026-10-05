@@ -851,8 +851,6 @@ void drawForces(App& a, Id fid, bool fleet, bool fullscreen) {
             if (st.shownRow != st.selRow) ui::scrollToItem();   // новая карточка — в видимую часть
             st.shownRow = st.selRow;
           }
-        } else {
-          ui::label("Строка не выбрана", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
         }
       }
     }
