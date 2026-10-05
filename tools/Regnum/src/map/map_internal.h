@@ -211,11 +211,12 @@ struct MarkLayout {
   std::vector<Mark> marks;     // в порядке отрисовки (по y точки, затем по ID верхнего объекта)
   float figure = 24;           // размер фигурки, логические пиксели
 };
-// Размер фигурки войска на экране (логические пиксели) при масштабе zoom.
-float figureSizeAt(double zoom);
+// Размер фигурки войска на экране (логические пиксели): постоянный при любом масштабе — из настроек мира
+// (ТЗ «Фиксы», п.3 и 11).
+float figureSizeOf(const Settings& s);
 // Раскладка: объекты, отметки которых пересеклись бы (с зазором), собираются в стопки. Верхний объект стопки —
 // выделенный (sel), иначе самый многочисленный, затем с меньшим ID.
-MarkLayout layoutMarks(const std::vector<const Army*>& armies, double zoom, Id sel);
+MarkLayout layoutMarks(const std::vector<const Army*>& armies, double zoom, Id sel, float figure = schema::kFigureSizeDefault);
 // Геометрия отметки (общая для раскладки, отрисовки и попадания): c — центр верхней фигурки, size — её размер,
 // dpi — масштаб постоянных размеров значков (1 — логические пиксели).
 gfx::TextStyle markBadgeStyle(float dpi);

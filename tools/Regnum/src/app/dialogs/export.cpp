@@ -49,7 +49,14 @@ void begin(App& a, State& s) {
   o.labels = s.labels;
   o.darkUi = a.ui.darkTheme;
   if (!s.armies) a.world().armies.each([&](const Army& ar) { o.hideArmies.push_back(ar.id); });
-  s.exp = std::make_unique<map::MapExport>(a.basemap(), a.world(), widthOf(s), o);
+  // Галочка «Войска и флот» экспорта главнее «Скрыть войска» на карте редактора.
+  World w = a.world();
+  if (s.armies && !w.settings->showArmies) {
+    auto st = std::make_shared<Settings>(*w.settings);
+    st->showArmies = true;
+    w.settings = st;
+  }
+  s.exp = std::make_unique<map::MapExport>(a.basemap(), w, widthOf(s), o);
 }
 
 class ExportDialog final : public Dialog {

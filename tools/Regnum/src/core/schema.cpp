@@ -112,7 +112,177 @@ const EffectInfo kEffects[kFxCount] = {
   {Fx::DiplomacyPerTurn, "diplomacyPerTurn", "Отношения за ход", "", -25, 25, false, true, true, false, "diplomacy"},
   {Fx::ArmyUpkeepPct, "armyUpkeepPct", "Содержание войск", "%", -75, 75, false, false, false, false, "army-upkeep"},
   {Fx::FleetUpkeepPct, "fleetUpkeepPct", "Содержание флота", "%", -75, 75, false, false, false, false, "fleet-upkeep"},
+  {Fx::ResearchTimePct, "researchTimePct", "Время исследования технологий", "%", -75, 400, false, false, false, false, "research"},
+  {Fx::LoyaltyPerTurn, "loyaltyPerTurn", "Верность войска за ход", "%", -50, 50, false, true, false, false, "shield", true},
 };
+
+const EnumInfo kStateKinds[int(StateKind::Count)] = {
+  {"living", "Государство живых", "heart"},
+  {"undead", "Государство нежити", "skull"},
+  {"demonic", "Государство демонов", "flame"},
+};
+
+const EnumInfo kModKinds[int(ModKind::Count)] = {
+  {"any", "Везде", "sparkles"},
+  {"province", "Для провинций", "province"},
+  {"faction", "Глобальный", "crown"},
+  {"army", "Для армий", "army"},
+  {"hero", "Для героев", "hero"},
+};
+
+const EnumInfo kDealItemKinds[int(DealItemKind::Count)] = {
+  {"res", "Ресурс", "coins"},
+  {"province", "Провинция", "province"},
+  {"hero", "Пленный герой", "hero"},
+};
+
+const EnumInfo kConstTypes[int(ConstType::Count)] = {
+  {"number", "Число", "hash"},
+  {"resources", "Список ресурсов", "coins"},
+  {"values", "Список значений", "list"},
+};
+
+const BuiltinResource kBuiltinResources[4] = {
+  {kResGold, "Золото", 0xe2b33c, "coins", nullptr},
+  {kResProvisions, "Провизия", 0xd9c36b, "grain", "Зерно"},
+  {kResCorpses, "Трупы", 0x8e8a7e, "skull", nullptr},
+  {kResEnergy, "Демоническая энергия", 0xc0392b, "flame", nullptr},
+};
+
+namespace {
+
+Modifier mk(const char* key, const char* name, ModKind kind, int duration, const char* icon, u32 color, const char* desc,
+            std::initializer_list<std::pair<Fx, double>> fx = {}) {
+  Modifier m;
+  m.key = key;
+  m.name = name;
+  m.kind = kind;
+  m.duration = duration;
+  m.icon = icon;
+  m.color = Color::hex(color);
+  m.desc = desc;
+  for (auto& [f, v] : fx) {
+    m.fx[size_t(f)] = v;
+    m.fxMask |= 1u << int(f);
+  }
+  return m;
+}
+
+}  // namespace
+
+const std::vector<Modifier>& builtinModifiers() {
+  static const std::vector<Modifier> list = [] {
+    using F = Fx;
+    std::vector<Modifier> v;
+    v.push_back(mk(mod::Plundered, "Разграбленная провинция", ModKind::Province, kCaptureModTurns, "coins", 0xc0603a,
+                   "Повторный захват — без «Захватить и разграбить».",
+                   {{F::ContentmentPerTurn, -5}, {F::RebellionPct, 5}, {F::ResourcePct, -25}}));
+    v.push_back(mk(mod::Ravaged, "Разоренная провинция", ModKind::Province, kCaptureModTurns, "war", 0xa8432c,
+                   "Повторный захват — без «Захватить и разграбить» и «Разорить».",
+                   {{F::ContentmentPerTurn, -8}, {F::RebellionPct, 10}, {F::ResourcePct, -50}}));
+    v.push_back(mk(mod::Devastated, "Опустошенная провинция", ModKind::Province, kCaptureModTurns, "skull", 0x5d5a52,
+                   "Провинцию нельзя назначить ни одному государству."));
+    v.push_back(mk(mod::Discontent, "Недовольство правителем", ModKind::Hero, 0, "discontent", 0xb5523b,
+                   "При мятеже войска герой переходит к мятежникам."));
+    v.push_back(mk(mod::Loyalist, "Непреклонный лоялист", ModKind::Hero, 0, "shield", 0x3f7fbf,
+                   "Верность его войска не уменьшается и растёт на 5 % за ход."));
+    v.push_back(mk(mod::Dead, "Мертв", ModKind::Hero, 0, "skull", 0x55575c, "Снят со всех назначений и недоступен для них."));
+    v.push_back(mk(mod::Living, "Живой", ModKind::Hero, 0, "heart", 0x4f9d69, ""));
+    v.push_back(mk(mod::Undead, "Нежить", ModKind::Hero, 0, "skull", 0x6b6f7a, ""));
+    v.push_back(mk(mod::Demon, "Демон", ModKind::Hero, 0, "flame", 0xb83a2e, ""));
+    v.push_back(mk(mod::Mechanism, "Механизм", ModKind::Hero, 0, "u-machines", 0x7f8a99, ""));
+    v.push_back(mk(mod::Capital, "Столица государства", ModKind::Province, 0, "capital", 0xd9a441,
+                   "Ставится и снимается вместе со статусом столицы.", {{F::Slots, 3}}));
+    v.push_back(mk(mod::Captive, "Взят в плен", ModKind::Hero, 0, "lock", 0x8a6d3b, "Снят со всех назначений и недоступен для них."));
+    v.push_back(mk(mod::UndeadArmy, "Армия нежити", ModKind::Army, 0, "skull", 0x6b6f7a, "Верность — 100 % и не снижается."));
+    v.push_back(mk(mod::DemonArmy, "Армия демонов", ModKind::Army, 0, "flame", 0xb83a2e, ""));
+    v.push_back(mk(mod::Ruthless, "Безжалостная армия", ModKind::Army, 0, "swords", 0x8b2e2e, ""));
+    v.push_back(mk(mod::Unrighteous, "Неправедное деяние", ModKind::Army, 0, "warning", 0xa86a2c, "", {{F::LoyaltyPerTurn, -2}}));
+    v.push_back(mk(mod::Conscience, "Мучения совести", ModKind::Army, 0, "discontent", 0x9b4a3a, "", {{F::LoyaltyPerTurn, -5}}));
+    v.push_back(mk(mod::Patriotism, "Патриотизм", ModKind::Army, 0, "banner", 0x3f7fbf, "", {{F::LoyaltyPerTurn, 5}}));
+    v.push_back(mk(mod::Sadism, "Изуверское наслаждение", ModKind::Army, 0, "skull", 0x7a2230,
+                   "Только для войск с «Армия демонов» или «Безжалостная армия».", {{F::LoyaltyPerTurn, 5}}));
+    v.push_back(mk(mod::Decentralization, "Децентрализация", ModKind::Faction, 0, "council", 0xa8432c, "В совете нет назначений.",
+                   {{F::LoyaltyPerTurn, -5}, {F::TradePct, -10}, {F::ContentmentPerTurn, -5}, {F::ResearchTimePct, 200}, {F::BuildCostPct, 25}}));
+    v.push_back(mk(mod::WeakControl, "Слабый контроль", ModKind::Faction, 0, "council", 0xc08a3a, "В совете от 1 до 3 назначений.",
+                   {{F::TradePct, -5}, {F::ContentmentPerTurn, -1}, {F::ResearchTimePct, 50}, {F::BuildCostPct, 10}}));
+    v.push_back(mk(mod::Centralized, "Централизованная власть", ModKind::Faction, 0, "crown", 0x4f9d69, "В совете больше 3 назначений.",
+                   {{F::TradePct, 5}, {F::ContentmentPerTurn, 1}}));
+    v.push_back(mk(mod::Famine, "Голод", ModKind::Faction, 0, "grain", 0x9b6a2c, "Запас провизии меньше нуля.",
+                   {{F::LoyaltyPerTurn, -1}, {F::PopGrowthPct, -1}, {F::ContentmentPerTurn, -5}}));
+    v.push_back(mk(mod::UndeadWaste, "Пустошь нежити", ModKind::Province, 0, "skull", 0x4b4f58,
+                   "Население — 0. Строить и получать доход с ценности может только государство нежити."));
+    v.push_back(mk(mod::Desecrated, "Оскверненная провинция", ModKind::Province, 0, "flame", 0x8e2a22,
+                   "Строить и получать доход с ценности может только государство демонов; даёт демоническую энергию."));
+    v.push_back(mk(mod::Necromancer, "Некромант", ModKind::Hero, 0, "skull", 0x5b4a7a,
+                   "После победы его войско получает трупы: 10 % побеждённых живых отрядов за каждого некроманта."));
+    return v;
+  }();
+  return list;
+}
+
+const Modifier* builtinModifier(std::string_view key) {
+  for (const Modifier& m : builtinModifiers())
+    if (m.key == key) return &m;
+  return nullptr;
+}
+
+bool isNatureKey(std::string_view key) { return key == mod::Living || key == mod::Undead || key == mod::Demon || key == mod::Mechanism; }
+
+bool isAutoKey(std::string_view key) {
+  return key == mod::Capital || key == mod::Decentralization || key == mod::WeakControl || key == mod::Centralized || key == mod::Famine;
+}
+
+const std::vector<Constant>& builtinConstants() {
+  static const std::vector<Constant> list = [] {
+    auto num = [](const char* key, const char* name, double v, const char* desc) {
+      Constant c;
+      c.key = key;
+      c.name = name;
+      c.type = ConstType::Number;
+      c.num = v;
+      c.builtin = true;
+      c.desc = desc;
+      return c;
+    };
+    auto res = [](const char* key, const char* name, const char* desc) {
+      Constant c;
+      c.key = key;
+      c.name = name;
+      c.type = ConstType::Resources;
+      c.builtin = true;
+      c.desc = desc;
+      return c;
+    };
+    std::vector<Constant> v;
+    v.push_back(num(cst::ColonizationCost, "Стоимость колонизации", 0, "Золото за колонизацию провинции без владельца"));
+    v.push_back(res(cst::ShipLineCost, "Стоимость Линкора", "Ресурсы для постройки одного линкора"));
+    v.push_back(res(cst::FrigateCost, "Стоимость Фрегата", "Ресурсы для постройки одного фрегата"));
+    v.push_back(res(cst::GalleonCost, "Стоимость Торгового Галеона", "Ресурсы для постройки одного торгового галеона"));
+    Constant races;
+    races.key = cst::UnitRaces;
+    races.name = "Расы для отрядов";
+    races.type = ConstType::Values;
+    races.values = {kRaceLiving, kRaceDemonic, kRaceUndead, kRaceMechanical, kRaceElemental};
+    races.builtin = true;
+    races.desc = "Раса отряда: нежить и механизмы при мятеже остаются верными";
+    v.push_back(races);
+    v.push_back(num(cst::CorpsesPerUnit, "Трупов на 1 воина-нежить", 1, "Сколько трупов уходит на одного воина с расой «Нежить»"));
+    v.push_back(num(cst::EnergyPerUnit, "Демонической энергии на 1 воина-демона", 100,
+                    "Сколько демонической энергии уходит на одного воина с расой «Демонический»"));
+    return v;
+  }();
+  return list;
+}
+
+const char* shipCostKey(ShipType t) {
+  switch (t) {
+    case ShipType::ShipOfLine: return cst::ShipLineCost;
+    case ShipType::Frigate: return cst::FrigateCost;
+    case ShipType::Galleon: return cst::GalleonCost;
+    default: return cst::FrigateCost;
+  }
+}
 
 const EnumInfo kMapModes[int(MapMode::Count)] = {
   {"political", "Политическая карта", "mode-political"},

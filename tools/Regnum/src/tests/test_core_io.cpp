@@ -587,7 +587,7 @@ TEST(io_recent_projects) {
 
 TEST(io_project_files) {
   auto& files = io::projectFiles();
-  CHECK_EQ(files.size(), size_t(15));
+  CHECK_EQ(files.size(), size_t(16));
   CHECK_EQ(std::string(files.back().path), std::string("world.json"));
   u32 all = 0;
   for (auto& f : files) {

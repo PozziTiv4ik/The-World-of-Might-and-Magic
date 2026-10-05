@@ -589,12 +589,15 @@ TEST(app_catalogs_character_canon_card) {
   h->select(app::SelType::Character, cid);
   h.dropToasts();
   quick(h);
-  // Поиск по имени находит карточку по псевдониму и записывает её ID.
-  CHECK(clickRevealed(h, "character.findCard", "inspector"));
+  // Поиск по имени находит карточку по псевдониму; после вопроса «Точно ли это…» записывает её ID (раздел «Канон»).
+  CHECK(clickRevealed(h, "canon.find", "inspector"));
+  CHECK(confirmDialog(h));
   CHECK_EQ(h->world().character(cid)->entity, std::string("CHAR-9001"));
-  // Открыть карточку — файл передаётся системе.
+  // Открыть карточку — файл передаётся системе (уведомление о связи убрано: оно над низом инспектора).
+  h.dropToasts();
+  quick(h);
   size_t n = hl::opened().size();
-  CHECK(clickRevealed(h, "character.openCard", "inspector"));
+  CHECK(clickRevealed(h, "canon.open", "inspector"));
   CHECK_EQ(hl::opened().size(), n + 1);
   CHECK(!hl::opened().empty() && hl::opened().back().find("Леди_Морвен.md") != std::string::npos);
 }

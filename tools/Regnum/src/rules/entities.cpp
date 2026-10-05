@@ -140,10 +140,13 @@ void removeFaction(Tx& tx, Id faction) {
     if (p.owner == faction) {
       p.owner = 0;
       p.garrison.clear();
+      p.slaves.clear();
     }
     if (p.occupier == faction) {
       p.occupied = false;
       p.occupier = 0;
+      p.occGarrison.clear();
+      p.occIdle = 0;
     }
     eraseValue(p.hqs, faction);
     p.influence.erase(std::remove_if(p.influence.begin(), p.influence.end(), [&](const Influence& i) { return i.guild == faction; }),
@@ -155,6 +158,20 @@ void removeFaction(Tx& tx, Id faction) {
     g.homeState = 0;
     g.stateGuild = false;
   }
+  // Вассалы и мятежники упразднённого государства.
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& g) { return g.suzerain == faction || g.rebelOf == faction; })) {
+    Faction& g = tx.faction(fid);
+    if (g.suzerain == faction) g.suzerain = 0;
+    if (g.rebelOf == faction) g.rebelOf = 0;
+  }
+  // Пленники упразднённого государства освобождаются.
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return c.captor == faction; })) {
+    for (Id m : std::vector<Id>(tx.w().character(cid)->modifiers))
+      if (const Modifier* x = tx.w().modifier(m); x && x->key == schema::mod::Captive) dropModifier(tx, ModTarget::Character, cid, m);
+    tx.character(cid).captor = 0;
+  }
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return p.occupier == faction && !p.occGarrison.empty(); }))
+    tx.province(pid).occGarrison.clear();
   for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return c.faction == faction; })) tx.character(cid).faction = 0;
   for (Id mid : idsWhere(tx.w().modifiers, [&](const Modifier& m) { return contains(m.targets, faction); }))
     eraseValue(tx.modifier(mid).targets, faction);
@@ -187,7 +204,88 @@ Id createCharacter(Tx& tx, Id faction, const std::string& name) {
   std::string n = trim(name);
   c.name = n.empty() ? "Новый персонаж" : n;
   c.faction = faction;
-  return tx.add(std::move(c)).id;
+  Id id = tx.add(std::move(c)).id;
+  // ТЗ «Виды государств», п.1: герою государства — природа по виду государства («Живой», «Нежить», «Демон»).
+  if (const Faction* f = tx.w().faction(faction); f && f->isState()) {
+    const char* key = f->stateKind == StateKind::Undead ? schema::mod::Undead : f->stateKind == StateKind::Demonic ? schema::mod::Demon : schema::mod::Living;
+    addModifier(tx, ModTarget::Character, id, ensureBuiltinMod(tx, key), 0);
+  }
+  return id;
+}
+
+void clearAssignments(Tx& tx, Id character) {
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return p.lord == character; })) tx.province(pid).lord = 0;
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) {
+         return f.ruler == character || std::any_of(f.council.begin(), f.council.end(), [&](const CouncilSeat& s) { return s.character == character; });
+       })) {
+    Faction& f = tx.faction(fid);
+    if (f.ruler == character) f.ruler = 0;
+    for (CouncilSeat& s : f.council)
+      if (s.character == character) s.character = 0;
+  }
+  for (Id aid : idsWhere(tx.w().armies, [&](const Army& a) {
+         if (a.commander == character) return true;
+         return std::any_of(a.groups.begin(), a.groups.end(), [&](const ArmyGroup& g) { return contains(g.heroes, character); });
+       })) {
+    Army& a = tx.army(aid);
+    if (a.commander == character) a.commander = 0;
+    for (ArmyGroup& g : a.groups) eraseValue(g.heroes, character);
+  }
+}
+
+namespace {
+// Назначаемый персонаж: существует, доступен (не мёртв и не в плену) и принадлежит фракции (ТЗ «Фиксы», п.9).
+void needAssignable(const World& w, Id character, Id faction, const char* role) {
+  const Character& c = needCharacter(w, character);
+  if (characterHas(w, character, schema::mod::Dead)) fail(q(w.characterName(character)) + " мёртв — его нельзя назначить " + role);
+  if (characterHas(w, character, schema::mod::Captive)) fail(q(w.characterName(character)) + " в плену — его нельзя назначить " + role);
+  if (c.faction != faction)
+    fail(q(w.characterName(character)) + (c.faction ? " — герой " + facName(w, c.faction) : std::string(" не состоит ни в одной фракции")) +
+         ": назначать " + role + " можно только героев " + facName(w, faction));
+}
+}  // namespace
+
+void setRuler(Tx& tx, Id faction, Id character) {
+  const Faction& f = needFaction(tx.w(), faction);
+  if (f.ruler == character) return;
+  if (character) needAssignable(tx.w(), character, faction, f.isState() ? "правителем" : "главой гильдии");
+  tx.faction(faction).ruler = character;
+}
+
+void setCouncilMember(Tx& tx, Id faction, Id seat, Id character) {
+  const Faction& f = needFaction(tx.w(), faction);
+  const CouncilSeat* s = nullptr;
+  for (const CouncilSeat& x : f.council)
+    if (x.id == seat) s = &x;
+  if (!s) fail("Место в совете не найдено");
+  if (s->character == character) return;
+  if (character) needAssignable(tx.w(), character, faction, "в совет");
+  for (CouncilSeat& x : tx.faction(faction).council)
+    if (x.id == seat) x.character = character;
+}
+
+void setLord(Tx& tx, Id province, Id character) {
+  const Province& p = needProvince(tx.w(), province);
+  if (p.lord == character) return;
+  if (character) {
+    if (!p.owner) fail("У провинции нет владельца — лорда назначает государство-владелец");
+    needAssignable(tx.w(), character, p.owner, "лордом провинции");
+  }
+  tx.province(province).lord = character;
+}
+
+void setStateKind(Tx& tx, Id state, StateKind kind) {
+  const Faction& f = needState(tx.w(), state);
+  if (int(kind) < 0 || kind >= StateKind::Count) fail("Неизвестный вид государства");
+  if (f.stateKind == kind) return;
+  tx.faction(state).stateKind = kind;
+  addLog(tx, LogKind::Note, facName(tx.w(), state) + ": " + utf8::lower(schema::stateKind(kind).name), LogRefs{0, 0, {state}});
+}
+
+void setMainState(Tx& tx, Id state, bool on) {
+  const Faction& f = needState(tx.w(), state);
+  if (f.mainState == on) return;
+  tx.faction(state).mainState = on;
 }
 
 void removeCharacter(Tx& tx, Id character) {
@@ -221,10 +319,30 @@ Id createModifier(Tx& tx, const std::string& name) {
 
 void removeModifier(Tx& tx, Id modifier) {
   if (!tx.w().modifier(modifier)) fail(modifier ? "Модификатор не найден" : "Не выбран модификатор");
-  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return contains(p.modifiers, modifier); }))
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return contains(p.modifiers, modifier); })) {
     eraseValue(tx.province(pid).modifiers, modifier);
-  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return contains(f.modifiers, modifier); }))
+    tx.province(pid).modTurns.erase(modifier);
+  }
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return contains(f.modifiers, modifier); })) {
     eraseValue(tx.faction(fid).modifiers, modifier);
+    tx.faction(fid).modTurns.erase(modifier);
+  }
+  for (Id aid : idsWhere(tx.w().armies, [&](const Army& a) { return contains(a.modifiers, modifier); })) {
+    eraseValue(tx.army(aid).modifiers, modifier);
+    tx.army(aid).modTurns.erase(modifier);
+  }
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return contains(c.modifiers, modifier); })) {
+    eraseValue(tx.character(cid).modifiers, modifier);
+    tx.character(cid).modTurns.erase(modifier);
+  }
+  {
+    const auto& pos = tx.w().catalogs->positions;
+    if (std::any_of(pos.begin(), pos.end(), [&](const CatalogItem& c) { return contains(c.modifiers, modifier) || contains(c.vacantModifiers, modifier); }))
+      for (CatalogItem& c : tx.catalogs().positions) {
+        eraseValue(c.modifiers, modifier);
+        eraseValue(c.vacantModifiers, modifier);
+      }
+  }
   for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) {
          return std::any_of(b.levels.begin(), b.levels.end(), [&](const BuildingLevel& l) { return contains(l.modifiers, modifier); });
        }))
@@ -375,9 +493,21 @@ void removeCatalogItem(Tx& tx, CatalogList list, Id item) {
       for (Id pid : idsWhere(w.provinces, [&](const Province& p) { return p.resource == item; })) tx.province(pid).resource = 0;
       for (Id fid : idsWhere(w.factions, [&](const Faction& f) { return f.res.count(item) > 0; })) tx.faction(fid).res.erase(item);
       for (Id bid : idsWhere(w.buildings, [&](const Building& b) {
-             return std::any_of(b.levels.begin(), b.levels.end(), [&](const BuildingLevel& l) { return l.cost.count(item) > 0; });
+             return std::any_of(b.levels.begin(), b.levels.end(), [&](const BuildingLevel& l) { return l.cost.count(item) > 0 || l.produce.count(item) > 0; });
            }))
-        for (BuildingLevel& l : tx.building(bid).levels) l.cost.erase(item);
+        for (BuildingLevel& l : tx.building(bid).levels) {
+          l.cost.erase(item);
+          l.produce.erase(item);
+        }
+      for (Id fid : idsWhere(w.factions, [&](const Faction& f) {
+             return std::any_of(f.forming.begin(), f.forming.end(), [&](const Formation& q) { return q.paid.count(item) > 0; });
+           }))
+        for (Formation& q : tx.faction(fid).forming) q.paid.erase(item);
+      {
+        const auto& cs = w.constants->list;
+        if (std::any_of(cs.begin(), cs.end(), [&](const Constant& c) { return c.res.count(item) > 0; }))
+          for (Constant& c : tx.constants().list) c.res.erase(item);
+      }
       for (Id did : idsWhere(w.deals, [&](const Deal& d) {
              return std::any_of(d.items.begin(), d.items.end(), [&](const DealItem& i) { return i.res == item; });
            })) {
@@ -393,6 +523,19 @@ void removeCatalogItem(Tx& tx, CatalogList list, Id item) {
            })) {
         auto& rs = tx.province(pid).races;
         rs.erase(std::remove_if(rs.begin(), rs.end(), [&](const RacePop& r) { return r.race == item; }), rs.end());
+      }
+      // Рабы этой расы (у государств и на работах).
+      for (Id pid : idsWhere(w.provinces, [&](const Province& p) {
+             return std::any_of(p.slaves.begin(), p.slaves.end(), [&](const SlaveWork& s) { return s.race == item; });
+           })) {
+        auto& ss = tx.province(pid).slaves;
+        ss.erase(std::remove_if(ss.begin(), ss.end(), [&](const SlaveWork& s) { return s.race == item; }), ss.end());
+      }
+      for (Id fid : idsWhere(w.factions, [&](const Faction& f) {
+             return std::any_of(f.slaves.begin(), f.slaves.end(), [&](const SlaveGroup& s) { return s.race == item; });
+           })) {
+        auto& ss = tx.faction(fid).slaves;
+        ss.erase(std::remove_if(ss.begin(), ss.end(), [&](const SlaveGroup& s) { return s.race == item; }), ss.end());
       }
       break;
     case CatalogList::Cultures:
@@ -419,20 +562,42 @@ void setProvinceOwner(Tx& tx, Id province, Id faction) {
   if (faction) {
     needState(tx.w(), faction);
     if (p0.sea) fail("У морской провинции не бывает владельца");
+    // ТЗ «Модификаторы», 1.3: пока действует «Опустошенная провинция», её нельзя назначить ни одному государству.
+    if (hasModKey(tx.w(), p0.modifiers, schema::mod::Devastated)) fail("Опустошённую провинцию нельзя назначить ни одному государству");
   }
   const Id old = p0.owner;
   if (old == faction) return;
+  // ТЗ «Общие доработки», п.13: уникальные постройки прежнего владельца сносятся (уплаченное за стройку — плательщику).
+  std::vector<ProvBuilding> unique;
+  for (const ProvBuilding& pb : p0.buildings)
+    if (const Building* b = tx.w().building(pb.building); b && old && b->owner == old) unique.push_back(pb);
   Province& p = tx.province(province);
   p.owner = faction;
   p.garrison.clear();  // гарнизон распускается в резерв прежнего владельца
+  p.slaves.clear();    // рабы прежнего владельца снимаются с работ
   if (p.occupied && p.occupier == faction) {
     p.occupied = false;
     p.occupier = 0;
+    p.occGarrison.clear();
+    p.occIdle = 0;
+  }
+  if (!unique.empty()) {
+    auto& list = p.buildings;
+    list.erase(std::remove_if(list.begin(), list.end(), [&](const ProvBuilding& x) {
+                 return std::any_of(unique.begin(), unique.end(), [&](const ProvBuilding& u) { return u.building == x.building; });
+               }),
+               list.end());
+  }
+  std::vector<std::string> lost;
+  for (const ProvBuilding& pb : unique) {
+    lost.push_back(buildingName(tx.w(), pb.building));
+    if (pb.constructing) refundPaid(tx, pb);
   }
   if (const Faction* of = tx.w().faction(old); of && of->capital == province) tx.faction(old).capital = 0;
   std::string text = faction ? "Провинция " + provName(tx.w(), province) + " перешла к " + facName(tx.w(), faction)
                              : "Провинция " + provName(tx.w(), province) + " осталась без владельца";
   if (old && tx.w().faction(old)) text += " (прежний владелец — " + facName(tx.w(), old) + ")";
+  if (!lost.empty()) text += ". Снесены уникальные постройки прежнего владельца: " + join(lost, ", ");
   LogRefs refs{province, 0, {}};
   if (old) refs.factions.push_back(old);
   if (faction) refs.factions.push_back(faction);
@@ -447,6 +612,8 @@ void setOccupied(Tx& tx, Id province, Id occupier) {
     Province& p = tx.province(province);
     p.occupied = false;
     p.occupier = 0;
+    p.occGarrison.clear();   // оккупационный гарнизон — в резерв оккупанта
+    p.occIdle = 0;
     LogRefs refs{province, 0, {}};
     if (was) refs.factions.push_back(was);
     if (p.owner) refs.factions.push_back(p.owner);
@@ -460,6 +627,8 @@ void setOccupied(Tx& tx, Id province, Id occupier) {
   Province& p = tx.province(province);
   p.occupied = true;
   p.occupier = occupier;
+  p.occGarrison.clear();   // гарнизон прежнего оккупанта — в его резерв
+  p.occIdle = 0;
   LogRefs refs{province, 0, {occupier}};
   if (p.owner) refs.factions.push_back(p.owner);
   addLog(tx, LogKind::War, "Провинция " + provName(tx.w(), province) + " оккупирована: " + facName(tx.w(), occupier), refs);
@@ -641,8 +810,18 @@ Id addArmyRow(Tx& tx, Id faction, UnitType type, const std::string& name, i64 to
   r.type = type;
   r.total = total;
   r.upkeep = upkeep;
+  r.race = defaultUnitRace(stateKindOf(tx.w(), faction), type);   // ТЗ «Виды государств», п.2
   tx.faction(faction).army.push_back(r);
   return r.id;
+}
+
+void setRowRace(Tx& tx, Id faction, Id row, const std::string& race) {
+  const Faction& f = needFaction(tx.w(), faction);
+  if (!f.armyRow(row)) fail("Строки нет в таблице войск " + facName(tx.w(), faction));
+  std::string r = trim(race);
+  if (r.empty()) fail("Не выбрана раса отряда");
+  for (ArmyRow& x : tx.faction(faction).army)
+    if (x.id == row) x.race = r;
 }
 
 Id addFleetRow(Tx& tx, Id faction, ShipType type, const std::string& name, i64 total, double upkeep) {
@@ -668,8 +847,7 @@ void setRowTotal(Tx& tx, Id faction, Id row, i64 total) {
   if (!fleet && !f.armyRow(row)) fail("Строки нет в таблицах войск и флота " + facName(tx.w(), faction));
   if (total < 0 || total > kMaxCount) fail("Численность должна быть от 0 до " + fmtInt(kMaxCount));
   Deployed d = deployed(tx.w(), faction);
-  auto get = [](const std::map<Id, i64>& m, Id k) { auto it = m.find(k); return it == m.end() ? i64(0) : it->second; };
-  i64 field = fleet ? get(d.fleet, row) : get(d.army, row) + get(d.garrison, row);
+  i64 field = fleet ? d.fleetField(row) : d.armyField(row);
   if (total < field)
     fail(std::string("Общая численность не может быть меньше назначенной: ") + (fleet ? "в море " : "в поле ") + fmtInt(field));
   Faction& m = tx.faction(faction);
@@ -686,6 +864,23 @@ void removeRow(Tx& tx, Id faction, Id row) {
   const Faction& f = needFaction(tx.w(), faction);
   bool fleet = f.fleetRow(row) != nullptr;
   if (!fleet && !f.armyRow(row)) fail("Строки нет в таблицах войск и флота " + facName(tx.w(), faction));
+  // Формирование строки отменяется с возвратом; воины строки возвращаются в население (ТЗ «Общие доработки», п.10.4).
+  for (int i = int(f.forming.size()) - 1; i >= 0; i--)
+    if (tx.w().faction(faction)->forming[size_t(i)].row == row) cancelFormation(tx, faction, i);
+  if (!fleet) {
+    const ArmyRow r = *tx.w().faction(faction)->armyRow(row);
+    returnWarriors(tx, faction, r, r.total);
+  }
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
+         return std::any_of(p.occGarrison.begin(), p.occGarrison.end(), [&](const GarrisonEntry& g) { return g.row == row; });
+       })) {
+    auto& gs = tx.province(pid).occGarrison;
+    gs.erase(std::remove_if(gs.begin(), gs.end(), [&](const GarrisonEntry& g) { return g.row == row; }), gs.end());
+  }
+  {
+    auto& tf = tx.faction(faction).tradeFleet;
+    tf.erase(std::remove_if(tf.begin(), tf.end(), [&](const GarrisonEntry& g) { return g.row == row; }), tf.end());
+  }
   for (Id aid : idsWhere(tx.w().armies, [&](const Army& a) {
          if (a.isFleet() != fleet) return false;
          for (const ArmyGroup& g : a.groups)

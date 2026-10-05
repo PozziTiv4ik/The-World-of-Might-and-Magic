@@ -59,7 +59,7 @@ void startResearch(Tx& tx, Id tech) {
   ResearchCheck c = canResearch(tx.w(), tech);
   if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
   Id faction = t.faction;
-  int left = std::max(1, t.turns - std::max(0, t.progress));
+  int left = std::max(1, researchTurns(tx.w(), t) - std::max(0, t.progress));
   tx.tech(tech).research = true;
   addLog(tx, LogKind::Tech, facName(tx.w(), faction) + ": начато исследование " + techName(tx.w(), tech) + ", осталось " + nTurns(left),
          LogRefs{0, 0, {faction}});

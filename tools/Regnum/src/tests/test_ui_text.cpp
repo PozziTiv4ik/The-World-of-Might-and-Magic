@@ -284,3 +284,40 @@ TEST(ui_text_tab_moves_focus_and_commits) {
   h.key(Key::Tab);
   CHECK_EQ(b, std::string("два"));
 }
+
+// ТЗ «Фиксы», п.12: пока идёт ввод текста, горячие клавиши (и с Ctrl) не срабатывают — даже обработчик, который
+// стоит в кадре раньше поля (клавиша N в дереве построек); снова срабатывают после Enter, Esc или щелчка вне поля.
+TEST(ui_text_hotkeys_off_while_typing) {
+  H h;
+  Field f;
+  int plain = 0, ctrlS = 0;
+  h.build = [&] {
+    if (ui::shortcut({Key::N, 0})) plain++;
+    if (ui::shortcut({Key::S, ui::ModPrimary})) ctrlS++;
+    buildField(f);
+  };
+  h.frame();
+  clickText(h, f, 5);
+  CHECK(f.focused);
+  h.key(Key::N);
+  h.key(Key::S, ctrl());
+  CHECK_EQ(plain, 0);
+  CHECK_EQ(ctrlS, 0);
+  h.type("т");
+  h.key(Key::Enter);
+  CHECK_EQ(f.value, std::string("т"));
+  h.key(Key::N);
+  h.key(Key::S, ctrl());
+  CHECK_EQ(plain, 1);
+  CHECK_EQ(ctrlS, 1);
+  clickText(h, f, 5);
+  h.key(Key::N);
+  CHECK_EQ(plain, 1);
+  h.key(Key::Escape);
+  h.key(Key::N);
+  CHECK_EQ(plain, 2);
+  clickText(h, f, 5);
+  h.click(f.r.x + 5, f.r.bottom() + 120);   // щелчок вне поля
+  h.key(Key::N);
+  CHECK_EQ(plain, 3);
+}

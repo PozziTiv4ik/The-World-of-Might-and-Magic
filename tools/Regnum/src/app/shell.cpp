@@ -243,8 +243,8 @@ ToolLayout toolLayout(App& a) {
   return L;
 }
 float toolbarHeight(const ToolLayout& L) {
-  int items = int(L.base.size()) + 2 + int(L.edit.size()) + int(L.map.size()) + int(L.extra.size());
-  int seps = 1 + (L.extra.empty() ? 0 : 1);
+  int items = int(L.base.size()) + 3 + int(L.edit.size()) + int(L.map.size()) + int(L.extra.size());
+  int seps = 2 + (L.extra.empty() ? 0 : 1);
   float h = 2 * 7 + items * kBtn + seps * 9 + std::max(0, items + seps - 1) * 4;
   return h;
 }
@@ -256,7 +256,8 @@ void toolButton(App& a, const ToolDef& t) {
   if (t.shortcut && *t.shortcut) ui::tooltip(tip, parseShortcut(t.shortcut));
   static const char* names[] = {"select", "pan",        "borders-tool", "new-province", "add-area", "remove-area", "fill",
                                 "knife",  "merge",      "delete",       "army",         "fleet",    "route",       "map-objects",
-                                "symbol", "lake",       "river",        "wall",         "land-add", "land-remove", "coast"};
+                                "symbol", "lake",       "river",        "wall",         "land-add", "land-remove", "coast",
+                                "new-sea-province"};
   a.markUi(std::string("tool.") + (int(t.id) < int(std::size(names)) ? names[int(t.id)] : "other"));
 }
 
@@ -305,6 +306,14 @@ void toolbar(App& a, RectF r, const ToolLayout& L) {
   if (!L.extra.empty()) {
     vsep(kBtn);
     for (auto* t : L.extra) toolButton(a, *t);
+  }
+  // «Скрыть войска» (ТЗ «Фиксы», п.2): все войска и флоты на карте.
+  vsep(kBtn);
+  {
+    bool hidden = !a.world().settings->showArmies;
+    if (ui::iconButton(hidden ? "eye-off" : "eye", hidden ? "Показать войска" : "Скрыть войска", {.toggled = hidden, .disabled = a.readOnly()}))
+      a.act(hidden ? "Показать войска" : "Скрыть войска", [hidden](Tx& tx) { tx.settings().showArmies = hidden; });
+    a.markUi("tool.hideArmies");
   }
 }
 

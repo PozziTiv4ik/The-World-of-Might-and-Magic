@@ -19,6 +19,7 @@ u32 World::diff(const World& a, const World& b) {
   if (a.meta != b.meta) m |= TB_META;
   if (a.settings != b.settings) m |= TB_SETTINGS;
   if (a.catalogs != b.catalogs) m |= TB_CATALOGS;
+  if (a.constants != b.constants) m |= TB_CONSTANTS;
   if (!a.nodes.same(b.nodes)) m |= TB_NODES;
   if (!a.edges.same(b.edges)) m |= TB_EDGES;
   if (!a.provinces.same(b.provinces)) m |= TB_PROVINCES;
@@ -43,12 +44,12 @@ World newWorld(const std::string& name) {
   meta->name = name.empty() ? "Новый мир" : name;
   meta->createdAt = meta->updatedAt = nowIso();
   auto cat = std::make_shared<Catalogs>();
-  auto item = [](Id id, const char* n, u32 color, const char* icon, bool builtin = false) {
-    CatalogItem c; c.id = id; c.name = n; c.color = Color::hex(color); c.icon = icon; c.builtin = builtin; return c;
+  auto item = [](Id id, const char* n, u32 color, const char* icon, bool builtin = false, const char* key = "") {
+    CatalogItem c; c.id = id; c.name = n; c.color = Color::hex(color); c.icon = icon; c.builtin = builtin; c.key = key; return c;
   };
   cat->resources = {
     item(kGold, "Золото", 0xe2b33c, "coins", true),
-    item(2, "Зерно", 0xd9c36b, "grain"),
+    item(2, "Провизия", 0xd9c36b, "grain", false, "provisions"),
     item(3, "Древесина", 0x8a6a43, "wood"),
     item(4, "Камень", 0x9aa0a8, "stone"),
     item(5, "Железо", 0x6d7c8f, "iron"),
@@ -84,6 +85,10 @@ Settings& Tx::settings() {
 Catalogs& Tx::catalogs() {
   if (!catalogsOwned_) { catalogs_ = std::make_shared<Catalogs>(*w_.catalogs); w_.catalogs = catalogs_; catalogsOwned_ = true; touched_ |= TB_CATALOGS; }
   return *catalogs_;
+}
+Constants& Tx::constants() {
+  if (!constantsOwned_) { constants_ = std::make_shared<Constants>(*w_.constants); w_.constants = constants_; constantsOwned_ = true; touched_ |= TB_CONSTANTS; }
+  return *constants_;
 }
 RelMap& Tx::relations() {
   if (!relOwned_) { rel_ = std::make_shared<RelMap>(*w_.relations); w_.relations = rel_; relOwned_ = true; touched_ |= TB_RELATIONS; }
@@ -153,10 +158,11 @@ RG_TX_ERASE(eraseShape, shapes_, TB_SHAPES)
 
 void Tx::replaceWorld(const World& w) {
   w_ = w;
-  metaOwned_ = settingsOwned_ = catalogsOwned_ = relOwned_ = false;
+  metaOwned_ = settingsOwned_ = catalogsOwned_ = relOwned_ = constantsOwned_ = false;
   meta_.reset();
   settings_.reset();
   catalogs_.reset();
+  constants_.reset();
   rel_.reset();
   nodes_ = TableEdit<Node>(&w_.nodes);
   edges_ = TableEdit<Edge>(&w_.edges);

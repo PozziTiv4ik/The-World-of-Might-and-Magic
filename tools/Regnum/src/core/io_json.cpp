@@ -25,6 +25,7 @@ const FileDef kFiles[F_COUNT] = {
   {"data/routes.json", "routes", TB_ROUTES},
   {"data/deals.json", "deals", TB_DEALS},
   {"data/log.json", "log", TB_LOG},
+  {"data/constants.json", "constants", TB_CONSTANTS, true},
   {"world.json", "", TB_META | TB_SETTINGS},
 };
 
@@ -187,6 +188,8 @@ Value encSettings(const Settings& s) {
   o.set("labelStates", s.labelStates);
   o.set("labelProvinces", s.labelProvinces);
   o.set("labelArmies", s.labelArmies);
+  o.set("showArmies", s.showArmies);
+  o.set("figureSize", s.figureSize);
   o.set("occupiedIncome", enumV(en(schema::kOccupiedIncome), int(s.occupiedIncome)));
   o.set("rebellionRoll", s.rebellionRoll);
   o.set("autosaveFolder", s.autosaveFolder);
@@ -205,10 +208,59 @@ Value encCatalogs(const Catalogs& c) {
       e.set("color", colorV(it.color));
       e.set("icon", it.icon);
       e.set("builtin", it.builtin);
+      if (i == 0) e.set("key", it.key);   // ресурсы: ключ встроенного ресурса
+      if (i == 5) {                       // должности: модификаторы занятой и пустующей должности
+        e.set("modifiers", refs(Seq::Modifier, it.modifiers));
+        e.set("vacantModifiers", refs(Seq::Modifier, it.vacantModifiers));
+      }
       a.push_back(std::move(e));
     }
     o.set(kCatalogKeys[i], Value(std::move(a)));
   }
+  return o;
+}
+
+// Срок модификаторов: {"m3": 4}.
+Value modTurnsV(const ModTurns& m) {
+  Value o = Value::object();
+  for (auto& [id, n] : m) o.set(refStr(Seq::Modifier, id), n);
+  return o;
+}
+Value garrisonV(const std::vector<GarrisonEntry>& list) {
+  json::Array g;
+  for (auto& e : list) {
+    Value x = Value::object();
+    x.set("row", ref(Seq::Row, e.row));
+    x.set("count", e.count);
+    g.push_back(std::move(x));
+  }
+  return Value(std::move(g));
+}
+
+Value encConstants(const Constants& c) {
+  json::Array a;
+  for (const Constant& k : c.list) {
+    Value e = Value::object();
+    e.set("key", k.key);
+    e.set("name", k.name);
+    e.set("type", enumV(en(schema::kConstTypes), int(k.type)));
+    e.set("builtin", k.builtin);
+    e.set("desc", k.desc);
+    switch (k.type) {
+      case ConstType::Number: e.set("num", fin(k.num)); break;
+      case ConstType::Resources: e.set("res", resV(k.res)); break;
+      case ConstType::Values: {
+        json::Array v;
+        for (auto& s : k.values) v.emplace_back(s);
+        e.set("values", Value(std::move(v)));
+        break;
+      }
+      default: break;
+    }
+    a.push_back(std::move(e));
+  }
+  Value o = Value::object();
+  o.set("constants", Value(std::move(a)));
   return o;
 }
 
@@ -293,14 +345,7 @@ Value encProvince(const Province& p) {
   o.set("city", enumV(en(schema::kCityTypes), int(p.city)));
   o.set("resource", ref(Seq::Resource, p.resource));
   o.set("resourceAmount", fin(p.resourceAmount));
-  json::Array g;
-  for (auto& e : p.garrison) {
-    Value x = Value::object();
-    x.set("row", ref(Seq::Row, e.row));
-    x.set("count", e.count);
-    g.push_back(std::move(x));
-  }
-  o.set("garrison", Value(std::move(g)));
+  o.set("garrison", garrisonV(p.garrison));
   o.set("contentment", fin(p.contentment));
   o.set("culture", ref(Seq::Culture, p.culture));
   o.set("religion", ref(Seq::Religion, p.religion));
@@ -338,8 +383,19 @@ Value encProvince(const Province& p) {
   }
   o.set("buildings", Value(std::move(b)));
   o.set("modifiers", refs(Seq::Modifier, p.modifiers));
+  o.set("modTurns", modTurnsV(p.modTurns));
   o.set("occupied", p.occupied);
   o.set("occupier", ref(Seq::Faction, p.occupier));
+  o.set("occGarrison", garrisonV(p.occGarrison));
+  o.set("occIdle", p.occIdle);
+  json::Array sl;
+  for (auto& s : p.slaves) {
+    Value x = Value::object();
+    x.set("race", ref(Seq::Race, s.race));
+    x.set("count", s.count);
+    sl.push_back(std::move(x));
+  }
+  o.set("slaves", Value(std::move(sl)));
   o.set("notes", p.notes);
   o.set("entity", p.entity);
   return o;
@@ -384,6 +440,7 @@ Value encFaction(const Faction& f) {
     x.set("type", enumV(en(schema::kUnitTypes), int(r.type)));
     x.set("total", r.total);
     x.set("upkeep", fin(r.upkeep));
+    x.set("race", r.race);
     army.push_back(std::move(x));
   }
   o.set("army", Value(std::move(army)));
@@ -400,9 +457,36 @@ Value encFaction(const Faction& f) {
   o.set("fleet", Value(std::move(fleet)));
   o.set("res", resV(f.res));
   o.set("modifiers", refs(Seq::Modifier, f.modifiers));
+  o.set("modTurns", modTurnsV(f.modTurns));
   o.set("tax", fin(f.tax));
   o.set("homeState", ref(Seq::Faction, f.homeState));
   o.set("stateGuild", f.stateGuild);
+  o.set("stateKind", enumV(en(schema::kStateKinds), int(f.stateKind)));
+  o.set("mainState", f.mainState);
+  o.set("suzerain", ref(Seq::Faction, f.suzerain));
+  o.set("rebelOf", ref(Seq::Faction, f.rebelOf));
+  json::Array sl;
+  for (auto& s : f.slaves) {
+    Value x = Value::object();
+    x.set("race", ref(Seq::Race, s.race));
+    x.set("count", s.count);
+    x.set("contentment", fin(s.contentment));
+    sl.push_back(std::move(x));
+  }
+  o.set("slaves", Value(std::move(sl)));
+  json::Array fm;
+  for (auto& q : f.forming) {
+    Value x = Value::object();
+    x.set("row", ref(Seq::Row, q.row));
+    x.set("count", q.count);
+    x.set("left", q.left);
+    x.set("people", q.people);
+    x.set("paid", resV(q.paid));
+    fm.push_back(std::move(x));
+  }
+  o.set("forming", Value(std::move(fm)));
+  o.set("tradeFleet", garrisonV(f.tradeFleet));
+  o.set("pirateRisk", fin(f.pirateRisk));
   o.set("notes", f.notes);
   o.set("entity", f.entity);
   return o;
@@ -417,6 +501,10 @@ Value encCharacter(const Character& c) {
   o.set("hero", c.hero);
   o.set("upkeep", fin(c.upkeep));
   o.set("portrait", bytesV(c.portrait));
+  o.set("modifiers", refs(Seq::Modifier, c.modifiers));
+  o.set("modTurns", modTurnsV(c.modTurns));
+  o.set("captor", ref(Seq::Faction, c.captor));
+  o.set("burial", ref(Seq::Province, c.burial));
   o.set("notes", c.notes);
   o.set("entity", c.entity);
   return o;
@@ -434,6 +522,9 @@ Value encModifier(const Modifier& m) {
     if (m.has(Fx(i))) fx.set(schema::kEffects[i].id, fin(m.fx[size_t(i)]));
   o.set("fx", std::move(fx));
   o.set("targets", refs(Seq::Faction, m.targets));
+  o.set("key", m.key);
+  o.set("kind", enumV(en(schema::kModKinds), int(m.kind)));
+  o.set("duration", m.duration);
   return o;
 }
 
@@ -460,6 +551,7 @@ Value encBuilding(const Building& b) {
     x.set("cost", resV(l.cost));
     x.set("modifiers", refs(Seq::Modifier, l.modifiers));
     x.set("desc", l.desc);
+    x.set("produce", resV(l.produce));
     levels.push_back(std::move(x));
   }
   o.set("levels", Value(std::move(levels)));
@@ -506,6 +598,9 @@ Value encArmy(const Army& a) {
   }
   o.set("groups", Value(std::move(groups)));
   o.set("commander", ref(Seq::Character, a.commander));
+  o.set("loyalty", fin(a.loyalty));
+  o.set("modifiers", refs(Seq::Modifier, a.modifiers));
+  o.set("modTurns", modTurnsV(a.modTurns));
   return o;
 }
 
@@ -534,6 +629,8 @@ Value encDeal(const Deal& d) {
     x.set("mode", enumV(en(schema::kDealModes), int(it.mode)));
     x.set("turns", it.turns);
     x.set("left", it.left);
+    x.set("kind", enumV(en(schema::kDealItemKinds), int(it.kind)));
+    x.set("ref", it.kind == DealItemKind::Province ? ref(Seq::Province, it.ref) : it.kind == DealItemKind::Hero ? ref(Seq::Character, it.ref) : Value());
     items.push_back(std::move(x));
   }
   o.set("items", Value(std::move(items)));
@@ -604,6 +701,7 @@ Value encode(const World& w, FileId f) {
     case F_ROUTES: return encTable(w.routes, "routes", encRoute);
     case F_DEALS: return encTable(w.deals, "deals", encDeal);
     case F_LOG: return encTable(w.log, "log", encLog);
+    case F_CONSTANTS: return encConstants(*w.constants);
     default: return Value::object();
   }
 }
@@ -1014,6 +1112,8 @@ void decSettings(Rec& r, Settings& s) {
   s.labelStates = r.flag("labelStates", s.labelStates);
   s.labelProvinces = r.flag("labelProvinces", s.labelProvinces);
   s.labelArmies = r.flag("labelArmies", s.labelArmies);
+  s.showArmies = r.flag("showArmies", s.showArmies);
+  s.figureSize = r.intv("figureSize", s.figureSize);
   s.occupiedIncome = OccupiedIncome(r.enumv("occupiedIncome", en(schema::kOccupiedIncome), int(s.occupiedIncome)));
   s.rebellionRoll = r.flag("rebellionRoll", s.rebellionRoll);
   s.autosaveFolder = r.flag("autosaveFolder", s.autosaveFolder);
@@ -1033,9 +1133,65 @@ void decCatalogs(Rec& r, Catalogs& c) {
       it.color = e.color("color", it.color);
       it.icon = e.str("icon");
       it.builtin = e.flag("builtin", false);
+      if (i == 0) it.key = e.str("key");
+      if (i == 5) {
+        it.modifiers = e.refs("modifiers", Seq::Modifier);
+        it.vacantModifiers = e.refs("vacantModifiers", Seq::Modifier);
+      }
       list.push_back(std::move(it));
     });
   }
+}
+
+ModTurns modTurnsOf(Rec& r, std::string_view key) {
+  ModTurns out;
+  const Value* o = r.obj(key);
+  if (!o) return out;
+  for (auto& [k, v] : o->members()) {
+    auto id = parseRef(Value(k), Seq::Modifier);
+    if (!id || !*id) {
+      r.warn(std::string(key) + "." + k, "неверный ключ модификатора (ожидалось вида «m1») — пропущен");
+      continue;
+    }
+    if (!v.isNum() || !std::isfinite(v.asNum())) {
+      r.warn(std::string(key) + "." + k, "ожидалось число ходов — пропущено");
+      continue;
+    }
+    out[*id] = int(std::clamp(std::nearbyint(v.asNum()), -1e9, 1e9));
+  }
+  return out;
+}
+
+std::vector<GarrisonEntry> garrisonOf(Rec& r, std::string_view key) {
+  std::vector<GarrisonEntry> out;
+  r.list(key, [&](Rec& e) {
+    GarrisonEntry g;
+    g.row = e.ref("row", Seq::Row);
+    g.count = e.integer("count", 0);
+    out.push_back(g);
+  });
+  return out;
+}
+
+void decConstants(Rec& r, Constants& c) {
+  r.list("constants", [&](Rec& e) {
+    Constant k;
+    k.key = e.str("key");
+    k.name = e.str("name");
+    k.type = ConstType(e.enumv("type", en(schema::kConstTypes), 0));
+    k.builtin = e.flag("builtin", false);
+    k.desc = e.str("desc");
+    k.num = e.num("num", 0);
+    k.res = e.resMap("res");
+    if (const Value* v = e.arr("values")) {
+      const auto& items = v->items();
+      for (size_t i = 0; i < items.size(); i++) {
+        if (items[i].isStr()) k.values.push_back(items[i].asStr());
+        else e.warn("values[" + std::to_string(i) + "]", "ожидалась строка — значение пропущено");
+      }
+    }
+    c.list.push_back(std::move(k));
+  });
 }
 
 void decGeo(Rec& r, Parts& p) {
@@ -1174,12 +1330,7 @@ void decProvince(Rec& r, Province& p) {
   p.city = CityType(r.enumv("city", en(schema::kCityTypes), int(CityType::Village)));
   p.resource = r.ref("resource", Seq::Resource);
   p.resourceAmount = r.num("resourceAmount", 0);
-  r.list("garrison", [&](Rec& e) {
-    GarrisonEntry g;
-    g.row = e.ref("row", Seq::Row);
-    g.count = countOf(e, "count");
-    p.garrison.push_back(g);
-  });
+  p.garrison = garrisonOf(r, "garrison");
   p.contentment = r.num("contentment", 0);
   p.culture = r.ref("culture", Seq::Culture);
   p.religion = r.ref("religion", Seq::Religion);
@@ -1215,8 +1366,17 @@ void decProvince(Rec& r, Province& p) {
     p.buildings.push_back(b);
   });
   p.modifiers = r.refs("modifiers", Seq::Modifier);
+  p.modTurns = modTurnsOf(r, "modTurns");
   p.occupied = r.flag("occupied", false);
   p.occupier = r.ref("occupier", Seq::Faction);
+  p.occGarrison = garrisonOf(r, "occGarrison");
+  p.occIdle = r.intv("occIdle", 0);
+  r.list("slaves", [&](Rec& e) {
+    SlaveWork s;
+    s.race = e.ref("race", Seq::Race);
+    s.count = e.integer("count", 0);
+    p.slaves.push_back(s);
+  });
   p.notes = r.str("notes");
   p.entity = r.str("entity");
 }
@@ -1259,6 +1419,7 @@ void decFaction(Rec& r, Faction& f) {
     a.type = UnitType(e.enumv("type", en(schema::kUnitTypes), 0));
     a.total = countOf(e, "total");
     a.upkeep = e.num("upkeep", 0);
+    a.race = e.str("race");
     f.army.push_back(std::move(a));
   });
   r.list("fleet", [&](Rec& e) {
@@ -1272,9 +1433,32 @@ void decFaction(Rec& r, Faction& f) {
   });
   f.res = r.resMap("res");
   f.modifiers = r.refs("modifiers", Seq::Modifier);
+  f.modTurns = modTurnsOf(r, "modTurns");
   f.tax = r.num("tax", 10);
   f.homeState = r.ref("homeState", Seq::Faction);
   f.stateGuild = r.flag("stateGuild", false);
+  f.stateKind = StateKind(r.enumv("stateKind", en(schema::kStateKinds), 0));
+  f.mainState = r.flag("mainState", false);
+  f.suzerain = r.ref("suzerain", Seq::Faction);
+  f.rebelOf = r.ref("rebelOf", Seq::Faction);
+  r.list("slaves", [&](Rec& e) {
+    SlaveGroup s;
+    s.race = e.ref("race", Seq::Race);
+    s.count = e.integer("count", 0);
+    s.contentment = e.num("contentment", 0);
+    f.slaves.push_back(s);
+  });
+  r.list("forming", [&](Rec& e) {
+    Formation q;
+    q.row = e.ref("row", Seq::Row);
+    q.count = e.integer("count", 0);
+    q.left = e.intv("left", 1);
+    q.people = e.integer("people", 0);
+    q.paid = e.resMap("paid");
+    f.forming.push_back(std::move(q));
+  });
+  f.tradeFleet = garrisonOf(r, "tradeFleet");
+  f.pirateRisk = r.num("pirateRisk", 0);
   f.notes = r.str("notes");
   f.entity = r.str("entity");
 }
@@ -1286,6 +1470,10 @@ void decCharacter(Rec& r, Character& c) {
   c.hero = r.flag("hero", false);
   c.upkeep = r.num("upkeep", 0);
   c.portrait = r.bytes("portrait");
+  c.modifiers = r.refs("modifiers", Seq::Modifier);
+  c.modTurns = modTurnsOf(r, "modTurns");
+  c.captor = r.ref("captor", Seq::Faction);
+  c.burial = r.ref("burial", Seq::Province);
   c.notes = r.str("notes");
   c.entity = r.str("entity");
 }
@@ -1306,6 +1494,9 @@ void decModifier(Rec& r, Modifier& m) {
     }
   });
   m.targets = r.refs("targets", Seq::Faction);
+  m.key = r.str("key");
+  m.kind = ModKind(r.enumv("kind", en(schema::kModKinds), 0));
+  m.duration = r.intv("duration", 0);
 }
 
 void decBuilding(Rec& r, Building& b) {
@@ -1328,6 +1519,7 @@ void decBuilding(Rec& r, Building& b) {
       l.cost = e.resMap("cost");
       l.modifiers = e.refs("modifiers", Seq::Modifier);
       l.desc = e.str("desc");
+      l.produce = e.resMap("produce");
       b.levels.push_back(std::move(l));
     });
   }
@@ -1364,6 +1556,9 @@ void decArmy(Rec& r, Army& a) {
     a.groups.push_back(std::move(g));
   });
   a.commander = r.ref("commander", Seq::Character);
+  a.loyalty = r.num("loyalty", 100);
+  a.modifiers = r.refs("modifiers", Seq::Modifier);
+  a.modTurns = modTurnsOf(r, "modTurns");
 }
 
 void decRoute(Rec& r, Route& x) {
@@ -1385,6 +1580,8 @@ void decDeal(Rec& r, Deal& d) {
     it.mode = DealMode(e.enumv("mode", en(schema::kDealModes), 0));
     it.turns = e.intv("turns", 1);
     it.left = e.intv("left", 0);
+    it.kind = DealItemKind(e.enumv("kind", en(schema::kDealItemKinds), 0));
+    it.ref = it.kind == DealItemKind::Province ? e.ref("ref", Seq::Province) : it.kind == DealItemKind::Hero ? e.ref("ref", Seq::Character) : (e.get("ref"), Id(0));
     d.items.push_back(it);
   });
   d.turn = r.intv("turn", 1);
@@ -1560,6 +1757,16 @@ void decode(const Value& v, FileId f, Parts& p, Warnings& warns) {
     case F_ROUTES: decTable(v, f, c, p.routes, Seq::Route, decRoute); return;
     case F_DEALS: decTable(v, f, c, p.deals, Seq::Deal, decDeal); return;
     case F_LOG: decTable(v, f, c, p.log, Seq::Log, decLog); return;
+    case F_CONSTANTS: {
+      if (!v.isObj()) {
+        c.warn("", "ожидался объект {\"constants\": [...]} — констант нет");
+        return;
+      }
+      Rec r(v, c);
+      decConstants(r, p.constants);
+      r.done();
+      return;
+    }
     default: return;
   }
 }
@@ -1630,6 +1837,7 @@ World assemble(Parts&& p, Warnings& warns, u32* fixed) {
   tx.meta() = meta;
   tx.settings() = p.settings;
   tx.catalogs() = std::move(p.catalogs);
+  tx.constants() = std::move(p.constants);
   tx.relations() = std::move(p.relations);
   World w = std::move(tx).finish();
   u32 mask = normalize(w, warns);

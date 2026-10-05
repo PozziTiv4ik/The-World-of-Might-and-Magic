@@ -51,11 +51,16 @@ World bigWorld(size_t* points) {
     }
     tx.add(std::move(f));
   }
+  // Природа героев государств (ТЗ «Виды государств», п.1).
+  Modifier living = *schema::builtinModifier(schema::mod::Living);
+  living.id = 0;
+  const Id livingId = tx.add(std::move(living)).id;
   for (int i = 0; i < 400; i++) {
     Character c;
     c.name = "Персонаж " + std::to_string(i + 1);
     c.title = "Лорд";
     c.faction = Id(1 + i % 60);
+    if (tx.w().faction(c.faction)->isState()) c.modifiers = {livingId};
     c.notes = "Заметки о персонаже, несколько слов для объёма.";
     tx.add(std::move(c));
   }

@@ -1,5 +1,6 @@
 // Regnum — выдвижная панель «Персонажи»: поиск, фильтр по фракции и героям, список по фракциям (портрет или
-// инициалы, имя, титул и роль, звезда героя, кольцо правителя), создание, удаление с подтверждением.
+// инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя), создание,
+// удаление с подтверждением.
 // Щелчок открывает инспектор персонажа (character_inspector.cpp).
 #include <algorithm>
 
@@ -68,6 +69,13 @@ bool characterRow(App& a, const Character& c, const chars::Roles& roles, bool se
   if (c.hero) {
     RectF sr{right - 16, r.cy() - 8, 16, 16};
     ui::draw::icon("star-filled", sr, th.accent);
+    right = sr.x - 8;
+  }
+  // Состояние героя (ТЗ «Механика героев»): погиб или в плену.
+  const bool dead = rules::characterHas(w, c.id, schema::mod::Dead);
+  if (dead || rules::characterHas(w, c.id, schema::mod::Captive)) {
+    RectF sr{right - 16, r.cy() - 8, 16, 16};
+    ui::draw::icon(dead ? "skull" : "shackles", sr, dead ? th.danger : th.warning);
     right = sr.x - 8;
   }
   float lh = ui::lineHeight(ui::Font::Body), sh = ui::lineHeight(ui::Font::Small);

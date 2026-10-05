@@ -9,7 +9,7 @@ namespace rg::io::detail {
 // Файлы проекта (порядок записи: данные, затем world.json).
 enum FileId : int {
   F_CATALOGS, F_GEO, F_MAP, F_PROVINCES, F_FACTIONS, F_CHARACTERS, F_RELATIONS, F_MODIFIERS,
-  F_BUILDINGS, F_TECHS, F_ARMIES, F_ROUTES, F_DEALS, F_LOG, F_WORLD, F_COUNT
+  F_BUILDINGS, F_TECHS, F_ARMIES, F_ROUTES, F_DEALS, F_LOG, F_CONSTANTS, F_WORLD, F_COUNT
 };
 struct FileDef {
   const char* path;  // относительный путь
@@ -41,6 +41,7 @@ struct Parts {
   std::vector<Route> routes;
   std::vector<Deal> deals;
   std::vector<LogEntry> log;
+  Constants constants;
 };
 
 // Значение JSON одного файла.

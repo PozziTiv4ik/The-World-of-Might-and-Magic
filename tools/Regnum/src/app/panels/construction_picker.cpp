@@ -45,7 +45,10 @@ void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Facti
     std::string desc = L && !trim(L->desc).empty() ? L->desc : b->desc;
     if (!trim(desc).empty()) ui::label(desc, {.font = ui::Font::Small, .ink = ui::Ink::Dim, .wrap = true, .maxLines = 2});
     bld::costChips(o.cost, owner);
-    if (L) bld::levelEffects(w, *L);
+    if (L) {
+      bld::levelEffects(w, *L);
+      bld::produceChips(L->produce);
+    }
     for (size_t i = 0; i < o.reasons.size() && i < 3; i++) {
       ui::IdScope rs{int(i)};
       ui::label(o.reasons[i], {.font = ui::Font::Small, .ink = ui::Ink::Danger, .icon = "warning", .wrap = true});
@@ -95,7 +98,7 @@ bool BuildPicker::draw(App& a) {
         ui::spacer(6);
         std::string tip = (c ? c->name : std::string("Ресурс")) + " в запасе государства";
         ui::iconColored(w::resourceIcon(w, res), w::resourceColor(w, res), 16, tip);
-        ui::label(fmtNum(owner->stock(res)), {.font = ui::Font::Strong, .tooltip = tip});
+        ui::label(fmtNum(owner->stock(res), 3), {.font = ui::Font::Strong, .tooltip = tip});
       }
     }
   }

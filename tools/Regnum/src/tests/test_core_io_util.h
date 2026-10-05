@@ -141,17 +141,20 @@ inline World richWorld() {
   c1.portrait = jpegLikeBytes();
   c1.notes = "Заметки";
   c1.entity = "CHR-0001";
+  c1.modifiers = {3};
   tx.add(c1);
   Character c2;
   c2.id = 2;
   c2.name = "Сир Бертран";
   c2.faction = 1;
   c2.portrait = pngBytes(3, 3, 9);
+  c2.modifiers = {3};
   tx.add(c2);
   Character c3;
   c3.id = 3;
   c3.name = "Адмирал Кейл";
   c3.faction = 3;
+  c3.modifiers = {3};
   tx.add(c3);
 
   Modifier m1;
@@ -172,6 +175,10 @@ inline World richWorld() {
   m2.fx[int(Fx::PopGrowthPct)] = -12.5;
   m2.fxMask = 1u << int(Fx::PopGrowthPct);
   tx.add(m2);
+  // Природа героев государств (ТЗ «Виды государств», п.1): без неё мир при чтении получил бы «Живой».
+  Modifier m3 = *schema::builtinModifier(schema::mod::Living);
+  m3.id = 3;
+  tx.add(m3);
 
   Building b1;
   b1.id = 1;

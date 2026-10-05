@@ -9,6 +9,8 @@ namespace detail {
 
 namespace {
 std::string itemText(const World& w, const DealItem& it) {
+  if (it.kind == DealItemKind::Province) return "провинция " + provName(w, it.ref);
+  if (it.kind == DealItemKind::Hero) return "пленный " + q(w.characterName(it.ref));
   std::string s = resName(w, it.res) + " " + amount(it.amount);
   if (it.mode == DealMode::PerTurn) s += " за ход, " + nTurns(it.turns);
   return s;
@@ -36,12 +38,29 @@ Id conclude(Tx& tx, Deal d, bool log) {
   if (!c.ok) fail(join(c.problems, "; "));
   bool perTurn = false;
   for (DealItem& it : d.items) {
+    Id payer = it.from == DealSide::A ? d.a : d.b, payee = it.from == DealSide::A ? d.b : d.a;
+    if (it.kind == DealItemKind::Province) {   // провинция переходит к другой стороне (ТЗ «Механика войн», п.3)
+      it.left = 0;
+      setProvinceOwner(tx, it.ref, payee);
+      continue;
+    }
+    if (it.kind == DealItemKind::Hero) {       // обмен пленными (ТЗ «Механика героев», п.2)
+      it.left = 0;
+      const Character& c = *tx.w().character(it.ref);
+      if (c.faction == payee) {
+        for (Id m : std::vector<Id>(c.modifiers))
+          if (const Modifier* x = tx.w().modifier(m); x && x->key == schema::mod::Captive) dropModifier(tx, ModTarget::Character, it.ref, m);
+        tx.character(it.ref).captor = 0;
+      } else {
+        tx.character(it.ref).captor = payee;
+      }
+      continue;
+    }
     if (it.mode == DealMode::PerTurn) {
       it.left = it.turns;
       perTurn = true;
     } else {
       it.left = 0;
-      Id payer = it.from == DealSide::A ? d.a : d.b, payee = it.from == DealSide::A ? d.b : d.a;
       addStock(tx.faction(payer), it.res, -it.amount);
       addStock(tx.faction(payee), it.res, it.amount);
     }
@@ -67,9 +86,36 @@ DealCheck validateDeal(const World& w, const Deal& d) {
   else if (d.a == d.b) bad("Стороны сделки совпадают");
   if (d.items.empty()) bad("В сделке нет ни одной позиции");
   std::map<std::pair<Id, Id>, double> once;  // (плательщик, ресурс) -> сумма разовых позиций
+  std::vector<Id> seenRefs;
   for (const DealItem& it : d.items) {
-    if (int(it.from) < 0 || int(it.from) > 1 || int(it.mode) < 0 || int(it.mode) > 1) {
+    if (int(it.from) < 0 || int(it.from) > 1 || int(it.mode) < 0 || int(it.mode) > 1 || int(it.kind) < 0 || it.kind >= DealItemKind::Count) {
       bad("Неверная позиция сделки");
+      continue;
+    }
+    if (it.kind != DealItemKind::Resource) {
+      const Id giver = it.from == DealSide::A ? d.a : d.b;
+      if (d.kind != DealKind::Trade) {
+        bad("Дань и репарации выплачиваются золотом каждый ход");
+        continue;
+      }
+      if (contains(seenRefs, it.ref + (it.kind == DealItemKind::Hero ? 0x80000000u : 0u))) {
+        bad("Позиция указана дважды");
+        continue;
+      }
+      seenRefs.push_back(it.ref + (it.kind == DealItemKind::Hero ? 0x80000000u : 0u));
+      if (it.kind == DealItemKind::Province) {
+        const Province* p = w.province(it.ref);
+        if (!p) bad("Провинция сделки не найдена");
+        else if (p->sea) bad(provName(w, it.ref) + " — морская провинция");
+        else if (p->owner != giver) bad(provName(w, it.ref) + " не принадлежит " + facName(w, giver));
+        else if (const Faction* o = w.faction(it.from == DealSide::A ? d.b : d.a); o && !o->isState())
+          bad("Провинцию может получить только государство");
+      } else {
+        const Character* c = w.character(it.ref);
+        if (!c) bad("Персонаж сделки не найден");
+        else if (c->captor != giver || !hasModKey(w, c->modifiers, schema::mod::Captive))
+          bad(q(w.characterName(it.ref)) + " не в плену у " + facName(w, giver));
+      }
       continue;
     }
     if (!w.resource(it.res)) {

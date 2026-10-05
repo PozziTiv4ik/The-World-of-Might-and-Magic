@@ -215,8 +215,48 @@ bool App::act(std::string_view label, const std::function<void(Tx&)>& fn, const 
     return false;
   }
   try {
-    store.transact(label, [&](Tx& tx) { fn(tx); }, opt);
-    return true;
+    // ТЗ «Фиксы», п.10: если после действия в провинции построек больше слотов — сначала предупреждение со списком
+    // построек, которые будут снесены; отказ ничего не меняет.
+    const World before = store.world();
+    Tx tx(before);
+    fn(tx);
+    const u32 touched = tx.touched();
+    if (!touched) return true;
+    World after = std::move(tx).finish();
+    constexpr u32 kSlotTables = TB_PROVINCES | TB_FACTIONS | TB_MODIFIERS | TB_TECHS | TB_BUILDINGS | TB_CATALOGS | TB_CHARACTERS;
+    std::vector<rules::SlotLoss> loss;
+    if (touched & kSlotTables) loss = rules::slotLosses(before, after);
+    if (loss.empty()) {
+      store.transact(label, [&](Tx& t) { t.replaceWorld(after); }, opt);
+      return true;
+    }
+    std::vector<std::string> lines;
+    for (const rules::SlotLoss& l : loss) {
+      std::vector<std::string> names;
+      for (Id b : l.buildings) {
+        const Building* bd = after.building(b);
+        names.push_back("«" + (bd && !bd->name.empty() ? bd->name : std::string("Без названия")) + "»");
+      }
+      lines.push_back(after.provinceName(l.province) + ": " + join(names, ", "));
+    }
+    std::string text = "Данное действие уберёт слоты провинции и лишит её следующих построек: " + join(lines, "; ") + ".";
+    std::string lbl(label);
+    TxOptions o = opt;
+    confirm("Провинция лишится слотов", text, "Продолжить", true, [before, after, loss, lbl, o](App& a) {
+      if (World::diff(a.store.world(), before) != 0) {
+        a.toast("Мир изменился — повторите действие", ToastKind::Warning, "warning");
+        return;
+      }
+      try {
+        a.store.transact(lbl, [&](Tx& t) {
+          t.replaceWorld(after);
+          rules::trimExcessBuildings(t, &loss);
+        }, o);
+      } catch (const std::exception& e) {
+        a.error(e);
+      }
+    });
+    return false;
   } catch (const std::exception& e) {
     error(e);
     return false;

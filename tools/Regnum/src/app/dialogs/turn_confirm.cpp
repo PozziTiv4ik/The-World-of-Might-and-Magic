@@ -1,6 +1,7 @@
 // Regnum — подтверждение завершения хода с предварительным итогом: пробный ход (rules::endTurn на черновике,
 // мир не меняется) — казна каждой фракции до и после с доходом и расходом, изменения запасов, стройки и
 // исследования, которые завершатся, истекающие сделки и выплаты, предупреждения (долги, недостачи, восстания).
+// Две страницы (ТЗ «Фиксы», п.16): основные игровые государства (Faction::mainState) и все остальные фракции.
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
 #include "app/widgets.h"
@@ -9,14 +10,19 @@ namespace rg::app::turnui {
 
 namespace {
 
-struct Preview {
-  rules::TurnReport rep;
-  World before, after;                       // мир до и после пробного хода (записи хроники — в after)
-  std::shared_ptr<const rules::Calc> calc;   // расчёт на начало хода (разбор доходов)
+// Итог одной страницы: строки фракций и записи хроники, которые её касаются.
+struct Page {
   std::vector<const rules::TurnFactionLine*> lines;
   TurnDigest dg;
   double scale = 1;                          // общий максимум дохода и расхода (полосы)
   int up = 0, down = 0, resRows = 0;
+};
+
+struct Preview {
+  rules::TurnReport rep;
+  World before, after;                       // мир до и после пробного хода (записи хроники — в after)
+  std::shared_ptr<const rules::Calc> calc;   // расчёт на начало хода (разбор доходов)
+  Page pages[2];                             // kPageMain, kPageOther
 };
 
 std::unique_ptr<Preview> makePreview(const World& w) {
@@ -28,14 +34,17 @@ std::unique_ptr<Preview> makePreview(const World& w) {
     p->after = std::move(tx).finish();
   }
   p->calc = rules::calc(w);
-  p->lines = sortedLines(w, p->rep);
-  p->dg = digest(p->after, p->rep);
-  for (auto* l : p->lines) {
-    p->scale = std::max({p->scale, l->income, l->expenses});
-    double d = l->treasuryAfter - l->treasuryBefore;
-    if (d > 0.5) p->up++;
-    if (d < -0.5) p->down++;
-    if (!l->resources.empty()) p->resRows++;
+  for (int k = 0; k < 2; k++) {
+    Page& pg = p->pages[k];
+    pg.lines = sortedLines(w, p->rep, k);
+    pg.dg = digest(p->after, p->rep, k);
+    for (auto* l : pg.lines) {
+      pg.scale = std::max({pg.scale, l->income, l->expenses});
+      double d = l->treasuryAfter - l->treasuryBefore;
+      if (d > 0.5) pg.up++;
+      if (d < -0.5) pg.down++;
+      if (!l->resources.empty()) pg.resRows++;
+    }
   }
   return p;
 }
@@ -55,7 +64,7 @@ void resourceDeltas(const World& w, const std::map<Id, double>& res) {
     ui::IdScope s{i64(rid)};
     const CatalogItem* c = w.resource(rid);
     ui::iconColored(w::resourceIcon(w, rid), w::resourceColor(w, rid), 16, c ? std::string_view(c->name) : std::string_view("Ресурс"));
-    ui::label(fmtSigned(v, std::fabs(v - std::round(v)) > 1e-9 ? 1 : 0), {.ink = deltaInk(v)});
+    ui::label(fmtSigned(v, std::fabs(v - std::round(v)) > 1e-9 ? (rid == kGold ? 3 : 1) : 0), {.ink = deltaInk(v)});
   }
 }
 
@@ -69,6 +78,7 @@ void groupHeader(const char* icon, ui::Tone tone, std::string_view title, size_t
 
 struct ConfirmDlg : Dialog {
   std::unique_ptr<Preview> p;
+  int page = kPageMain;
   int tab = 0;
   const char* id() const override { return "turn.confirm"; }
   Style style(App& a) override {
@@ -79,19 +89,24 @@ struct ConfirmDlg : Dialog {
     return s;
   }
 
-  float bodyH() const { return std::round(clamp(ui::viewport().h - 430, 160.f, 320.f)); }
+  float bodyH() const { return std::round(clamp(ui::viewport().h - 470, 160.f, 320.f)); }
+  const Page& cur() const { return p->pages[page == kPageOther ? kPageOther : kPageMain]; }
 
-  void treasuryTab(App&) {
+  void treasuryTab(App& a) {
     const World& w = p->before;
-    ui::Column cols[] = {{"Фракция", nullptr, ui::fr(1.7f)},
+    const Page& pg = cur();
+    ui::Column cols[] = {{page == kPageMain ? "Государство" : "Фракция", nullptr, ui::fr(1.7f)},
                          {"Доход", "income", ui::fr(1), ui::Align::Right},
                          {"Расход", "expense", ui::fr(1), ui::Align::Right},
                          {"Казна", "treasury", ui::fr(1.5f), ui::Align::Right},
                          {"Изменение", nullptr, ui::fr(0.9f), ui::Align::Right}};
-    ui::Table t("treasury", cols, int(p->lines.size()), {.rowHeight = 40, .height = bodyH(), .selectable = false, .emptyIcon = "crown", .emptyText = "Фракций пока нет"});
+    ui::Table t("treasury", cols, int(pg.lines.size()),
+                {.rowHeight = 40, .height = bodyH(), .selectable = false, .emptyIcon = "crown",
+                 .emptyText = page == kPageMain ? "Основных государств нет" : "Других фракций нет"});
     for (int i : t) {
-      const rules::TurnFactionLine& l = *p->lines[size_t(i)];
+      const rules::TurnFactionLine& l = *pg.lines[size_t(i)];
       const rules::FactionCalc* fc = p->calc->faction(l.faction);
+      a.markUi("turn.confirm.row." + std::to_string(l.faction), t.rowRect());
       t.cell();
       factionLabel(w, l.faction);
       for (int k = 0; k < 2; k++) {
@@ -101,7 +116,7 @@ struct ConfirmDlg : Dialog {
         ui::at(RectF{cr.x, std::round(cr.cy() - 12), cr.w, 18});
         ui::label(money(v), {.ink = ui::Ink::Dim, .align = ui::Align::Right, .tooltip = tip});
         RectF br{cr.x + cr.w * 0.25f, std::round(cr.cy() + 8), cr.w * 0.75f, 4};
-        float bw = float(clamp(v / std::max(1e-9, p->scale), 0.0, 1.0)) * br.w;
+        float bw = float(clamp(v / std::max(1e-9, pg.scale), 0.0, 1.0)) * br.w;
         if (v > 0) bw = std::max(bw, 2.f);
         const ui::Theme& th = ui::theme();
         ui::draw::rect(br, th.track, 2);
@@ -122,9 +137,9 @@ struct ConfirmDlg : Dialog {
   void resourcesTab(App&) {
     const World& w = p->before;
     std::vector<const rules::TurnFactionLine*> rows;
-    for (auto* l : p->lines)
+    for (auto* l : cur().lines)
       if (!l->resources.empty()) rows.push_back(l);
-    ui::Column cols[] = {{"Фракция", nullptr, ui::fr(1.2f)}, {"Изменение запасов", "resource", ui::fr(2.2f)}};
+    ui::Column cols[] = {{page == kPageMain ? "Государство" : "Фракция", nullptr, ui::fr(1.2f)}, {"Изменение запасов", "resource", ui::fr(2.2f)}};
     ui::Table t("resources", cols, int(rows.size()),
                 {.rowHeight = 40, .height = bodyH(), .selectable = false, .emptyIcon = "resource", .emptyText = "Запасы ресурсов не изменятся"});
     for (int i : t) {
@@ -137,7 +152,7 @@ struct ConfirmDlg : Dialog {
   }
 
   void eventsTab(App&) {
-    const TurnDigest& d = p->dg;
+    const TurnDigest& d = cur().dg;
     if (d.events() == 0) {
       RectF r = ui::next(bodyH());
       ui::Area ar(RectF{r.x, r.y + r.h * 0.5f - 70, r.w, 140}, 0);
@@ -159,11 +174,11 @@ struct ConfirmDlg : Dialog {
   }
 
   void warningsTab(App&) {
-    const TurnDigest& d = p->dg;
+    const TurnDigest& d = cur().dg;
     if (d.warnings() == 0) {
       RectF r = ui::next(bodyH());
       ui::Area ar(RectF{r.x, r.y + r.h * 0.5f - 70, r.w, 140}, 0);
-      ui::emptyState("check-circle", "Всё спокойно: долгов, недостач и восстаний не будет.");
+      ui::emptyState("check-circle", "Всё спокойно: долгов, голода, недостач и восстаний не будет.");
       return;
     }
     ui::Scroll sc("warnings", bodyH());
@@ -176,23 +191,35 @@ struct ConfirmDlg : Dialog {
     };
     group("rebellion", ui::Tone::Danger, "Восстания", d.rebellions);
     group("treasury", ui::Tone::Danger, "Долги казны", d.debts);
+    group("grain", ui::Tone::Danger, "Голод", d.famine);
     group("warning", ui::Tone::Warning, "Недостачи по сделкам", d.shortfalls);
   }
 
   bool draw(App& a) override {
     if (!p) return false;
-    const TurnDigest& d = p->dg;
     turnArrow(p->rep.turnFrom, p->rep.turnTo);
+    // Страницы: основные игровые государства и остальные фракции.
+    {
+      const std::string l0 = pageLabel(kPageMain, p->pages[kPageMain].lines.size());
+      const std::string l1 = pageLabel(kPageOther, p->pages[kPageOther].lines.size());
+      int pg = page;
+      if (ui::segmented("pages", pg, {{"crown", l0, "Основные игровые государства"}, {"list", l1, "Остальные государства и гильдии"}}))
+        page = pg == kPageOther ? kPageOther : kPageMain;
+      a.markUi("turn.confirm.pages");
+    }
+    const Page& pg = cur();
+    const TurnDigest& d = pg.dg;
     {
       ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
-      ui::stat(std::to_string(p->lines.size()), "Фракций", {.icon = "crown", .tone = ui::Tone::Accent});
-      ui::stat(std::to_string(p->up), "Казна растёт", {.icon = "trend-up", .tone = ui::Tone::Success});
-      ui::stat(std::to_string(p->down), "Казна убывает", {.icon = "trend-down", .tone = p->down ? ui::Tone::Warning : ui::Tone::Neutral});
+      ui::stat(std::to_string(pg.lines.size()), page == kPageMain ? "Государств" : "Фракций", {.icon = page == kPageMain ? "crown" : "list", .tone = ui::Tone::Accent});
+      ui::stat(std::to_string(pg.up), "Казна растёт", {.icon = "trend-up", .tone = ui::Tone::Success});
+      ui::stat(std::to_string(pg.down), "Казна убывает", {.icon = "trend-down", .tone = pg.down ? ui::Tone::Warning : ui::Tone::Neutral});
       ui::stat(std::to_string(d.events()), "Завершится", {.icon = "check-circle", .tone = ui::Tone::Info});
     }
     if (d.warnings() > 0) {
       std::vector<std::string> parts;
       if (!d.debts.empty()) parts.push_back("долги казны: " + std::to_string(d.debts.size()));
+      if (!d.famine.empty()) parts.push_back("голод: " + std::to_string(d.famine.size()));
       if (!d.shortfalls.empty()) parts.push_back("недостачи: " + std::to_string(d.shortfalls.size()));
       if (!d.rebellions.empty()) parts.push_back("восстания: " + std::to_string(d.rebellions.size()));
       const ui::Theme& th = ui::theme();
@@ -207,7 +234,7 @@ struct ConfirmDlg : Dialog {
     }
     ui::tabs("tabs", tab,
              {{"treasury", "Казна"},
-              {"resource", "Ресурсы", {}, p->resRows},
+              {"resource", "Ресурсы", {}, pg.resRows},
               {"check-circle", "События", {}, d.events()},
               {"warning", "Внимание", {}, d.warnings(), ui::Tone::Danger}},
              {.style = ui::TabStyle::Pill, .fill = true});
@@ -237,6 +264,8 @@ struct ConfirmDlg : Dialog {
 std::unique_ptr<Dialog> makeConfirm(App& a) {
   auto d = std::make_unique<ConfirmDlg>();
   d->p = makePreview(a.store.world());
+  // Первая страница — основные государства; если их нет — сразу остальные.
+  d->page = d->p->pages[kPageMain].lines.empty() ? kPageOther : kPageMain;
   return d;
 }
 

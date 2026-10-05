@@ -69,6 +69,11 @@ BuildOption optionFor(const World& w, const Province& p, const Building& b, doub
   const Faction* owner = ownerState(w, p);
   if (p.sea) o.reasons.push_back("В морской провинции нельзя строить");
   else if (!owner) o.reasons.push_back("У провинции нет владельца");
+  // ТЗ «Виды государств», п.5 и 9: в пустоши нежити строит только государство нежити, в осквернённой — демонов.
+  if (owner && hasModKey(w, p.modifiers, schema::mod::UndeadWaste) && owner->stateKind != StateKind::Undead)
+    o.reasons.push_back("В пустоши нежити строит только государство нежити");
+  if (owner && hasModKey(w, p.modifiers, schema::mod::Desecrated) && owner->stateKind != StateKind::Demonic)
+    o.reasons.push_back("В осквернённой провинции строит только государство демонов");
   if (maxLvl == 0) o.reasons.push_back("У постройки нет уровней");
   if (!pb && int(p.buildings.size()) >= slots)
     o.reasons.push_back("Нет свободных слотов: занято " + std::to_string(p.buildings.size()) + " из " + std::to_string(slots));
@@ -178,6 +183,72 @@ void cancelBuilding(Tx& tx, Id province, Id building) {
   if (owner) refs.factions.push_back(owner);
   if (got && got != owner) refs.factions.push_back(got);
   addLog(tx, LogKind::Build, text, refs);
+}
+
+// ================================================================ слоты
+namespace {
+
+// Провинции с постройками: слоты и лишние постройки (с конца списка). only — только эти провинции (пусто — все).
+std::vector<SlotLoss> excessIn(const World& w, const std::vector<Id>* only) {
+  std::vector<SlotLoss> out;
+  SourceIndex si(w);
+  auto check = [&](const Province& p) {
+    if (p.sea || p.buildings.empty()) return;
+    const int slots = slotsOf(p, provinceFx(w, si, p));
+    const int used = int(p.buildings.size());
+    if (used <= slots) return;
+    SlotLoss l;
+    l.province = p.id;
+    l.slots = slots;
+    l.used = used;
+    for (int i = used - 1; i >= slots; i--) l.buildings.push_back(p.buildings[size_t(i)].building);
+    out.push_back(std::move(l));
+  };
+  if (only) {
+    for (Id pid : *only)
+      if (const Province* p = w.province(pid)) check(*p);
+  } else {
+    w.provinces.each(check);
+  }
+  return out;
+}
+
+}  // namespace
+
+std::vector<SlotLoss> excessBuildings(const World& w) { return excessIn(w, nullptr); }
+
+std::vector<SlotLoss> slotLosses(const World& before, const World& after) {
+  // Провинции, где стало меньше слотов, чем построек, а до изменения постройки помещались (или лишних стало больше).
+  std::vector<SlotLoss> now = excessIn(after, nullptr), out;
+  if (now.empty()) return out;
+  std::vector<Id> ids;
+  for (const SlotLoss& l : now) ids.push_back(l.province);
+  std::vector<SlotLoss> was = excessIn(before, &ids);
+  for (SlotLoss& l : now) {
+    auto it = std::find_if(was.begin(), was.end(), [&](const SlotLoss& x) { return x.province == l.province; });
+    if (it == was.end() || it->buildings.size() < l.buildings.size()) out.push_back(std::move(l));
+  }
+  return out;
+}
+
+void trimExcessBuildings(Tx& tx, const std::vector<SlotLoss>* only) {
+  std::vector<SlotLoss> all = excessBuildings(tx.w());
+  for (const SlotLoss& l : all) {
+    if (only && std::none_of(only->begin(), only->end(), [&](const SlotLoss& x) { return x.province == l.province; })) continue;
+    const Province& p = *tx.w().province(l.province);
+    std::vector<ProvBuilding> gone(p.buildings.begin() + l.slots, p.buildings.end());
+    const Id owner = p.owner;
+    tx.province(l.province).buildings.resize(size_t(l.slots));
+    std::vector<std::string> names;
+    for (const ProvBuilding& pb : gone) {
+      names.push_back(buildingName(tx.w(), pb.building));
+      if (pb.constructing) refundPaid(tx, pb);
+    }
+    addLog(tx, LogKind::Build,
+           "Провинция " + provName(tx.w(), l.province) + " лишилась слотов (" + std::to_string(l.slots) + " из " + std::to_string(l.used) +
+               "): снесены " + join(names, ", "),
+           LogRefs{l.province, 0, owner ? std::vector<Id>{owner} : std::vector<Id>{}});
+  }
 }
 
 void demolish(Tx& tx, Id province, Id building) {

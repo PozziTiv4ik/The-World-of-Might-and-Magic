@@ -56,10 +56,12 @@ Color stColor(const Ink& k, St s) {
 int turnsLeft(int turns, int progress) { return std::max(1, turns - std::max(0, progress)); }
 
 // Копия технологии на кадр (действия посреди кадра заменяют мир — указатели на записи не держим).
+// turns — базовый срок, need — срок с модификатором «Время исследования технологий» государства (rules::researchTurns);
+// progress — пройдено ходов (может быть больше turns, если срок увеличен).
 struct TN {
   Id id = 0;
   std::string name, desc;
-  int turns = 1, progress = 0;
+  int turns = 1, need = 1, progress = 0;
   bool studied = false, research = false;
   Vec2 pos;
   std::vector<Id> prereqs, mods;
@@ -220,7 +222,7 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
   c.fillCircle(mx, my, 17, tone.alpha(t.st == St::Locked ? 0.12f : 0.17f));
   if (t.st == St::Research) {
     c.strokeCircle(mx, my, 17, 2.4f, k.surfaceHi);
-    drawArc(c, mx, my, 17, clamp(float(t.progress) / float(std::max(1, t.turns)), 0.f, 1.f), 2.4f, tone);
+    drawArc(c, mx, my, 17, clamp(float(t.progress) / float(std::max(1, t.need)), 0.f, 1.f), 2.4f, tone);
   }
   icon(c, stIcon(t.st), RectF{mx - 9, my - 9, 18, 18}, tone);
 
@@ -230,7 +232,7 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
   {
     float x = r.x + 54, y = r.y + 33;
     icon(c, "hourglass", RectF{x, y + 1, 13, 13}, k.textMuted);
-    std::string tt = t.st == St::Research ? "ещё " + nTurns(turnsLeft(t.turns, t.progress)) : nTurns(t.turns);
+    std::string tt = t.st == St::Research ? "ещё " + nTurns(turnsLeft(t.need, t.progress)) : nTurns(t.need);
     gfx::TextStyle st = textStyle(11.5f);
     float tw = gfx::measureText(tt, st);
     text(c, tt, st, RectF{x + 17, y, tw + 2, 15}, k.textMuted);
@@ -259,9 +261,9 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
     text(c, b, small, RectF{r.x + 14, r.y + 56, kW - 28, 16}, cd.bonus.empty() ? k.textMuted : k.textDim);
     RectF bar{r.x + 14, r.y + 79, kW - 28 - 34, 5};
     c.fillRoundRect(bar, 2.5f, k.surfaceHi);
-    float fr = clamp(float(t.progress) / float(std::max(1, t.turns)), 0.f, 1.f);
+    float fr = clamp(float(t.progress) / float(std::max(1, t.need)), 0.f, 1.f);
     if (fr > 0) c.fillRoundRect(RectF{bar.x, bar.y, std::max(5.f, bar.w * fr), bar.h}, 2.5f, t.research ? k.info : k.textMuted);
-    text(c, std::to_string(t.progress) + "/" + std::to_string(t.turns), small, RectF{bar.right() + 4, bar.y - 6, 30, 16}, k.textMuted, gfx::Align::Right);
+    text(c, std::to_string(t.progress) + "/" + std::to_string(t.need), small, RectF{bar.right() + 4, bar.y - 6, 30, 16}, k.textMuted, gfx::Align::Right);
   } else if (!cd.bonus.empty()) {
     text(c, cd.bonus, small, RectF{r.x + 14, r.y + 54, kW - 28, 34}, k.textDim, gfx::Align::Left, 2, gfx::VAlign::Top);
   } else if (!cd.need.empty()) {
@@ -437,12 +439,12 @@ void sideOverview(App& a, Ed& ed, Id faction, const std::vector<TN>& ts) {
       for (const TN& t : ts) {
         if (t.st != St::Research) continue;
         ui::IdScope sc{i64(t.id)};
-        if (ui::listItem(t.name, {.icon = "research", .subtitle = "Осталось " + nTurns(turnsLeft(t.turns, t.progress)),
-                                  .hint = std::to_string(t.progress) + "/" + std::to_string(t.turns)})) {
+        if (ui::listItem(t.name, {.icon = "research", .subtitle = "Осталось " + nTurns(turnsLeft(t.need, t.progress)),
+                                  .hint = std::to_string(t.progress) + "/" + std::to_string(t.need)})) {
           ed.sel = t.id;
           ed.revealSel = true;
         }
-        ui::progress(double(t.progress) / double(std::max(1, t.turns)), {.tone = ui::Tone::Info, .height = 4});
+        ui::progress(double(t.progress) / double(std::max(1, t.need)), {.tone = ui::Tone::Info, .height = 4});
       }
     }
   }
@@ -451,7 +453,7 @@ void sideOverview(App& a, Ed& ed, Id faction, const std::vector<TN>& ts) {
       for (const TN& t : ts) {
         if (t.st != St::Available) continue;
         ui::IdScope sc{i64(t.id)};
-        if (ui::listItem(t.name, {.icon = "research", .hint = nTurns(t.turns)})) {
+        if (ui::listItem(t.name, {.icon = "research", .hint = nTurns(turnsLeft(t.need, t.progress))})) {
           ed.sel = t.id;
           ed.revealSel = true;
         }
@@ -540,10 +542,10 @@ void sideTech(App& a, Ed& ed, const std::vector<TN>& ts, const TN& t) {
       ui::label("Технология изучена — её бонусы действуют.", {.ink = ui::Ink::Success, .icon = "check-circle", .wrap = true});
     } else if (t.research) {
       ui::Row r({ui::fr(1), ui::px(60)}, 22, 8);
-      ui::label("Исследуется · ещё " + nTurns(turnsLeft(t.turns, t.progress)), {.font = ui::Font::Strong, .ink = ui::Ink::Info});
-      ui::label(std::to_string(t.progress) + " / " + std::to_string(t.turns), {.ink = ui::Ink::Dim, .align = ui::Align::Right});
+      ui::label("Исследуется · ещё " + nTurns(turnsLeft(t.need, t.progress)), {.font = ui::Font::Strong, .ink = ui::Ink::Info});
+      ui::label(std::to_string(t.progress) + " / " + std::to_string(t.need), {.ink = ui::Ink::Dim, .align = ui::Align::Right});
     } else if (t.st == St::Available) {
-      ui::label("Условия выполнены. Изучение займёт " + nTurns(turnsLeft(t.turns, t.progress)) + ".", {.ink = ui::Ink::Dim, .wrap = true});
+      ui::label("Условия выполнены. Изучение займёт " + nTurns(turnsLeft(t.need, t.progress)) + ".", {.ink = ui::Ink::Dim, .wrap = true});
     } else {
       ui::label("Сначала изучите:", {.ink = ui::Ink::Dim, .icon = "lock"});
       ui::IdScope ms("missing");
@@ -559,12 +561,12 @@ void sideTech(App& a, Ed& ed, const std::vector<TN>& ts, const TN& t) {
       }
     }
     if (t.research) {
-      ui::progress(double(t.progress) / double(std::max(1, t.turns)), {.tone = ui::Tone::Info, .height = 6});
+      ui::progress(double(t.progress) / double(std::max(1, t.need)), {.tone = ui::Tone::Info, .height = 6});
       if (ui::button("Остановить исследование", {.icon = "close", .fill = true, .disabled = ro}))
         a.act("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, t.id); });
       a.markUi("tt.side.research");
     } else if (!t.studied) {
-      if (t.progress > 0) ui::progress(double(t.progress) / double(std::max(1, t.turns)), {.tone = ui::Tone::Neutral, .height = 4});
+      if (t.progress > 0) ui::progress(double(t.progress) / double(std::max(1, t.need)), {.tone = ui::Tone::Neutral, .height = 4});
       bool can = t.st == St::Available;
       if (ui::button("Начать исследование", {.variant = ui::Variant::Primary, .icon = "play", .fill = true, .disabled = ro || !can,
                                               .tooltip = can ? std::string_view("Исследование продвигается на один ход при завершении хода")
@@ -581,6 +583,12 @@ void sideTech(App& a, Ed& ed, const std::vector<TN>& ts, const TN& t) {
     if (ui::numberField("turns", turns, {.min = 1, .max = 999, .unit = "ход|хода|ходов", .steppers = true}))
       a.act("Срок изучения технологии", [&](Tx& tx) { tx.tech(t.id).turns = std::max(1, turns); }, {.coalesce = "tt-turns:" + std::to_string(t.id)});
     a.markUi("tt.side.turns");
+    if (t.need != t.turns) {   // срок с модификатором государства
+      ui::label("с модификаторами — " + nTurns(t.need),
+                {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right, .icon = "hourglass",
+                 .tooltip = "Модификатор «Время исследования технологий» государства"});
+      a.markUi("tt.side.need");
+    }
     // Бонус (описание)
     const Tech* rec = w.tech(t.id);
     const Faction* owner = rec ? w.faction(rec->faction) : nullptr;
@@ -682,8 +690,10 @@ void drawTechTree(App& a, Id faction) {
   const std::string facName = fac->name;
   const bool guild = fac->isGuild();
 
-  // Снимок дерева на кадр.
+  // Снимок дерева на кадр. Срок с модификатором государства одинаков для одинаковых базовых сроков — один расчёт
+  // эффектов на значение.
   std::vector<TN> ts;
+  std::map<int, int> needOf;
   w.techs.each([&](const Tech& t) {
     if (t.faction != faction) return;
     TN n;
@@ -691,6 +701,9 @@ void drawTechTree(App& a, Id faction) {
     n.name = t.name;
     n.desc = t.desc;
     n.turns = std::max(1, t.turns);
+    auto it = needOf.find(n.turns);
+    if (it == needOf.end()) it = needOf.emplace(n.turns, rules::researchTurns(w, t)).first;
+    n.need = it->second;
     n.progress = t.progress;
     n.studied = t.studied;
     n.research = t.research;
@@ -1165,7 +1178,7 @@ void drawTechTree(App& a, Id faction) {
     if (const TN* t = find(ts, tipId)) {
       Tip tip;
       tip.title = t->name.empty() ? "Без названия" : t->name;
-      tip.subtitle = std::string(stName(t->st)) + " · " + nTurns(t->turns) + " изучения";
+      tip.subtitle = std::string(stName(t->st)) + " · " + nTurns(t->need) + " изучения";
       tip.accent = stColor(sc->k, t->st);
       tip.icon = stIcon(t->st);
       if (!trim(t->desc).empty()) tip.lines.push_back({"", t->desc, th.textDim, true});
@@ -1176,7 +1189,7 @@ void drawTechTree(App& a, Id faction) {
               tip.lines.push_back({schema::effect(Fx(fx)).icon, w::effectText(Fx(fx), m->fx[size_t(fx)]),
                                    w::effectGood(Fx(fx), m->fx[size_t(fx)]) ? th.success : th.danger});
       if (t->research || (t->progress > 0 && !t->studied))
-        tip.lines.push_back({"hourglass", "Пройдено " + std::to_string(t->progress) + " из " + std::to_string(t->turns) + ", осталось " + nTurns(turnsLeft(t->turns, t->progress)), th.info});
+        tip.lines.push_back({"hourglass", "Пройдено " + std::to_string(t->progress) + " из " + std::to_string(t->need) + ", осталось " + nTurns(turnsLeft(t->need, t->progress)), th.info});
       if (!t->prereqs.empty()) tip.lines.push_back({"link", "Требует: " + techNames(ts, t->prereqs, 4), Color(0, 0, 0, 0), true});
       if (!t->missing.empty()) tip.lines.push_back({"lock", "Не изучены: " + techNames(ts, t->missing, 4), th.warning, true});
       std::vector<Id> deps;

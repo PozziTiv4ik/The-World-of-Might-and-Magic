@@ -19,7 +19,7 @@ RectF unite(const RectF& a, const RectF& b) {
 
 }  // namespace
 
-float figureSizeAt(double zoom) { return float(clamp(2 * schema::kObjectRadius * zoom * 0.9, 24.0, 60.0)); }
+float figureSizeOf(const Settings& s) { return float(clamp(s.figureSize, schema::kFigureSizeMin, schema::kFigureSizeMax)); }
 
 gfx::TextStyle markBadgeStyle(float dpi) {
   gfx::TextStyle ts;
@@ -72,9 +72,9 @@ bool markHit(const MarkLayout::Mark& m, float size, float dx, float dy) {
   return m.members.size() > 1 && countBadgeRect(gfx::Pt(0, 0), size, countBadgeText(m.members.size()), 1).contains(dx, dy);
 }
 
-MarkLayout layoutMarks(const std::vector<const Army*>& armies, double zoom, Id sel) {
+MarkLayout layoutMarks(const std::vector<const Army*>& armies, double zoom, Id sel, float figure) {
   MarkLayout L;
-  L.figure = figureSizeAt(zoom);
+  L.figure = figure;
   const float s = L.figure;
   struct Item {
     const Army* a;

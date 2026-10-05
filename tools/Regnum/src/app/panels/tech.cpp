@@ -1,5 +1,6 @@
 // Regnum — вкладка фракции «Технологии» (ТЗ 1.b.v): сводка дерева (изучено, исследуется), ход исследований,
 // доступные технологии и кнопка «Открыть дерево технологий» (у каждого государства и гильдии — своё дерево).
+// Сроки — с модификатором «Время исследования технологий» государства (rules::researchTurns).
 #include "app/editors/techtree.h"
 #include "app/widgets.h"
 
@@ -7,21 +8,27 @@ namespace rg::app {
 
 namespace {
 
+// need — срок с модификатором «Время исследования технологий» государства (rules::researchTurns); progress — пройдено.
 struct T {
   Id id = 0;
   std::string name;
-  int turns = 1, progress = 0;
+  int need = 1, progress = 0;
   bool studied = false, research = false, available = false;
+  int left() const { return std::max(1, need - progress); }
 };
 
 std::vector<T> techsOf(const World& w, Id faction) {
   std::vector<T> out;
+  std::map<int, int> needOf;   // базовый срок → срок с модификатором (один расчёт эффектов на значение)
   w.techs.each([&](const Tech& t) {
     if (t.faction != faction) return;
     T x;
     x.id = t.id;
     x.name = t.name.empty() ? std::string("Без названия") : t.name;
-    x.turns = std::max(1, t.turns);
+    const int base = std::max(1, t.turns);
+    auto it = needOf.find(base);
+    if (it == needOf.end()) it = needOf.emplace(base, rules::researchTurns(w, t)).first;
+    x.need = it->second;
     x.progress = std::max(0, t.progress);
     x.studied = t.studied;
     x.research = t.research && !t.studied;
@@ -68,9 +75,9 @@ void drawTech(App& a, Id fid) {
         {
           ui::Group g(0, 4);
           if (ui::link(t.name)) openTechTree(a, fid, t.id);
-          int left = std::max(1, t.turns - t.progress);
-          ui::progress(double(t.progress) / double(t.turns),
-                       {.tone = ui::Tone::Info, .height = 5, .text = std::to_string(t.progress) + "/" + std::to_string(t.turns) + " · ещё " + nTurns(left)});
+          ui::progress(double(t.progress) / double(t.need),
+                       {.tone = ui::Tone::Info, .height = 5, .text = std::to_string(t.progress) + "/" + std::to_string(t.need) + " · ещё " + nTurns(t.left())});
+          a.markUi("faction.tech.progress." + std::to_string(t.id));
         }
         Id tid = t.id;
         if (ui::iconButton("close", "Остановить исследование", {.disabled = ro})) a.act("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid); });
@@ -85,7 +92,8 @@ void drawTech(App& a, Id fid) {
         ui::IdScope sc{i64(t.id)};
         ui::Row row({ui::fr(1), ui::px(76), ui::px(30)}, 28, 8);
         if (ui::link(t.name)) openTechTree(a, fid, t.id);
-        ui::label(nTurns(std::max(1, t.turns - t.progress)), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
+        ui::label(nTurns(t.left()), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
+        a.markUi("faction.tech.left." + std::to_string(t.id));
         Id tid = t.id;
         if (ui::iconButton("play", "Начать исследование", {.disabled = ro, .tone = ui::Tone::Accent}))
           a.act("Начать исследование", [&](Tx& tx) { rules::startResearch(tx, tid); });

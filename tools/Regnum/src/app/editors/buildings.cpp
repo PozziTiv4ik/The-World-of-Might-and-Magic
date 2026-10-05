@@ -51,10 +51,35 @@ void costChips(const std::map<Id, double>& cost, const Faction* payer, bool show
     const CatalogItem* c = w.resource(res);
     bool lack = payer && payer->stock(res) + 1e-9 < v;
     std::string tip = (c ? c->name : std::string("Ресурс"));
-    if (payer) tip += ": нужно " + fmtNum(v) + ", есть " + fmtNum(std::max(0.0, payer->stock(res)));
+    if (payer) tip += ": нужно " + fmtNum(v, 3) + ", есть " + fmtNum(std::max(0.0, payer->stock(res)), 3);
     ui::iconColored(w::resourceIcon(w, res), lack ? ui::theme().danger : w::resourceColor(w, res), 16, tip);
-    ui::label(fmtNum(v, std::fabs(v - std::round(v)) > 1e-9 ? 1 : 0), {.font = ui::Font::Strong, .ink = lack ? ui::Ink::Danger : ui::Ink::Normal, .tooltip = tip});
+    ui::label(fmtNum(v, 3), {.font = ui::Font::Strong, .ink = lack ? ui::Ink::Danger : ui::Ink::Normal, .tooltip = tip});
   }
+}
+
+void produceChips(const std::map<Id, double>& produce) {
+  const World& w = app().world();
+  if (produce.empty()) return;
+  ui::IdScope scope("produce");
+  ui::HStack row(20, ui::Align::Left, 4);
+  ui::icon("repeat", ui::Ink::Muted, 14, "Даёт за ход");
+  for (auto& [res, v] : produce) {
+    ui::IdScope s{i64(res)};
+    ui::spacer(6);
+    const CatalogItem* c = w.resource(res);
+    std::string tip = (c ? c->name : std::string("Ресурс")) + ": +" + fmtNum(v, 3) + " за ход";
+    ui::iconColored(w::resourceIcon(w, res), w::resourceColor(w, res), 16, tip);
+    ui::label("+" + fmtNum(v, 3), {.font = ui::Font::Strong, .ink = ui::Ink::Success, .tooltip = tip});
+  }
+}
+
+std::string produceText(const World& w, const std::map<Id, double>& produce) {
+  std::vector<std::string> p;
+  for (auto& [res, v] : produce) {
+    const CatalogItem* c = w.resource(res);
+    p.push_back("+" + fmtNum(v, 3) + " " + (c ? utf8::lower(c->name) : std::string("ресурс")));
+  }
+  return join(p, ", ");
 }
 
 void levelEffects(const World& w, const BuildingLevel& L, bool compact) {
@@ -67,7 +92,7 @@ std::string costText(const World& w, const std::map<Id, double>& cost) {
   std::vector<std::string> p;
   for (auto& [res, v] : cost) {
     const CatalogItem* c = w.resource(res);
-    p.push_back((c ? c->name : std::string("Ресурс")) + " " + fmtNum(v));
+    p.push_back((c ? c->name : std::string("Ресурс")) + " " + fmtNum(v, 3));
   }
   return join(p, ", ");
 }
@@ -553,6 +578,67 @@ const IconChoice kIcons[] = {
     {"b-military", "Военная"},   {"b-economic", "Экономическая"}, {"b-industrial", "Промышленная"}, {"b-residential", "Жилая"},
 };
 
+// «Даёт за ход» (ТЗ «Виды государств», п.4, 8): ресурсы, которые достроенный уровень даёт владельцу каждый ход, —
+// любые ресурсы справочника, в том числе трупы и демоническая энергия (встроенный ресурс создаётся при выборе).
+void levelProduce(App& a, const BN& b, int li, bool ro) {
+  const World& w = a.world();
+  const std::map<Id, double> produce = b.levels[size_t(li)].produce;
+  const Id bid = b.id;
+  ui::IdScope ps("produce");
+  ui::caption("Даёт за ход");
+  int ri = 0;
+  for (auto [res, amount] : produce) {
+    ui::IdScope rs(ri++);
+    ui::Row row({ui::fr(1), ui::px(96), ui::px(30)}, 30, 6);
+    Id nr = res;
+    if (w::catalogPicker("res", rules::CatalogList::Resources, nr, "", false, ro) && nr != res) {
+      Id old = res;
+      double v = amount;
+      a.act("Ресурс уровня", [&](Tx& tx) {
+        auto& pr = tx.building(bid).levels[size_t(li)].produce;
+        if (pr.count(nr)) fail("Этот ресурс уровень уже даёт");
+        pr.erase(old);
+        pr[nr] = v;
+      });
+    }
+    double v = amount;
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .tooltip = "Количество за ход"}))
+      a.act("Ресурс за ход", [&](Tx& tx) { tx.building(bid).levels[size_t(li)].produce[res] = std::max(0.0, v); },
+            {.coalesce = "bt-prod:" + std::to_string(bid) + ":" + std::to_string(li) + ":" + std::to_string(res)});
+    a.markUi("bt.level." + std::to_string(li) + ".produce." + std::to_string(res));
+    if (ui::iconButton("close", "Убрать ресурс")) {
+      Id r = res;
+      a.act("Убрать ресурс за ход", [&](Tx& tx) { tx.building(bid).levels[size_t(li)].produce.erase(r); });
+    }
+  }
+  if (ro) return;
+  // Добавить: ресурсы справочника и встроенные, которых в мире ещё нет (провизия, трупы, демоническая энергия).
+  struct Pick {
+    Id id = 0;
+    const char* key = nullptr;
+    std::string label;
+    const char* icon = nullptr;
+    Color color;
+  };
+  std::vector<Pick> cand;
+  for (const CatalogItem& c : w.catalogs->resources)
+    if (!produce.count(c.id)) cand.push_back({c.id, nullptr, c.name.empty() ? std::string("Без названия") : c.name, w::resourceIcon(w, c.id), w::resourceColor(w, c.id)});
+  for (const schema::BuiltinResource& br : schema::kBuiltinResources)
+    if (std::string_view(br.key) != schema::kResGold && !rules::resourceId(w, br.key)) cand.push_back({0, br.key, br.name, br.icon, Color::hex(br.color)});
+  if (cand.empty()) return;
+  std::vector<ui::Option> opts;
+  for (const Pick& o : cand) opts.push_back(ui::Option{o.label, o.icon, o.color});
+  int idx = -1;
+  if (ui::combo("add", idx, opts, {.placeholder = "Ресурс за ход", .search = 1, .icon = "plus"}) && idx >= 0 && idx < int(cand.size())) {
+    const Pick o = cand[size_t(idx)];
+    a.act("Ресурс за ход", [&](Tx& tx) {
+      Id r = o.id ? o.id : rules::ensureResource(tx, o.key);
+      tx.building(bid).levels[size_t(li)].produce[r] = 1;
+    });
+  }
+  a.markUi("bt.level." + std::to_string(li) + ".addproduce");
+}
+
 void levelCard(App& a, const BN& b, int li, bool ro) {
   const World& w = a.world();
   const BuildingLevel& L = b.levels[size_t(li)];
@@ -585,7 +671,7 @@ void levelCard(App& a, const BN& b, int li, bool ro) {
       });
     }
     double v = amount;
-    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 10}))
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 10, .digits = 3}))
       a.act("Стоимость уровня", [&](Tx& tx) { tx.building(b.id).levels[size_t(li)].cost[res] = std::max(0.0, v); },
             {.coalesce = "bt-cost:" + std::to_string(b.id) + ":" + std::to_string(li) + ":" + std::to_string(res)});
     a.markUi("bt.level." + std::to_string(li) + ".cost." + std::to_string(res));
@@ -610,6 +696,7 @@ void levelCard(App& a, const BN& b, int li, bool ro) {
     }
     a.markUi("bt.level." + std::to_string(li) + ".addcost");
   }
+  levelProduce(a, b, li, ro);
   ui::caption("Модификаторы уровня");
   std::vector<Id> mods = L.modifiers;
   if (tree::modifierList("mods", mods, ro)) a.act("Модификаторы уровня", [&](Tx& tx) { tx.building(b.id).levels[size_t(li)].modifiers = mods; });
@@ -1529,6 +1616,7 @@ void drawBuildingTree(App& a, Id owner) {
       for (size_t li = 0; li < b->levels.size() && li < 6; li++) {
         const BuildingLevel& lv = b->levels[li];
         tip.lines.push_back({"slots", roman(int(li) + 1) + " · " + nTurns(std::max(1, lv.turns)) + " · " + bld::costText(w, lv.cost), Color(0, 0, 0, 0), true});
+        if (!lv.produce.empty()) tip.lines.push_back({"repeat", "За ход: " + bld::produceText(w, lv.produce), th.success});
         for (Id mid : lv.modifiers)
           if (const Modifier* m = w.modifier(mid))
             for (int fx = 0; fx < kFxCount; fx++)

@@ -1,6 +1,7 @@
 // Regnum — вкладка «Совет» (ТЗ 1.b.iv): редактируемый список советников — назначение в совете (должность
-// справочника или своя) и назначенный лорд; содержание советника правится в строке (поле персонажа, расход
-// «специалисты»); добавление и удаление мест.
+// справочника или своя) и назначенный лорд (только доступные герои этого государства — ТЗ «Фиксы», п.9);
+// содержание советника правится в строке (поле персонажа, расход «специалисты», золото до тысячных); добавление и
+// удаление мест; модификатор совета («Децентрализация», «Слабый контроль», «Централизованная власть»).
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -97,6 +98,19 @@ void drawCouncil(App& a, Id id) {
     ui::stat(money(total), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning,
                                                    .tooltip = "Сумма содержания советников — входит в расход «специалисты»"});
   }
+  // Модификатор совета по числу назначений (ТЗ «Общие доработки», п.6): ставится сам.
+  if (f->isState())
+    for (const rules::AutoMod& am : rules::autoModifiers(w, id)) {
+      if (am.key != schema::mod::Decentralization && am.key != schema::mod::WeakControl && am.key != schema::mod::Centralized) continue;
+      const bool good = am.key == schema::mod::Centralized;
+      std::string tip = am.why;
+      if (am.m)
+        for (int k = 0; k < kFxCount; k++)
+          if (am.m->has(Fx(k))) tip += "\n" + w::effectText(Fx(k), am.m->fx[size_t(k)]);
+      ui::HStack hs(24, ui::Align::Left, 6);
+      ui::chip(am.m ? am.m->name : std::string("Совет"), {.icon = good ? "crown" : "council", .tone = good ? ui::Tone::Success : ui::Tone::Warning, .tooltip = tip});
+      a.markUi("council.auto");
+    }
   ui::spacer(2);
   ui::Section sec("Совет", "council", {.badge = n ? std::to_string(n) : std::string(), .actionIcon = ro ? nullptr : "plus",
                                        .actionTooltip = "Добавить место в совете"});
@@ -123,8 +137,9 @@ void drawCouncil(App& a, Id id) {
       a.markUi("council.pos." + std::to_string(i));
     };
     auto lord = [&] {
+      // Только доступные герои этого государства (ТЗ «Фиксы», п.9).
       Id who = seat.character;
-      if (w::characterPicker("who", who, id, "Вакантно", true, ro)) a.act("Советник", [&](Tx& tx) { seatOf(tx, id, sid).character = who; });
+      if (w::characterPicker("who", who, id, "Вакантно", true, ro)) a.act("Советник", [&](Tx& tx) { rules::setCouncilMember(tx, id, sid, who); });
       a.markUi("council.who." + std::to_string(i));
     };
     // Содержание советника — поле персонажа (расход «специалисты»); у вакантного места — прочерк.
@@ -135,8 +150,8 @@ void drawCouncil(App& a, Id id) {
       }
       double up = c->upkeep;
       const Id cid = c->id;
-      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = std::fabs(up - std::round(up)) > 1e-9 ? 1 : 0, .icon = "coins",
-                                         .disabled = ro, .tooltip = "Содержание советника за ход (расход «специалисты»)"}))
+      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .icon = "coins", .disabled = ro,
+                                         .tooltip = "Содержание советника за ход (расход «специалисты»)"}))
         a.act("Содержание советника", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "council.upkeep:" + std::to_string(cid)});
       a.markUi("council.upkeep." + std::to_string(i));
     };

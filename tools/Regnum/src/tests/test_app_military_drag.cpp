@@ -199,7 +199,7 @@ TEST(app_military_drag_fleet) {
   const Army* l2 = h->world().army(f2);
   CHECK(w1 && l2);
   CHECK(dist(w1->pos, p2) < 1e-6);                                 // победитель — на месте боя
-  CHECK(dist(l2->pos, p2) >= 2 * schema::kObjectRadius - 1e-6);    // проигравший смещён
+  CHECK(dist(l2->pos, p2) >= schema::kInteractDist - 1e-6);          // проигравший смещён
   CHECK_EQ(app::mil::unitCount(*l2), frigs - 2);                     // линкоры потоплены — строка ушла из состава
   CHECK_EQ(h->world().faction(vk)->fleetRow(lineRow)->total, vkLineTotal - lines);
   CHECK_EQ(h->world().faction(vk)->fleetRow(frigRow)->total, vkFrigTotal - 2);
@@ -329,7 +329,7 @@ TEST(app_military_drag_war_and_battle) {
   const Army* vb = h->world().army(v);
   CHECK(za && vb);
   CHECK(dist(za->pos, vpos) < 1e-6);                       // победитель — на месте боя
-  CHECK(dist(vb->pos, vpos) >= 2 * schema::kObjectRadius - 1e-6);   // проигравший смещён
+  CHECK(dist(vb->pos, vpos) >= schema::kInteractDist - 1e-6);       // проигравший смещён
   CHECK_EQ(app::mil::unitCount(*za), 500 - 120);
   CHECK_EQ(h->world().faction(alm)->armyRow(zrow)->total, almTotal - 120);
   CHECK_EQ(h->world().faction(vk)->armyRow(vrow)->total, vkTotal - 300);

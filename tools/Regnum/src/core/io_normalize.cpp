@@ -167,6 +167,58 @@ struct Norm {
     v = 0;
     return true;
   }
+  // Срок модификаторов: только модификаторы из списка сущности, 1…kMaxTurns ходов.
+  bool fixModTurns(ModTurns& t, const std::vector<Id>& mods, FileId f, const std::string& base) {
+    bool ch = false;
+    for (auto it = t.begin(); it != t.end();) {
+      if (std::find(mods.begin(), mods.end(), it->first) == mods.end()) {
+        warn(f, base + ".modTurns", refStr(Seq::Modifier, it->first) + " нет в списке модификаторов — срок удалён");
+        it = t.erase(it);
+        ch = true;
+        continue;
+      }
+      if (it->second < 1 || it->second > kMaxTurns) {
+        int c = clamp(it->second, 1, kMaxTurns);
+        warn(f, base + ".modTurns." + refStr(Seq::Modifier, it->first), "срок " + std::to_string(it->second) + " вне пределов 1…" +
+                                                                          std::to_string(kMaxTurns) + " — взято " + std::to_string(c));
+        it->second = c;
+        ch = true;
+      }
+      ++it;
+    }
+    return ch;
+  }
+  // Записи «строка → число» (гарнизоны, корабли в торговле): строки фракции, без повторов, 0…kMaxCount.
+  // valid(row) — строка существует; remap — перевод занятых ID строк.
+  template <class Valid, class Remap>
+  bool fixRowCounts(std::vector<GarrisonEntry>& list, FileId f, const std::string& base, const char* field, Valid&& valid, Remap&& remap,
+                    const std::string& whyMissing) {
+    if (list.empty()) return false;
+    std::vector<GarrisonEntry> res;
+    bool ch = false;
+    for (size_t i = 0; i < list.size(); i++) {
+      GarrisonEntry g = list[i];
+      std::string at = base + "." + field + "[" + std::to_string(i) + "]";
+      Id row = remap(g.row);
+      if (row != g.row) { g.row = row; ch = true; }
+      if (!valid(g.row)) {
+        warn(f, at + ".row", whyMissing + " " + ref(Seq::Row, g.row) + " — запись удалена");
+        ch = true;
+        continue;
+      }
+      ch |= fixNum(g.count, i64(0), kMaxCount, i64(0), f, at, "count");
+      auto same = std::find_if(res.begin(), res.end(), [&](const GarrisonEntry& x) { return x.row == g.row; });
+      if (same != res.end()) {
+        warn(f, at, "повтор строки " + refStr(Seq::Row, g.row) + " — численности сложены");
+        same->count = std::min(kMaxCount, same->count + g.count);
+        ch = true;
+        continue;
+      }
+      res.push_back(g);
+    }
+    if (ch) list = std::move(res);
+    return ch;
+  }
   template <class E>
   bool fixEnum(E& v, int n, E def, FileId f, const std::string& base, const char* field) {
     if (int(v) >= 0 && int(v) < n) return false;
@@ -233,6 +285,7 @@ struct Norm {
     }
     sc |= fixNum(s.autosaveSec, kMinAutosave, kMaxAutosave, 60, F_WORLD, "settings", "autosaveSec");
     sc |= fixEnum(s.occupiedIncome, 3, OccupiedIncome::Owner, F_WORLD, "settings", "occupiedIncome");
+    sc |= fixNum(s.figureSize, schema::kFigureSizeMin, schema::kFigureSizeMax, schema::kFigureSizeDefault, F_WORLD, "settings", "figureSize");
     if (sc) tx.settings() = s;
   }
 
@@ -275,9 +328,114 @@ struct Norm {
       warn(F_CATALOGS, "resources.rs1", "rs1 — встроенный ресурс «Золото» (казна): отмечен как встроенный");
       ch = true;
     }
+    // Ключи встроенных ресурсов (провизия, трупы, демоническая энергия): известные, без повторов; «gold» — только у rs1.
+    {
+      std::unordered_set<std::string> seenKey;
+      for (auto& it : c.resources) {
+        if (it.key.empty()) continue;
+        const std::string where = "resources." + refStr(Seq::Resource, it.id) + ".key";
+        bool known = false;
+        for (const auto& b : schema::kBuiltinResources) known = known || it.key == b.key;
+        if (!known || (it.key == schema::kResGold && it.id != kGold)) {
+          warn(F_CATALOGS, where, "неизвестный ключ встроенного ресурса «" + it.key + "» — снят");
+          it.key.clear();
+          ch = true;
+        } else if (!seenKey.insert(it.key).second) {
+          warn(F_CATALOGS, where, "ключ «" + it.key + "» уже у другого ресурса — снят");
+          it.key.clear();
+          ch = true;
+        }
+      }
+      // Ресурс прежнего названия («Зерно») или с названием встроенного без ключа становится встроенным:
+      // ТЗ «Общие доработки», п.7 — «Зерно» переименовано в «Провизию» (запасы и производство сохраняются).
+      for (const auto& b : schema::kBuiltinResources) {
+        if (b.key == std::string_view(schema::kResGold) || seenKey.count(b.key)) continue;
+        auto hit = std::find_if(c.resources.begin(), c.resources.end(), [&](const CatalogItem& it) {
+          return it.key.empty() && it.id != kGold && (utf8::searchKey(it.name) == utf8::searchKey(b.name) || (b.legacy && utf8::searchKey(it.name) == utf8::searchKey(b.legacy)));
+        });
+        if (hit == c.resources.end()) continue;
+        const std::string where = "resources." + refStr(Seq::Resource, hit->id);
+        if (utf8::searchKey(hit->name) != utf8::searchKey(b.name)) {
+          warn(F_CATALOGS, where, "ресурс «" + hit->name + "» переименован в «" + b.name + "»");
+          hit->name = b.name;
+        } else {
+          warn(F_CATALOGS, where, "ресурс «" + hit->name + "» отмечен как встроенный");
+        }
+        hit->key = b.key;
+        seenKey.insert(b.key);
+        ch = true;
+      }
+      for (auto& it : c.resources)
+        if (!it.modifiers.empty() || !it.vacantModifiers.empty()) {
+          it.modifiers.clear();
+          it.vacantModifiers.clear();
+          ch = true;
+        }
+    }
+    // Должности: модификаторы занятой и пустующей должности — существующие, без повторов.
+    for (auto& it : c.positions) {
+      const std::string where = "positions." + refStr(Seq::Position, it.id);
+      ch |= fixRefList(it.modifiers, Seq::Modifier, F_CATALOGS, where, "modifiers");
+      ch |= fixRefList(it.vacantModifiers, Seq::Modifier, F_CATALOGS, where, "vacantModifiers");
+    }
     for (int i = 0; i < 6; i++)
       for (auto& it : *lists[i]) cat[i].insert(it.id);
     if (ch) tx.catalogs() = std::move(c);
+  }
+
+  // Глобальные константы: ключи непусты и уникальны; встроенные — своего типа; числа конечны; ресурсы — из справочника.
+  void constants() {
+    Constants c = *w().constants;
+    bool ch = false;
+    std::unordered_set<std::string> keys;
+    int userN = 0;
+    for (auto& k : c.list)
+      if (startsWith(k.key, "user")) userN = std::max(userN, int(parseNum(k.key.substr(4)).value_or(0)));
+    for (size_t i = 0; i < c.list.size(); i++) {
+      Constant& k = c.list[i];
+      const std::string where = "constants[" + std::to_string(i) + "]";
+      if (k.key.empty() || keys.count(k.key)) {
+        std::string old = k.key;
+        k.key = "user" + std::to_string(++userN);
+        warn(F_CONSTANTS, where, old.empty() ? "константа без ключа — назначен «" + k.key + "»" : "повторный ключ «" + old + "» — назначен «" + k.key + "»");
+        ch = true;
+      }
+      keys.insert(k.key);
+      const Constant* b = nullptr;
+      for (const Constant& x : schema::builtinConstants())
+        if (x.key == k.key) b = &x;
+      if (b) {
+        if (!k.builtin) { k.builtin = true; ch = true; }
+        if (k.type != b->type) {
+          warn(F_CONSTANTS, where + ".type", "встроенная константа «" + b->name + "» — тип «" + schema::kConstTypes[int(b->type)].name + "»");
+          Constant fixed = *b;
+          fixed.name = k.name.empty() ? b->name : k.name;
+          k = fixed;
+          ch = true;
+        }
+      } else if (k.builtin) {
+        warn(F_CONSTANTS, where + ".builtin", "«" + k.key + "» — не встроенная константа: признак снят");
+        k.builtin = false;
+        ch = true;
+      }
+      if (int(k.type) < 0 || int(k.type) >= int(ConstType::Count)) {
+        warn(F_CONSTANTS, where + ".type", "недопустимый тип — взято «число»");
+        k.type = ConstType::Number;
+        ch = true;
+      }
+      ch |= fixNum(k.num, -1e12, 1e12, 0.0, F_CONSTANTS, where, "num");
+      for (auto it = k.res.begin(); it != k.res.end();) {
+        if (!hasCat(Seq::Resource, it->first)) {
+          warn(F_CONSTANTS, where + ".res", "нет ресурса " + refStr(Seq::Resource, it->first) + " — позиция удалена");
+          it = k.res.erase(it);
+          ch = true;
+        } else {
+          ch |= fixNum(it->second, 0.0, 1e12, 0.0, F_CONSTANTS, where + ".res", refStr(Seq::Resource, it->first).c_str());
+          ++it;
+        }
+      }
+    }
+    if (ch) tx.constants() = std::move(c);
   }
 
   void nodes() {
@@ -483,7 +641,76 @@ struct Norm {
         }
       }
       ch |= fixRefList(f.modifiers, Seq::Modifier, F_FACTIONS, where, "modifiers");
+      ch |= fixModTurns(f.modTurns, f.modifiers, F_FACTIONS, where);
       ch |= fixNum(f.tax, 0.0, 100.0, 10.0, F_FACTIONS, where, "tax");
+      ch |= fixEnum(f.stateKind, int(StateKind::Count), StateKind::Living, F_FACTIONS, where, "stateKind");
+      ch |= fixNum(f.pirateRisk, 0.0, 100.0, 0.0, F_FACTIONS, where, "pirateRisk");
+
+      // Рабы: раса справочника, численность 0…kMaxCount, довольство −100…100, повторы рас складываются.
+      if (!f.slaves.empty()) {
+        std::vector<SlaveGroup> res;
+        bool sch = false;
+        for (size_t i = 0; i < f.slaves.size(); i++) {
+          SlaveGroup s = f.slaves[i];
+          std::string at = where + ".slaves[" + std::to_string(i) + "]";
+          if (!hasCat(Seq::Race, s.race)) {
+            warn(F_FACTIONS, at + ".race", "нет расы " + ref(Seq::Race, s.race) + " — рабы удалены");
+            sch = true;
+            continue;
+          }
+          sch |= fixNum(s.count, i64(0), kMaxCount, i64(0), F_FACTIONS, at, "count");
+          sch |= fixNum(s.contentment, -100.0, 100.0, 0.0, F_FACTIONS, at, "contentment");
+          auto same = std::find_if(res.begin(), res.end(), [&](const SlaveGroup& x) { return x.race == s.race; });
+          if (same != res.end()) {
+            warn(F_FACTIONS, at, "повтор расы " + refStr(Seq::Race, s.race) + " — рабы сложены");
+            same->count = std::min(kMaxCount, same->count + s.count);
+            sch = true;
+            continue;
+          }
+          res.push_back(s);
+        }
+        if (sch) { f.slaves = std::move(res); ch = true; }
+      }
+      // Формирование отрядов и кораблей: строка фракции, число > 0, 1…kMaxTurns ходов, уплаченное — ресурсы справочника.
+      if (!f.forming.empty()) {
+        std::vector<Formation> res;
+        bool fch = false;
+        for (size_t i = 0; i < f.forming.size(); i++) {
+          Formation q = f.forming[i];
+          std::string at = where + ".forming[" + std::to_string(i) + "]";
+          Id ra = remapRow(f.id, false, q.row), rf = remapRow(f.id, true, q.row);
+          Id row = f.armyRow(ra) ? ra : rf;
+          if (row != q.row) { q.row = row; fch = true; }
+          if (!f.armyRow(q.row) && !f.fleetRow(q.row)) {
+            warn(F_FACTIONS, at + ".row", "нет строки " + ref(Seq::Row, q.row) + " — формирование удалено");
+            fch = true;
+            continue;
+          }
+          if (q.count <= 0) {
+            warn(F_FACTIONS, at + ".count", "численность " + std::to_string(q.count) + " — формирование удалено");
+            fch = true;
+            continue;
+          }
+          fch |= fixNum(q.count, i64(1), kMaxCount, i64(1), F_FACTIONS, at, "count");
+          fch |= fixNum(q.left, 1, kMaxTurns, 1, F_FACTIONS, at, "left");
+          fch |= fixNum(q.people, i64(0), kMaxCount, i64(0), F_FACTIONS, at, "people");
+          for (auto it = q.paid.begin(); it != q.paid.end();) {
+            if (!hasCat(Seq::Resource, it->first)) {
+              warn(F_FACTIONS, at + ".paid", "нет ресурса " + refStr(Seq::Resource, it->first) + " — позиция удалена");
+              it = q.paid.erase(it);
+              fch = true;
+            } else {
+              fch |= fixNum(it->second, 0.0, 1e12, 0.0, F_FACTIONS, at + ".paid", refStr(Seq::Resource, it->first).c_str());
+              ++it;
+            }
+          }
+          res.push_back(std::move(q));
+        }
+        if (fch) { f.forming = std::move(res); ch = true; }
+      }
+      // Корабли в торговле: строки флота фракции.
+      ch |= fixRowCounts(f.tradeFleet, F_FACTIONS, where, "tradeFleet", [&](Id row) { return f.fleetRow(row) != nullptr; },
+                         [&](Id row) { return remapRow(f.id, true, row); }, "нет строки флота");
 
       if (f.isState()) {
         if (f.homeState) {
@@ -496,13 +723,50 @@ struct Norm {
           f.stateGuild = false;
           ch = true;
         }
-      } else if (f.homeState && !isState(f.homeState)) {
-        warn(F_FACTIONS, where + ".homeState", exists(Seq::Faction, f.homeState) ? refStr(Seq::Faction, f.homeState) + " — не государство: ссылка удалена"
-                                                                               : "нет фракции " + refStr(Seq::Faction, f.homeState) + " — ссылка удалена");
-        f.homeState = 0;
-        ch = true;
+        // Сюзерен и мятежное происхождение — другое существующее государство.
+        for (auto [field, ptr] : {std::pair{"suzerain", &f.suzerain}, std::pair{"rebelOf", &f.rebelOf}}) {
+          Id& v = *ptr;
+          if (!v) continue;
+          if (v == f.id || !isState(v)) {
+            warn(F_FACTIONS, where + "." + field, v == f.id ? std::string("ссылка на само государство — удалена")
+                                                  : exists(Seq::Faction, v) ? refStr(Seq::Faction, v) + " — не государство: ссылка удалена"
+                                                                            : "нет фракции " + refStr(Seq::Faction, v) + " — ссылка удалена");
+            v = 0;
+            ch = true;
+          }
+        }
+      } else {
+        if (f.homeState && !isState(f.homeState)) {
+          warn(F_FACTIONS, where + ".homeState", exists(Seq::Faction, f.homeState) ? refStr(Seq::Faction, f.homeState) + " — не государство: ссылка удалена"
+                                                                                 : "нет фракции " + refStr(Seq::Faction, f.homeState) + " — ссылка удалена");
+          f.homeState = 0;
+          ch = true;
+        }
+        // У гильдии нет вида государства, вассалитета и признака основного государства.
+        if (f.mainState || f.suzerain || f.rebelOf || f.stateKind != StateKind::Living || !f.slaves.empty()) {
+          warn(F_FACTIONS, where, "у гильдии не бывает вида государства, сюзерена, рабов и признака основного государства — сняты");
+          f.mainState = false;
+          f.suzerain = f.rebelOf = 0;
+          f.stateKind = StateKind::Living;
+          f.slaves.clear();
+          ch = true;
+        }
       }
       if (ch) tx.faction(f.id) = std::move(f);
+    });
+    // Вассалитет без циклов: сюзерен не может быть (прямо или через цепочку) вассалом своего вассала.
+    const World cur = w();
+    cur.factions.each([&](const Faction& f) {
+      Id s = f.suzerain;
+      for (int guard = 0; s && guard < 64; guard++) {
+        if (s == f.id) {
+          warn(F_FACTIONS, refStr(Seq::Faction, f.id) + ".suzerain", "цепочка вассалитета замыкается на само государство — сюзерен снят");
+          tx.faction(f.id).suzerain = 0;
+          break;
+        }
+        const Faction* x = tx.w().faction(s);
+        s = x ? x->suzerain : 0;
+      }
     });
   }
 
@@ -518,6 +782,16 @@ struct Norm {
         c.portrait.clear();
         ch = true;
       }
+      ch |= fixRefList(c.modifiers, Seq::Modifier, F_CHARACTERS, where, "modifiers");
+      ch |= fixModTurns(c.modTurns, c.modifiers, F_CHARACTERS, where);
+      if (c.captor && (!isState(c.captor) || c.captor == c.faction)) {
+        warn(F_CHARACTERS, where + ".captor", c.captor == c.faction ? std::string("пленён собственным государством — ссылка удалена")
+                                              : exists(Seq::Faction, c.captor) ? refStr(Seq::Faction, c.captor) + " — не государство: ссылка удалена"
+                                                                               : "нет фракции " + refStr(Seq::Faction, c.captor) + " — ссылка удалена");
+        c.captor = 0;
+        ch = true;
+      }
+      ch |= fixRef(c.burial, Seq::Province, F_CHARACTERS, where, "burial");
       if (ch) tx.character(c.id) = std::move(c);
     });
   }
@@ -550,9 +824,24 @@ struct Norm {
         ch |= fixNum(v, e.min, e.max, 0.0, F_MODIFIERS, where + ".fx", e.id);
       }
       ch |= fixRefList(m.targets, Seq::Faction, F_MODIFIERS, where, "targets");
+      ch |= fixEnum(m.kind, int(ModKind::Count), ModKind::Any, F_MODIFIERS, where, "kind");
+      ch |= fixNum(m.duration, 0, kMaxTurns, 0, F_MODIFIERS, where, "duration");
+      // Ключ встроенного модификатора: известный и у одной записи.
+      if (!m.key.empty()) {
+        if (!schema::builtinModifier(m.key)) {
+          warn(F_MODIFIERS, where + ".key", "неизвестный ключ встроенного модификатора «" + m.key + "» — снят");
+          m.key.clear();
+          ch = true;
+        } else if (!modKeys.insert(m.key).second) {
+          warn(F_MODIFIERS, where + ".key", "ключ «" + m.key + "» уже у другого модификатора — снят");
+          m.key.clear();
+          ch = true;
+        }
+      }
       if (ch) tx.modifier(m.id) = std::move(m);
     });
   }
+  std::unordered_set<std::string> modKeys;
 
   // Разорвать циклы графа требований: deps(id) — список зависимостей; удаляются обратные рёбра (обход по возрастанию ID).
   template <class GetDeps>
@@ -621,6 +910,16 @@ struct Norm {
             }
           }
           ch |= fixRefList(l.modifiers, Seq::Modifier, F_BUILDINGS, at, "modifiers");
+          for (auto it = l.produce.begin(); it != l.produce.end();) {
+            if (!hasCat(Seq::Resource, it->first)) {
+              warn(F_BUILDINGS, at + ".produce", "нет ресурса " + refStr(Seq::Resource, it->first) + " — производство удалено");
+              it = l.produce.erase(it);
+              ch = true;
+            } else {
+              ch |= fixNum(it->second, 0.0, 1e12, 0.0, F_BUILDINGS, at + ".produce", refStr(Seq::Resource, it->first).c_str());
+              ++it;
+            }
+          }
         }
         ch |= fixPoint(b.pos, false, F_BUILDINGS, where, "pos");
         if (ch) tx.building(b.id) = std::move(b);
@@ -694,7 +993,8 @@ struct Norm {
         Tech t = t0;
         const std::string where = refStr(Seq::Tech, t.id);
         bool ch = fixNum(t.turns, 1, kMaxTurns, 1, F_TECHS, where, "turns");
-        ch |= fixNum(t.progress, 0, t.turns, 0, F_TECHS, where, "progress");
+        // Пройдено ходов исследования: с модификатором «Время исследования технологий» срок может быть больше turns.
+        ch |= fixNum(t.progress, 0, kMaxTurns, 0, F_TECHS, where, "progress");
         if (t.studied && t.research) {
           warn(F_TECHS, where + ".research", "изученная технология не может исследоваться — исследование снято");
           t.research = false;
@@ -924,6 +1224,37 @@ struct Norm {
         if (bch) { p.buildings = std::move(res); ch = true; }
       }
       ch |= fixRefList(p.modifiers, Seq::Modifier, F_PROVINCES, where, "modifiers");
+      ch |= fixModTurns(p.modTurns, p.modifiers, F_PROVINCES, where);
+
+      // Рабы на работах: раса справочника, без повторов; только у провинции с владельцем.
+      if (!p.slaves.empty()) {
+        std::vector<SlaveWork> res;
+        bool sch = false;
+        for (size_t i = 0; i < p.slaves.size(); i++) {
+          SlaveWork s = p.slaves[i];
+          std::string at = where + ".slaves[" + std::to_string(i) + "]";
+          if (!p.owner) {
+            warn(F_PROVINCES, at, "у провинции нет владельца — рабы сняты с работ");
+            sch = true;
+            continue;
+          }
+          if (!hasCat(Seq::Race, s.race)) {
+            warn(F_PROVINCES, at + ".race", "нет расы " + ref(Seq::Race, s.race) + " — запись удалена");
+            sch = true;
+            continue;
+          }
+          sch |= fixNum(s.count, i64(0), kMaxCount, i64(0), F_PROVINCES, at, "count");
+          auto same = std::find_if(res.begin(), res.end(), [&](const SlaveWork& x) { return x.race == s.race; });
+          if (same != res.end()) {
+            warn(F_PROVINCES, at, "повтор расы " + refStr(Seq::Race, s.race) + " — рабы сложены");
+            same->count = std::min(kMaxCount, same->count + s.count);
+            sch = true;
+            continue;
+          }
+          res.push_back(s);
+        }
+        if (sch) { p.slaves = std::move(res); ch = true; }
+      }
 
       if (p.occupied) {
         if (!isState(p.occupier) || p.occupier == p.owner) {
@@ -939,6 +1270,19 @@ struct Norm {
         warn(F_PROVINCES, where + ".occupier", "оккупант указан, но провинция не оккупирована — оккупант удалён");
         p.occupier = 0;
         ch = true;
+      }
+      // Оккупационный гарнизон: строки армии оккупанта; без оккупации — снимается.
+      if (!p.occupied && (!p.occGarrison.empty() || p.occIdle)) {
+        if (!p.occGarrison.empty()) warn(F_PROVINCES, where + ".occGarrison", "провинция не оккупирована — оккупационный гарнизон снят");
+        p.occGarrison.clear();
+        p.occIdle = 0;
+        ch = true;
+      }
+      if (p.occupied) {
+        const Faction* occ = base.faction(p.occupier);
+        ch |= fixRowCounts(p.occGarrison, F_PROVINCES, where, "occGarrison", [&](Id row) { return occ && occ->armyRow(row) != nullptr; },
+                           [&](Id row) { return occ ? remapRow(occ->id, false, row) : row; }, "у оккупанта нет строки армии");
+        ch |= fixNum(p.occIdle, 0, kMaxTurns, 0, F_PROVINCES, where, "occIdle");
       }
       if (ch) tx.province(p.id) = std::move(p);
     });
@@ -1025,6 +1369,9 @@ struct Norm {
       }
       a.groups = std::move(groups);
       ch |= fixRef(a.commander, Seq::Character, F_ARMIES, where, "commander");
+      ch |= fixNum(a.loyalty, schema::kMinLoyalty, schema::kMaxLoyalty, schema::kMaxLoyalty, F_ARMIES, where, "loyalty");
+      ch |= fixRefList(a.modifiers, Seq::Modifier, F_ARMIES, where, "modifiers");
+      ch |= fixModTurns(a.modTurns, a.modifiers, F_ARMIES, where);
       if (ch) tx.army(a.id) = std::move(a);
     });
   }
@@ -1069,6 +1416,28 @@ struct Norm {
       for (size_t i = 0; i < d.items.size(); i++) {
         DealItem it = d.items[i];
         std::string at = where + ".items[" + std::to_string(i) + "]";
+        if (fixEnum(it.kind, int(DealItemKind::Count), DealItemKind::Resource, F_DEALS, at, "kind")) ch = true;
+        if (it.kind == DealItemKind::Province || it.kind == DealItemKind::Hero) {
+          // Провинция и пленный герой передаются разово; ссылка — на существующую запись.
+          const bool prov = it.kind == DealItemKind::Province;
+          if (!exists(prov ? Seq::Province : Seq::Character, it.ref)) {
+            warn(F_DEALS, at + ".ref", std::string("нет ") + (prov ? "провинции " : "персонажа ") + ref(prov ? Seq::Province : Seq::Character, it.ref) +
+                                       " — позиция удалена");
+            ch = true;
+            continue;
+          }
+          if (it.mode != DealMode::Once || it.res != kGold) {
+            it.mode = DealMode::Once;
+            it.res = kGold;
+            ch = true;
+          }
+          items.push_back(it);
+          continue;
+        }
+        if (it.ref) {
+          it.ref = 0;
+          ch = true;
+        }
         if (!hasCat(Seq::Resource, it.res)) {
           warn(F_DEALS, at + ".res", "нет ресурса " + ref(Seq::Resource, it.res) + " — позиция удалена");
           ch = true;
@@ -1175,9 +1544,39 @@ struct Norm {
     if (seq != x.meta->seq) tx.meta().seq = seq;
   }
 
+  // ТЗ «Виды государств», п.1: героям государств без модификатора природы — природа по виду государства. Один раз:
+  // только пока в мире нет записи этого встроенного модификатора (мир сохранён до появления видов государств);
+  // после — природу снимают и меняют по правилам модификаторов. Выполняется после counters (выдаются новые ID).
+  void natures() {
+    static const char* const keys[] = {schema::mod::Living, schema::mod::Undead, schema::mod::Demon};
+    const World base = w();
+    std::unordered_set<std::string> present;
+    base.modifiers.each([&](const Modifier& m) { if (!m.key.empty()) present.insert(m.key); });
+    for (int k = 0; k < 3; k++) {
+      const char* key = keys[k];
+      if (present.count(key)) continue;
+      std::vector<Id> heroes;
+      base.characters.each([&](const Character& c) {
+        const Faction* f = base.faction(c.faction);
+        if (!f || !f->isState() || int(f->stateKind) != k) return;
+        for (Id m : c.modifiers)
+          if (const Modifier* x = base.modifier(m); x && schema::isNatureKey(x->key)) return;
+        heroes.push_back(c.id);
+      });
+      if (heroes.empty()) continue;
+      Modifier m = *schema::builtinModifier(key);
+      m.id = 0;
+      const Id mid = tx.add(std::move(m)).id;
+      for (Id h : heroes) tx.character(h).modifiers.push_back(mid);
+      warn(F_CHARACTERS, "", "героям государств без природы назначен модификатор «" + schema::builtinModifier(key)->name + "»: " +
+                                 std::to_string(heroes.size()));
+    }
+  }
+
   void run() {
     meta();
     catalogs();
+    constants();
     nodes();
     edges();
     mapObjects();
@@ -1193,6 +1592,7 @@ struct Norm {
     log();
     relations();
     counters();
+    natures();
   }
 };
 

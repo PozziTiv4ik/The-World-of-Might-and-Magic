@@ -52,12 +52,17 @@ std::string resourceName(const World& w, Id res) {
 }
 
 // ---------------------------------------------------------------- суммы
+// Золото и ресурсы — до тысячных (ТЗ «Фиксы», п.13): знаков после запятой столько, сколько нужно (0–3).
 int moneyDigits(double v) {
-  double a = std::fabs(v);
-  return a < 100 && std::fabs(a - std::round(a)) >= 0.05 ? 1 : 0;
+  const double a = std::fabs(v);
+  for (int d = 0; d < 3; d++) {
+    const double k = std::pow(10.0, d);
+    if (std::fabs(a * k - std::round(a * k)) < 0.5e-3 * k) return d;
+  }
+  return 3;
 }
-std::string money(double v) { return std::fabs(v) < 0.005 ? std::string("0") : fmtNum(v, moneyDigits(v)); }
-std::string moneySigned(double v) { return std::fabs(v) < 0.005 ? std::string("0") : fmtSigned(v, moneyDigits(v)); }
+std::string money(double v) { return std::fabs(v) < 0.0005 ? std::string("0") : fmtNum(v, moneyDigits(v)); }
+std::string moneySigned(double v) { return std::fabs(v) < 0.0005 ? std::string("0") : fmtSigned(v, moneyDigits(v)); }
 
 // ---------------------------------------------------------------- справочники
 bool catalogField(App& a, std::string_view id, rules::CatalogList list, Id value, std::string_view noneLabel, const char* undoLabel,
@@ -209,6 +214,18 @@ void shareBar(std::span<const Share> parts, float height) {
 void drawFlagCopy(const Flag& f, RectF r, float radius) {
   auto p = std::make_shared<Flag>(f);
   ui::custom(r, [p, radius](gfx::Canvas& c, RectF d, float s) { gfx::drawFlag(c, *p, d, radius * s, true); });
+}
+
+void factionBig(const World& w, Id faction, float fw, float fh) {
+  ui::IdScope s(i64(faction) + 0x71000000LL);
+  ui::Group g(0, 6);
+  RectF slot = ui::next(fh);
+  const Faction* f = w.faction(faction);
+  if (f) {
+    ui::at(RectF{std::round(slot.x + (slot.w - fw) * 0.5f), slot.y, fw, fh});
+    ui::flag(f->flag, fw, fh, 4);
+  }
+  ui::label(f ? displayName(*f) : std::string("—"), {.font = ui::Font::Strong, .align = ui::Align::Center});
 }
 
 void tipOver(RectF r, std::string_view key, std::string_view tip) {

@@ -120,14 +120,21 @@ bool characterPicker(std::string_view id, Id& value, Id faction, std::string_vie
   App& a = app();
   const World& w = a.world();
   std::vector<const Character*> list;
-  w.characters.each([&](const Character& c) { list.push_back(&c); });
-  std::sort(list.begin(), list.end(), [faction](const Character* x, const Character* y) {
-    bool fx = faction && x->faction == faction, fy = faction && y->faction == faction;
-    if (fx != fy) return fx;
-    return compareRu(x->name, y->name) < 0;
+  // Назначать можно только доступных героев своей фракции (ТЗ «Фиксы», п.9; «Модификаторы», 1.6 и 1.12).
+  w.characters.each([&](const Character& c) {
+    if (faction && (c.faction != faction || !rules::heroAvailable(w, c.id))) return;
+    list.push_back(&c);
   });
+  std::sort(list.begin(), list.end(), [](const Character* x, const Character* y) { return compareRu(x->name, y->name) < 0; });
   Options o;
-  o.reserve(list.size() + 1);
+  o.reserve(list.size() + 2);
+  // Уже назначенный, но недоступный (чужой, мёртвый, пленный) — виден в поле, выбрать его снова нельзя.
+  if (const Character* cur = w.character(value); faction && cur && std::find(list.begin(), list.end(), cur) == list.end()) {
+    std::string hint = rules::characterHas(w, cur->id, schema::mod::Dead)      ? std::string("мёртв")
+                       : rules::characterHas(w, cur->id, schema::mod::Captive) ? std::string("в плену")
+                                                                               : w.factionName(cur->faction);
+    o.add(cur->id, orUnnamed(cur->name, "Без имени"), "character", cur->faction ? factionColor(w, cur->faction) : Color(0, 0, 0, 0), hint, true);
+  }
   for (const Character* c : list) {
     std::string hint = c->title;
     if (c->faction && c->faction != faction) {
@@ -206,17 +213,47 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
 }
 
 bool modifierInert(const Modifier& m, ModScope where) {
-  if (where == ModScope::Any) return false;
+  if (where == ModScope::Any || where == ModScope::Faction) return false;
   bool any = false, used = false;
   for (int f = 0; f < kFxCount; f++) {
     if (!m.has(Fx(f))) continue;
     any = true;
-    if (schema::kEffects[f].local) used = true;
+    if (where == ModScope::Local && schema::kEffects[f].local) used = true;
+    if (where == ModScope::Army && schema::kEffects[f].army) used = true;
   }
-  return any && !used;
+  return any && !used;   // у героя эффекты не действуют вовсе
 }
 
-bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModScope where) {
+bool modifierFits(const Modifier& m, ModScope where) {
+  if (!m.key.empty() && schema::isAutoKey(m.key)) return false;   // ставятся и снимаются сами
+  if (m.kind == ModKind::Any) return true;
+  switch (where) {
+    case ModScope::Any: return m.kind == ModKind::Province || m.kind == ModKind::Faction;
+    case ModScope::Local: return m.kind == ModKind::Province;
+    case ModScope::Faction: return m.kind == ModKind::Faction;
+    case ModScope::Army: return m.kind == ModKind::Army;
+    case ModScope::Hero: return m.kind == ModKind::Hero;
+  }
+  return false;
+}
+
+namespace {
+
+// Подсказка фишки модификатора, который здесь не действует.
+const char* inertTip(ModScope where) {
+  switch (where) {
+    case ModScope::Local:
+      return "Не действует в провинции: у модификатора только глобальные эффекты, они применяются к государству. "
+             "Добавьте его государству (вкладка «Модификаторы»).";
+    case ModScope::Army: return "Не действует на войско: у модификатора нет эффектов войск.";
+    case ModScope::Hero: return "Эффекты модификатора на героя не действуют.";
+    default: return "";
+  }
+}
+
+}  // namespace
+
+bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModScope where, const ModTurns* turns, ModEdit* edit) {
   App& a = app();
   const World& w = a.world();
   const std::string mark(id);
@@ -232,7 +269,7 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
       if (!m) continue;
       ui::IdScope s2{i64(ids[i])};
       ui::ChipOpt co;
-      co.icon = m->icon.empty() ? "sparkles" : m->icon.c_str();
+      co.icon = m->icon.empty() || !gfx::hasIcon(m->icon) ? "sparkles" : m->icon.c_str();
       co.color = m->color;
       co.removable = !disabled;
       co.clickable = true;
@@ -243,24 +280,49 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
         tip += effectText(Fx(f), m->fx[size_t(f)]);
       }
       if (!m->desc.empty()) tip = m->desc + (tip.empty() ? "" : "\n" + tip);
-      // Модификатор только с глобальными эффектами в провинции ни на что не влияет — предупреждение на фишке.
+      int left = 0;
+      if (turns)
+        if (auto it = turns->find(m->id); it != turns->end()) left = it->second;
+      if (left > 0) tip = "Осталось: " + nTurns(left) + (tip.empty() ? "" : "\n" + tip);
+      // Модификатор, эффекты которого здесь ни на что не влияют, — предупреждение на фишке.
       const bool inert = modifierInert(*m, where);
       if (inert) {
         co.icon = "warning";
         co.color = Color(0, 0, 0, 0);
         co.tone = ui::Tone::Warning;
-        tip = "Не действует в провинции: у модификатора только глобальные эффекты, они применяются к государству. "
-              "Добавьте его государству (вкладка «Модификаторы»).\n" + tip;
+        tip = std::string(inertTip(where)) + "\n" + tip;
       }
       co.tooltip = tip;
-      ui::ChipAction act = edkit::chip(orUnnamed(m->name, "Модификатор"), co);
+      const std::string label = orUnnamed(m->name, "Модификатор") + (left > 0 ? " · " + std::to_string(left) : std::string());
+      ui::ChipAction act = edkit::chip(label, co);
+      a.markUi(mark + ".chip." + std::to_string(i));
       if (inert) a.markUi(mark + ".warn." + std::to_string(m->id));
       if (act == ui::ChipAction::Remove) {
         ids.erase(ids.begin() + long(i));
         changed = true;
         break;
       }
-      if (act == ui::ChipAction::Click) a.openEditor("modifiers", m->id);
+      if (act == ui::ChipAction::Click) {
+        if (turns) ui::openPopup("term");   // срок и переход в редактор
+        else a.openEditor("modifiers", m->id);
+      }
+      if (turns && ui::beginPopup("term", {.side = ui::Side::Below, .width = 280})) {
+        ui::label(orUnnamed(m->name, "Модификатор"), {.font = ui::Font::Strong, .icon = co.icon});
+        ui::prop("Срок", "hourglass");
+        int n = left;
+        if (ui::numberField("turns", n, {.min = 0, .max = 1000, .unit = "ход|хода|ходов", .steppers = true, .disabled = disabled || !edit,
+                                         .tooltip = "Ходов действия; 0 — бессрочно"}) &&
+            edit) {
+          edit->termOf = m->id;
+          edit->turns = std::max(0, n);
+        }
+        a.markUi(mark + ".term");
+        if (ui::button("Открыть в редакторе", {.icon = "sparkles", .fill = true})) {
+          ui::closePopup();
+          a.openEditor("modifiers", m->id);
+        }
+        ui::endPopup();
+      }
     }
     edkit::chipsEnd();
   }
@@ -269,22 +331,52 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
     int hidden = 0;   // не действующие здесь (в провинции — только с глобальными эффектами) не предлагаются
     w.modifiers.each([&](const Modifier& m) {
       if (std::find(ids.begin(), ids.end(), m.id) != ids.end()) return;
+      if (!modifierFits(m, where)) return;
       if (modifierInert(m, where)) {
         hidden++;
         return;
       }
-      o.add(m.id, orUnnamed(m.name, "Модификатор"), m.icon.empty() ? "sparkles" : m.icon.c_str(), m.color);
+      o.add(m.id, orUnnamed(m.name, "Модификатор"), m.icon.empty() || !gfx::hasIcon(m.icon) ? "sparkles" : m.icon.c_str(), m.color);
     });
-    const std::string hiddenTip = "Модификаторы только с глобальными эффектами не предлагаются: в провинции они не действуют (скрыто: " +
-                                  std::to_string(hidden) + ")";
+    // Встроенные модификаторы, которых ещё нет в мире (запись создаёт вызывающий — edit->addKey).
+    constexpr Id kTpl = 0xF0000000u;
+    if (edit) {
+      const auto& tpl = schema::builtinModifiers();
+      for (size_t k = 0; k < tpl.size(); k++) {
+        const Modifier& t = tpl[k];
+        if (rules::builtinModId(w, t.key) || !modifierFits(t, where) || modifierInert(t, where)) continue;
+        o.add(kTpl + Id(k), t.name, t.icon.empty() || !gfx::hasIcon(t.icon) ? "sparkles" : t.icon.c_str(), t.color,
+              t.duration > 0 ? nTurns(t.duration) : std::string());
+      }
+    }
+    // По алфавиту (записи мира и шаблоны вместе).
+    {
+      std::vector<size_t> order(o.ids.size());
+      for (size_t k = 0; k < order.size(); k++) order[k] = k;
+      std::stable_sort(order.begin(), order.end(), [&](size_t x, size_t y) { return compareRu(o.labels[x], o.labels[y]) < 0; });
+      Options s;
+      s.reserve(order.size());
+      for (size_t k : order) s.add(o.ids[k], o.labels[k], o.opts[k].icon, o.opts[k].color, o.hints[k], o.opts[k].disabled);
+      o = std::move(s);
+    }
+    const std::string hiddenTip = where == ModScope::Local
+                                      ? "Модификаторы только с глобальными эффектами не предлагаются: в провинции они не действуют (скрыто: " +
+                                            std::to_string(hidden) + ")"
+                                      : "Модификаторы, эффекты которых здесь не действуют, не предлагаются (скрыто: " + std::to_string(hidden) + ")";
     if (!o.ids.empty()) {
       int idx = -1;
       ui::ComboOpt co;
       co.placeholder = "Добавить модификатор";
       co.icon = "plus";
+      co.search = 1;   // поиск по названию при любой длине списка
       if (hidden > 0) co.tooltip = hiddenTip;
       if (ui::combo("add", idx, o.finish(), co) && idx >= 0 && idx < int(o.ids.size())) {
-        ids.push_back(o.ids[size_t(idx)]);
+        const Id pick = o.ids[size_t(idx)];
+        if (pick >= kTpl && edit) {
+          edit->addKey = schema::builtinModifiers()[size_t(pick - kTpl)].key;
+        } else {
+          ids.push_back(pick);
+        }
         changed = true;
       }
     } else if (w.modifiers.empty()) {
@@ -292,6 +384,12 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
     }
   }
   return changed;
+}
+
+std::string heroState(const World& w, const Character& c) {
+  if (rules::hasModKey(w, c.modifiers, schema::mod::Dead)) return c.burial ? "Мертв · " + w.provinceName(c.burial) : std::string("Мертв");
+  if (rules::hasModKey(w, c.modifiers, schema::mod::Captive)) return c.captor ? "В плену · " + w.factionName(c.captor) : std::string("В плену");
+  return {};
 }
 
 void factionChip(Id faction, bool showKind) {
@@ -363,12 +461,14 @@ std::string effectText(Fx f, double v) {
     case Fx::DiplomacyPerTurn: return num + " к отношениям за ход";
     case Fx::ArmyUpkeepPct: return num + " содержания войск";
     case Fx::FleetUpkeepPct: return num + " содержания флота";
+    case Fx::ResearchTimePct: return num + " времени исследования технологий";
+    case Fx::LoyaltyPerTurn: return num + " верности войск за ход";
     default: return num;
   }
 }
 
 bool effectGood(Fx f, double v) {
-  bool bad = f == Fx::BuildCostPct || f == Fx::RebellionPct || f == Fx::ArmyUpkeepPct || f == Fx::FleetUpkeepPct;
+  bool bad = f == Fx::BuildCostPct || f == Fx::RebellionPct || f == Fx::ArmyUpkeepPct || f == Fx::FleetUpkeepPct || f == Fx::ResearchTimePct;
   return bad ? v < 0 : v > 0;
 }
 
@@ -411,7 +511,7 @@ void resourceAmount(Id res, double amount, ui::Ink ink) {
   const CatalogItem* c = w.resource(res);
   ui::HStack row(0, ui::Align::Left, ui::sp::xs);
   ui::iconColored(resourceIcon(w, res), resourceColor(w, res), 16, c ? std::string_view(c->name) : std::string_view("Ресурс"));
-  ui::label(fmtNum(amount, std::fabs(amount - std::round(amount)) > 1e-9 ? 1 : 0), {.ink = ink});
+  ui::label(fmtNum(amount, 3), {.ink = ink});   // золото и ресурсы — до тысячных (лишние нули не пишутся)
 }
 
 }  // namespace rg::app::w

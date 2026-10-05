@@ -1,6 +1,7 @@
 // Regnum — отчёт о завершённом ходе (DialogReg «turn.report»): ход N → N+1, карточки фракций с изменением
 // казны, доходом и расходом, изменения запасов; записи хроники хода по видам (щелчок — показать на карте);
-// предупреждения: долги, недостачи по сделкам, восстания.
+// предупреждения: долги, недостачи по сделкам, восстания. Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16):
+// основные игровые государства и остальные фракции.
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
 #include "app/widgets.h"
@@ -23,6 +24,7 @@ void kindHeader(LogKind k, size_t n) {
 
 struct ReportDlg : Dialog {
   rules::TurnReport rep;
+  int page = -2;   // kPageMain / kPageOther; −2 — выбрать при первом показе
   const char* id() const override { return "turn.report"; }
   Style style(App&) override {
     Style s;
@@ -35,7 +37,7 @@ struct ReportDlg : Dialog {
 
   // Карточка фракции: флаг, название, изменение казны, казна после, полосы дохода и расхода, запасы.
   // true — щелчок (открыть фракцию).
-  bool factionCard(const World& w, const rules::TurnFactionLine& l, double scale) {
+  bool factionCard(App& a, const World& w, const rules::TurnFactionLine& l, double scale) {
     const Faction* f = w.faction(l.faction);
     if (!f) return false;
     const ui::Theme& th = ui::theme();
@@ -79,6 +81,7 @@ struct ReportDlg : Dialog {
       }
     }
     RectF cr = ui::lastItem().rect;
+    a.markUi("turn.report.card." + std::to_string(l.faction), cr);
     ui::WidgetId wid = ui::id("##card");
     ui::Interaction it = ui::interact(wid, cr, ui::IfAllowOverlap);
     float hv = ui::animate(wid ^ 0xca7dull, it.hovered ? 1.f : 0.f);
@@ -89,7 +92,8 @@ struct ReportDlg : Dialog {
 
   bool draw(App& a) override {
     const World& w = a.store.world();
-    TurnDigest d = digest(w, rep);
+    const size_t nMain = sortedLines(w, rep, kPageMain).size(), nOther = sortedLines(w, rep, kPageOther).size();
+    if (page == -2) page = nMain ? kPageMain : kPageOther;   // нет основных государств — сразу остальные
     {
       ui::HStack hs(26, ui::Align::Left, 8);
       ui::tag("Ход " + std::to_string(rep.turnFrom), ui::Tone::Neutral, "hourglass");
@@ -97,22 +101,30 @@ struct ReportDlg : Dialog {
       ui::tag("Ход " + std::to_string(rep.turnTo), ui::Tone::Accent, "next-turn");
     }
     {
+      const std::string l0 = pageLabel(kPageMain, nMain), l1 = pageLabel(kPageOther, nOther);
+      int pg = page;
+      if (ui::segmented("pages", pg, {{"crown", l0, "Основные игровые государства"}, {"list", l1, "Остальные государства и гильдии"}}))
+        page = pg == kPageOther ? kPageOther : kPageMain;
+      a.markUi("turn.report.pages");
+    }
+    TurnDigest d = digest(w, rep, page);
+    {
       ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
       ui::stat(std::to_string(d.all.size()), "Записей хроники", {.icon = "chronicle", .tone = ui::Tone::Info});
       ui::stat(std::to_string(d.builds.size()), "Достроено", {.icon = "build", .tone = ui::Tone::Info});
       ui::stat(std::to_string(d.techs.size()), "Исследования", {.icon = "research", .tone = ui::Tone::Info});
-      ui::stat(std::to_string(rep.rebellions.size()), "Восстаний", {.icon = "rebellion", .tone = rep.rebellions.empty() ? ui::Tone::Neutral : ui::Tone::Danger});
+      ui::stat(std::to_string(d.rebellions.size()), "Восстаний", {.icon = "rebellion", .tone = d.rebellions.empty() ? ui::Tone::Neutral : ui::Tone::Danger});
     }
     Id pickFaction = 0;
     const LogEntry* pickEntry = nullptr;
     {
-      FitScroll body("body", std::max(200.f, ui::viewport().h - 330));
+      FitScroll body("body", std::max(200.f, ui::viewport().h - 370));
       // Предупреждения
-      std::vector<const rules::TurnFactionLine*> lines = sortedLines(w, rep);
+      std::vector<const rules::TurnFactionLine*> lines = sortedLines(w, rep, page);
       std::vector<const rules::TurnFactionLine*> debtors;
       for (auto* l : lines)
         if (l->treasuryAfter < 0) debtors.push_back(l);
-      if (!debtors.empty() || !d.shortfalls.empty() || !d.rebellions.empty()) {
+      if (!debtors.empty() || !d.famine.empty() || !d.shortfalls.empty() || !d.rebellions.empty()) {
         ui::Card c({.pad = 12, .icon = "warning", .title = "Требует внимания", .tone = ui::Tone::Danger});
         if (!debtors.empty()) {
           ui::label("Казна в долгу: " + std::to_string(debtors.size()) + " " + plural(i64(debtors.size()), "фракция", "фракции", "фракций"),
@@ -129,17 +141,21 @@ struct ReportDlg : Dialog {
         }
         for (const LogEntry* e : d.rebellions)
           if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+        for (const LogEntry* e : d.famine)
+          if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
         for (const LogEntry* e : d.shortfalls)
           if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
       }
       // Казна фракций
-      if (!lines.empty()) {
-        ui::caption("Казна фракций");
+      if (lines.empty()) {
+        ui::label(page == kPageMain ? "Основных государств нет" : "Других фракций нет", {.ink = ui::Ink::Muted});
+      } else {
+        ui::caption(page == kPageMain ? "Казна государств" : "Казна фракций");
         double scale = 1;
         for (auto* l : lines) scale = std::max({scale, l->income, l->expenses});
         ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, ui::kAuto, 10);
         for (auto* l : lines)
-          if (factionCard(w, *l, scale)) pickFaction = l->faction;
+          if (factionCard(a, w, *l, scale)) pickFaction = l->faction;
       }
       // События по видам
       ui::caption("События хода");

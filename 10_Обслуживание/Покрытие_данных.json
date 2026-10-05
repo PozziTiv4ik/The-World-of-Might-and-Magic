@@ -4,11 +4,11 @@
   "generated_by": "tools/Собрать_аудит_данных.ps1",
   "interpretation": "Отсутствие прямого источника, текущего положения или манеры речи означает незаполненную связь или незаданный факт. Это не доказательство сюжетной ошибки. Граф показывает ссылки, а не истинность всех утверждений.",
   "summary": {
-    "entities": 750,
-    "edges": 965,
-    "references": 3838,
+    "entities": 776,
+    "edges": 1001,
+    "references": 4001,
     "original_sources": 246,
-    "linked_to_sources": 144,
+    "linked_to_sources": 170,
     "historical_provenance": 0,
     "unresolved_provenance": 360,
     "characters": 175,
@@ -4506,6 +4506,21 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0107",
+      "type": "location",
+      "path": "04_Локации/Вечная_Империя_Солнца.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0113",
+        "SRC-0201"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0012",
       "type": "location",
       "path": "04_Локации/Город_Костей.md",
@@ -4566,6 +4581,20 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0108",
+      "type": "location",
+      "path": "04_Локации/Железная_Орда.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0079"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0017",
       "type": "location",
       "path": "04_Локации/Железные_горы.md",
@@ -4604,11 +4633,70 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0109",
+      "type": "location",
+      "path": "04_Локации/Империя_Света_Пустоты.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0003",
+        "SRC-0082",
+        "SRC-0108"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0110",
+      "type": "location",
+      "path": "04_Локации/Империя_Света.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0003"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0111",
+      "type": "location",
+      "path": "04_Локации/Империя_Хасимы.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0009",
+        "SRC-0081"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0020",
       "type": "location",
       "path": "04_Локации/Империя_Цзян.md",
       "provenance": "unresolved",
       "source_ids": [],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0112",
+      "type": "location",
+      "path": "04_Локации/Империя_Шантири.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0131"
+      ],
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
@@ -4633,6 +4721,120 @@
       "path": "04_Локации/Итлинбург.md",
       "provenance": "unresolved",
       "source_ids": [],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0113",
+      "type": "location",
+      "path": "04_Локации/Клан_Громового_Утеса.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0114",
+      "type": "location",
+      "path": "04_Локации/Клан_Крэг-Хака.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166",
+        "SRC-0169"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0115",
+      "type": "location",
+      "path": "04_Локации/Клан_Логгот.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0116",
+      "type": "location",
+      "path": "04_Локации/Клан_Огронта.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0117",
+      "type": "location",
+      "path": "04_Локации/Клан_Рукхеримм.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0118",
+      "type": "location",
+      "path": "04_Локации/Клан_Стронггард.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0119",
+      "type": "location",
+      "path": "04_Локации/Клан_Хагорры.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0166"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0120",
+      "type": "location",
+      "path": "04_Локации/Кланы_Закона.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0094",
+        "SRC-0163"
+      ],
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
@@ -4681,11 +4883,41 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0121",
+      "type": "location",
+      "path": "04_Локации/Королевство_Лордамер.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0030",
+        "SRC-0087"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0026",
       "type": "location",
       "path": "04_Локации/Королевство_лунных_эльфов.md",
       "provenance": "unresolved",
       "source_ids": [],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0122",
+      "type": "location",
+      "path": "04_Локации/Королевство_Мрачнобородов.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0029",
+        "SRC-0097"
+      ],
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
@@ -4710,6 +4942,34 @@
       "path": "04_Локации/Королевство_Сангард.md",
       "provenance": "unresolved",
       "source_ids": [],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0123",
+      "type": "location",
+      "path": "04_Локации/Королевство_Сеттеха.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0009"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0124",
+      "type": "location",
+      "path": "04_Локации/Королевство_Солнца.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0024"
+      ],
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
@@ -4957,11 +5217,39 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0125",
+      "type": "location",
+      "path": "04_Локации/Область_Либриария.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0187"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0049",
       "type": "location",
       "path": "04_Локации/Обсидиановое_королевство.md",
       "provenance": "unresolved",
       "source_ids": [],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0126",
+      "type": "location",
+      "path": "04_Локации/Орден_Света_Пустоты.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0024"
+      ],
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
@@ -5199,6 +5487,21 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0127",
+      "type": "location",
+      "path": "04_Локации/Преисподняя.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0131",
+        "SRC-0231"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0069",
       "type": "location",
       "path": "04_Локации/Проклятые_земли_нежити.md",
@@ -5223,6 +5526,34 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0128",
+      "type": "location",
+      "path": "04_Локации/Республика_Димасия.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0024"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0129",
+      "type": "location",
+      "path": "04_Локации/Республики_морских_эльфов.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0074"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0071",
       "type": "location",
       "path": "04_Локации/Руины_древнего_храма_в_Пустыне_Кланов.md",
@@ -5240,6 +5571,20 @@
       "path": "04_Локации/Руины_замка_Тикормана.md",
       "provenance": "unresolved",
       "source_ids": [],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0130",
+      "type": "location",
+      "path": "04_Локации/Священная_Империя_Сокола.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0075"
+      ],
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
@@ -5355,6 +5700,21 @@
       "voice_status": null
     },
     {
+      "id": "LOC-0131",
+      "type": "location",
+      "path": "04_Локации/Тар-Элам.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0011",
+        "SRC-0027"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
       "id": "LOC-0082",
       "type": "location",
       "path": "04_Локации/Тол-Барот.md",
@@ -5385,6 +5745,20 @@
       "provenance": "linked",
       "source_ids": [
         "SRC-0101"
+      ],
+      "historical_source_ids": [],
+      "history_paths": [],
+      "historical_sections": null,
+      "current_position_status": null,
+      "voice_status": null
+    },
+    {
+      "id": "LOC-0132",
+      "type": "location",
+      "path": "04_Локации/Торговые_Острова.md",
+      "provenance": "linked",
+      "source_ids": [
+        "SRC-0222"
       ],
       "historical_source_ids": [],
       "history_paths": [],

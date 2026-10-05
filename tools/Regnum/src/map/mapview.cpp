@@ -174,10 +174,12 @@ struct MapView::Impl {
     if (!marksValid || marksGen != gen || marksZoom != v.zoom || marksSel != lastSel || marksHidden != lastHidden) {
       std::vector<const Army*> list;
       list.reserve(world.armies.size());
-      world.armies.each([&](const Army& a) {
-        if (!std::binary_search(lastHidden.begin(), lastHidden.end(), a.id)) list.push_back(&a);
-      });
-      marks = layoutMarks(list, v.zoom, lastSel);
+      // «Скрыть войска» (ТЗ «Фиксы», п.2): ни фигурок, ни попадания мышью.
+      if (world.settings->showArmies)
+        world.armies.each([&](const Army& a) {
+          if (!std::binary_search(lastHidden.begin(), lastHidden.end(), a.id)) list.push_back(&a);
+        });
+      marks = layoutMarks(list, v.zoom, lastSel, figureSizeOf(*world.settings));
       marksValid = true;
       marksGen = gen;
       marksZoom = v.zoom;
@@ -1018,7 +1020,7 @@ double MapView::separateZoom(const ArmyMark& m) const {
   double z = cur;
   while (z < zmax) {
     z = std::min(z * 1.2, zmax);
-    if (layoutMarks(list, z, d_->lastSel).marks.size() == list.size()) return z;
+    if (layoutMarks(list, z, d_->lastSel, figureSizeOf(*d_->world.settings)).marks.size() == list.size()) return z;
   }
   return zmax;
 }
@@ -1042,6 +1044,6 @@ Id MapView::routeAt(float sx, float sy, float tolPx) const {
   return best;
 }
 
-float MapView::figureSize() const { return figureSizeAt(d_->v.zoom); }
+float MapView::figureSize() const { return figureSizeOf(*d_->world.settings); }
 
 }  // namespace rg::map

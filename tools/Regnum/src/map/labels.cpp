@@ -164,6 +164,9 @@ struct Cand {
 
 u32 argb(Color c) { return (u32(c.a) << 24) | (u32(c.r) << 16) | (u32(c.g) << 8) | u32(c.b); }
 
+constexpr double kStateMinExtent = 22;      // государство на экране меньше — без подписи (точки)
+constexpr double kProvinceLabelZoom = 0.45; // ниже — обзор: подписи провинций государств скрыты
+
 }  // namespace
 
 bool Obstacles::hit(const gfx::RectI& r) const {
@@ -198,13 +201,16 @@ bool drawLabels(const FrameCtx& f, LabelCache& cache, Obstacles& obs, float figu
     }
     for (const auto& [sid, a] : acc) {
       const Faction* s = w.faction(sid);
-      const double px = 0.075 * std::sqrt(a.area) * z;   // кегль, логические пиксели
-      if (px < 10.5 || s->name.empty()) continue;
+      // ТЗ «Фиксы», п.1: при отдалении названия государств главнее провинций — подпись видна, пока государство
+      // на экране не меньше kStateMinExtent точек, кегль не меньше 10,5.
+      const double extent = std::sqrt(a.area) * z;
+      const double px = 0.075 * extent;   // кегль, логические пиксели
+      if (extent < kStateMinExtent || s->name.empty()) continue;
       Cand c;
       c.anchor = a.at;
       c.key.text = s->name;
       c.key.kind = 0;
-      c.key.size4 = u16(std::lround(std::round(clamp(px, 11.0, 30.0)) * dpi * 4));
+      c.key.size4 = u16(std::lround(std::round(clamp(px, 10.5, 30.0) * 2) / 2 * dpi * 4));
       const Color tc = data ? Color(40, 34, 28) : Color::mix(s->color, Color(22, 16, 10), 0.62f);
       c.key.color = argb(tc.withA(242));
       c.prio = 1e12 + a.area;
@@ -212,11 +218,15 @@ bool drawLabels(const FrameCtx& f, LabelCache& cache, Obstacles& obs, float figu
       cands.push_back(std::move(c));
     }
   }
-  // Провинции: при достаточном размере на экране.
+  // Провинции: при достаточном размере на экране. Провинции государств при обзорном масштабе не подписываются —
+  // видно, где какое государство (ТЗ «Фиксы», п.1).
   if (set.labelProvinces) {
+    const bool overview = z < kProvinceLabelZoom && set.labelStates;
     for (const auto& [pid, sh] : fs.provinces) {
       const Province* p = w.province(pid);
       if (!p || p->name.empty()) continue;
+      if (overview && !p->sea)
+        if (const Faction* o = w.faction(p->owner); o && o->isState() && !o->name.empty()) continue;
       if (!f.visible.inflated(sh.box.w() * 0.5).contains(sh.label)) continue;
       const double sw = sh.box.w() * z, sa = sh.area * z * z;
       if (sw < 46 || sa < 2600) continue;

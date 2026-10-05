@@ -370,7 +370,15 @@ TEST(rules_fix_war_dissolves_allied_army) {
   CHECK_EQ(f.w().armies.size(), armies0 + 1);
   CHECK(has(lastLog(f.w()), "распущено"));
   // То же при объявлении войны (declareWar) после нового союза.
-  f.tx([&](Tx& tx) { setRelation(tx, f.A, f.B, 50, RelStatus::Alliance); });
+  // Войну завершает только перемирие (ТЗ «Механика войн», п.2) — затем союз.
+  f.tx([&](Tx& tx) {
+    Truce t;
+    t.a = f.A;
+    t.b = f.B;
+    t.status = RelStatus::Alliance;
+    concludeTruce(tx, t);
+    setRelation(tx, f.A, f.B, 50, RelStatus::Alliance);
+  });
   Id other = 0;
   f.w().armies.each([&](const Army& a) {
     if (a.id != al && a.leader() == f.B) other = a.id;

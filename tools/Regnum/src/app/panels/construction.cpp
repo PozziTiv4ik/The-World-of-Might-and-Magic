@@ -15,6 +15,16 @@ const Faction* ownerState(const World& w, const Province& p) {
   return f && f->isState() ? f : nullptr;
 }
 
+// ТЗ «Виды государств», п.5 и 9: в пустоши нежити строит только государство нежити, в осквернённой — демонов
+// (то же в причинах rules::buildOptions).
+std::string landBlock(const World& w, const Province& p, const Faction* owner) {
+  if (!owner) return {};
+  if (rules::hasModKey(w, p.modifiers, schema::mod::UndeadWaste) && owner->stateKind != StateKind::Undead) return "В пустоши нежити строит только государство нежити";
+  if (rules::hasModKey(w, p.modifiers, schema::mod::Desecrated) && owner->stateKind != StateKind::Demonic)
+    return "В осквернённой провинции строит только государство демонов";
+  return {};
+}
+
 void askCancel(App& a, Id pid, Id bid, const std::string& name, int level) {
   a.confirm("Отменить строительство «" + name + "»?",
             level > 1 ? "Улучшение прекратится, останется уровень " + tree::roman(level - 1) + ". Стоимость вернётся полностью."
@@ -124,7 +134,8 @@ void drawBuildings(App& a, Id pid) {
   int built = 0, constructing = 0;
   for (const ProvBuilding& pb : list) (pb.constructing ? constructing : built)++;
   bool over = used > slots;
-  bool canBuild = !ro && owner && used < slots;
+  const std::string block = landBlock(w, *p0, owner);
+  bool canBuild = !ro && owner && used < slots && block.empty();
 
   // Показатели
   {
@@ -158,12 +169,17 @@ void drawBuildings(App& a, Id pid) {
     std::string why;
     if (ro) why = "Открыт прошлый ход";
     else if (!owner) why = "У провинции нет владельца-государства";
+    else if (!block.empty()) why = block;
     else if (used >= slots) why = "Нет свободных слотов";
     if (ui::button("Построить", {.variant = ui::Variant::Primary, .icon = "build", .fill = true, .disabled = !canBuild,
                                  .tooltip = why.empty() ? std::string_view("Выбрать постройку из дерева государства") : std::string_view(why)}))
       a.openDialog(buildPickerDialog(pid));
     a.markUi("prov.build");
     if (!owner) ui::label("Провинция без владельца: строить некому.", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info"});
+    if (!block.empty()) {
+      ui::label(block, {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "lock", .wrap = true});
+      a.markUi("prov.buildBlock");
+    }
   }
   if (list.empty()) {
     ui::spacer(4);
@@ -227,7 +243,10 @@ void drawBuildings(App& a, Id pid) {
             }
             ui::label("Уровень " + tree::roman(pb.level) + " из " + tree::roman(std::max(1, maxL)) + " · " + bld::catName(b->cat),
                       {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-            if (pb.level >= 1 && pb.level <= maxL) bld::levelEffects(w, b->levels[size_t(pb.level - 1)], true);
+            if (pb.level >= 1 && pb.level <= maxL) {
+              bld::levelEffects(w, b->levels[size_t(pb.level - 1)], true);
+              bld::produceChips(b->levels[size_t(pb.level - 1)].produce);
+            }
           }
           if (ui::iconButton("trash", "Снести постройку", {.disabled = ro, .tone = ui::Tone::Danger})) askDemolish(a, pid, pb.building, name);
           a.markUi("prov.demolish." + std::to_string(pb.building));

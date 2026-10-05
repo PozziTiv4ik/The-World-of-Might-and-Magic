@@ -59,29 +59,52 @@ void enterDlg(Harness& h, const std::string& name, const std::string& value) {
   h.settle();
 }
 
-// Независимый пересчёт экономики фракции по формулам docs/RULES.md §2–3 (эффекты и число маршрутов берутся из мира).
+// Независимый пересчёт экономики фракции по формулам docs/RULES.md §2–3 и ТЗ «Общие доработки» (п.9, 11), «Механика
+// войн» (п.1), «Механика мятежа» (п.5), «Виды государств» (п.5, 9): эффекты берутся из мира, провинции маршрутов —
+// по их линиям.
 struct Econ {
-  double provTax = 0, guildTax = 0, hqNet = 0, trade = 0, tribute = 0;
-  double army = 0, fleet = 0, spec = 0, tradeOut = 0, tributeOut = 0;
-  double own() const { return provTax + guildTax + hqNet; }
+  double provTax = 0, guildTax = 0, hqNet = 0, trade = 0, tribute = 0, slaves = 0, tradeFleet = 0, routes = 0;
+  double army = 0, fleet = 0, spec = 0, tradeOut = 0, tributeOut = 0, slaveUpkeep = 0;
+  double own() const { return provTax + guildTax + hqNet + slaves + tradeFleet + routes; }
   double gross() const { return own() + trade + tribute; }
 };
 
 std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
   std::map<Id, Econ> e;
+  // Маршруты: +10 % базы за маршрут и +2,5 % за каждое государство на его пути; гильдия-владелец — 5 % ценности
+  // сухопутных провинций пути.
+  auto fs = geo::faces(w);
+  std::map<Id, double> routeBonus;
+  std::vector<std::pair<Id, std::vector<Id>>> guildRoutes;
+  w.routes.each([&](const Route& r) {
+    if (r.pts.empty()) return;
+    std::vector<Id> provs = fs->provincesOnPolyline(r.pts), states;
+    for (Id pid : provs)
+      if (const Province* pr = w.province(pid); pr && !pr->sea)
+        if (const Faction* o = w.faction(pr->owner); o && o->isState() && !has(states, o->id)) states.push_back(o->id);
+    for (Id pid : provs) routeBonus[pid] += 0.10 + 0.025 * double(states.size());
+    if (r.guild) guildRoutes.push_back({r.guild, provs});
+  });
+  std::map<Id, double> value;
   w.provinces.each([&](const Province& p) {
     if (p.sea) return;
     const Faction* o = w.faction(p.owner);
     if (o && !o->isState()) o = nullptr;
     rules::Effects fx = rules::provinceEffects(w, p.id);
-    auto rit = c.routeCounts.find(p.id);
-    int routes = rit == c.routeCounts.end() ? 0 : rit->second;
-    double V = std::max(0.0, std::max(0.0, p.baseTrade) * (1 + fx[Fx::TradePct] / 100 + 0.10 * routes) + fx[Fx::TradeFlat]);
+    double V = std::max(0.0, std::max(0.0, p.baseTrade) * (1 + fx[Fx::TradePct] / 100 + routeBonus[p.id]) + fx[Fx::TradeFlat]);
+    value[p.id] = V;
     double t = std::clamp((o ? std::max(0.0, o->tax) : 0.0) + p.localTax, 1.0, 100.0);
     Id rec = o ? o->id : 0;
     if (p.occupied && p.occupier && p.occupier != p.owner && w.faction(p.occupier)) {
       if (w.settings->occupiedIncome == OccupiedIncome::Occupier) rec = p.occupier;
       else if (w.settings->occupiedIncome == OccupiedIncome::None) rec = 0;
+    }
+    // Пустошь нежити (осквернённая): доход с ценности — только государству нежити (демонов).
+    const bool waste = rules::provinceHas(w, p.id, schema::mod::UndeadWaste), desecr = rules::provinceHas(w, p.id, schema::mod::Desecrated);
+    bool blocked = false;
+    if (waste || desecr) {
+      const Faction* rf = w.faction(rec);
+      blocked = !rf || !rf->isState() || rf->stateKind != (waste ? StateKind::Undead : StateKind::Demonic);
     }
     double grossHq = 0, gtax = 0;
     for (const Influence& in : p.influence) {
@@ -93,16 +116,38 @@ std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
       e[in.guild].hqNet += gross - gross * t / 100;
     }
     if (rec) {
-      e[rec].provTax += std::max(0.0, V - grossHq) * t / 100;
-      e[rec].guildTax += gtax;
+      if (!blocked) {
+        e[rec].provTax += std::max(0.0, V - grossHq) * t / 100;
+        e[rec].guildTax += gtax;
+      }
       if (p.resource == kGold)
         e[rec].provTax += std::max(0.0, std::max(0.0, p.resourceAmount) * (1 + fx[Fx::ResourcePct] / 100) + fx[Fx::ResourceFlat]);
     }
+    if (o) {
+      for (const SlaveWork& s : p.slaves) e[o->id].slaves += double(std::max<i64>(0, s.count)) * 0.002;
+      for (const ProvBuilding& pb : p.buildings) {
+        const Building* b = w.building(pb.building);
+        int lvl = pb.builtLevel();
+        if (!b || lvl < 1 || lvl > int(b->levels.size())) continue;
+        auto it = b->levels[size_t(lvl - 1)].produce.find(kGold);
+        if (it != b->levels[size_t(lvl - 1)].produce.end() && it->second > 0) e[o->id].provTax += it->second;
+      }
+    }
   });
+  for (auto& [guild, provs] : guildRoutes) {
+    const Faction* g = w.faction(guild);
+    if (!g || !g->isGuild()) continue;
+    for (Id pid : provs)
+      if (const Province* pr = w.province(pid); pr && !pr->sea) e[guild].routes += value[pid] * 0.05;
+  }
   w.factions.each([&](const Faction& f) {
     rules::Effects fx = rules::factionEffects(w, f.id);
+    const double fleetK = std::max(0.0, 1 + fx[Fx::FleetUpkeepPct] / 100);
     for (const ArmyRow& r : f.army) e[f.id].army += double(r.total) * r.upkeep * std::max(0.0, 1 + fx[Fx::ArmyUpkeepPct] / 100);
-    for (const FleetRow& r : f.fleet) e[f.id].fleet += double(r.total) * r.upkeep * std::max(0.0, 1 + fx[Fx::FleetUpkeepPct] / 100);
+    for (const FleetRow& r : f.fleet) e[f.id].fleet += double(r.total) * r.upkeep * fleetK;
+    for (const GarrisonEntry& g : f.tradeFleet)
+      if (const FleetRow* r = f.fleetRow(g.row); r && r->type == ShipType::Galleon) e[f.id].tradeFleet += double(g.count) * std::max(0.0, r->upkeep) * fleetK * 2;
+    for (const SlaveGroup& s : f.slaves) e[f.id].slaveUpkeep += double(std::max<i64>(0, s.count)) * 0.001;
   });
   // Специалисты: различные персонажи с ролью — правитель, места совета (любой фракции), герои фракции.
   w.factions.each([&](const Faction& f) {
@@ -158,12 +203,16 @@ TEST(app_audit_tz_states_economy_formulas) {
     CHECK_NEAR(fc->incGuilds, x.hqNet, 1e-6);
     CHECK_NEAR(fc->incTrade, x.trade, 1e-6);
     CHECK_NEAR(fc->incTribute, x.tribute, 1e-6);
+    CHECK_NEAR(fc->incSlaves, x.slaves, 1e-6);
+    CHECK_NEAR(fc->incTradeFleet, x.tradeFleet, 1e-6);
+    CHECK_NEAR(fc->incRoutes, x.routes, 1e-6);
     CHECK_NEAR(fc->expArmy, x.army, 1e-6);
     CHECK_NEAR(fc->expFleet, x.fleet, 1e-6);
     CHECK_NEAR(fc->expSpecialists, x.spec, 1e-6);
+    CHECK_NEAR(fc->expSlaves, x.slaveUpkeep, 1e-6);
     rules::Effects ffx = rules::factionEffects(w, f.id);
     double inc = x.own() * std::max(0.0, 1 + ffx[Fx::IncomePct] / 100) + x.trade + x.tribute;  // переводы — без модификатора
-    double exp = x.army + x.fleet + x.spec + x.tradeOut + x.tributeOut;
+    double exp = x.army + x.fleet + x.spec + x.tradeOut + x.tributeOut + x.slaveUpkeep;
     CHECK_NEAR(fc->incTotal, inc, 1e-6);
     CHECK_NEAR(fc->expTotal, exp, 1e-6);
     if (f.isState()) {
@@ -250,8 +299,8 @@ TEST(app_audit_tz_states_tribute_income_modifier) {
 
 // ---------------------------------------------------------------- 1.b.iv / 1.e.i: совет и герои — расход «специалисты»
 // Вкладки «Совет» и «Герои» пишут «Содержание за ход … входит в расход «специалисты»». Но расход считается по всем
-// персонажам фракции: убранный из совета или из героев продолжает получать содержание, а советник другой фракции
-// показан в сумме совета, но в расход этого государства не входит.
+// персонажам фракции: убранный из совета или из героев продолжает получать содержание. Советника другой фракции
+// назначить нельзя (ТЗ «Фиксы», п.9).
 TEST(app_audit_tz_states_specialists_upkeep) {
   HideTestRegs regs;
   Harness h("audit_tzstates_specialists");
@@ -285,28 +334,24 @@ TEST(app_audit_tz_states_specialists_upkeep) {
   h->undo();
   h.step();
 
-  // 2. Советник другого государства: сумма совета растёт, расход «специалисты» Альмарина — нет.
-  // Герой Хельдвига с содержанием 15 (у снятого советника Альмарина — 8): сумма совета меняется на +7.
+  // 2. Советник другого государства (ТЗ «Фиксы», п.9): в выборе его нет, правило отказывает — сумма совета и расход
+  // «специалисты» Альмарина не меняются.
   Id foreign = characterByName(h->world(), "Бьорн Медведь");
   CHECK(foreign);
-  const double fup = h->world().character(foreign)->upkeep;
   CHECK(h->world().character(foreign)->faction != alm);
-  CHECK(std::fabs(fup - up) > 1e-9);
   const double spec1 = specOf(), council1 = councilSum();
+  const Id seat0 = h->world().faction(alm)->council[0].id, who0 = h->world().faction(alm)->council[0].character;
+  CHECK(!h->act("Советник", [&](Tx& tx) { rules::setCouncilMember(tx, alm, seat0, foreign); }));
+  h.dropToasts();
   openTab(h, alm, "faction.council");
   CHECK(clickIn(h, "council.who.0"));
   h.type("Бьорн");
   h.key(Key::Enter);
   h.settle();
-  CHECK_EQ(h->world().faction(alm)->council[0].character, foreign);
-  const double council2 = councilSum();
-  CHECK_NEAR(council2, council1 - up + fup, 1e-9);
-  CHECK_MSG(std::fabs((specOf() - spec1) - (council2 - council1)) < 1e-6,
-        "советник другой фракции: сумма совета изменилась на " + std::to_string(council2 - council1) + ", расход «специалисты» — на " +
-            std::to_string(specOf() - spec1));
+  CHECK_EQ(h->world().faction(alm)->council[0].character, who0);
+  CHECK_NEAR(councilSum(), council1, 1e-9);
+  CHECK_NEAR(specOf(), spec1, 1e-6);
   shotClean(h, "audit_tzstates_council_foreign");
-  h->undo();
-  h.step();
 
   // 3. «Убрать из героев»: вкладка «Герои» уменьшает «Содержание за ход», расход «специалисты» — нет.
   openTab(h, alm, "faction.heroes");

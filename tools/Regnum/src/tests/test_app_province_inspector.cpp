@@ -323,14 +323,16 @@ TEST(app_province_overview_screens) {
     for (int i = 0; i < 40; i++) h.frame();
     h.settle();
     CHECK(h.shot("province_tooltip"));
-    // Низ вкладки: оккупация, заметки, карточка кампании.
+    // Низ вкладки: оккупация с оккупационным гарнизоном, заметки и связь с каноном (ТЗ «Фиксы», п.7–8).
     const RectF* ins = h->uiRect("inspector");
     CHECK(ins != nullptr);
     h.wheel(ins->cx(), ins->bottom() - 100, -16);
     h.move(ins->x - 200, ins->cy());
     h.settle();
-    CHECK(h->uiRect("province.notes") != nullptr);
-    CHECK(h->uiRect("province.entity") != nullptr);
+    CHECK(h->uiRect("province.occIdle") != nullptr);
+    CHECK(h->uiRect("canon.notes") != nullptr);
+    CHECK(h->uiRect("canon.entity") != nullptr);
+    CHECK(h->uiRect("canon.find") != nullptr);
     CHECK(h.shot("province_overview_bottom"));
   }
   {

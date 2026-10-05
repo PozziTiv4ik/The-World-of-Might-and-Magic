@@ -41,19 +41,29 @@ void flowBars(RectF r, double income, double expense, double scale);
 // Разбор дохода (income) или расхода фракции для подсказки (строки через перевод строки).
 std::string flowText(const rules::FactionCalc& fc, bool income);
 
-// Строки итога хода: государства, затем гильдии, по названию.
-std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep);
+// Страницы итогов хода (ТЗ «Фиксы», п.16): 0 — основные игровые государства (Faction::mainState), 1 — остальные
+// фракции (прочие государства и гильдии); −1 — все.
+constexpr int kPageMain = 0, kPageOther = 1, kPageAll = -1;
+bool isMainState(const World& w, Id faction);
+// Запись хроники — на странице: касается основного государства (страница 0); прочих фракций или ни одной (страница 1).
+// Учитываются фракции записи, владелец её провинции и фракции её войска; запись о двух сторонах — на обеих страницах.
+bool entryOnPage(const World& w, const LogEntry& e, int page);
+// Подписи переключателя страниц с числом фракций: «Основные государства · 2», «Остальные · 9».
+std::string pageLabel(int page, size_t count);
 
-// Записи хроники хода по смыслу (w — мир после хода, где есть записи rep.logIds).
+// Строки итога хода страницы: государства, затем гильдии, по названию.
+std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep, int page = kPageAll);
+
+// Записи хроники хода по смыслу (w — мир после хода, где есть записи rep.logIds), только записи страницы page.
 struct TurnDigest {
   std::vector<const LogEntry*> all;                          // все записи хода, кроме итога
   std::vector<const LogEntry*> builds, techs, deals, other;  // события
-  std::vector<const LogEntry*> debts, shortfalls, rebellions;  // предупреждения
+  std::vector<const LogEntry*> debts, famine, shortfalls, rebellions;  // предупреждения (famine — кончилась провизия)
   const LogEntry* summary = nullptr;                         // итог хода (LogKind::Turn)
-  int warnings() const { return int(debts.size() + shortfalls.size() + rebellions.size()); }
+  int warnings() const { return int(debts.size() + famine.size() + shortfalls.size() + rebellions.size()); }
   int events() const { return int(builds.size() + techs.size() + deals.size() + other.size()); }
 };
-TurnDigest digest(const World& w, const rules::TurnReport& rep);
+TurnDigest digest(const World& w, const rules::TurnReport& rep, int page = kPageAll);
 
 // Прокрутка высотой по содержимому прошлого кадра, но не выше maxH (модальные окна).
 class FitScroll {

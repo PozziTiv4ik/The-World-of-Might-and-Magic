@@ -6,6 +6,7 @@
 
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
+#include "app/flows.h"
 #include "base/jobs.h"
 
 namespace rg::app {
@@ -213,6 +214,8 @@ bool App::endTurnNow() {
   if (debts) text += " · в долгу: " + std::to_string(debts);
   bool warn = !rep.rebellions.empty() || debts > 0;
   toast(text, warn ? ToastKind::Warning : ToastKind::Success, "next-turn", "Отчёт", [](App& a) { a.openDialog("turn.report"); });
+  // Восстания и мятежи хода — окна по очереди (битва, штурм или захват, судьба героев).
+  flow::processTurnEvents(*this, rep);
   return true;
 }
 

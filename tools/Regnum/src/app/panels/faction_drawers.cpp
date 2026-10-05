@@ -1,6 +1,7 @@
-// Regnum — выдвижные панели «Государства» (ТЗ 1.b.ii) и «Гильдии» (ТЗ 1.d.i): списки с флагом, названием,
-// правителем или государством расположения и казной; поиск, сортировка, создание (приятный различимый цвет и флаг),
-// контекстное меню (открыть, показать на карте, флаг, удалить с подтверждением). Щелчок открывает инспектор.
+// Regnum — выдвижные панели «Государства» (ТЗ 1.b.ii) и «Гильдии» (ТЗ 1.d.i): списки с флагом (звезда — основное
+// игровое государство), названием, правителем или государством расположения и казной; поиск, сортировка, создание
+// (приятный различимый цвет и флаг), контекстное меню (открыть, показать на карте, флаг, удалить с подтверждением).
+// Щелчок открывает инспектор.
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -109,6 +110,12 @@ void drawList(App& a, FactionKind kind) {
       RectF lk{ev.rect.x + 12 + 36 - 8, ev.rect.cy() + 3, 13, 13};
       ui::draw::circle(lk.cx(), lk.cy(), 7.5f, t.surface1);
       ui::draw::icon("lock", lk.inset(1), t.accent);
+    }
+    if (f->isState() && f->mainState) {   // основное игровое государство — звезда на флаге
+      const ui::Theme& t = ui::theme();
+      RectF st{ev.rect.x + 12 + 36 - 8, ev.rect.cy() + 3, 13, 13};
+      ui::draw::circle(st.cx(), st.cy(), 7.5f, t.surface1);
+      ui::draw::icon("star-filled", st.inset(1), t.accent);
     }
     if (ev.doubleClicked) a.select(SelType::Faction, f->id, true);
     else if (ev.clicked) a.select(SelType::Faction, f->id);

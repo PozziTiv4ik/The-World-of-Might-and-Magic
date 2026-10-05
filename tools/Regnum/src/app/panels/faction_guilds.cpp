@@ -31,7 +31,7 @@ void drawGuilds(App& a, Id id) {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
     ui::stat(fmtInt(i64(list.size())), plural(i64(list.size()), "гильдия", "гильдии", "гильдий"),
              {.icon = "guild", .tone = ui::Tone::Info, .tooltip = "Государственных: " + std::to_string(stateGuilds)});
-    ui::stat(fmtNum(hqIncome), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Сумма чистого дохода штабов этих гильдий"});
+    ui::stat(money(hqIncome), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Сумма чистого дохода штабов этих гильдий"});
   }
   ui::spacer(2);
   if (ui::Section s("Гильдии государства", "guild", {.badge = list.empty() ? std::string() : std::to_string(list.size())}); s) {

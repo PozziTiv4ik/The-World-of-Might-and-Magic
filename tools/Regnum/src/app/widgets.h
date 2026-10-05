@@ -20,7 +20,8 @@ bool factionPicker(std::string_view id, Id& value, FactionFilter filter = Factio
 // Выбор провинции (owner != 0 — только провинции этого государства). Морские провинции не предлагаются.
 bool provincePicker(std::string_view id, Id& value, Id owner = 0, std::string_view noneLabel = "—", bool disabled = false);
 
-// Выбор персонажа. faction != 0 — сначала персонажи этой фракции (остальные ниже).
+// Выбор персонажа. faction != 0 — только персонажи этой фракции, доступные для назначений (не «Мертв» и не
+// «Взят в плен»; ТЗ «Фиксы», п.9): назначенный недоступный виден, но не выбирается. faction = 0 — все персонажи.
 // allowCreate — последний пункт «Новый персонаж»: создаёт запись (с фракцией faction) и выбирает её.
 bool characterPicker(std::string_view id, Id& value, Id faction = 0, std::string_view noneLabel = "—",
                      bool allowCreate = true, bool disabled = false);
@@ -32,13 +33,30 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
 
 // Где действует список модификаторов (ТЗ 1.g.ii): Local — провинция (действуют только локальные эффекты: модификатор
 // лишь с глобальными эффектами помечается предупреждением и не предлагается к добавлению); Any — технологии и
-// постройки (локальные эффекты — в провинции, глобальные — государству).
-enum class ModScope { Any, Local };
-// Список модификаторов фишками (удаление крестиком) + выбор для добавления. true — список изменился.
-// Фишка без действующих здесь эффектов помечается в App::uiRect как «<id>.warn.<модификатор>».
-bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled = false, ModScope where = ModScope::Any);
+// постройки (локальные эффекты — в провинции, глобальные — государству); Faction — государство или гильдия;
+// Army — войско (эффекты войск); Hero — герой (эффектов у героя нет: природа, состояния).
+enum class ModScope { Any, Local, Faction, Army, Hero };
+// Правка списка модификаторов помимо состава (modifierList с edit).
+struct ModEdit {
+  Id termOf = 0;          // модификатор, срок которого изменён (список при этом не меняется)
+  int turns = 0;          // его новый срок, ходов (0 — бессрочно)
+  std::string addKey;     // выбран встроенный модификатор без записи мира: создать (rules::ensureBuiltinMod) и добавить
+};
+// Список модификаторов фишками (удаление крестиком) + выбор для добавления. true — изменился состав (ids) или выбран
+// встроенный модификатор без записи (edit->addKey). Предлагаются модификаторы вида «Везде» или вида области
+// (modifierFits), с edit — и встроенные шаблоны, которых ещё нет в мире. Фишка i помечается в App::uiRect как
+// «<id>.chip.<i>», фишка без действующих здесь эффектов — ещё и «<id>.warn.<модификатор>».
+// turns — сроки (нет записи — бессрочно): срок на фишке, щелчок по фишке — правка срока (в edit->termOf/turns).
+// Без turns щелчок открывает редактор модификаторов.
+bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled = false, ModScope where = ModScope::Any,
+                  const ModTurns* turns = nullptr, ModEdit* edit = nullptr);
 // У модификатора есть эффекты, но ни один не действует там, где список (where).
 bool modifierInert(const Modifier& m, ModScope where);
+// Модификатор можно добавить в список области: вид «Везде» или вид области, не автоматический (столица, совет, голод).
+bool modifierFits(const Modifier& m, ModScope where);
+
+// Состояние героя одной строкой: «Мертв · <место захоронения>», «В плену · <государство>»; пусто — доступен.
+std::string heroState(const World& w, const Character& c);
 
 // Фишки-ссылки: щелчок выделяет сущность и открывает её инспектор.
 void factionChip(Id faction, bool showKind = false);

@@ -1,14 +1,19 @@
 // Regnum — каталог геральдических эмблем: силуэты описаны строками путей SVG на сетке 100 × 100,
-// повторяющиеся части (зёрна колоса, мечи, крылья) строятся преобразованиями.
+// повторяющиеся части (зёрна колоса, мечи, крылья) строятся преобразованиями. Здесь — классические эмблемы,
+// реестр, подписи и группы; фантазийные группы — emblems_fantasy.cpp.
 #include "gfx/emblems.h"
 
 #include <mutex>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "gfx/icons_shapes.h"
 #include "gfx/svgpath.h"
 
 namespace rg::gfx {
+
+// Фантазийные группы (emblems_fantasy.cpp): глифы в b, группы с именами в groups, подписи (имя, подпись) в titles.
+void defineFantasyEmblems(GlyphBuilder& b, std::vector<EmblemGroup>& groups, std::vector<std::pair<const char*, const char*>>& titles);
 
 namespace {
 
@@ -237,19 +242,6 @@ void defineEmblems(GlyphBuilder& b) {
                  G::X(circ(19, 40.5, 1.9))});
 }
 
-struct EmblemRegistry {
-  GlyphBuilder b{100, 0x656d626cull << 32};
-};
-
-const EmblemRegistry& registry() {
-  static const EmblemRegistry r = [] {
-    EmblemRegistry x;
-    defineEmblems(x.b);
-    return x;
-  }();
-  return r;
-}
-
 struct Title {
   const char* name;
   const char* title;
@@ -264,6 +256,39 @@ const Title kTitles[] = {
     {"bear", "Медведь"},
 };
 
+struct SvHash {
+  using is_transparent = void;
+  size_t operator()(std::string_view s) const { return size_t(hash64(s)); }
+};
+struct SvEq {
+  using is_transparent = void;
+  bool operator()(std::string_view a, std::string_view b) const { return a == b; }
+};
+
+struct EmblemRegistry {
+  GlyphBuilder b{100, 0x656d626cull << 32};
+  std::vector<EmblemGroup> groups;
+  std::vector<std::pair<const char*, const char*>> titles;   // в порядке объявления (для проверки)
+  std::unordered_map<std::string, std::string_view, SvHash, SvEq> titleOf;
+};
+
+const EmblemRegistry& registry() {
+  static const EmblemRegistry r = [] {
+    EmblemRegistry x;
+    defineEmblems(x.b);
+    EmblemGroup classic{"Классические", {}};
+    for (const Title& t : kTitles) {
+      classic.names.push_back(t.name);
+      x.titles.push_back({t.name, t.title});
+    }
+    x.groups.push_back(std::move(classic));
+    defineFantasyEmblems(x.b, x.groups, x.titles);
+    for (const auto& [name, title] : x.titles) x.titleOf.emplace(name, title);
+    return x;
+  }();
+  return r;
+}
+
 std::mutex gUnknownMu;
 std::unordered_set<std::string> gUnknown;
 
@@ -272,20 +297,43 @@ std::unordered_set<std::string> gUnknown;
 const std::vector<std::string>& emblemNames() { return registry().b.names(); }
 bool hasEmblem(std::string_view name) { return registry().b.find(name) != nullptr; }
 const VecGlyph* emblemGlyph(std::string_view name) { return registry().b.find(name); }
+const std::vector<EmblemGroup>& emblemGroups() { return registry().groups; }
 
 std::vector<std::string> emblemRegistryIssues() {
-  std::vector<std::string> out = registry().b.issues();
-  for (const Title& t : kTitles)
-    if (!hasEmblem(t.name)) out.push_back(std::string("подпись без эмблемы: ") + t.name);
+  const EmblemRegistry& r = registry();
+  std::vector<std::string> out = r.b.issues();
+  std::unordered_map<std::string, int> titled;
+  for (const auto& [name, title] : r.titles) {
+    if (!hasEmblem(name)) out.push_back(std::string("подпись без эмблемы: ") + name);
+    if (std::string_view(title).empty()) out.push_back(std::string("пустая подпись: ") + name);
+    if (++titled[name] == 2) out.push_back(std::string("повторная подпись: ") + name);
+  }
   for (const std::string& nm : emblemNames())
-    if (emblemTitle(nm).empty()) out.push_back("эмблема без подписи: " + nm);
+    if (!titled.count(nm)) out.push_back("эмблема без подписи: " + nm);
+  // Каждая эмблема — ровно в одной группе; группы непустые, названия различны.
+  std::unordered_map<std::string, int> inGroups;
+  std::unordered_set<std::string_view> groupTitles;
+  for (const EmblemGroup& g : r.groups) {
+    if (g.title.empty()) out.push_back("группа без названия");
+    else if (!groupTitles.insert(g.title).second) out.push_back("повторная группа: " + std::string(g.title));
+    if (g.names.empty()) out.push_back("пустая группа: " + std::string(g.title));
+    for (const std::string& nm : g.names) {
+      if (!hasEmblem(nm)) out.push_back("в группе «" + std::string(g.title) + "» нет эмблемы " + nm);
+      inGroups[nm]++;
+    }
+  }
+  for (const std::string& nm : emblemNames()) {
+    auto it = inGroups.find(nm);
+    if (it == inGroups.end()) out.push_back("эмблема вне групп: " + nm);
+    else if (it->second > 1) out.push_back("эмблема в нескольких группах: " + nm);
+  }
   return out;
 }
 
 std::string_view emblemTitle(std::string_view name) {
-  for (const Title& t : kTitles)
-    if (name == t.name) return t.title;
-  return {};
+  const auto& m = registry().titleOf;
+  auto it = m.find(name);
+  return it == m.end() ? std::string_view{} : it->second;
 }
 
 void drawEmblem(Canvas& c, std::string_view name, RectF rect, Color color) {

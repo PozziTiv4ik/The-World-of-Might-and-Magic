@@ -14,8 +14,6 @@ namespace {
 // ---------------------------------------------------------------- палитра
 const Color kIvory = Color::hex(0xf4eddc);
 const Color kIvoryShade = Color::hex(0xd8ccb2);
-const Color kPlinthTop = Color::hex(0x323b4d);
-const Color kPlinthBottom = Color::hex(0x10141c);
 const Color kEdge = Color(8, 10, 16, 150);
 
 // Габариты фигурки в единицах постамента (радиус 50).
@@ -120,61 +118,25 @@ Color opaque(Color c) { return c.withA(255); }
 // Толщина линии не тоньше доли пикселя устройства (u — единиц на пиксель).
 float hair(float units, float u, float minPx) { return std::max(units, minPx * u); }
 
-// Тень, ореол выбора, кольцо цвета фракции (или двух союзников), тёмный постамент.
-// Очень тёмный цвет кольца сливается с постаментом — подсветить, сохранив оттенок.
-Color ringColor(Color c) {
-  c = opaque(c);
-  for (int i = 0; i < 6 && c.luminance() < 0.05f; i++) c = c.lighten(0.12f);
-  return c;
-}
-
-void paintPlinth(Canvas& c, Color faction, bool selected, bool allied, Color ally2, float u) {
-  faction = ringColor(faction);
-  ally2 = ringColor(ally2);
-  c.boxShadow({-50, -50, 100, 100}, 50, 9, 0, Color(0, 8, 24, 110), {0, 4.5f});
+// Без постамента (ТЗ «Фиксы», п.3): мягкая тень под фигуркой; выделенная — в кольце.
+void paintGround(Canvas& c, bool selected, float u, float footY) {
   if (selected) {
-    c.fillCircle(0, 0, 60.5f, Color(255, 255, 255, 235));
-    c.strokeCircle(0, 0, 60.5f, hair(1.6f, u, 0.8f), Color(8, 10, 16, 120));
-    c.fillCircle(0, 0, 55.5f, Color::hex(0xf2c14e));
+    c.fillCircle(0, 0, 54, Color(255, 236, 170, 70));
+    c.strokeCircle(0, 0, 54, hair(5.0f, u, 1.6f), Color::hex(0xf2c14e));
+    c.strokeCircle(0, 0, 57.5f, hair(1.6f, u, 0.8f), Color(8, 10, 16, 150));
   }
-  Gradient g;
-  c.fillCircle(0, 0, 50, linear(g, -50, 50, faction.lighten(0.28f), faction.darken(0.3f)));
-  if (allied) {
-    Path half;
-    half.moveTo(0, -50);
-    half.arcTo(50, 50, 0, false, true, 0, 50);
-    half.close();
-    Gradient g2;
-    c.fillPath(half, linear(g2, -50, 50, ally2.lighten(0.28f), ally2.darken(0.3f)));
-    c.line(0, -50, 0, -40, hair(1.6f, u, 0.9f), Color(8, 10, 16, 140), Cap::Butt);
-    c.line(0, 40, 0, 50, hair(1.6f, u, 0.9f), Color(8, 10, 16, 140), Cap::Butt);
-  }
-  // Блик сверху кольца и тёмная кромка (читается на светлой карте).
-  Path hl;
-  hl.moveTo(-40.5f, -26);
-  hl.arcTo(48, 48, 0, false, true, 40.5f, -26);
-  Stroke hs;
-  hs.width = hair(2.2f, u, 0.6f);
-  hs.cap = Cap::Round;
-  c.strokePath(hl, hs, Color(255, 255, 255, 70));
-  c.strokeCircle(0, 0, 50, hair(1.8f, u, 0.9f), kEdge);
-  // Постамент
-  Gradient gp;
-  c.fillCircle(0, 0, 40.5f, linear(gp, -40, 40, kPlinthTop, kPlinthBottom));
-  c.strokeCircle(0, 0, 40.5f, hair(1.6f, u, 0.7f), Color(0, 0, 0, 120));
+  c.save();
+  c.translate(0, footY);
+  c.scale(1, 0.3f);
+  c.fillCircle(0, 0, 26, Color(0, 0, 0, 70));
+  c.restore();
 }
 
 void paintArmy(Canvas& c, Color faction, bool selected, bool allied, Color ally2, float u) {
   const Shapes& s = shapes();
   faction = opaque(faction);
   ally2 = opaque(ally2);
-  paintPlinth(c, faction, selected, allied, ally2, u);
-  // Тень фигуры на постаменте
-  c.save();
-  c.translate(0, 31.5f);
-  c.scale(1, 0.32f);
-  c.fillCircle(0, 0, 22, Color(0, 0, 0, 90));
-  c.restore();
+  paintGround(c, selected, u, 31.5f);
   Gradient gi;
   const Paint ivory = linear(gi, -68, 34, kIvory, kIvoryShade);
   const Color line = Color(10, 12, 18, 200);
@@ -236,7 +198,7 @@ void paintFleet(Canvas& c, Color faction, bool selected, bool allied, Color ally
   const Shapes& s = shapes();
   faction = opaque(faction);
   ally2 = opaque(ally2);
-  paintPlinth(c, faction, selected, allied, ally2, u);
+  paintGround(c, selected, u, 31);
   const Color line = Color(10, 12, 18, 200);
   Stroke outline;
   outline.width = hair(2.4f, u, 0.9f);

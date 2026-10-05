@@ -9,7 +9,7 @@ namespace rg::rules::detail {
 
 // ---------------------------------------------------------------- тексты
 inline std::string q(const std::string& s) { return "«" + s + "»"; }  // «…»
-std::string amount(double v);                          // число для сообщений (до двух знаков)
+std::string amount(double v);                          // число для сообщений (до тысячных)
 std::string resName(const World& w, Id res);           // название ресурса
 std::string facName(const World& w, Id f);             // «Название» фракции
 std::string provName(const World& w, Id p);            // «Название» провинции
@@ -54,15 +54,20 @@ void addStock(Faction& f, Id res, double delta);
 std::shared_ptr<const geo::FaceSet> facesFor(const Tx& tx);
 
 // ---------------------------------------------------------------- эффекты
-// Изученные технологии по фракциям (по возрастанию ID).
+// Изученные технологии по фракциям (по возрастанию ID) и модификаторы, которые ставятся сами (совет, голод, должности).
 struct SourceIndex {
   std::unordered_map<Id, std::vector<const Tech*>> studied;
+  std::unordered_map<Id, std::vector<AutoMod>> autos;
   explicit SourceIndex(const World& w);
   const std::vector<const Tech*>* of(Id faction) const;
+  const std::vector<AutoMod>* autosOf(Id faction) const;
 };
 Effects provinceFx(const World& w, const SourceIndex& si, const Province& p);
 // owned — провинции государства (для эффектов построек); для гильдии пусто.
 Effects factionFx(const World& w, const SourceIndex& si, const Faction& f, const std::vector<const Province*>& owned);
+// Эффекты войска; leaderFx — готовые эффекты государства-лидера (nullptr — посчитать).
+Effects armyFx(const World& w, const Army& a, const Effects* leaderFx);
+double loyaltyDeltaOf(const World& w, const Army& a, const Effects& armyFx);
 int slotsOf(const Province& p, const Effects& fx);
 double costFactorOf(const Effects& fx);
 
@@ -105,5 +110,22 @@ void splitBrokenAlliances(Tx& tx, Id a, Id b);
 // ---------------------------------------------------------------- сделки
 Id conclude(Tx& tx, Deal d, bool log);
 std::string dealText(const World& w, const Deal& d);
+
+// ---------------------------------------------------------------- войска
+// Вернуть воинов строки армии: живые — в население государства, нежить — в трупы, демоны — в демоническую энергию.
+void returnWarriors(Tx& tx, Id faction, const ArmyRow& row, i64 count);
+// Строка армии мятежного государства с теми же названием, типом, содержанием и расой (существующая или новая).
+Id mirrorRow(Tx& tx, Id rebelState, Id origin, const ArmyRow& src);
+// Провинция под точкой (кеш граней мира транзакции).
+Id provinceAtTx(const Tx& tx, Vec2 p);
+// Точка подписи провинции (центр для новых объектов); nullopt — у провинции нет области.
+std::optional<Vec2> provinceLabel(const Tx& tx, Id province);
+// Соседние провинции.
+std::vector<Id> neighborsOf(const Tx& tx, Id province);
+// Трупы победителю битвы (государство нежити, некроманты среди героев); livingDead — погибшие живые воины побеждённых.
+double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHeroes, i64 livingDead);
+// Мятеж перечисленных войск одного государства (каждое — по своей верности); clicked — войско, к которому
+// присоединяются верные части остальных.
+MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked);
 
 }  // namespace rg::rules::detail

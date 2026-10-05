@@ -91,7 +91,10 @@ TEST(audit_tbmt_cancel_refund_not_equal_paid) {
   BuildPick pk = pickBuild(h->world());
   CHECK(pk.pid != 0);
   fillStock(h.a(), pk.owner, 10000);
-  Id mid = addCostModifier(h.a(), pk.pid, -100);   // строительство бесплатно
+  // Строительство бесплатно: итог −100 % с учётом эффектов государства (в демо-мире «Слабый контроль»: +10 %).
+  const double extra = (rules::calc(h->world())->province(pk.pid)->buildCostFactor - 1) * 100;
+  Id mid = addCostModifier(h.a(), pk.pid, -100 - extra);
+  CHECK_NEAR(rules::calc(h->world())->province(pk.pid)->buildCostFactor, 0.0, 1e-9);
   const double before = stockSum(h->world(), pk.owner);
   CHECK(h->act("Построить", [&](Tx& tx) { rules::startBuilding(tx, pk.pid, pk.building); }));
   const double paid = before - stockSum(h->world(), pk.owner);
@@ -417,12 +420,14 @@ TEST(audit_tbmt_foreign_unique_upgrade_without_reason) {
     if (!to && f.isState() && f.id != from) to = f.id;
   });
   CHECK(pid && to);
-  CHECK(h->act("Постройка", [&](Tx& tx) {
+  // Смена владельца сносит уникальные постройки прежнего (ТЗ «Общие доработки», п.13), поэтому постройка ставится
+  // после неё — как в данных, правленных вручную; прямо в хранилище, мимо предупреждения о слотах (ТЗ «Фиксы», п.10).
+  CHECK(h->act("Смена владельца", [&](Tx& tx) { rules::setProvinceOwner(tx, pid, to); }));
+  h->store.transact("Постройка", [&](Tx& tx) {
     auto& v = tx.province(pid).buildings;
     v.erase(std::remove_if(v.begin(), v.end(), [&](const ProvBuilding& x) { return x.building == uniq; }), v.end());
     v.push_back(ProvBuilding{uniq, 1, false, 0});
-  }));
-  CHECK(h->act("Смена владельца", [&](Tx& tx) { rules::setProvinceOwner(tx, pid, to); }));
+  });
   fillStock(h.a(), to, 10000);
   h->ui.tabOf[app::SelType::Province] = "province.buildings";
   h->select(app::SelType::Province, pid);

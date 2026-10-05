@@ -59,6 +59,15 @@ inline const Base& base() {
       r.C = rules::createFaction(tx, FactionKind::State, "Церис");
       r.G = rules::createFaction(tx, FactionKind::Guild, "Гильдия весов");
       r.H = rules::createFaction(tx, FactionKind::Guild, "Дом Хорна");
+      // Модификаторы совета («Децентрализация» и др.) действуют на каждое государство; в базовом мире тестов они
+      // без эффектов, чтобы расчёты прочих правил были прежними (тесты совета задают эффекты сами — neutralCouncil).
+      for (const char* key : {schema::mod::Decentralization, schema::mod::WeakControl, schema::mod::Centralized, schema::mod::Famine}) {
+        Modifier m = *schema::builtinModifier(key);
+        m.id = 0;
+        m.fx = {};
+        m.fxMask = 0;
+        tx.add(std::move(m));
+      }
     });
     r.w = s.world();
     return r;

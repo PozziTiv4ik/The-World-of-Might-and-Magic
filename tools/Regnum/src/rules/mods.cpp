@@ -6,7 +6,7 @@ namespace rg::rules {
 namespace detail {
 
 // ---------------------------------------------------------------- тексты
-std::string amount(double v) { return fmtNum(v, 2); }
+std::string amount(double v) { return fmtNum(v, 3); }
 
 std::string resName(const World& w, Id res) {
   const CatalogItem* c = w.resource(res);
@@ -107,27 +107,47 @@ SourceIndex::SourceIndex(const World& w) {
   w.techs.each([&](const Tech& t) {
     if (t.studied && t.faction && !t.modifiers.empty()) studied[t.faction].push_back(&t);
   });
+  w.factions.each([&](const Faction& f) {
+    if (!f.isState()) return;
+    auto a = autoModifiers(w, f.id);
+    if (!a.empty()) autos[f.id] = std::move(a);
+  });
 }
 const std::vector<const Tech*>* SourceIndex::of(Id faction) const {
   auto it = studied.find(faction);
   return it == studied.end() ? nullptr : &it->second;
 }
+const std::vector<AutoMod>* SourceIndex::autosOf(Id faction) const {
+  auto it = autos.find(faction);
+  return it == autos.end() ? nullptr : &it->second;
+}
 
 namespace {
 
-// Сумматор эффектов: local — только локальные эффекты (провинция), иначе только глобальные (фракция).
+// Сумматор эффектов. Level::Province — только локальные эффекты; Faction — глобальные (и эффекты войск: у
+// государства они действуют на все его войска); Army — только эффекты войск.
 struct FxSum {
+  enum class Level : u8 { Province, Faction, Army };
   const World& w;
-  bool local;
+  Level level;
   Id self;
   Effects e;
 
-  void add(EffectSource::Kind kind, Id id, Id mod) {
-    const Modifier* m = w.modifier(mod);
+  bool counts(int i) const {
+    const auto& info = schema::kEffects[i];
+    switch (level) {
+      case Level::Province: return info.local;
+      case Level::Faction: return !info.local;
+      case Level::Army: return info.army;
+    }
+    return false;
+  }
+
+  void addMod(EffectSource::Kind kind, Id id, Id modId, const Modifier* m, std::string key = {}) {
     if (!m) return;
     bool any = false;
     for (int i = 0; i < kFxCount; i++) {
-      if (!m->has(Fx(i)) || schema::kEffects[i].local != local) continue;
+      if (!m->has(Fx(i)) || !counts(i)) continue;
       double v = m->fx[size_t(i)];
       if (!std::isfinite(v)) continue;
       e.v[size_t(i)] += v;
@@ -141,15 +161,18 @@ struct FxSum {
         }
       }
     }
-    if (any) e.sources.push_back(EffectSource{kind, id, mod});
+    if (any) e.sources.push_back(EffectSource{kind, id, modId, std::move(key)});
   }
+  void add(EffectSource::Kind kind, Id id, Id mod) { addMod(kind, id, mod, w.modifier(mod)); }
 
-  // Модификаторы фракции и её изученных технологий.
+  // Модификаторы фракции, её изученных технологий и модификаторы, которые ставятся сами (совет, голод, должности).
   void faction(const SourceIndex& si, const Faction& f, EffectSource::Kind modKind) {
     for (Id m : f.modifiers) add(modKind, f.id, m);
     if (auto* ts = si.of(f.id))
       for (const Tech* t : *ts)
         for (Id m : t->modifiers) add(EffectSource::Tech, t->id, m);
+    if (auto* as = si.autosOf(f.id))
+      for (const AutoMod& a : *as) addMod(EffectSource::Auto, f.id, a.modifier, a.m, a.key);
   }
 
   // Постройки провинции: набор модификаторов текущего достроенного уровня.
@@ -166,9 +189,10 @@ struct FxSum {
 }  // namespace
 
 Effects provinceFx(const World& w, const SourceIndex& si, const Province& p) {
-  FxSum s{w, true, 0, {}};
+  FxSum s{w, FxSum::Level::Province, 0, {}};
   if (p.sea) return s.e;  // морские провинции не участвуют в расчётах
   for (Id m : p.modifiers) s.add(EffectSource::Province, p.id, m);
+  for (const AutoMod& a : autoProvinceModifiers(w, p.id)) s.addMod(EffectSource::Auto, p.id, a.modifier, a.m, a.key);
   if (const Faction* o = w.faction(p.owner); o && o->isState()) s.faction(si, *o, EffectSource::Faction);
   s.buildings(p);
   for (Id g : p.hqs)
@@ -177,11 +201,27 @@ Effects provinceFx(const World& w, const SourceIndex& si, const Province& p) {
 }
 
 Effects factionFx(const World& w, const SourceIndex& si, const Faction& f, const std::vector<const Province*>& owned) {
-  FxSum s{w, false, f.id, {}};
+  FxSum s{w, FxSum::Level::Faction, f.id, {}};
   s.faction(si, f, EffectSource::Faction);
   if (f.isState())
     for (const Province* p : owned)
       if (!p->sea && p->owner == f.id) s.buildings(*p);
+  return std::move(s.e);
+}
+
+Effects armyFx(const World& w, const Army& a, const Effects* leaderFx) {
+  FxSum s{w, FxSum::Level::Army, a.leader(), {}};
+  for (Id m : a.modifiers) s.add(EffectSource::Army, a.id, m);
+  // Эффекты войск государства-лидера (его модификаторы, технологии, совет, голод).
+  Effects lf = leaderFx ? *leaderFx : factionEffects(w, a.leader());
+  for (int i = 0; i < kFxCount; i++)
+    if (schema::kEffects[i].army && lf.v[size_t(i)] != 0) s.e.v[size_t(i)] += lf.v[size_t(i)];
+  for (const EffectSource& src : lf.sources) {
+    const Modifier* m = src.modifier ? w.modifier(src.modifier) : (src.key.empty() ? nullptr : builtinMod(w, src.key));
+    bool armyFx = false;
+    for (int i = 0; m && i < kFxCount; i++) armyFx = armyFx || (schema::kEffects[i].army && m->has(Fx(i)));
+    if (armyFx) s.e.sources.push_back(src);
+  }
   return std::move(s.e);
 }
 
@@ -212,6 +252,32 @@ Effects factionEffects(const World& w, Id faction) {
   std::vector<const Province*> owned;
   if (f->isState()) w.provinces.each([&](const Province& p) { if (p.owner == faction && !p.sea) owned.push_back(&p); });
   return detail::factionFx(w, si, *f, owned);
+}
+
+Effects armyEffects(const World& w, Id army) {
+  const Army* a = w.army(army);
+  if (!a) return {};
+  return detail::armyFx(w, *a, nullptr);
+}
+
+namespace detail {
+double loyaltyDeltaOf(const World& w, const Army& a, const Effects& fx) {
+  if (hasModKey(w, a.modifiers, schema::mod::UndeadArmy)) return 0;   // армия нежити — всегда 100 %
+  double d = fx[Fx::LoyaltyPerTurn];
+  int loyalists = 0;
+  for (const ArmyGroup& g : a.groups)
+    for (Id h : g.heroes)
+      if (characterHas(w, h, schema::mod::Loyalist)) loyalists++;
+  // «Непреклонный лоялист»: верность не уменьшается и растёт на 5 % за каждого такого героя.
+  if (loyalists) d = std::max(0.0, d) + schema::kLoyalistBonus * loyalists;
+  return d;
+}
+}  // namespace detail
+
+double loyaltyDelta(const World& w, Id army) {
+  const Army* a = w.army(army);
+  if (!a) return 0;
+  return detail::loyaltyDeltaOf(w, *a, detail::armyFx(w, *a, nullptr));
 }
 
 }  // namespace rg::rules

@@ -116,10 +116,7 @@ Id heroLocation(const World& w, Id character, Id skip) {
 
 std::string fmtCount(i64 n) { return fmtInt(n); }
 
-std::string fmtMoney(double v) {
-  double frac = std::fabs(v - std::round(v));
-  return fmtNum(v, frac < 1e-6 ? 0 : (std::fabs(v * 10 - std::round(v * 10)) < 1e-6 ? 1 : 2));
-}
+std::string fmtMoney(double v) { return fmtNum(v, 3); }   // лишние нули fmtNum отбрасывает
 
 Color leaderColor(const World& w, const Army& a) { return w::factionColor(w, a.leader()); }
 
@@ -270,12 +267,27 @@ void askRemoveRow(App& a, Id faction, Id row, bool fleet) {
     a.act("Удалить строку", [](Tx&) {});
     return;
   }
-  auto c = rules::calc(a.world());
+  const World& w = a.world();
+  auto c = rules::calc(w);
   const rules::RowCalc* rc = rowCalc(*c, faction, row, fleet);
-  i64 field = rc ? rc->field : 0;
-  std::string text = field > 0 ? std::string(fleet ? "Корабли этой строки уйдут из флотов на карте: " : "Отряды этой строки уйдут из войск и гарнизонов: ") +
-                                     fmtCount(field) + "."
-                               : std::string("Строка будет удалена из таблицы.");
+  i64 field = rc ? rc->field : 0, forming = rc ? rc->forming : 0;
+  std::vector<std::string> parts;
+  // ТЗ «Общие доработки», п.10.4: воины удалённой строки возвращаются в население (нежить — в трупы, демоны —
+  // в демоническую энергию).
+  const Faction* f = w.faction(faction);
+  const ArmyRow* ar = f && !fleet ? f->armyRow(row) : nullptr;
+  if (ar && ar->total > 0) {
+    const std::string race = rules::unitRace(w, faction, *ar);
+    const char* to = race == schema::kRaceUndead    ? " в запас трупов"
+                     : race == schema::kRaceDemonic ? " в запас демонической энергии"
+                     : f->isState()                 ? " в население государства"
+                                                    : nullptr;
+    if (to) parts.push_back(fmtCount(ar->total) + " " + plural(ar->total, "воин вернётся", "воина вернутся", "воинов вернутся") + to + ".");
+  }
+  if (field > 0)
+    parts.push_back(std::string(fleet ? "Корабли уйдут из флотов на карте" : "Отряды уйдут из войск и гарнизонов") + ": " + fmtCount(field) + ".");
+  if (forming > 0) parts.push_back("Формирование " + fmtCount(forming) + " отменится с возвратом.");
+  std::string text = parts.empty() ? std::string("Строка будет удалена из таблицы.") : join(parts, " ");
   a.confirm(std::string(fleet ? "Удалить судно «" : "Удалить отряд «") + r->name + "»?", text, "Удалить", true, [faction, row, fleet](App& x) {
     x.act(fleet ? "Удалить судно из таблицы флота" : "Удалить отряд из таблицы войск", [&](Tx& tx) { rules::removeRow(tx, faction, row); });
   });

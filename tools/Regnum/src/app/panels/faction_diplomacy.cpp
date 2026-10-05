@@ -2,6 +2,9 @@
 // автоматически по списку фракций): флаг и название, значение −100…100 (поле и двуполярный индикатор),
 // состояние «в войне / в союзе / статус-кво / незнакомы». Отношения симметричны (rules::setRelation):
 // изменение здесь видно во вкладке другой стороны. Фильтр государств и гильдий, войны и союзы выделены.
+// «В войне» здесь — объявление войны этим государством (rules::declareWar, затем вассалитет — flow::afterWarDeclared);
+// война двух государств заблокирована и завершается только перемирием (ТЗ «Механика войн», п.2 — flow::openTruce).
+#include "app/flows.h"
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -12,9 +15,12 @@ using namespace fac;
 void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, bool ro) {
   const ui::Theme& t = ui::theme();
   const Faction* o = w.faction(r.other);
-  if (!o) return;
+  const Faction* self = w.faction(id);
+  if (!o || !self) return;
   const Id other = r.other;
   const bool war = r.status == RelStatus::War, ally = r.status == RelStatus::Alliance;
+  // Война двух государств: состояние заблокировано, выход — перемирие.
+  const bool locked = war && self->isState() && o->isState();
   const bool wide = ui::avail().w >= 520;
   const float h = wide ? 46 : 74;
   RectF rr = ui::next(h);
@@ -43,7 +49,24 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
   };
   auto statusCell = [&] {
     RelStatus s = r.status;
-    if (statusPicker("status", s, ro)) a.act("Состояние отношений", [&](Tx& tx) { rules::setRelation(tx, id, other, r.value, s); });
+    if (locked) {
+      ui::Group g(0, 0);
+      ui::Row inner({ui::fr(1), ui::px(26)}, 26, 4);
+      statusPicker("status", s, true);
+      a.markUi("dip.status." + std::to_string(other));
+      if (ui::iconButton("handshake", "Заключить перемирие", {.variant = ui::Variant::Secondary, .size = ui::Size::Small, .disabled = ro}))
+        flow::openTruce(a, id, other);
+      a.markUi("dip.truce." + std::to_string(other));
+      return;
+    }
+    if (statusPicker("status", s, ro)) {
+      if (s == RelStatus::War) {
+        // Объявление войны этим государством: «в войне», −25; затем сюзерены и вассалы (ТЗ «Вассалитет»).
+        if (a.act("Объявить войну: " + w.factionName(other), [&](Tx& tx) { rules::declareWar(tx, id, other); })) flow::afterWarDeclared(a, id, other);
+      } else {
+        a.act("Состояние отношений", [&](Tx& tx) { rules::setRelation(tx, id, other, r.value, s); });
+      }
+    }
     a.markUi("dip.status." + std::to_string(other));
   };
   if (wide) {

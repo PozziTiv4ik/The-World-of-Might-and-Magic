@@ -1,7 +1,9 @@
 // Regnum — встреча войск при перетаскивании (ТЗ 1.c.iv): предложение объединить объекты одной фракции,
-// создать союзное войско (флот) для союзников или объявить войну фракции со статусом-кво или незнакомой.
-// Согласие выполняет действие (отменяется Ctrl+Z); отказ возвращает перемещённый объект на исходную позицию.
+// создать союзное войско (флот) для союзников или объявить войну фракции со статусом-кво или незнакомой (затем
+// битва и вассалитет — flow::afterWarDeclared). Согласие выполняет действие (отменяется Ctrl+Z); отказ возвращает
+// перемещённый объект на исходную позицию.
 #include "app/app_internal.h"
+#include "app/flows.h"
 #include "app/panels/military.h"
 
 namespace rg::app::mil {
@@ -125,11 +127,14 @@ struct EncounterDialog final : Dialog {
       case rules::EncounterType::DeclareWar: {
         Id us = enc.us, them = enc.them;
         if (!a.act("Объявить войну: " + w.factionName(them), [&](Tx& tx) { rules::declareWar(tx, us, them); })) return false;
-        // Война объявлена — сразу панель битвы; её итог решает судьбу перемещения.
+        // Война объявлена — сразу панель битвы; её итог решает судьбу перемещения. После окон битвы — сюзерены и
+        // вассалы воюющих сторон (ТЗ «Механика вассалитета»).
         decided = true;
         auto fn = done;
         Vec2 o = origin;
-        detail::later(a, [mv, tg, o, fn](App& x) { openBattle(x, mv, tg, o, fn); });
+        detail::later(a, [mv, tg, o, fn, us, them](App& x) {
+          openBattle(x, mv, tg, o, fn, [us, them](App& y) { flow::afterWarDeclared(y, us, them); });
+        });
         return true;
       }
       default: return false;

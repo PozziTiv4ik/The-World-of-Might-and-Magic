@@ -8,16 +8,12 @@ using namespace detail;
 namespace {
 
 constexpr double R = schema::kObjectRadius;
-constexpr double kMinGap = 2 * R;          // фигурки не перекрываются
+constexpr double kMinGap = schema::kInteractDist;   // фигурки не перекрываются; ближе — встреча (ТЗ «Фиксы», п.15)
 constexpr double kSearchStep = R * 0.5;    // шаг спирали поиска свободного места
 constexpr double kSearchRadius = 1600;     // дальше не ищем
 
 const char* objNoun(ArmyKind k) { return k == ArmyKind::Fleet ? "Флот" : "Войско"; }
 
-i64 getOr0(const std::map<Id, i64>& m, Id k) {
-  auto it = m.find(k);
-  return it == m.end() ? 0 : it->second;
-}
 
 // Название нового объекта: «Войско №N» — следующий свободный номер среди объектов фракции этого вида.
 std::string defaultArmyName(const World& w, ArmyKind kind, Id faction) {
@@ -225,6 +221,11 @@ Id createArmy(Tx& tx, ArmyKind kind, Id faction, Vec2 pos) {
   a.pos = pos;
   a.groups.push_back(ArmyGroup{faction, {}, {}});
   Id id = tx.add(std::move(a)).id;
+  // ТЗ «Модификаторы», 1.13–1.14: войскам государства нежити — «Армия нежити», демонов — «Армия демонов».
+  if (const Faction* f = tx.w().faction(faction); f && f->isState()) {
+    if (f->stateKind == StateKind::Undead) addModifier(tx, ModTarget::Army, id, ensureBuiltinMod(tx, schema::mod::UndeadArmy), 0);
+    else if (f->stateKind == StateKind::Demonic) addModifier(tx, ModTarget::Army, id, ensureBuiltinMod(tx, schema::mod::DemonArmy), 0);
+  }
   addLog(tx, kind == ArmyKind::Fleet ? LogKind::Fleet : LogKind::Army,
          facName(tx.w(), faction) + (kind == ArmyKind::Fleet ? ": собран флот " : ": собрано войско ") + armyName(tx.w(), id),
          LogRefs{pl.provinceAt(pos), id, {faction}});
@@ -262,7 +263,7 @@ void setUnits(Tx& tx, Id army, Id faction, Id row, i64 count) {
     if (u.row == row) cur += u.count;
   if (count > cur) {
     Deployed d = deployed(tx.w(), faction);
-    i64 field = fleet ? getOr0(d.fleet, row) : getOr0(d.army, row) + getOr0(d.garrison, row);
+    i64 field = fleet ? d.fleetField(row) : d.armyField(row);
     i64 reserve = total - field;
     if (count - cur > reserve)
       fail("В резерве недостаточно: нужно " + fmtInt(count - cur) + ", в резерве " + fmtInt(std::max<i64>(0, reserve)));
@@ -293,6 +294,8 @@ void setHero(Tx& tx, Id army, Id character, bool on) {
     return;
   }
   if (here) return;
+  if (characterHas(tx.w(), character, schema::mod::Dead)) fail(q(tx.w().characterName(character)) + " мёртв");
+  if (characterHas(tx.w(), character, schema::mod::Captive)) fail(q(tx.w().characterName(character)) + " в плену");
   if (Id other = heroArmy(tx.w(), character, army))
     fail(q(tx.w().characterName(character)) + " уже сопровождает " + armyName(tx.w(), other));
   if (!c.faction) fail(q(tx.w().characterName(character)) + " не состоит ни в одной фракции");
@@ -325,7 +328,7 @@ void setGarrison(Tx& tx, Id province, Id row, i64 count) {
     if (g.row == row) cur += g.count;
   if (count > cur) {
     Deployed d = deployed(tx.w(), p.owner);
-    i64 reserve = r->total - getOr0(d.army, row) - getOr0(d.garrison, row);
+    i64 reserve = r->total - d.armyField(row);
     if (count - cur > reserve)
       fail("В резерве недостаточно: нужно " + fmtInt(count - cur) + ", в резерве " + fmtInt(std::max<i64>(0, reserve)));
   }
@@ -580,7 +583,24 @@ void splitBrokenAlliances(Tx& tx, Id a, Id b) {
 }  // namespace detail
 
 // ================================================================ битва
-void resolveBattle(Tx& tx, const BattleResult& r) {
+namespace detail {
+// Трупы победителю (ТЗ «Виды государств», п.4): государство нежити — по числу погибших живых воинов побеждённой
+// стороны, войско с некромантами — 10 % за каждого (не больше 100 %); вместе — не больше погибших.
+double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHeroes, i64 livingDead) {
+  if (livingDead <= 0 || !tx.w().faction(winnerFaction)) return 0;
+  double share = stateKindOf(tx.w(), winnerFaction) == StateKind::Undead ? 1.0 : 0.0;
+  int necro = 0;
+  for (Id h : winnerHeroes)
+    if (characterHas(tx.w(), h, schema::mod::Necromancer)) necro++;
+  share = std::min(1.0, share + std::min(1.0, schema::kNecromancerShare * necro));
+  const double corpses = std::floor(double(livingDead) * share);
+  if (corpses > 0) addStock(tx.faction(winnerFaction), ensureResource(tx, schema::kResCorpses), corpses);
+  return corpses;
+}
+}  // namespace detail
+
+BattleOutcome resolveBattle(Tx& tx, const BattleResult& r) {
+  BattleOutcome out;
   if (r.attacker == r.defender) fail("Войско не может сражаться само с собой");
   const Army A = needArmy(tx.w(), r.attacker);
   const Army D = needArmy(tx.w(), r.defender);
@@ -627,12 +647,15 @@ void resolveBattle(Tx& tx, const BattleResult& r) {
     if (!contains(all, f)) all.push_back(f);
 
   // Потери: из отрядов объекта и из общей численности фракции.
-  i64 lossA = 0, lossD = 0;
+  i64 lossA = 0, lossD = 0, livingA = 0, livingD = 0;   // погибшие живые воины сторон (трупы)
   for (auto& [aid, rows] : r.losses) {
     for (auto& [key, n] : rows) {
       if (n <= 0) continue;
       auto [faction, row] = key;
       (aid == r.attacker ? lossA : lossD) += n;
+      if (!A.isFleet())
+        if (const ArmyRow* ar = tx.w().faction(faction)->armyRow(row); ar && unitRace(tx.w(), faction, *ar) == schema::kRaceLiving)
+          (aid == r.attacker ? livingA : livingD) += n;
       ArmyGroup* g = groupOf(tx.army(aid), faction);
       i64 left = n;
       for (ArmyUnit& u : g->units)
@@ -665,10 +688,18 @@ void resolveBattle(Tx& tx, const BattleResult& r) {
     for (ArmyGroup& g : x.groups) g.units.erase(std::remove_if(g.units.begin(), g.units.end(), [](const ArmyUnit& u) { return u.count <= 0; }), g.units.end());
     for (const ArmyGroup& g : x.groups)
       if (g.units.empty() && x.commander && contains(g.heroes, x.commander)) x.commander = 0;
+    // Герои уничтоженного целиком объекта — в окно «Судьба героев» (ТЗ «Механика героев», п.1).
+    std::vector<Id> heroes;
+    for (const ArmyGroup& g : x.groups)
+      for (Id h : g.heroes) heroes.push_back(h);
     x.groups.erase(std::remove_if(x.groups.begin(), x.groups.end(), [](const ArmyGroup& g) { return g.units.empty(); }), x.groups.end());
-    if (x.groups.empty()) destroyed.push_back(aid);
+    if (x.groups.empty()) {
+      destroyed.push_back(aid);
+      out.fallenHeroes.insert(out.fallenHeroes.end(), heroes.begin(), heroes.end());
+    }
   }
   for (Id id : destroyed) tx.eraseArmy(id);
+  out.destroyed = destroyed;
 
   // Победитель стоит на месте боя, проигравший смещается от него на свободное место.
   Placement pl = placementTx(tx);
@@ -692,10 +723,22 @@ void resolveBattle(Tx& tx, const BattleResult& r) {
     tx.army(loser).pos = *spot;
   }
 
+  out.province = pl.provinceAt(battlePos);
+  if (leftW > 0) {
+    out.winner = r.attackerWins ? A.leader() : D.leader();
+    out.loser = r.attackerWins ? D.leader() : A.leader();
+    out.winnerArmy = tx.w().army(winner) ? winner : 0;
+    std::vector<Id> wHeroes;
+    for (const ArmyGroup& g : (r.attackerWins ? A : D).groups)
+      for (Id h : g.heroes) wHeroes.push_back(h);
+    out.corpses = battleCorpses(tx, out.winner, wHeroes, r.attackerWins ? livingD : livingA);
+  }
   std::string text = "Битва: " + an + " против " + dn + (leftW <= 0 ? std::string(". Обе стороны уничтожены") : ". Победа: " + (r.attackerWins ? an : dn)) +
                      ". Потери: " + fmtInt(lossA) + " и " + fmtInt(lossD);
   for (Id id : destroyed) text += std::string(A.isFleet() ? ". Уничтожен флот " : ". Уничтожено войско ") + (id == r.attacker ? an : dn);
-  addLog(tx, LogKind::Battle, text, LogRefs{pl.provinceAt(battlePos), r.attacker, all});
+  if (out.corpses > 0) text += ". Трупов: " + fmtInt(i64(out.corpses));
+  addLog(tx, LogKind::Battle, text, LogRefs{out.province, r.attacker, all});
+  return out;
 }
 
 }  // namespace rg::rules

@@ -228,20 +228,22 @@ TEST(app_trees_construction_slots_and_unique) {
   CHECK(h->hasDialog("build.picker"));
   CHECK(h.clickUi("dialog.cancel"));
   h.settle();
-  // Переполнение слотов (модификатор отнял слоты): предупреждение, «Построить» недоступно.
+  // Переполнение слотов (модификатор отнял слоты, например в данных прежней версии): предупреждение, «Построить»
+  // недоступно. Отнимается с запасом (у столицы ещё +3 слота «Столицы государства») и в обход App::act — действие в
+  // редакторе спросило бы о сносе лишних построек (ТЗ «Фиксы», п.10).
   Id crowded = 0;
   h->world().provinces.each([&](const Province& p) {
     const Faction* f = h->world().faction(p.owner);
     if (!crowded && !p.sea && f && f->isState() && p.buildings.size() >= 2) crowded = p.id;
   });
   CHECK(crowded != 0);
-  CHECK(h->act("Минус слоты", [&](Tx& tx) {
+  h->store.transact("Минус слоты", [&](Tx& tx) {
     Id m = rules::createModifier(tx, "Разруха");
     Modifier& md = tx.modifier(m);
-    md.fx[size_t(int(Fx::Slots))] = -6;
+    md.fx[size_t(int(Fx::Slots))] = -20;
     md.fxMask |= 1u << int(Fx::Slots);
     tx.province(crowded).modifiers.push_back(m);
-  }));
+  });
   openTab(h, crowded);
   CHECK(rules::calc(h->world())->province(crowded)->slots < int(h->world().province(crowded)->buildings.size()));
   h.waitMap();

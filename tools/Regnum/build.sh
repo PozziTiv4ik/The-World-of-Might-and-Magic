@@ -115,8 +115,9 @@ exec %q c++ -target %s "$@"
   CXX="$WRAP"
 fi
 
-BUILD="$ROOT/.build/${CROSS:-$OS}-$CONFIG"
-BIN="$ROOT/bin/${CROSS:-$OS}"
+# REGNUM_BUILD_DIR / REGNUM_BIN_DIR — свои папки объектов и программ (параллельные сборки разных рабочих мест).
+BUILD="${REGNUM_BUILD_DIR:-$ROOT/.build/${CROSS:-$OS}-$CONFIG}"
+BIN="${REGNUM_BIN_DIR:-$ROOT/bin/${CROSS:-$OS}}"
 [[ $CLEAN == 1 ]] && rm -rf "$BUILD"
 mkdir -p "$BUILD/obj" "$BIN"
 

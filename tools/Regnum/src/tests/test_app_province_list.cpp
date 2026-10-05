@@ -180,9 +180,10 @@ TEST(app_province_modifiers_tab) {
   CHECK(h->uiRect("province.effects") != nullptr);
   auto calc = rules::calc(h->world());
   CHECK(!calc->province(pid)->fx.sources.empty());
-  // Добавить модификатор из списка.
+  // Добавить модификатор из списка (правило: срок по умолчанию модификатора).
   size_t n0 = prov(h, pid)->modifiers.size();
-  const RectF* add = h->uiRect("province.mods");
+  CHECK(h->uiRect("province.mods") != nullptr);
+  const RectF* add = h->uiRect("province.modAdd");
   CHECK(add != nullptr);
   h.click(add->cx(), add->cy());
   h.key(Key::Down);

@@ -11,6 +11,7 @@ using namespace rg::rulestest;
 namespace {
 
 constexpr double R = schema::kObjectRadius;
+constexpr double G = schema::kInteractDist;   // наименьший промежуток между объектами и расстояние встречи
 
 i64 unitsIn(const World& w, Id army, Id faction, Id row) {
   const Army* a = w.army(army);
@@ -47,14 +48,14 @@ TEST(rules_military_valid_position) {
   CHECK(has(why, "вне карты"));
   Id a1 = 0;
   f.tx([&](Tx& tx) { a1 = createArmy(tx, ArmyKind::Army, f.A, {200, 200}); });
-  CHECK(!validPosition(f.w(), ArmyKind::Army, {200 + 2 * R - 0.5, 200}, 0, &why));
+  CHECK(!validPosition(f.w(), ArmyKind::Army, {200 + G - 0.5, 200}, 0, &why));
   CHECK(has(why, "Место занято: «Войско №1»"));
-  CHECK(validPosition(f.w(), ArmyKind::Army, {200 + 2 * R, 200}));      // ровно 2R — касание без наложения
+  CHECK(validPosition(f.w(), ArmyKind::Army, {200 + G, 200}));      // ровно 2R — касание без наложения
   CHECK(validPosition(f.w(), ArmyKind::Army, {210, 200}, a1));          // себя не учитываем
   // Войско и флот тоже не накладываются.
   f.tx([&](Tx& tx) { createArmy(tx, ArmyKind::Army, f.A, {700, 130}); });
   CHECK(validPosition(f.w(), ArmyKind::Fleet, {700, 60}));
-  CHECK(!validPosition(f.w(), ArmyKind::Fleet, {700, 80}, 0, &why));
+  CHECK(!validPosition(f.w(), ArmyKind::Fleet, {700, 90}, 0, &why));
   CHECK(has(why, "Место занято: «Войско №2»"));
   // armyAt: точка под фигуркой.
   CHECK_EQ(armyAt(f.w(), {200 + R - 1, 200}), a1);
@@ -203,7 +204,7 @@ TEST(rules_military_encounter_types) {
   e = encounter(f.w(), a1, kSeaNorth);
   CHECK(e.type == EncounterType::Blocked);
   CHECK(has(e.reason, "только на суше"));
-  e = encounter(f.w(), fl, {500, 90});  // флот на войско у берега
+  e = encounter(f.w(), fl, {500, 112});  // флот на войско у берега
   CHECK(e.type == EncounterType::Blocked);
   CHECK_EQ(e.target, a4);
   CHECK(has(e.reason, "не взаимодействует"));
@@ -332,7 +333,7 @@ TEST(rules_military_allied_form_and_dissolve) {
   CHECK_EQ(unitsIn(w, parts[1], f.C, rC), 15);
   CHECK(n.groups[0].heroes == std::vector<Id>({hC}));
   CHECK_EQ(n.commander, hC);  // полководец ушёл со своей группой
-  CHECK(dist(n.pos, w.army(aA)->pos) >= 2 * R);
+  CHECK(dist(n.pos, w.army(aA)->pos) >= G);
   checkPlacement(w);
   (void)hA;
 }
@@ -374,7 +375,7 @@ TEST(rules_military_split_army) {
   CHECK_EQ(unitsIn(w, n, f.A, r1), 10);
   CHECK_EQ(unitsIn(w, n, f.A, r2), 10);
   CHECK_EQ(w.army(n)->commander, h1);
-  CHECK(dist(w.army(n)->pos, w.army(a)->pos) >= 2 * R);
+  CHECK(dist(w.army(n)->pos, w.army(a)->pos) >= G);
   CHECK_EQ(f.fc(f.A).army[0].field, 30);  // разделение не меняет численность в поле
   checkPlacement(w);
   CHECK(has(lastLog(w), "разделено"));
@@ -424,7 +425,7 @@ TEST(rules_military_battle_attacker_wins) {
   CHECK_EQ(w.faction(f.B)->armyRow(s.rB)->total, 30);
   Vec2 lp = w.army(s.bB)->pos;
   CHECK(lp.x > 400);  // отступил прочь от нападавшего
-  CHECK(dist(lp, Vec2(400, 200)) >= 2 * R);
+  CHECK(dist(lp, Vec2(400, 200)) >= G);
   CHECK(dist(lp, Vec2(400, 200)) < 4 * R);
   checkPlacement(w);
   std::string l = lastLog(w);
@@ -442,7 +443,7 @@ TEST(rules_military_battle_defender_wins_and_destroyed) {
     CHECK(w.army(s.bB)->pos == Vec2(400, 200));  // обороняющийся стоит
     Vec2 lp = w.army(s.aA)->pos;
     CHECK(lp.x < 400);                             // нападавший отходит к исходной позиции
-    CHECK(dist(lp, Vec2(400, 200)) >= 2 * R);
+    CHECK(dist(lp, Vec2(400, 200)) >= G);
     CHECK(dist(lp, Vec2(400, 200)) < 4 * R);
     CHECK_EQ(unitsIn(w, s.aA, s.f.A, s.rA), 60);
     checkPlacement(w);
@@ -531,7 +532,7 @@ TEST(rules_military_battle_allied) {
   CHECK_EQ(w.faction(f.B)->armyRow(rB)->total, 18);
   CHECK(w.army(al)->pos == center(5));
   Vec2 bp = w.army(bB)->pos;
-  CHECK(dist(bp, center(5)) >= 2 * R);
+  CHECK(dist(bp, center(5)) >= G);
   CHECK(bp.y < center(5).y);  // отступил в сторону, откуда пришёл (север)
   checkPlacement(w);
 }
@@ -540,15 +541,15 @@ TEST(rules_military_find_free_spot) {
   Fix f;
   f.tx([&](Tx& tx) {
     createArmy(tx, ArmyKind::Army, f.A, center(1));
-    createArmy(tx, ArmyKind::Army, f.A, center(1) + Vec2{2 * R, 0});
-    createArmy(tx, ArmyKind::Army, f.A, center(1) - Vec2{2 * R, 0});
+    createArmy(tx, ArmyKind::Army, f.A, center(1) + Vec2{G, 0});
+    createArmy(tx, ArmyKind::Army, f.A, center(1) - Vec2{G, 0});
   });
   auto s1 = findFreeSpot(f.w(), ArmyKind::Army, center(1));
   auto s2 = findFreeSpot(f.w(), ArmyKind::Army, center(1));
   CHECK(s1.has_value());
   CHECK(s1 == s2);  // детерминированно
   CHECK(validPosition(f.w(), ArmyKind::Army, *s1));
-  CHECK(dist(*s1, center(1)) <= 2 * R + 17);
+  CHECK(dist(*s1, center(1)) <= G + 17);
   auto land = findFreeSpot(f.w(), ArmyKind::Army, kSeaNorth);
   CHECK(land.has_value());
   CHECK(land->y >= 100);  // ближайшая суша — к югу

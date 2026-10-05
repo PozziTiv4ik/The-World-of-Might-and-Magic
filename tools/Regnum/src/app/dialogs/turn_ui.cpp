@@ -218,6 +218,9 @@ std::string flowText(const rules::FactionCalc& fc, bool income) {
     line("Штабы гильдии", fc.incGuilds);
     line("Торговля", fc.incTrade);
     line("Дань и репарации", fc.incTribute);
+    line("Рабы на работах", fc.incSlaves);
+    line("Флот в торговле", fc.incTradeFleet);
+    line("Торговые маршруты", fc.incRoutes);
     if (std::fabs(fc.incomePct) >= 0.005) lines.push_back("Модификаторы: " + fmtPct(fc.incomePct, 0, true));
   } else {
     line("Войска", fc.expArmy);
@@ -225,14 +228,39 @@ std::string flowText(const rules::FactionCalc& fc, bool income) {
     line("Специалисты", fc.expSpecialists);
     line("Торговля", fc.expTrade);
     line("Дань и репарации", fc.expTribute);
+    line("Содержание рабов", fc.expSlaves);
   }
   if (lines.empty()) return income ? "Доходов нет" : "Расходов нет";
   return join(lines, "\n");
 }
 
-std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep) {
+bool isMainState(const World& w, Id faction) {
+  const Faction* f = w.faction(faction);
+  return f && f->isState() && f->mainState;
+}
+
+bool entryOnPage(const World& w, const LogEntry& e, int page) {
+  if (page == kPageAll) return true;
+  bool main = false, other = false;
+  auto mark = [&](Id f) {
+    if (w.faction(f)) (isMainState(w, f) ? main : other) = true;
+  };
+  for (Id f : e.factions) mark(f);
+  if (const Province* p = e.province ? w.province(e.province) : nullptr) mark(p->owner);
+  if (const Army* a = e.army ? w.army(e.army) : nullptr)
+    for (const ArmyGroup& g : a->groups) mark(g.faction);
+  if (!main && !other) other = true;   // запись без фракций — на странице прочих
+  return page == kPageMain ? main : other;
+}
+
+std::string pageLabel(int page, size_t count) {
+  return std::string(page == kPageMain ? "Основные государства" : "Остальные") + " · " + std::to_string(count);
+}
+
+std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep, int page) {
   std::vector<const rules::TurnFactionLine*> v;
-  for (auto& l : rep.factions) v.push_back(&l);
+  for (auto& l : rep.factions)
+    if (page == kPageAll || isMainState(w, l.faction) == (page == kPageMain)) v.push_back(&l);
   std::stable_sort(v.begin(), v.end(), [&](auto* x, auto* y) {
     const Faction* fx = w.faction(x->faction);
     const Faction* fy = w.faction(y->faction);
@@ -243,16 +271,17 @@ std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rul
   return v;
 }
 
-TurnDigest digest(const World& w, const rules::TurnReport& rep) {
+TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
   TurnDigest d;
   for (Id lid : rep.logIds) {
     const LogEntry* e = w.log.get(lid);
     if (!e) continue;
+    if (e->kind != LogKind::Turn && !entryOnPage(w, *e, page)) continue;
     switch (e->kind) {
       case LogKind::Turn: d.summary = e; continue;
       case LogKind::Build: d.builds.push_back(e); break;
       case LogKind::Tech: d.techs.push_back(e); break;
-      case LogKind::Economy: d.debts.push_back(e); break;
+      case LogKind::Economy: (e->text.find("провизия") != std::string::npos ? d.famine : d.debts).push_back(e); break;
       case LogKind::Province: d.rebellions.push_back(e); break;
       case LogKind::Trade:
         if (startsWith(e->text, "Недостача")) d.shortfalls.push_back(e);

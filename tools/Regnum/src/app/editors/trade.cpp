@@ -1,8 +1,10 @@
-// Regnum — редактор «Торговля» (EditorReg «trade»): составление сделки между любыми государствами и гильдиями —
-// позиции каждой стороны (ресурс или золото, количество, «разово» или «каждый ход» на N ходов), подарок — позиции
-// одной стороны; живая проверка rules::validateDeal со списком причин; заключение rules::concludeDeal. Справа —
-// список сделок, дани и репараций (активные и завершённые) с остатком ходов и расторжением.
-// ТЗ 1.b.vii (вкладка торговли, безвозмездно, доход за ход на срок), 1.d.iii (гильдии торгуют), 1.e.ii (дань).
+// Regnum — окно «Переговоры и торговля» (EditorReg «trade»): составление сделки между любыми государствами и
+// гильдиями — позиции каждой стороны (ресурс или золото, количество, «разово» или «каждый ход» на N ходов; своя
+// провинция или пленный герой — разово), подарок — позиции одной стороны; живая проверка rules::validateDeal со
+// списком причин; заключение rules::concludeDeal. Справа — список сделок, дани и репараций (активные и завершённые)
+// с остатком ходов и расторжением.
+// ТЗ 1.b.vii (вкладка торговли, безвозмездно, доход за ход на срок), 1.d.iii (гильдии торгуют), 1.e.ii (дань),
+// «Механика героев», п.2 (обмен пленными), «Механика войн», п.3 (обмен провинциями).
 #include "app/editors/trade.h"
 
 #include "app/app_internal.h"
@@ -41,6 +43,49 @@ DraftItem& addItem(DealSide from) {
   return d.items.back();
 }
 
+namespace {
+bool inDraft(const Draft& d, DealItemKind kind, Id ref) {
+  for (const DraftItem& it : d.items)
+    if (it.kind == kind && it.ref == ref) return true;
+  return false;
+}
+}  // namespace
+
+std::vector<Id> givableProvinces(const World& w, const Draft& d, DealSide from) {
+  std::vector<Id> out;
+  Id giver = from == DealSide::A ? d.a : d.b, taker = from == DealSide::A ? d.b : d.a;
+  const Faction* t = w.faction(taker);
+  if (!giver || (t && !t->isState())) return out;   // провинцию получает только государство
+  w.provinces.each([&](const Province& p) {
+    if (!p.sea && p.owner == giver && !inDraft(d, DealItemKind::Province, p.id)) out.push_back(p.id);
+  });
+  std::sort(out.begin(), out.end(), [&](Id x, Id y) { return compareRu(w.provinceName(x), w.provinceName(y)) < 0; });
+  return out;
+}
+
+std::vector<Id> givableHeroes(const World& w, const Draft& d, DealSide from) {
+  std::vector<Id> out;
+  Id giver = from == DealSide::A ? d.a : d.b;
+  if (!giver) return out;
+  for (Id c : rules::captivesOf(w, giver))
+    if (!inDraft(d, DealItemKind::Hero, c)) out.push_back(c);
+  std::sort(out.begin(), out.end(), [&](Id x, Id y) { return compareRu(w.characterName(x), w.characterName(y)) < 0; });
+  return out;
+}
+
+DraftItem* addRefItem(const World& w, DealSide from, DealItemKind kind) {
+  Draft& d = draft();
+  if (kind == DealItemKind::Resource) return nullptr;
+  std::vector<Id> can = kind == DealItemKind::Province ? givableProvinces(w, d, from) : givableHeroes(w, d, from);
+  if (can.empty()) return nullptr;
+  DraftItem& it = addItem(from);
+  it.kind = kind;
+  it.ref = can.front();
+  it.amount = 0;
+  it.mode = DealMode::Once;
+  return &it;
+}
+
 Deal toDeal(const Draft& d) {
   Deal deal;
   deal.kind = DealKind::Trade;
@@ -49,6 +94,16 @@ Deal toDeal(const Draft& d) {
   for (const DraftItem& it : d.items) {
     DealItem di;
     di.from = it.from;
+    di.kind = it.kind;
+    if (it.kind != DealItemKind::Resource) {   // провинция и пленный герой — только разово
+      di.ref = it.ref;
+      di.amount = 0;
+      di.mode = DealMode::Once;
+      di.turns = 1;
+      di.left = 0;
+      deal.items.push_back(di);
+      continue;
+    }
     di.res = it.res;
     di.amount = it.amount;
     di.mode = it.mode;
@@ -96,6 +151,8 @@ std::string resName(const World& w, Id res) {
   const CatalogItem* c = w.resource(res);
   return c ? (c->name.empty() ? std::string("Ресурс") : c->name) : std::string(res == kGold ? "Золото" : "Ресурс");
 }
+
+std::string amountText(Id res, double v) { return fmtNum(v, res == kGold ? 3 : 1); }
 
 std::vector<const Deal*> dealsOf(const World& w, Id faction) {
   std::vector<const Deal*> v;
@@ -197,9 +254,17 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
         RectF dr = ui::next(10, 22);
         ui::draw::circle(dr.cx(), dr.cy(), 4, w::factionColor(w, payer));
       }
-      ui::iconColored(w::resourceIcon(w, it.res), w::resourceColor(w, it.res), 16);
-      ui::label(turnui::money(it.amount), {.font = ui::Font::Strong});
-      ui::label(resName(w, it.res), {.ink = ui::Ink::Dim});
+      if (it.kind == DealItemKind::Province) {
+        ui::icon("province", ui::Ink::Dim, 16, "Провинция");
+        ui::label(w.provinceName(it.ref), {.font = ui::Font::Strong});
+      } else if (it.kind == DealItemKind::Hero) {
+        ui::icon("hero", ui::Ink::Dim, 16, "Пленный герой");
+        ui::label(w.characterName(it.ref), {.font = ui::Font::Strong});
+      } else {
+        ui::iconColored(w::resourceIcon(w, it.res), w::resourceColor(w, it.res), 16);
+        ui::label(amountText(it.res, it.amount), {.font = ui::Font::Strong});
+        ui::label(resName(w, it.res), {.ink = ui::Ink::Dim});
+      }
       ui::flex();
       std::string mode;
       if (it.mode == DealMode::Once) mode = "разово";
@@ -314,17 +379,55 @@ void stocks(const World& w, Id fid) {
   }
 }
 
+// Позиция-провинция или пленный герой (разово): выбор из того, что сторона может отдать. true — удалить.
+bool refEditor(App& a, const World& w, DraftItem& it, const std::string& key) {
+  const bool prov = it.kind == DealItemKind::Province;
+  const Draft& d = draft();
+  std::vector<Id> opts = prov ? givableProvinces(w, d, it.from) : givableHeroes(w, d, it.from);
+  if (it.ref && std::find(opts.begin(), opts.end(), it.ref) == opts.end()) opts.insert(opts.begin(), it.ref);
+  std::vector<std::string> names, hints;
+  int idx = -1;
+  for (size_t i = 0; i < opts.size(); i++) {
+    names.push_back(prov ? w.provinceName(opts[i]) : w.characterName(opts[i]));
+    const Character* c = prov ? nullptr : w.character(opts[i]);
+    hints.push_back(c && c->faction ? w.factionName(c->faction) : std::string());
+    if (opts[i] == it.ref) idx = int(i);
+  }
+  bool remove = false;
+  ui::Card c({.pad = 8});
+  {
+    ui::Row r({ui::fr(1), ui::px(28)}, 30, 6);
+    if (ui::combo("ref", idx, int(opts.size()),
+                  [&](int i) {
+                    Id id = opts[size_t(i)];
+                    const Province* p = prov ? w.province(id) : nullptr;
+                    const Character* ch = prov ? nullptr : w.character(id);
+                    Color col = w::factionColor(w, p ? p->owner : ch ? ch->faction : 0);
+                    return ui::Option{names[size_t(i)], prov ? "province" : "hero", col, hints[size_t(i)]};
+                  },
+                  {.placeholder = prov ? "Провинция" : "Пленный герой", .search = 1, .icon = prov ? "province" : "hero"}) &&
+        idx >= 0 && idx < int(opts.size()))
+      it.ref = opts[size_t(idx)];
+    a.markUi(key + ".ref");
+    if (ui::iconButton("close", "Убрать позицию", {.size = ui::Size::Small})) remove = true;
+    a.markUi(key + ".remove");
+  }
+  ui::label(prov ? "Провинция · разово" : "Пленный герой · разово", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "bolt"});
+  return remove;
+}
+
 // Позиция черновика. true — удалить.
 bool itemEditor(App& a, const World& w, DraftItem& it, Id payer) {
   ui::IdScope s{i64(it.key)};
   std::string key = "trade.item." + std::to_string(it.key);
+  if (it.kind != DealItemKind::Resource) return refEditor(a, w, it, key);
   bool remove = false;
   ui::Card c({.pad = 8});
   {
     ui::Row r({ui::fr(1), ui::px(112), ui::px(28)}, 30, 6);
     resourceCombo("res", it.res, payer);
     a.markUi(key + ".res");
-    ui::numberField("amount", it.amount, {.min = 0, .max = 1e12, .step = 10, .digits = 1, .tooltip = "Количество"});
+    ui::numberField("amount", it.amount, {.min = 0, .max = 1e12, .step = 10, .digits = it.res == kGold ? 3 : 1, .tooltip = "Количество"});
     a.markUi(key + ".amount");
     if (ui::iconButton("close", "Убрать позицию", {.size = ui::Size::Small})) remove = true;
     a.markUi(key + ".remove");
@@ -348,9 +451,30 @@ bool itemEditor(App& a, const World& w, DraftItem& it, Id payer) {
     }
   }
   if (it.mode == DealMode::PerTurn)
-    ui::label("Всего " + turnui::money(it.amount * it.turns) + " за " + nTurns(it.turns) + (f ? " · есть " + turnui::money(have) : std::string()),
+    ui::label("Всего " + amountText(it.res, it.amount * it.turns) + " за " + nTurns(it.turns) + (f ? " · есть " + turnui::money(have) : std::string()),
               {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "repeat"});
   return remove;
+}
+
+// Провинции и пленники, которые сторона больше не может отдать (сменилась сторона), убираются из черновика.
+void pruneRefs(const World& w, Draft& d) {
+  for (size_t i = 0; i < d.items.size();) {
+    const DraftItem& it = d.items[i];
+    bool ok = true;
+    if (it.kind != DealItemKind::Resource) {
+      Id giver = it.from == DealSide::A ? d.a : d.b, taker = it.from == DealSide::A ? d.b : d.a;
+      if (it.kind == DealItemKind::Province) {
+        const Province* p = w.province(it.ref);
+        const Faction* t = w.faction(taker);
+        ok = p && !p->sea && p->owner == giver && (!t || t->isState());
+      } else {
+        const std::vector<Id> cs = rules::captivesOf(w, giver);
+        ok = giver && std::find(cs.begin(), cs.end(), it.ref) != cs.end();
+      }
+    }
+    if (ok) i++;
+    else d.items.erase(d.items.begin() + long(i));
+  }
 }
 
 void partyColumn(App& a, const World& w, Draft& d, DealSide side) {
@@ -360,7 +484,10 @@ void partyColumn(App& a, const World& w, Draft& d, DealSide side) {
   Id other = isA ? d.b : d.a;
   ui::Group g(0, 8);
   ui::caption(isA ? "Сторона А" : "Сторона Б");
-  if (w::factionPicker(isA ? "party.a" : "party.b", party, w::FactionFilter::Any, "Выберите фракцию", other)) d.highlight = 0;
+  if (w::factionPicker(isA ? "party.a" : "party.b", party, w::FactionFilter::Any, "Выберите фракцию", other)) {
+    d.highlight = 0;
+    pruneRefs(w, d);
+  }
   a.markUi(isA ? "trade.party.a" : "trade.party.b");
   stocks(w, party);
   ui::spacer(2);
@@ -392,12 +519,19 @@ void partyColumn(App& a, const World& w, Draft& d, DealSide side) {
     ui::draw::rectStroke(r, th.border, th.radiusCard, 1);
     ui::draw::text(otherN ? "Ничего — это подарок" : "Нет позиций", r, ui::Font::Small, th.textMuted, ui::Align::Center);
   }
+  ui::Row r({ui::fr(1), ui::px(30), ui::px(30)}, 30, 6);
   if (ui::button("Позиция", {.variant = ui::Variant::Secondary, .icon = "plus", .size = ui::Size::Small, .fill = true,
                              .tooltip = isA ? "Что передаёт сторона А" : "Что передаёт сторона Б"})) {
     DraftItem& it = addItem(side);
     it.amount = 100;
   }
   a.markUi(isA ? "trade.add.a" : "trade.add.b");
+  // Своя провинция (получатель — государство) и пленный герой стороны — разово.
+  const bool provs = !givableProvinces(w, d, side).empty(), heroes = !givableHeroes(w, d, side).empty();
+  if (ui::iconButton("province", "Провинция", {.variant = ui::Variant::Secondary, .disabled = !provs})) addRefItem(w, side, DealItemKind::Province);
+  a.markUi(isA ? "trade.addprov.a" : "trade.addprov.b");
+  if (ui::iconButton("hero", "Пленный герой", {.variant = ui::Variant::Secondary, .disabled = !heroes})) addRefItem(w, side, DealItemKind::Hero);
+  a.markUi(isA ? "trade.addhero.a" : "trade.addhero.b");
 }
 
 void composer(App& a, const World& w) {
@@ -440,9 +574,14 @@ void composer(App& a, const World& w) {
     for (int sd = 0; sd < 2; sd++) {
       DealSide side = DealSide(sd);
       std::vector<std::string> parts;
-      for (auto& it : d.items)
-        if (it.from == side)
-          parts.push_back(resName(w, it.res) + " " + turnui::money(it.amount) + (it.mode == DealMode::PerTurn ? " за ход, " + nTurns(it.turns) : std::string(" разово")));
+      for (auto& it : d.items) {
+        if (it.from != side) continue;
+        if (it.kind == DealItemKind::Province) parts.push_back("провинция " + w.provinceName(it.ref));
+        else if (it.kind == DealItemKind::Hero) parts.push_back("пленный " + w.characterName(it.ref));
+        else
+          parts.push_back(resName(w, it.res) + " " + amountText(it.res, it.amount) +
+                          (it.mode == DealMode::PerTurn ? " за ход, " + nTurns(it.turns) : std::string(" разово")));
+      }
       if (parts.empty()) continue;
       Id to = side == DealSide::A ? d.b : d.a;
       ui::label(w.factionName(to) + " получает: " + join(parts, "; "), {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "arrow-down", .wrap = true});
@@ -491,7 +630,7 @@ void dealsList(App& a, const World& w) {
     ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
     ui::stat(std::to_string(active), "Активных", {.icon = "handshake", .tone = ui::Tone::Accent});
     ui::stat(std::to_string(tributes), "Дань и репарации", {.icon = "tribute", .tone = ui::Tone::Warning});
-    ui::stat(fmtNum(goldPerTurn), "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success, .tooltip = "Сумма выплат золотом по активным сделкам"});
+    ui::stat(fmtNum(goldPerTurn, 3), "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success, .tooltip = "Сумма выплат золотом по активным сделкам"});
   }
   {
     ui::HStack hs(30, ui::Align::Left, 8);
@@ -555,12 +694,13 @@ void drawEditor(App& a, Id arg) {
   }
 }
 
-EditorReg editor({"trade", "Торговля", drawEditor, "trade"});
+EditorReg editor({"trade", "Переговоры и торговля", drawEditor, "trade"});
 
 bool editorScreen(App& a) { return a.ui.screen == Screen::Editor; }
-CommandReg cmdTrade({"trade.open", "Торговля: сделки и подарки", "trade", nullptr, [](App& a) { a.openEditor("trade"); }, editorScreen, false, "Торговля"});
+CommandReg cmdTrade({"trade.open", "Переговоры и торговля: сделки, обмен пленными и провинциями", "trade", nullptr, [](App& a) { a.openEditor("trade"); },
+                     editorScreen, false, "Переговоры и торговля"});
 CommandReg cmdTribute({"trade.tribute", "Навязать дань или репарации…", "tribute", nullptr, [](App& a) { a.openDialog("tribute"); },
-                       [](App& a) { return editorScreen(a) && !a.readOnly(); }, false, "Торговля"});
+                       [](App& a) { return editorScreen(a) && !a.readOnly(); }, false, "Переговоры и торговля"});
 
 }  // namespace
 }  // namespace rg::app::trade

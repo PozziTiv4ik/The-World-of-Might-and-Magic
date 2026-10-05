@@ -88,13 +88,17 @@ TEST(gfx_icons_figures_cache_matches_vector) {
   CHECK(figureCacheSize() == 1);
   drawArmyFigure(c2, {60, 64}, 64, kFactions[2]);
   CHECK(figureCacheSize() == 2);
-  // Масштаб холста учитывается: размер на устройстве удваивается.
+  // Масштаб холста учитывается: размер на устройстве удваивается (значок без подложки — сравнение с масштабом 1).
+  Image s1(70, 70, 0);
+  Canvas c1(s1);
+  drawFleetFigure(c1, {35, 35}, 40, kFactions[1]);
   Image s(140, 140, 0);
   Canvas cs(s);
   cs.scale(2, 2);
   drawFleetFigure(cs, {35, 35}, 40, kFactions[1]);
-  const Coverage cv = coverage(s);
-  CHECK(cv.x1 - cv.x0 > 80);
+  const Coverage cv1 = coverage(s1), cv = coverage(s);
+  CHECK(cv1.x1 - cv1.x0 > 10);
+  CHECK_MSG(cv.x1 - cv.x0 > 1.8 * (cv1.x1 - cv1.x0), std::to_string(cv.x1 - cv.x0) + " при масштабе 2 и " + std::to_string(cv1.x1 - cv1.x0) + " при 1");
   clearFigureCache();
   CHECK_EQ(figureCacheSize(), size_t(0));
 }

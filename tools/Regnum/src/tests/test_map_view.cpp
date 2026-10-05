@@ -433,11 +433,11 @@ TEST(map_view_camera) {
   CHECK(!mv.animating());
   CHECK_NEAR(mv.view().zoom, mv.minZoom(), 1e-12);
   CHECK_NEAR(mv.view().cx, 4000, 1e-9);
-  // Фигурка войска растёт с масштабом в разумных пределах.
+  // Фигурка войска — постоянного экранного размера из настроек при любом масштабе (ТЗ «Фиксы», п.3 и 11).
   const float small = mv.figureSize();
+  CHECK_NEAR(small, float(schema::kFigureSizeDefault), 1e-6);
   mv.centerOn({4000, 2250}, 2.5, false);
-  CHECK(mv.figureSize() > small);
-  CHECK(mv.figureSize() <= 64);
+  CHECK_NEAR(mv.figureSize(), small, 1e-6);
 }
 
 // ================================================================ попадание

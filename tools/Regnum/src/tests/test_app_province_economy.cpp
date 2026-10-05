@@ -57,6 +57,22 @@ double influenceOf(const Province& p, Id g) {
   return s;
 }
 
+// Прибавка маршрутов к базе провинции (доля): +10 % за маршрут и +2,5 % за каждое государство на его пути.
+double routeBonusOf(const World& w, Id pid) {
+  auto fs = geo::faces(w);
+  double bonus = 0;
+  w.routes.each([&](const Route& r) {
+    if (r.pts.empty()) return;
+    std::vector<Id> provs = fs->provincesOnPolyline(r.pts), states;
+    if (std::find(provs.begin(), provs.end(), pid) == provs.end()) return;
+    for (Id p : provs)
+      if (const Province* pr = w.province(p); pr && !pr->sea)
+        if (const Faction* o = w.faction(pr->owner); o && o->isState() && std::find(states.begin(), states.end(), o->id) == states.end()) states.push_back(o->id);
+    bonus += 0.10 + 0.025 * double(states.size());
+  });
+  return bonus;
+}
+
 void setNumber(Harness& h, const std::string& mark, const std::string& text) {
   const RectF* r = h->uiRect(mark);
   CHECK_MSG(r != nullptr, mark);
@@ -207,9 +223,14 @@ TEST(app_province_tax_and_resource) {
   setNumber(h, "province.baseTrade", "200");
   const rules::ProvinceCalc* pc = rules::calc(h->world())->province(pid);
   CHECK_NEAR(pc->tradeBase, 200, 1e-9);
-  CHECK_NEAR(pc->tradeValue, std::max(0.0, 200 * (1 + pc->fx[Fx::TradePct] / 100 + 0.1 * pc->routes) + pc->fx[Fx::TradeFlat]), 1e-6);
+  CHECK_NEAR(pc->tradeValue, std::max(0.0, 200 * (1 + pc->fx[Fx::TradePct] / 100 + routeBonusOf(h->world(), pid)) + pc->fx[Fx::TradeFlat]), 1e-6);
   CHECK(h->uiRect("province.tradeValue") != nullptr);
   CHECK(h->uiRect("province.income") != nullptr);
+  // Золото — до тысячных (ТЗ «Фиксы», п.13): количество ресурса и базовая ценность принимают три знака.
+  setNumber(h, "province.amount", "12,345");
+  CHECK_NEAR(prov(h, pid)->resourceAmount, 12.345, 1e-9);
+  setNumber(h, "province.baseTrade", "150,125");
+  CHECK_NEAR(prov(h, pid)->baseTrade, 150.125, 1e-9);
 }
 
 TEST(app_province_economy_screen) {

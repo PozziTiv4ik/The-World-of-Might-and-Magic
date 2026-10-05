@@ -1,7 +1,20 @@
-// Regnum — инспектор войска и флота (ТЗ 1.c.iii–v): фигурка, название, флаги фракций; состав по фракциям
-// (союзное войско — отдельные плитки), отряды из резерва своей фракции, герои и главный полководец
-// (флотоводец), кнопки «Разделить», «Распустить союз», «Расформировать»; провинция под объектом; события.
+// Regnum — инспектор войска и флота (ТЗ 1.c.iii–v): фигурка, название, флаги фракций; верность −100…100 % с
+// изменением за ход и модификаторы войска со сроками («Общие доработки», п.12; «Модификаторы»), кнопка «Мятеж» при
+// отрицательной верности («Механика мятежа», п.1); состав по фракциям (союзное войско — отдельные плитки), отряды из
+// резерва своей фракции, герои и главный полководец (флотоводец), кнопки «Разделить», «Распустить союз»,
+// «Расформировать»; провинция под объектом; события.
+#include "app/app_internal.h"
+#include "app/flows.h"
 #include "app/panels/military.h"
+#include "gfx/icons.h"
+
+namespace rg::app {
+namespace edkit {   // поток фишек с переносом строк (editors/modifiers.cpp)
+void chipsBegin();
+ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
+void chipsEnd();
+}  // namespace edkit
+}  // namespace rg::app
 
 namespace rg::app::mil {
 
@@ -218,10 +231,10 @@ void heroesList(App& a, const Army& ar, const ArmyGroup& g) {
     if (ui::iconButton("close", "Убрать героя из войска")) setHeroes(a, ar, h, false);
   }
   if (ro) return;
-  // Добавить героя: персонажи этой фракции, не сопровождающие другие объекты.
+  // Добавить героя: доступные персонажи этой фракции (не «Мертв» и не «Взят в плен»), не сопровождающие другие объекты.
   std::vector<const Character*> list;
   w.characters.each([&](const Character& c) {
-    if (c.faction != g.faction) return;
+    if (c.faction != g.faction || !rules::heroAvailable(w, c.id)) return;
     for (const ArmyGroup& x : ar.groups)
       if (std::find(x.heroes.begin(), x.heroes.end(), c.id) != x.heroes.end()) return;
     list.push_back(&c);
@@ -298,6 +311,234 @@ void groupTile(App& a, const Army& ar, const ArmyGroup& g) {
   ui::draw::rect(RectF{cr.x, cr.y + 12, 3, std::max(0.f, cr.h - 24)}, w::factionColor(w, g.faction), 1.5f);
 }
 
+// ---------------------------------------------------------------- верность и модификаторы
+// Откуда изменение верности за ход: модификаторы войска, государства-лидера (его технологии, совет, голод),
+// «Непреклонный лоялист» у героев, «Армия нежити».
+void loyaltySources(const World& w, const Army& ar, double delta) {
+  ui::label("Верность за ход: " + fmtSigned(delta, 1) + " %", {.font = ui::Font::Strong});
+  if (rules::armyHas(w, ar.id, schema::mod::UndeadArmy)) {
+    ui::label("Армия нежити — всегда 100 %", {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "skull"});
+    return;
+  }
+  const rules::Effects fx = rules::armyEffects(w, ar.id);
+  for (const rules::EffectSource& s : fx.sources) {
+    const Modifier* m = s.modifier ? w.modifier(s.modifier) : (s.key.empty() ? nullptr : rules::builtinMod(w, s.key));
+    if (!m || !m->has(Fx::LoyaltyPerTurn)) continue;
+    std::string from;
+    switch (s.kind) {
+      case rules::EffectSource::Army: from = "войско"; break;
+      case rules::EffectSource::Tech:
+        if (const Tech* t = w.tech(s.id)) from = "технология «" + t->name + "»";
+        break;
+      case rules::EffectSource::Building:
+        if (const Building* b = w.building(s.id)) from = "постройка «" + b->name + "»";
+        break;
+      default: from = w.factionName(s.id); break;
+    }
+    const double v = m->get(Fx::LoyaltyPerTurn);
+    ui::label(fmtSigned(v, 1) + " % · " + (m->name.empty() ? std::string("Модификатор") : m->name) + (from.empty() ? "" : " (" + from + ")"),
+              {.font = ui::Font::Small, .ink = v >= 0 ? ui::Ink::Success : ui::Ink::Danger});
+  }
+  int loyalists = 0;
+  for (const ArmyGroup& g : ar.groups)
+    for (Id h : g.heroes)
+      if (rules::characterHas(w, h, schema::mod::Loyalist)) loyalists++;
+  if (loyalists)
+    ui::label(fmtSigned(schema::kLoyalistBonus * loyalists, 1) + " % · непреклонный лоялист" + (loyalists > 1 ? " ×" + std::to_string(loyalists) : "") +
+                  ", верность не уменьшается",
+              {.font = ui::Font::Small, .ink = ui::Ink::Success});
+}
+
+// Модификатор для добавления войску: запись мира (id) или встроенный, которого в мире ещё нет (key).
+struct ModChoice {
+  Id id = 0;
+  std::string key, name, hint;
+  const char* icon = "sparkles";
+  Color color{0, 0, 0, 0};
+  bool disabled = false;
+};
+
+std::vector<ModChoice> modChoices(const World& w, const Army& ar) {
+  std::vector<ModChoice> out;
+  const bool cruel = rules::armyHas(w, ar.id, schema::mod::DemonArmy) || rules::armyHas(w, ar.id, schema::mod::Ruthless);
+  auto add = [&](Id id, const Modifier& m) {
+    ModChoice c;
+    c.id = id;
+    c.key = m.key;
+    c.name = m.name.empty() ? std::string("Модификатор") : m.name;
+    c.icon = m.icon.empty() || !gfx::hasIcon(m.icon) ? "sparkles" : m.icon.c_str();
+    c.color = m.color;
+    if (m.key == schema::mod::Sadism && !cruel) {   // ТЗ «Модификаторы», 1.19
+      c.disabled = true;
+      c.hint = "армии демонов и безжалостные";
+    } else if (m.duration > 0) {
+      c.hint = nTurns(m.duration);
+    }
+    out.push_back(std::move(c));
+  };
+  w.modifiers.each([&](const Modifier& m) {
+    if (std::find(ar.modifiers.begin(), ar.modifiers.end(), m.id) != ar.modifiers.end()) return;
+    if (!w::modifierFits(m, w::ModScope::Army) || w::modifierInert(m, w::ModScope::Army)) return;
+    add(m.id, m);
+  });
+  for (const Modifier& t : schema::builtinModifiers())
+    if (t.kind == ModKind::Army && !rules::builtinModId(w, t.key)) add(0, t);
+  std::sort(out.begin(), out.end(), [](const ModChoice& x, const ModChoice& y) { return compareRu(x.name, y.name) < 0; });
+  return out;
+}
+
+void setArmyMods(App& a, Id army, const char* label, const std::function<void(Tx&, std::vector<Id>&)>& edit) {
+  a.act(label, [&](Tx& tx) {
+    std::vector<Id> mods = tx.w().army(army)->modifiers;
+    edit(tx, mods);
+    rules::setModifiers(tx, rules::ModTarget::Army, army, mods);
+  });
+}
+
+// Модификаторы войска фишками: срок в ходах на фишке (щелчок — правка срока), крестик — снять, «Добавить».
+void armyModifiers(App& a, const Army& ar) {
+  const World& w = frameWorld(a);
+  const bool ro = a.readOnly();
+  const Id id = ar.id;
+  ui::IdScope scope("mods");
+  bool any = false;
+  for (Id mid : ar.modifiers) any = any || w.modifier(mid);
+  if (any) {
+    edkit::chipsBegin();
+    for (size_t i = 0; i < ar.modifiers.size(); i++) {
+      const Id mid = ar.modifiers[i];
+      const Modifier* m = w.modifier(mid);
+      if (!m) continue;
+      ui::IdScope s{i64(mid)};
+      auto it = ar.modTurns.find(mid);
+      const int left = it == ar.modTurns.end() ? 0 : it->second;
+      std::string tip;
+      for (int f = 0; f < kFxCount; f++)
+        if (m->has(Fx(f))) tip += (tip.empty() ? "" : "\n") + w::effectText(Fx(f), m->fx[size_t(f)]);
+      if (!m->desc.empty()) tip = m->desc + (tip.empty() ? "" : "\n" + tip);
+      tip = (left > 0 ? "Осталось: " + nTurns(left) : std::string("Бессрочно")) + (tip.empty() ? "" : "\n" + tip);
+      ui::ChipOpt co;
+      co.icon = m->icon.empty() || !gfx::hasIcon(m->icon) ? "sparkles" : m->icon.c_str();
+      co.color = m->color;
+      co.removable = !ro;
+      co.clickable = true;
+      co.tooltip = tip;
+      const std::string name = (m->name.empty() ? std::string("Модификатор") : m->name) + (left > 0 ? " · " + std::to_string(left) : std::string());
+      ui::ChipAction act = edkit::chip(name, co);
+      a.markUi("army.mods.chip." + std::to_string(i));
+      if (act == ui::ChipAction::Remove) {
+        setArmyMods(a, id, "Снять модификатор войска", [mid](Tx&, std::vector<Id>& mods) { mods.erase(std::remove(mods.begin(), mods.end(), mid), mods.end()); });
+        break;
+      }
+      if (act == ui::ChipAction::Click) ui::openPopup("term");
+      if (ui::beginPopup("term", {.side = ui::Side::Below, .width = 280})) {
+        ui::label(m->name.empty() ? std::string("Модификатор") : m->name, {.font = ui::Font::Strong, .icon = co.icon});
+        ui::prop("Срок", "hourglass");
+        int n = left;
+        if (ui::numberField("turns", n, {.min = 0, .max = 1000, .unit = "ход|хода|ходов", .steppers = true, .disabled = ro,
+                                         .tooltip = "Ходов действия; 0 — бессрочно"}))
+          a.act("Срок модификатора войска", [&](Tx& tx) { rules::setModTurns(tx, rules::ModTarget::Army, id, mid, std::max(0, n)); },
+                {.coalesce = "armymod:" + std::to_string(id) + ":" + std::to_string(mid)});
+        a.markUi("army.mods.term");
+        if (ui::button("Открыть в редакторе", {.icon = "sparkles", .fill = true})) {
+          ui::closePopup();
+          a.openEditor("modifiers", mid);
+        }
+        ui::endPopup();
+      }
+    }
+    edkit::chipsEnd();
+  }
+  if (ro) return;
+  std::vector<ModChoice> choices = modChoices(w, ar);
+  if (choices.empty()) return;
+  std::vector<ui::Option> opts;
+  for (const ModChoice& c : choices) opts.push_back(ui::Option{c.name, c.icon, c.color, c.hint, c.disabled});
+  int idx = -1;
+  if (ui::combo("add", idx, opts, {.placeholder = "Добавить модификатор", .search = 1, .icon = "plus"}) && idx >= 0 && idx < int(choices.size()) &&
+      !choices[size_t(idx)].disabled) {
+    const ModChoice c = choices[size_t(idx)];
+    setArmyMods(a, id, "Модификатор войска", [c](Tx& tx, std::vector<Id>& mods) { mods.push_back(c.id ? c.id : rules::ensureBuiltinMod(tx, c.key)); });
+  }
+  a.markUi("army.mods.add");
+}
+
+// Верность войска −100…100 % (ТЗ «Общие доработки», п.12), изменение за ход, модификаторы; при верности ниже нуля —
+// «Мятеж» (ТЗ «Механика мятежа», п.1).
+void loyaltyCard(App& a, const Army& ar) {
+  const World& w = frameWorld(a);
+  const bool ro = a.readOnly();
+  const Id id = ar.id;
+  const bool undead = rules::armyHas(w, id, schema::mod::UndeadArmy);
+  const double delta = rules::loyaltyDelta(w, id);
+  ui::IdScope scope("loyalty");
+  ui::Card card({.pad = 12, .tone = ar.loyalty < 0 ? ui::Tone::Danger : ui::Tone::Neutral});
+  {
+    ui::Row r({ui::fr(1), ui::px(112), ui::px(92)}, 30, 8);
+    ui::label("Верность", {.font = ui::Font::Strong, .icon = "heart"});
+    {
+      ui::Disabled dis(ro || undead);
+      double v = ar.loyalty;
+      if (ui::numberField("value", v, {.min = schema::kMinLoyalty, .max = schema::kMaxLoyalty, .step = 5, .digits = 1, .unit = "%",
+                                       .tooltip = undead ? "Армия нежити — верность всегда 100 %" : "Верность войска: от −100 до 100 %"}))
+        a.act("Верность войска", [&](Tx& tx) { rules::setArmyLoyalty(tx, id, v); }, {.coalesce = "loyalty:" + std::to_string(id)});
+      a.markUi("army.loyalty");
+    }
+    const std::string d = (std::fabs(delta) < 1e-9 ? std::string("0") : fmtSigned(delta, 1)) + " %/ход";
+    ui::label(d, {.font = ui::Font::Small, .ink = delta > 1e-9 ? ui::Ink::Success : delta < -1e-9 ? ui::Ink::Danger : ui::Ink::Muted,
+                  .align = ui::Align::Right, .tooltip = "Изменение верности за ход"});
+    a.markUi("army.loyalty.delta");
+    if (ui::beginTooltip(320)) {
+      loyaltySources(w, ar, delta);
+      ui::endTooltip();
+    }
+  }
+  ui::meter(ar.loyalty, {.label = false});
+  armyModifiers(a, ar);
+  if (ar.loyalty < 0) {
+    std::string why;
+    const bool can = rules::canMutiny(w, id, &why);
+    ui::Disabled dis(ro || !can);
+    if (ui::button("Мятеж", {.variant = ui::Variant::Danger, .icon = "rebellion", .fill = true,
+                             .tooltip = can ? std::string("Неверная часть войск государства в провинции отделится и восстанет") : why}))
+      flow::startMutiny(a, id);
+    a.markUi("army.mutiny");
+  }
+}
+
+// ---------------------------------------------------------------- мятеж
+// После мятежа: битва мятежников с верными, или (войско восстало целиком) судьба верных героев и штурм/захват;
+// затем — объявленная война (вассалитет).
+void runMutiny(App& a, Id army) {
+  const World before = a.world();
+  const Army* ar = before.army(army);
+  if (!ar) return;
+  const Id origin = ar->leader();
+  const Id pid = provinceUnder(before, ar->pos);
+  rules::MutinyResult res;
+  if (!a.act("Мятеж: " + objectName(*ar), [&](Tx& tx) { res = rules::mutiny(tx, army); })) return;
+  const World& w = a.world();
+  a.toast("Мятеж: " + w.factionName(res.rebelState) + (res.full ? " — войско восстало целиком" : ""), ToastKind::Warning, "rebellion");
+  const Id rebelState = res.rebelState, rebel = res.rebelArmy;
+  auto war = [rebelState, origin](App& x) {
+    if (x.world().faction(rebelState) && x.world().faction(origin)) flow::afterWarDeclared(x, rebelState, origin);
+  };
+  if (rebel && res.loyalArmy && w.army(rebel) && w.army(res.loyalArmy)) {
+    // Мятежники нападают на верных (ТЗ «Мятеж», п.1.1).
+    a.select(SelType::Army, rebel);
+    openBattle(a, rebel, res.loyalArmy, w.army(rebel)->pos, {}, war);
+    return;
+  }
+  auto aftermath = [rebel, war](App& x) {
+    if (x.world().army(rebel)) flow::rebelAftermath(x, rebel, war);
+    else war(x);
+  };
+  if (rebel && w.army(rebel)) a.select(SelType::Army, rebel);
+  // Войско восстало целиком (п.1.2): верные герои — «Судьба героя», пленившее — мятежное государство.
+  if (res.full && !res.loyalHeroes.empty()) flow::openHeroFate(a, res.loyalHeroes, rebelState, pid, aftermath);
+  else aftermath(a);
+}
+
 // ---------------------------------------------------------------- вкладка «Состав»
 void drawUnits(App& a, Id id) {
   const World& w = frameWorld(a);
@@ -323,6 +564,7 @@ void drawUnits(App& a, Id id) {
     if (pid) w::provinceChip(pid);
     else ui::label(fleet ? "открытое море" : "вне провинций", {.ink = ui::Ink::Muted});
   }
+  loyaltyCard(a, *ar);
   // Действия
   {
     ui::Disabled dis(ro);
@@ -384,3 +626,36 @@ TabReg logTab({"army.log", "chronicle", "События", 20, SelType::Army, nul
 
 }  // namespace
 }  // namespace rg::app::mil
+
+namespace rg::app {
+
+// ТЗ «Механика мятежа», п.1: мятеж всех войск государства в провинции (каждое — по своей верности) — с подтверждением.
+void flow::startMutiny(App& a, Id army) {
+  const World& w = a.world();
+  std::string why;
+  if (!rules::canMutiny(w, army, &why)) {
+    a.toast(why, ToastKind::Warning, "warning");
+    return;
+  }
+  if (a.readOnly()) {
+    a.act("Мятеж", [](Tx&) {});   // сообщение о просмотре прошлого хода
+    return;
+  }
+  const Army& ar = *w.army(army);
+  const Faction* f = w.faction(ar.leader());
+  const std::string state = f && !f->name.empty() ? f->name : std::string("Без названия");
+  const double p = std::min(100.0, -ar.loyalty);
+  // Другие войска государства в той же провинции восстают вместе (ТЗ «Мятеж», п.1.3) — каждое по своей верности.
+  const Id pid = mil::provinceUnder(w, ar.pos);
+  int others = 0;
+  if (pid)
+    w.armies.each([&](const Army& x) {
+      if (x.id != army && !x.allied() && x.leader() == ar.leader() && x.kind == ar.kind && x.loyalty < 0 && mil::provinceUnder(w, x.pos) == pid) others++;
+    });
+  std::string text = p >= 100 ? "Войско восстанет целиком" : "Восстанет " + fmtPct(p, 1) + " войска";
+  if (others > 0) text += "; другие войска государства в провинции (" + std::to_string(others) + ") — по своей верности";
+  text += ". Мятежники перейдут к «Мятеж (" + state + ")», начнётся война.";
+  a.confirm("Мятеж?", text, "Мятеж", true, [army](App& x) { mil::runMutiny(x, army); });
+}
+
+}  // namespace rg::app

@@ -80,6 +80,7 @@ enum class ToolId : u8 {
   LandAdd,       // суша контуром
   LandRemove,    // море контуром
   Coast,         // точки береговой линии
+  NewSeaProvince, // многоугольник новой морской провинции (NewProvince — сухопутной)
   Count
 };
 

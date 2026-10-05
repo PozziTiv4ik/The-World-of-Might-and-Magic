@@ -60,6 +60,19 @@ struct SettingsDlg : Dialog {
     a.markUi("settings.labelStates");
     if (ui::toggle("Провинции", pr)) a.act("Подписи провинций", [pr](Tx& tx) { tx.settings().labelProvinces = pr; });
     if (ui::toggle("Войска и флот", ar)) a.act("Подписи войск", [ar](Tx& tx) { tx.settings().labelArmies = ar; });
+    ui::spacer(4);
+    ui::caption("Войска и флот");
+    bool hide = !s.showArmies;
+    if (ui::toggle("Скрыть войска", hide)) a.act(hide ? "Скрыть войска" : "Показать войска", [hide](Tx& tx) { tx.settings().showArmies = !hide; });
+    a.markUi("settings.hideArmies");
+    // Размер значка войска и флота — постоянный на экране при любом масштабе карты (ТЗ «Фиксы», п.3 и 11).
+    ui::prop("Размер значков", "army");
+    double fs = s.figureSize;
+    if (ui::slider("figure", fs, schema::kFigureSizeMin, schema::kFigureSizeMax, {.step = 2})) {
+      int v = int(std::lround(fs));
+      a.act("Размер значков войск", [v](Tx& tx) { tx.settings().figureSize = v; }, {.coalesce = "settings.figure"});
+    }
+    a.markUi("settings.figureSize");
   }
 
   void rulesSection(App& a) {

@@ -1,5 +1,5 @@
 // Regnum — общие помощники панелей государств и гильдий (инспектор, списки, флаг).
-// Только для src/app/panels/faction*.cpp и src/app/dialogs/flag_editor.cpp.
+// Только для src/app/panels/faction*.cpp и окон src/app/dialogs/{flag_editor,truce,vassal,resurrect}.cpp.
 #pragma once
 #include "app/app_internal.h"
 #include "app/widgets.h"
@@ -51,6 +51,8 @@ void shareBar(std::span<const Share> parts, float height = 6);
 
 // Флаг в прямоугольнике (копия данных в замыкании — безопасно для временных флагов).
 void drawFlagCopy(const Flag& f, RectF r, float radius);
+// Крупный флаг и название фракции по центру слота (окна дипломатии). w — мир кадра (frameWorld).
+void factionBig(const World& w, Id faction, float fw = 78, float fh = 52);
 // Невидимая подсказка поверх прямоугольника (для своих виджетов без lastItem).
 void tipOver(RectF r, std::string_view key, std::string_view tip);
 // Кольцо фокуса клавиатуры для своих виджетов.
@@ -101,6 +103,7 @@ constexpr const char* kTabDiplomacy = "faction.diplomacy";
 constexpr const char* kTabHeroes = "faction.heroes";
 constexpr const char* kTabModifiers = "faction.modifiers";
 constexpr const char* kTabGuilds = "faction.guilds";
+constexpr const char* kTabVassals = "faction.vassals";
 
 bool isState(App& a, Id id);
 bool isGuild(App& a, Id id);

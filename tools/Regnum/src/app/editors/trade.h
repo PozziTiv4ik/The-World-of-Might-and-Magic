@@ -1,5 +1,6 @@
-// Regnum — торговля, подарки, дань и репарации: общее для редактора «Торговля» (editors/trade.cpp), вкладки
-// фракции и выдвижной панели (panels/trade.cpp) и диалога дани (dialogs/tribute.cpp). ТЗ 1.b.vii, 1.d.iii, 1.e.ii.
+// Regnum — переговоры и торговля, подарки, дань и репарации: общее для окна «Переговоры и торговля»
+// (editors/trade.cpp), вкладки фракции и выдвижной панели (panels/trade.cpp) и диалога дани (dialogs/tribute.cpp).
+// ТЗ 1.b.vii, 1.d.iii, 1.e.ii; «Механика героев», п.2 (обмен пленными); «Механика войн», п.3 (обмен провинциями).
 #pragma once
 #include "app/app.h"
 
@@ -9,6 +10,8 @@ namespace rg::app::trade {
 struct DraftItem {
   u64 key = 0;                     // устойчивый ID строки интерфейса
   DealSide from = DealSide::A;     // кто передаёт
+  DealItemKind kind = DealItemKind::Resource;   // ресурс, провинция или пленный герой (провинция и герой — разово)
+  Id ref = 0;                      // провинция или герой
   Id res = kGold;
   double amount = 100;
   DealMode mode = DealMode::Once;
@@ -23,6 +26,11 @@ struct Draft {
 Draft& draft();
 void startDraft(Id a, Id b = 0);   // новая сделка со сторонами (позиции очищаются)
 DraftItem& addItem(DealSide from); // позиция стороны (золото, 100, разово)
+// Провинция или пленный герой стороны: первая подходящая, которой ещё нет в черновике; nullptr — нечего добавить.
+DraftItem* addRefItem(const World& w, DealSide from, DealItemKind kind);
+// Что сторона может отдать: свои сухопутные провинции (получатель — государство) и свои пленники.
+std::vector<Id> givableProvinces(const World& w, const Draft& d, DealSide from);
+std::vector<Id> givableHeroes(const World& w, const Draft& d, DealSide from);
 Deal toDeal(const Draft& d);
 
 // ---------------------------------------------------------------- сделки
@@ -31,6 +39,7 @@ ui::Tone dealTone(const Deal& d);
 int dealLeft(const Deal& d);       // ходов выплат осталось (максимум по позициям «каждый ход»)
 int dealTurns(const Deal& d);      // полный срок выплат
 std::string resName(const World& w, Id res);
+std::string amountText(Id res, double v);   // количество позиции: золото — до тысячных
 // Сделки фракции (0 — все): активные сверху (новые первыми), затем завершённые.
 std::vector<const Deal*> dealsOf(const World& w, Id faction);
 

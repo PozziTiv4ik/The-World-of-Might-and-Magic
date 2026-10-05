@@ -1,19 +1,32 @@
-// Regnum — вкладка «Экономика» инспектора провинции (ТЗ 1.a.vi, 1.d.ii, 1.d.iv–v): ресурс и добыча, базовая и
-// текущая торговая ценность (маршруты +10 %), местный и общий налог (не меньше 1 %), доход государству,
-// торговое влияние гильдий (сумма ≤ 100 %, кольцевая диаграмма), штабы (≤ 5, по одному на гильдию), доход гильдий.
+// Regnum — вкладка «Экономика» инспектора провинции (ТЗ 1.a.vi, 1.d.ii, 1.d.iv–v): ресурс и добыча, ресурсы от
+// построек, базовая и текущая торговая ценность (маршруты: +10 % и +2,5 % за государство на пути), местный и общий
+// налог (не меньше 1 %), доход государству (налоги, рабы на работах, золото построек; пустошь нежити и осквернение
+// перекрывают доход с ценности), торговое влияние гильдий (сумма ≤ 100 %), штабы (≤ 5), доход гильдий.
 #include "app/widgets.h"
 #include "gfx/text.h"
 
 namespace rg::app::prov {
 // province_common.cpp
+const World& frameWorld(App& a);
 struct TipLine {
   std::string label, value;
   ui::Tone tone = ui::Tone::Neutral;
   bool total = false;
 };
+struct ChipSpec {
+  std::string label;
+  const char* icon = nullptr;
+  Color color{0, 0, 0, 0};
+  ui::Tone tone = ui::Tone::Neutral;
+  std::string tooltip;
+  bool clickable = false;
+};
 std::string num(double v);
 std::string pct(double v, bool sign = false);
+std::string gold(double v);
+double routePct(const rules::ProvinceCalc& pc);
 void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width = 300);
+int flowChips(std::string_view key, const std::vector<ChipSpec>& chips);
 std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
 std::vector<TipLine> productionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
 std::vector<TipLine> taxLines(const rules::ProvinceCalc& pc);
@@ -57,8 +70,11 @@ std::vector<GuildRow> guildRows(const World& wd, const Province& p) {
   return rows;
 }
 
+// Число ресурса: до тысячных (золото — ТЗ «Фиксы», п.13).
+std::string amountText(double v) { return fmtNum(v, 3); }
+
 void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
-  const World& wd = a.world();
+  const World& wd = prov::frameWorld(a);
   Id pid = p.id;
   ui::prop("Ресурс", "resource");
   Id res = p.resource;
@@ -67,25 +83,38 @@ void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, b
   a.markUi("province.resource");
   ui::prop("Количество", "pickaxe");
   double amount = p.resourceAmount;
-  if (ui::numberField("amount", amount, {.min = 0, .max = 1e9, .step = 1, .digits = 1, .disabled = ro || !p.resource}))
+  if (ui::numberField("amount", amount, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .disabled = ro || !p.resource}))
     a.act("Количество ресурса", [&](Tx& tx) { tx.province(pid).resourceAmount = std::max(0.0, amount); }, {.coalesce = key("amount", pid)});
   a.markUi("province.amount");
   ui::prop("Добыча за ход", "factory");
   {
     ui::HStack hs(30, ui::Align::Left, 6);
     if (p.resource) ui::iconColored(w::resourceIcon(wd, p.resource), w::resourceColor(wd, p.resource), 16);
-    ui::label(p.resource ? prov::num(pc.production) : std::string("—"), {.font = ui::Font::Strong, .tooltip = "Добыча за ход"});
+    ui::label(p.resource ? amountText(pc.production) : std::string("—"), {.font = ui::Font::Strong, .tooltip = "Добыча за ход"});
     if (p.resource) prov::breakdown("Добыча за ход", prov::productionLines(wd, p, pc));
     a.markUi("province.production");
+  }
+  // Ресурсы от достроенных построек — владельцу каждый ход.
+  if (!pc.produce.empty()) {
+    ui::label("Постройки дают за ход", {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "building"});
+    std::vector<prov::ChipSpec> chips;
+    for (auto& [r, v] : pc.produce) {
+      const CatalogItem* c = wd.resource(r);
+      chips.push_back({"+" + amountText(v), w::resourceIcon(wd, r), Color(0, 0, 0, 0), ui::Tone::Success,
+                       (c ? c->name : std::string("Ресурс")) + " за ход от построек"});
+    }
+    RectF at = ui::avail();
+    prov::flowChips("produce", chips);
+    a.markUi("province.produce", RectF{at.x, at.y, at.w, std::max(0.f, ui::avail().y - at.y - ui::theme().gap)});
   }
 }
 
 void tradeSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
-  const World& wd = a.world();
+  const World& wd = prov::frameWorld(a);
   Id pid = p.id;
   ui::prop("Базовая ценность", "trade-value");
   double base = p.baseTrade;
-  if (ui::numberField("baseTrade", base, {.min = 0, .max = 1e9, .step = 1, .digits = 1, .disabled = ro}))
+  if (ui::numberField("baseTrade", base, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .disabled = ro}))
     a.act("Базовая торговая ценность", [&](Tx& tx) { tx.province(pid).baseTrade = std::max(0.0, base); }, {.coalesce = key("base", pid)});
   a.markUi("province.baseTrade");
   ui::prop("Текущая ценность", "trend-up");
@@ -102,13 +131,15 @@ void tradeSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool
   ui::prop("Маршруты", "route");
   {
     ui::HStack hs(30, ui::Align::Left, 8);
-    ui::label(fmtNum(pc.routes), {.font = ui::Font::Strong, .tooltip = "Торговые маршруты через провинцию: +10 % базовой ценности каждый"});
-    if (pc.routes > 0) ui::tag(fmtPct(pc.routes * 10.0, 0, true), ui::Tone::Success, "route");
+    ui::label(fmtNum(pc.routes), {.font = ui::Font::Strong,
+                                  .tooltip = "Торговые маршруты через провинцию: +10 % базовой ценности и +2,5 % за каждое государство на пути"});
+    if (pc.routes > 0) ui::tag(prov::pct(prov::routePct(pc), true), ui::Tone::Success, "route");
+    a.markUi("province.routes");
   }
 }
 
 void taxSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
-  const World& wd = a.world();
+  const World& wd = prov::frameWorld(a);
   Id pid = p.id;
   ui::prop("Налог государства", "crown");
   {
@@ -179,7 +210,7 @@ void influenceSummary(const World& wd, const std::vector<GuildRow>& rows, double
 }
 
 void influenceSection(App& a, const Province& p, bool ro) {
-  const World& wd = a.world();
+  const World& wd = prov::frameWorld(a);
   Id pid = p.id;
   std::vector<GuildRow> rows = guildRows(wd, p);
   double sum = 0;
@@ -274,7 +305,7 @@ void influenceSection(App& a, const Province& p, bool ro) {
 }
 
 void guildIncome(App& a, const rules::ProvinceCalc& pc) {
-  const World& wd = a.world();
+  const World& wd = prov::frameWorld(a);
   std::vector<const rules::GuildShare*> rows;
   for (const rules::GuildShare& s : pc.guilds)
     if (s.hq) rows.push_back(&s);
@@ -304,21 +335,21 @@ void guildIncome(App& a, const rules::ProvinceCalc& pc) {
         std::string nm = gfx::ellipsize(wd.factionName(s.guild), ui::textStyle(ui::Font::Small), std::max(20.f, cell.w - 26));
         ui::label(nm, {.font = ui::Font::Small, .tooltip = wd.factionName(s.guild)});
       }
-      t.text(prov::num(s.gross));
-      t.text(prov::num(s.tax), ui::Ink::Dim);
-      t.text(prov::num(s.net), ui::Ink::Success);
+      t.text(prov::gold(s.gross));
+      t.text(prov::gold(s.tax), ui::Ink::Dim);
+      t.text(prov::gold(s.net), ui::Ink::Success);
     }
     if (t.footer()) {
       t.text("Итого", ui::Ink::Normal, ui::Font::Strong);
-      t.text(prov::num(gross), ui::Ink::Normal, ui::Font::Strong);
-      t.text(prov::num(tax), ui::Ink::Dim, ui::Font::Strong);
-      t.text(prov::num(net), ui::Ink::Success, ui::Font::Strong);
+      t.text(prov::gold(gross), ui::Ink::Normal, ui::Font::Strong);
+      t.text(prov::gold(tax), ui::Ink::Dim, ui::Font::Strong);
+      t.text(prov::gold(net), ui::Ink::Success, ui::Font::Strong);
     }
   }
 }
 
 void drawEconomy(App& a, Id pid) {
-  const World& wd = a.world();
+  const World& wd = prov::frameWorld(a);
   const Province* p = wd.province(pid);
   if (!p) return;
   ui::IdScope ps{i64(pid)};
@@ -335,18 +366,34 @@ void drawEconomy(App& a, Id pid) {
              {.icon = "trade-value", .tone = ui::Tone::Info, .delta = std::fabs(d) > 0.05 ? d : 0, .deltaText = std::fabs(d) > 0.05 ? prov::pct(d, true) : std::string(),
               .tooltip = "Текущая торговая ценность"});
     prov::breakdown("Текущая торговая ценность", prov::tradeLines(wd, *p, pc));
-    double income = pc.provinceTax + pc.guildTax;
-    ui::stat(prov::num(income), "Доход государству", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Доход государству"});
+    // Золото провинции за ход: налоги (получателю), рабы на работах и постройки (владельцу), добыча золота.
+    auto at = pc.produce.find(kGold);
+    const double built = at == pc.produce.end() ? 0.0 : at->second;
+    const double mined = p->resource == kGold ? pc.production : 0.0;
+    double income = pc.provinceTax + pc.guildTax + pc.slaveIncome + built + mined;
+    ui::stat(prov::gold(income), "Доход государству", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Доход государству"});
     {
       std::vector<prov::TipLine> L;
-      L.push_back({"Налог с провинции", prov::num(pc.provinceTax)});
-      L.push_back({"Налог гильдий", prov::num(pc.guildTax)});
+      L.push_back({"Налог с провинции", prov::gold(pc.provinceTax)});
+      L.push_back({"Налог гильдий", prov::gold(pc.guildTax)});
+      if (pc.tradeBlocked) L.push_back({"Доход с ценности", "нет", ui::Tone::Warning});
+      if (mined > 0) L.push_back({"Добыча золота", prov::gold(mined)});
+      if (pc.slaveIncome > 0) L.push_back({"Рабы на работах", prov::gold(pc.slaveIncome), ui::Tone::Success});
+      if (built > 0) L.push_back({"Постройки", prov::gold(built), ui::Tone::Success});
       if (pc.recipient != pc.owner)
-        L.push_back({"Получатель", pc.recipient ? wd.factionName(pc.recipient) : std::string("никто (оккупация)"), ui::Tone::Warning});
-      L.push_back({"За ход", prov::num(income), ui::Tone::Neutral, true});
+        L.push_back({"Получатель налогов", pc.recipient ? wd.factionName(pc.recipient) : std::string("никто (оккупация)"), ui::Tone::Warning});
+      L.push_back({"За ход", prov::gold(income), ui::Tone::Neutral, true});
       prov::breakdown("Доход государству", L, 280);
     }
     a.markUi("province.income");
+  }
+  // Пустошь нежити или осквернённая провинция у государства не того вида: дохода с текущей ценности нет.
+  if (pc.tradeBlocked) {
+    ui::HStack hs(26, ui::Align::Left, 6);
+    ui::tag("Без дохода с ценности", ui::Tone::Warning, "warning");
+    ui::tooltip(rules::provinceHas(wd, pid, schema::mod::UndeadWaste) ? "Пустошь нежити: доход с ценности получает только государство нежити"
+                                                                      : "Осквернённая провинция: доход с ценности получает только государство демонов");
+    a.markUi("province.tradeBlocked");
   }
 
   if (ui::Section s("Ресурс", "resource"); s) resourceSection(a, *p, pc, ro);

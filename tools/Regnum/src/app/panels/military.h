@@ -2,9 +2,10 @@
 //
 // Панели: вкладки фракции «Войска» и «Флот» и полноэкранные таблицы «Войска и флот» (military_faction.cpp),
 // вкладка провинции «Гарнизон» (military_garrison.cpp), выдвижная панель «Войска и флот» (military_drawer.cpp),
-// инспектор войска и флота (army_inspector.cpp). Диалоги: битва (dialogs/battle.cpp), встреча войск
-// (dialogs/encounter.cpp), разделение (dialogs/split.cpp). Инструменты: новое войско и флот (tools_army.cpp),
-// перетаскивание в инструменте выбора (tools.cpp).
+// инспектор войска и флота с верностью, модификаторами и мятежом (army_inspector.cpp). Диалоги: битва
+// (dialogs/battle.cpp), встреча войск (dialogs/encounter.cpp), разделение (dialogs/split.cpp), штурм и захват
+// (dialogs/siege.cpp, dialogs/capture.cpp), судьба героев (dialogs/hero_fate.cpp). Инструменты: новое войско и флот
+// (tools_army.cpp), перетаскивание и штурм в инструменте выбора (tools.cpp).
 #pragma once
 #include "app/app.h"
 #include "app/widgets.h"
@@ -43,7 +44,7 @@ std::string objectName(const Army& a);             // название или «
 Id provinceUnder(const World& w, Vec2 p);          // провинция под точкой карты (0 — нет)
 Id heroLocation(const World& w, Id character, Id skip = 0);   // объект, который сопровождает персонаж
 std::string fmtCount(i64 n);                       // численность: «12 400»
-std::string fmtMoney(double v);                    // содержание: «1 840», «12,5»
+std::string fmtMoney(double v);                    // золото до тысячных: «1 840», «12,5», «0,125»
 // Цвета фигурки объекта: лидер и второй союзник.
 Color leaderColor(const World& w, const Army& a);
 Color allyColor(const World& w, const Army& a);
@@ -68,8 +69,14 @@ void nameCell(RectF r, std::string_view name, std::string_view caption = {});
 void unitCell(RectF r, const UnitRow& row, bool accent = false, std::string_view caption = {});
 
 // ---------------------------------------------------------------- действия и диалоги
-// Битва (ТЗ 1.c.iv): attacker пришёл из origin на позицию defender. done(applied) — после выбора.
-void openBattle(App& a, Id attacker, Id defender, Vec2 origin, std::function<void(App&, bool applied)> done = {});
+// Битва (ТЗ 1.c.iv): attacker пришёл из origin на позицию defender. Мятежники, нападающие на войско прежнего
+// государства с отрицательной верностью, сначала переманивают его неверную часть (ТЗ «Мятеж», п.3). done(applied) —
+// сразу после решения (перетаскивание); after — после всех окон итога (судьба героев, штурм мятежников).
+void openBattle(App& a, Id attacker, Id defender, Vec2 origin, std::function<void(App&, bool applied)> done = {},
+                std::function<void(App&)> after = {});
+// Окна итога битвы или штурма по очереди: уведомление о трупах, «Судьба героев» уничтоженных объектов (пленившее —
+// победитель, захоронение — место боя), штурм или захват победившими мятежниками (rebels; ТЗ «Мятеж», п.2).
+void battleAftermath(App& a, const rules::BattleOutcome& out, bool rebels, std::function<void(App&)> then);
 // Встреча при перетаскивании: объединение, союз, объявление войны. done(accepted) — после выбора.
 void openEncounter(App& a, Id moving, Id target, const rules::Encounter& e, Vec2 origin, std::function<void(App&, bool accepted)> done);
 // Текст диалога союза: какие отряды сложатся с плитками своей фракции в цели, какие займут новые плитки.

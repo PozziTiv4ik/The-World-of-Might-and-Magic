@@ -1,6 +1,6 @@
 // Regnum — персонажи: общие части панели и инспектора. Портреты (чтение файла PNG/JPEG, уменьшение больших,
 // фоновое декодирование и кеш по персонажу и содержимому), роли персонажа (правитель, лорд провинций, совет,
-// войска и флот — ТЗ 1.a.vi, 1.b.iv, 1.c.iii), удаление с подтверждением, поиск карточки кампании (канон).
+// войска и флот — ТЗ 1.a.vi, 1.b.iv, 1.c.iii), состояние героя в подписи, удаление с подтверждением.
 #include <algorithm>
 #include <future>
 
@@ -31,7 +31,6 @@ void askDelete(App& a, Id character);
 void loadPortrait(App& a, Id character);
 bool setPortraitFromFile(App& a, Id character, const std::string& path);
 void askClearPortrait(App& a, Id character);
-std::optional<std::string> findCanonCard(App& a, std::string_view entity, std::string_view name, std::string* foundId);
 std::string positionOf(const World& w, Id faction, Id seat);
 
 // ================================================================ роли
@@ -76,8 +75,9 @@ std::string rolesText(const World& w, const Roles& r) {
   return join(parts, ", ");
 }
 
-// Подпись строки списка: титул и главная роль.
+// Подпись строки списка: состояние героя («Мертв · …», «В плену · …») или титул и главная роль.
 std::string roleLine(const World& w, const Character& c, const Roles& r) {
+  if (std::string st = w::heroState(w, c); !st.empty()) return st;
   std::vector<std::string> parts;
   if (!c.title.empty()) parts.push_back(c.title);
   if (!r.rulerOf.empty()) {
@@ -263,87 +263,6 @@ void askDelete(App& a, Id cid) {
     if (x.act("Удалить персонажа", [&](Tx& tx) { rules::removeCharacter(tx, cid); }) && x.ui.sel == Selection{SelType::Character, cid})
       x.clearSelection();
   });
-}
-
-// ================================================================ карточка кампании (канон)
-namespace {
-
-// Поля карточки: заголовок «# Имя», «id: …», «aliases: [...]».
-struct CardMeta {
-  std::string title, id;
-  std::vector<std::string> aliases;
-};
-CardMeta readCardMeta(const std::string& text) {
-  CardMeta m;
-  size_t pos = 0;
-  int lines = 0;
-  while (pos < text.size() && lines < 60) {
-    size_t e = text.find('\n', pos);
-    std::string_view ln(text.data() + pos, (e == std::string::npos ? text.size() : e) - pos);
-    if (!ln.empty() && ln.back() == '\r') ln.remove_suffix(1);
-    if (m.title.empty() && startsWith(ln, "# ")) m.title = trim(ln.substr(2));
-    if (startsWith(ln, "id:")) m.id = trim(ln.substr(3));
-    if (startsWith(ln, "aliases:")) {
-      std::string v = trim(ln.substr(8));
-      v = replaceAll(replaceAll(replaceAll(v, "[", ""), "]", ""), "\"", "");
-      for (auto& s : split(v, ',')) {
-        std::string t = trim(s);
-        if (!t.empty()) m.aliases.push_back(t);
-      }
-    }
-    if (e == std::string::npos) break;
-    pos = e + 1;
-    lines++;
-  }
-  return m;
-}
-
-// Папки «03_Персонажи» выше папки проекта и рабочей папки.
-std::vector<std::string> cardDirs(App& a) {
-  std::vector<std::string> roots, out;
-  if (!a.projectPath().empty()) roots.push_back(fs::absolute(a.projectPath()));
-  roots.push_back(fs::absolute("."));
-  for (std::string r : roots) {
-    for (int i = 0; i < 8 && !r.empty(); i++) {
-      std::string d = fs::join(r, "03_Персонажи");
-      if (fs::isDir(d) && std::find(out.begin(), out.end(), d) == out.end()) out.push_back(d);
-      std::string p = fs::parent(r);
-      if (p == r) break;
-      r = p;
-    }
-  }
-  return out;
-}
-
-}  // namespace
-
-// Найти карточку по ID (entity) или, если ID пуст, по имени (заголовок, имя файла, псевдонимы).
-std::optional<std::string> findCanonCard(App& a, std::string_view entity, std::string_view name, std::string* foundId) {
-  std::string want = utf8::searchKey(trim(entity));
-  std::string nameKey = utf8::searchKey(trim(name));
-  if (want.empty() && nameKey.empty()) return std::nullopt;
-  for (const std::string& dir : cardDirs(a)) {
-    for (const fs::DirEntry& e : fs::list(dir)) {
-      if (e.dir || !endsWith(e.name, ".md") || startsWith(e.name, "00_")) continue;
-      {
-        auto text = fs::readFile(e.path);
-        if (!text) continue;
-        CardMeta m = readCardMeta(text->substr(0, std::min<size_t>(text->size(), 4096)));
-        bool hit = false;
-        if (!want.empty()) {
-          hit = utf8::searchKey(m.id) == want;
-        } else {
-          hit = utf8::searchKey(m.title) == nameKey || utf8::searchKey(replaceAll(fs::stem(e.name), "_", " ")) == nameKey;
-          for (auto& al : m.aliases) hit = hit || utf8::searchKey(al) == nameKey;
-        }
-        if (hit) {
-          if (foundId) *foundId = m.id;
-          return e.path;
-        }
-      }
-    }
-  }
-  return std::nullopt;
 }
 
 }  // namespace rg::app::chars

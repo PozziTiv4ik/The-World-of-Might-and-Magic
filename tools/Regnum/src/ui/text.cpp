@@ -400,6 +400,7 @@ EditResult editProcess(TextEdit& te, const EditParams& p, const Interaction& it,
     Vec2 o = originOf(te, p);
     gfx::Pt cp = gfx::caretPos(L, te.caret);
     c.textInput = RectF{float(o.x) + cp.x, float(o.y) + cp.y, 1, std::max(1.f, L.lineHeight)};
+    c.textFocus = wid;
     c.caretBlink = c.time - c.lastInputTime < 10;
   }
   return res;

@@ -93,10 +93,17 @@ TEST(app_tools_route_create_edit_delete) {
   const std::vector<Vec2> made = rt->pts;
   const Faction* g = h->world().faction(rt->guild);
   CHECK(g != nullptr && g->isGuild());
-  // +10 % базовой ценности каждой провинции на пути (ТЗ 1.d.v).
+  // +10 % базовой ценности каждой провинции на пути (ТЗ 1.d.v) и ещё +2,5 % за каждое государство на пути
+  // (ТЗ «Общие доработки», п.8).
+  std::vector<Id> states;
+  for (Id p : geo::faces(h->world())->provincesOnPolyline(made))
+    if (const Province* pr = h->world().province(p); pr && !pr->sea)
+      if (const Faction* o = h->world().faction(pr->owner); o && o->isState() && std::find(states.begin(), states.end(), o->id) == states.end())
+        states.push_back(o->id);
+  const double bonus = schema::kRouteBonus + schema::kRouteStateBonus * double(states.size());
   for (size_t i = 0; i < ch.size(); i++) {
     double base = h->world().province(ch[i])->baseTrade;
-    CHECK_NEAR(tradeValue(h->world(), ch[i]) - before[i], base * schema::kRouteBonus, 1e-6);
+    CHECK_NEAR(tradeValue(h->world(), ch[i]) - before[i], base * bonus, 1e-6);
   }
   CHECK(h->uiRect("route.stats") != nullptr);
   CHECK(h->uiRect("route.provinces") != nullptr);

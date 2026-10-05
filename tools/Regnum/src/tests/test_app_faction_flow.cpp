@@ -2,6 +2,7 @@
 // редактор флага (узор, эмблема, изображение PNG/JPEG, ввод пути без системных диалогов), симметричные отношения,
 // совет, налог и запасы ресурсов, государственная гильдия и закреплённое государство, удаление с очисткой ссылок,
 // штабы гильдии, герои, модификаторы, дань, режим только для чтения. Каждое изменение проверяется и отменой.
+#include "app/widgets.h"
 #include "tests/test_app_faction_util.h"
 #include "tests/test_codec_util.h"
 
@@ -200,7 +201,7 @@ TEST(app_faction_flag_editor) {
   CHECK(h->world().faction(st)->flag.image);
 }
 
-// ---------------------------------------------------------------- отношения (ТЗ 1.b.vi)
+// ---------------------------------------------------------------- отношения (ТЗ 1.b.vi; «Механика войн», п.2)
 TEST(app_faction_relations_symmetric) {
   HideTestRegs regs;
   Harness h("faction_relations");
@@ -216,16 +217,19 @@ TEST(app_faction_relations_symmetric) {
   h->world().factions.each([&](const Faction& f) {
     if (f.id != a) CHECK(h->uiRect("dip.row." + std::to_string(f.id)) != nullptr);
   });
+  // «В войне» отсюда — объявление войны: отношения −25 (ТЗ 1.c.iv), запись хроники.
   CHECK(clickIn(h, "dip.status." + std::to_string(b)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
   h.step();
   CHECK(h->world().relation(a, b).s == RelStatus::War);
+  CHECK_NEAR(h->world().relation(a, b).v, schema::kWarRelation, 1e-9);
   CHECK(typeNumber(h, "dip.value." + std::to_string(b), "-40"));
   CHECK_NEAR(h->world().relation(a, b).v, -40, 1e-9);
   CHECK(h.shot("faction_diplomacy_war_a"));
-  // Вкладка другой стороны показывает то же самое.
+  // Вкладка другой стороны показывает то же самое; состояние заблокировано, есть «Заключить перемирие».
   openTab(h, b, "faction.diplomacy");
   CHECK(h->uiRect("dip.status." + std::to_string(a)) != nullptr);
+  CHECK(h->uiRect("dip.truce." + std::to_string(a)) != nullptr);
   bool seen = false;
   for (auto& r : rules::relationsOf(h->world(), b))
     if (r.other == a) {
@@ -235,10 +239,26 @@ TEST(app_faction_relations_symmetric) {
     }
   CHECK(seen);
   CHECK(h.shot("faction_diplomacy_war_b"));
-  // Изменение со стороны B — союз; видно у A.
+  // Щелчок по заблокированному состоянию меню не открывает; правило тоже отказывает.
   CHECK(clickIn(h, "dip.status." + std::to_string(a)));
-  CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::Alliance))));
-  h.step();
+  CHECK(h->uiRect("status.item." + std::to_string(int(RelStatus::Alliance))) == nullptr);
+  CHECK(h->world().relation(b, a).s == RelStatus::War);
+  CHECK(!h->act("Союз", [&](Tx& tx) { rules::setRelation(tx, b, a, -40, RelStatus::Alliance); }));
+  // Перемирие со стороны B: итог — союз; видно у A, значение отношений прежнее.
+  CHECK(clickIn(h, "dip.truce." + std::to_string(a)));
+  h.settle();
+  CHECK(h->hasDialog("truce"));
+  {
+    const RectF* st = h->uiRect("truce.status");
+    CHECK(st != nullptr);
+    if (st) {
+      RectF r = *st;
+      h.click(r.x + r.w * 0.5f, r.cy());   // «В союзе» — средний из трёх
+    }
+  }
+  CHECK(h.clickUi("truce.ok"));
+  h.settle();
+  CHECK(!h->hasDialog("truce"));
   CHECK(h->world().relation(b, a).s == RelStatus::Alliance);
   CHECK_NEAR(h->world().relation(a, b).v, -40, 1e-9);
   // Фильтр «Гильдии» скрывает государства.
@@ -536,13 +556,13 @@ TEST(app_faction_heroes_and_modifiers) {
   h->undo();
   h.step();
   CHECK_EQ(heroes(), n0 + 1);
-  // Модификатор фракции из выбора: добавляется в список и меняет эффекты.
+  // Модификатор фракции из выбора (вид «Везде» или глобальный, не автоматический): добавляется в список.
   openTab(h, a, "faction.modifiers");
   const size_t m0 = h->world().faction(a)->modifiers.size();
   std::string mname;
   h->world().modifiers.each([&](const Modifier& m) {
-    if (mname.empty() && std::find(h->world().faction(a)->modifiers.begin(), h->world().faction(a)->modifiers.end(), m.id) ==
-                             h->world().faction(a)->modifiers.end())
+    if (mname.empty() && app::w::modifierFits(m, app::w::ModScope::Faction) &&
+        std::find(h->world().faction(a)->modifiers.begin(), h->world().faction(a)->modifiers.end(), m.id) == h->world().faction(a)->modifiers.end())
       mname = m.name;
   });
   CHECK(!mname.empty());
@@ -647,17 +667,23 @@ TEST(app_faction_overview_fields) {
   h.step();
   CHECK_EQ(h->world().faction(a)->rulerTitle, std::string("Верховный консул"));
 
-  // Правитель — выбор персонажа (поиск по имени).
+  // Правитель — выбор персонажа: «Не назначен», затем доступные герои этого государства по алфавиту (ТЗ «Фиксы», п.9).
   Id candidate = 0;
-  std::string cname;
+  std::vector<const Character*> pool;
   h->world().characters.each([&](const Character& c) {
-    if (!candidate && c.faction == a && c.id != h->world().faction(a)->ruler && !c.name.empty()) {
-      candidate = c.id;
-      cname = c.name;
-    }
+    if (c.faction == a && rules::heroAvailable(h->world(), c.id)) pool.push_back(&c);
+    if (!candidate && c.faction == a && c.id != h->world().faction(a)->ruler && !c.name.empty()) candidate = c.id;
   });
   CHECK(candidate != 0);
-  CHECK(pickInCombo(h, "overview.ruler", cname));
+  std::sort(pool.begin(), pool.end(), [](const Character* x, const Character* y) { return compareRu(x->name, y->name) < 0; });
+  size_t at = 0;
+  while (at < pool.size() && pool[at]->id != candidate) at++;
+  CHECK(at < pool.size());
+  CHECK(clickIn(h, "overview.ruler"));
+  h.key(Key::PageUp);
+  for (size_t k = 0; k <= at; k++) h.key(Key::Down);
+  h.key(Key::Enter);
+  h.step();
   CHECK_EQ(h->world().faction(a)->ruler, candidate);
 
   // Новая форма правления: «Добавить…» → название → запись создана и назначена одним действием.

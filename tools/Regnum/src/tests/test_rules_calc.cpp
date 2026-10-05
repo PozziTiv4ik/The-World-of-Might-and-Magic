@@ -187,21 +187,21 @@ TEST(rules_calc_trade_value_routes_and_modifiers) {
   CHECK_NEAR(f.pc(f.p[3]).tradeValue, 0, 1e-9);  // не меньше нуля
   CHECK_NEAR(f.pc(f.p[3]).tradeBase, 10, 1e-9);
 
-  // Маршрут через p0 и p1.
+  // Маршрут через p0 и p1: +10 % и +2,5 % за государство на пути (оба — «Арден»).
   f.tx([&](Tx& tx) { createRoute(tx, {center(0), center(1)}); });
   CHECK_EQ(f.pc(f.p[0]).routes, 1);
-  CHECK_NEAR(f.pc(f.p[0]).tradeValue, 100 * 1.4 + 15, 1e-9);
-  CHECK_NEAR(f.pc(f.p[1]).tradeValue, 120, 1e-9);
+  CHECK_NEAR(f.pc(f.p[0]).tradeValue, 100 * 1.425 + 15, 1e-9);
+  CHECK_NEAR(f.pc(f.p[1]).tradeValue, 122.5, 1e-9);
   CHECK_EQ(f.pc(f.p[2]).routes, 0);
   // Второй маршрут возвращается в p0: провинция считается один раз на маршрут.
   f.tx([&](Tx& tx) { createRoute(tx, {center(0), center(1), {210, 250}}); });
   CHECK_EQ(f.pc(f.p[0]).routes, 2);
   CHECK_EQ(f.pc(f.p[1]).routes, 2);
-  CHECK_NEAR(f.pc(f.p[0]).tradeValue, 100 * 1.5 + 15, 1e-9);
+  CHECK_NEAR(f.pc(f.p[0]).tradeValue, 100 * 1.55 + 15, 1e-9);
   // Маршрут целиком внутри p2 (начало и конец в провинции).
   f.tx([&](Tx& tx) { createRoute(tx, {{560, 160}, {640, 240}}); });
   CHECK_EQ(f.pc(f.p[2]).routes, 1);
-  CHECK_NEAR(f.pc(f.p[2]).tradeValue, 120, 1e-9);
+  CHECK_NEAR(f.pc(f.p[2]).tradeValue, 122.5, 1e-9);
   auto c = calc(f.w());
   CHECK_EQ(c->routeCounts.at(f.p[0]), 2);
   CHECK(c->routeCounts.count(f.p[5]) == 0);

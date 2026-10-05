@@ -1,7 +1,8 @@
 // Regnum — окно справочников: ресурсы, расы, культуры, религии, формы правления, должности.
 // Таблицы с правкой названия, цвета и значка (ресурсы), добавлением, удалением через rules::removeCatalogItem
 // (с предупреждением о местах использования; «Золото» и встроенные записи закреплены), числом использований
-// и карточкой выбранной записи со ссылками. Быстрый доступ — выдвижная панель «Справочники» и команда палитры.
+// и карточкой выбранной записи со ссылками; у должности — модификаторы занятой и пустующей должности (ТЗ «Общие
+// доработки», п.4–5). Быстрый доступ — выдвижная панель «Справочники» и команда палитры.
 #include <algorithm>
 
 #include "app/app_internal.h"
@@ -402,6 +403,29 @@ void drawTable(App& a, EdState& st, const ListDef& d, std::vector<Row>& rows, fl
   if (selIdx != selBefore && selIdx >= 0 && selIdx < int(rows.size())) st.sel[size_t(st.tab)] = rows[size_t(selIdx)].item->id;
 }
 
+// ---------------------------------------------------------------- должность: модификаторы
+// Глобальные модификаторы занятой и пустующей должности (ТЗ «Общие доработки», п.4–5): действуют для государства,
+// пока в его совете должность занята (или пустует). Предлагаются модификаторы видов «Везде» и «Глобальный».
+void positionMods(App& a, const CatalogItem& c) {
+  const Id id = c.id;
+  const bool ro = a.readOnly();
+  auto field = [&](const char* title, const char* icon, const std::string& mark, bool vacant) {
+    const std::vector<Id>& cur = vacant ? c.vacantModifiers : c.modifiers;
+    ui::Section sec(title, icon, {.badge = std::to_string(cur.size())});
+    if (!sec) return;
+    std::vector<Id> ids = cur;
+    bool changed = w::modifierList(mark, ids, ro, w::ModScope::Faction);
+    a.markUi(mark);   // поле добавления — последний элемент списка
+    if (changed)
+      a.act(vacant ? "Модификатор отсутствия должности" : "Модификатор должности", [&](Tx& tx) {
+        for (CatalogItem& x : tx.catalogs().positions)
+          if (x.id == id) (vacant ? x.vacantModifiers : x.modifiers) = ids;
+      });
+  };
+  field("Модификатор должности", "council", "catalogs.position.mods", false);
+  field("Модификатор отсутствия должности", "user", "catalogs.position.vacant", true);
+}
+
 // ---------------------------------------------------------------- карточка записи
 void drawCard(App& a, EdState& st, const ListDef& d, const Row& row) {
   const World& w = a.world();
@@ -470,6 +494,7 @@ void drawCard(App& a, EdState& st, const ListDef& d, const Row& row) {
         break;
     }
   }
+  if (d.list == CatalogList::Positions) positionMods(a, c);
   // Где используется.
   {
     std::string badge = std::to_string(u.total());

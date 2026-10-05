@@ -8,6 +8,20 @@ namespace rg::app::prov {
 
 using platform::Key;
 
+// ---------------------------------------------------------------- мир кадра
+// Копия мира на время кадра: указатели на записи не повиснут, если вкладка в том же кадре вызовет act() (правки со
+// слиянием отмены освобождают промежуточные версии мира).
+const World& frameWorld(App& a) {
+  static std::vector<std::unique_ptr<World>> keep;
+  static u64 frame = ~0ull;
+  if (ui::frameIndex() != frame) {
+    keep.clear();
+    frame = ui::frameIndex();
+  }
+  keep.push_back(std::make_unique<World>(a.world()));
+  return *keep.back();
+}
+
 // ---------------------------------------------------------------- подписи и числа
 std::string provinceTitle(const Province& p) {
   if (!p.name.empty()) return p.name;
@@ -18,6 +32,9 @@ std::string num(double v) { return fmtNum(v, std::fabs(v - std::round(v)) > 1e-6
 std::string pct(double v, bool sign = false) { return fmtPct(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0, sign); }
 std::string signedNum(double v) { return fmtSigned(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0); }
 std::string popText(double v) { return v >= 1e6 ? fmtShort(v) : fmtNum(v); }
+// Золото — до тысячных (ТЗ «Фиксы», п.13).
+std::string gold(double v) { return fmtNum(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
+std::string goldSigned(double v) { return fmtSigned(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
 
 const char* sourceIcon(rules::EffectSource::Kind k) {
   switch (k) {
@@ -26,6 +43,8 @@ const char* sourceIcon(rules::EffectSource::Kind k) {
     case rules::EffectSource::Tech: return "tech";
     case rules::EffectSource::Building: return "building";
     case rules::EffectSource::Guild: return "guild";
+    case rules::EffectSource::Army: return "army";
+    case rules::EffectSource::Auto: return "lock";
   }
   return "sparkles";
 }
@@ -37,8 +56,17 @@ const char* sourceKind(rules::EffectSource::Kind k) {
     case rules::EffectSource::Tech: return "Технология";
     case rules::EffectSource::Building: return "Постройка";
     case rules::EffectSource::Guild: return "Гильдия";
+    case rules::EffectSource::Army: return "Войско";
+    case rules::EffectSource::Auto: return "Автоматически";
   }
   return "";
+}
+
+// Модификатор источника: запись мира или (у автоматического без записи) встроенный шаблон.
+const Modifier* sourceMod(const World& wd, const rules::EffectSource& s) {
+  if (s.modifier) return wd.modifier(s.modifier);
+  if (s.kind == rules::EffectSource::Auto && !s.key.empty()) return rules::builtinMod(wd, s.key);
+  return nullptr;
 }
 
 std::string sourceName(const World& wd, const rules::EffectSource& s) {
@@ -52,6 +80,12 @@ std::string sourceName(const World& wd, const rules::EffectSource& s) {
     case rules::EffectSource::Building:
       if (const Building* b = wd.building(s.id)) return b->name.empty() ? std::string("Постройка") : b->name;
       return "Постройка";
+    case rules::EffectSource::Army:
+      if (const Army* x = wd.army(s.id)) return !x->name.empty() ? x->name : std::string(x->isFleet() ? "Флот" : "Войско");
+      return "Войско";
+    case rules::EffectSource::Auto:
+      if (const Modifier* m = sourceMod(wd, s)) return m->name.empty() ? std::string("Модификатор") : m->name;
+      return "Модификатор";
   }
   return {};
 }
@@ -89,12 +123,12 @@ void breakdown(std::string_view title, const std::vector<TipLine>& lines, float 
 // («Торговый тракт · +10 %» → «+1,1»), без базы — процентами; количественный — числом.
 void effectLines(const World& wd, const rules::Effects& fx, Fx f, bool percent, std::vector<TipLine>& out, double ofBase = -1) {
   for (const rules::EffectSource& s : fx.sources) {
-    const Modifier* m = wd.modifier(s.modifier);
+    const Modifier* m = sourceMod(wd, s);
     if (!m || !m->has(f)) continue;
     double v = m->get(f);
     if (v == 0 || !std::isfinite(v)) continue;
     std::string who = m->name.empty() ? std::string("Модификатор") : m->name;
-    if (s.kind != rules::EffectSource::Province) who += " · " + sourceName(wd, s);
+    if (s.kind != rules::EffectSource::Province && s.kind != rules::EffectSource::Auto) who += " · " + sourceName(wd, s);
     ui::Tone tone = w::effectGood(f, v) ? ui::Tone::Success : ui::Tone::Danger;
     if (percent && ofBase >= 0) out.push_back({who + " · " + pct(v, true), signedNum(ofBase * v / 100), tone});
     else out.push_back({who, percent ? pct(v, true) : signedNum(v), tone});
@@ -112,14 +146,19 @@ std::vector<TipLine> rebellionLines(const World& wd, const Province& p, const ru
   return L;
 }
 
+// Прибавка маршрутов к торговой ценности: +10 % базы за маршрут и ещё +2,5 % за каждое государство на его пути.
+double routeAdd(const rules::ProvinceCalc& pc) {
+  if (pc.routes <= 0) return 0;
+  double rest = std::max(0.0, pc.tradeBase * (1.0 + pc.fx[Fx::TradePct] / 100.0) + pc.fx[Fx::TradeFlat]);
+  return std::max(0.0, pc.tradeValue - rest);
+}
+double routePct(const rules::ProvinceCalc& pc) { return pc.tradeBase > 0 ? routeAdd(pc) / pc.tradeBase * 100.0 : 0.0; }
+
 std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc) {
   std::vector<TipLine> L;
   L.push_back({"Базовая ценность", num(pc.tradeBase)});
   effectLines(wd, pc.fx, Fx::TradePct, true, L, pc.tradeBase);
-  if (pc.routes > 0) {
-    double add = pc.tradeBase * schema::kRouteBonus * pc.routes;
-    L.push_back({"Маршруты: " + fmtNum(pc.routes) + " × 10 %", signedNum(add), ui::Tone::Success});
-  }
+  if (pc.routes > 0) L.push_back({"Маршруты: " + fmtNum(pc.routes) + " · " + pct(routePct(pc), true), signedNum(routeAdd(pc)), ui::Tone::Success});
   effectLines(wd, pc.fx, Fx::TradeFlat, false, L);
   L.push_back({"Текущая ценность", num(pc.tradeValue), ui::Tone::Neutral, true});
   (void)p;

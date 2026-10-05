@@ -101,7 +101,8 @@ std::string checkInvariants(const World& w) {
   w.techs.each([&](const Tech& t) {
     upd(Seq::Tech, t.id);
     if (!w.faction(t.faction)) bad("технология без фракции");
-    if (t.turns < 1 || t.progress < 0 || t.progress > t.turns || (t.studied && t.research)) bad("технология: ходы");
+    // Пройдено ходов исследования — до 1000: с модификатором времени исследования срок может быть больше turns.
+    if (t.turns < 1 || t.progress < 0 || t.progress > 1000 || (t.studied && t.research)) bad("технология: ходы");
     if (!uniq(t.prereqs)) bad("повтор условия");
     for (Id p : t.prereqs) if (!w.tech(p) || w.tech(p)->faction != t.faction || p == t.id) bad("условие технологии");
   });
@@ -408,7 +409,7 @@ TEST(io_normalize_in_memory) {
   tx.faction(1).flag.png = "not a png";
   tx.modifier(2).fxMask |= 1u << 30;
   tx.modifier(2).fx[int(Fx::IncomePct)] = 7;  // значение без бита
-  tx.tech(2).progress = 50;
+  tx.tech(2).progress = 5000;   // больше 1000 ходов исследования
   tx.tech(1).research = true;
   tx.meta().seq[int(Seq::Log)] = 0;
   tx.catalogs().resources[0].builtin = false;
@@ -437,7 +438,7 @@ TEST(io_normalize_in_memory) {
   CHECK(w.faction(1)->flag.png.empty() && !w.faction(1)->flag.image);
   CHECK_EQ(w.modifier(2)->fxMask, 1u << int(Fx::PopGrowthPct));
   CHECK_EQ(w.modifier(2)->fx[int(Fx::IncomePct)], 0.0);
-  CHECK_EQ(w.tech(2)->progress, 5);
+  CHECK_EQ(w.tech(2)->progress, 1000);
   CHECK(!w.tech(1)->research);
   CHECK_EQ(w.meta->seq[int(Seq::Log)], 5u);
   CHECK(w.resource(kGold)->builtin);

@@ -1,6 +1,7 @@
-// Regnum — торговля в панелях: вкладка фракции «Торговля» (государства и гильдии, ТЗ 1.b.vii, 1.d.iii) — доходы
-// и расходы по сделкам и дани, сделки фракции, «Новая сделка» с заполненной стороной, дань; выдвижная панель
-// «Торговля» на ленте разделов — активные сделки всего мира и вход в редактор.
+// Regnum — переговоры и торговля в панелях: вкладка фракции «Переговоры и торговля» (государства и гильдии,
+// ТЗ 1.b.vii, 1.d.iii; «Механика героев», п.2) — доходы и расходы по сделкам и дани, сделки фракции, «Новая сделка»
+// с заполненной стороной, дань; выдвижная панель «Переговоры и торговля» на ленте разделов — активные сделки всего
+// мира и вход в окно.
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
 #include "app/editors/trade.h"
@@ -27,9 +28,9 @@ void drawTab(App& a, Id fid) {
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
     std::string tt = fc ? "Поступления " + turnui::money(fc->incTrade) + ", выплаты " + turnui::money(fc->expTrade) : std::string();
-    ui::stat(fmtSigned(trade), "Торговля за ход", {.icon = "trade", .tone = trade < 0 ? ui::Tone::Danger : ui::Tone::Success, .tooltip = tt});
+    ui::stat(fmtSigned(trade, 3), "Торговля за ход", {.icon = "trade", .tone = trade < 0 ? ui::Tone::Danger : ui::Tone::Success, .tooltip = tt});
     std::string tb = fc ? "Получаем " + turnui::money(fc->incTribute) + ", платим " + turnui::money(fc->expTribute) : std::string();
-    ui::stat(fmtSigned(trib), "Дань за ход", {.icon = "tribute", .tone = trib < 0 ? ui::Tone::Danger : ui::Tone::Warning, .tooltip = tb});
+    ui::stat(fmtSigned(trib, 3), "Дань за ход", {.icon = "tribute", .tone = trib < 0 ? ui::Tone::Danger : ui::Tone::Warning, .tooltip = tb});
   }
   {
     ui::Disabled dis(a.readOnly());
@@ -55,7 +56,7 @@ void drawTab(App& a, Id fid) {
     size_t n = std::min<size_t>(done.size(), 30);
     for (size_t i = 0; i < n; i++) trade::dealCard(a, w, *done[i], {.perspective = fid});
     if (done.size() > n) {
-      if (ui::link("Все сделки — в редакторе торговли", "trade")) a.openEditor("trade", fid);
+      if (ui::link("Все сделки — в окне переговоров и торговли", "trade")) a.openEditor("trade", fid);
     }
   }
 }
@@ -68,7 +69,7 @@ int tabBadge(App& a, Id fid) {
   return n;
 }
 
-TabReg tab({"faction.trade", "trade", "Торговля", 45, SelType::Faction, nullptr, drawTab, tabBadge});
+TabReg tab({"faction.trade", "trade", "Переговоры и торговля", 45, SelType::Faction, nullptr, drawTab, tabBadge});
 
 // ---------------------------------------------------------------- выдвижная панель
 void drawDrawer(App& a) {
@@ -92,7 +93,7 @@ void drawDrawer(App& a) {
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
     ui::stat(std::to_string(active), "Активных", {.icon = "handshake", .tone = ui::Tone::Accent});
-    ui::stat(fmtNum(gold), "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success});
+    ui::stat(fmtNum(gold, 3), "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success});
   }
   {
     ui::HStack hs(24, ui::Align::Left, 6);
@@ -116,7 +117,7 @@ void drawDrawer(App& a) {
   }
 }
 
-DrawerReg drawer({"trade", "trade", "Торговля", 60, drawDrawer});
+DrawerReg drawer({"trade", "trade", "Переговоры и торговля", 60, drawDrawer});
 
 }  // namespace
 }  // namespace rg::app

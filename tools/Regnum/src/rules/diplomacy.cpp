@@ -6,14 +6,18 @@ namespace rg::rules {
 using namespace detail;
 
 void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
-  needFaction(tx.w(), a);
-  needFaction(tx.w(), b);
+  const Faction& fa = needFaction(tx.w(), a);
+  const Faction& fb = needFaction(tx.w(), b);
   if (a == b) fail("Отношения фракции с самой собой не задаются");
   needFinite(value, "Отношения");
   if (int(status) < 0 || int(status) > 3) fail("Неизвестное состояние отношений");
   Relation old = tx.w().relation(a, b);
   Relation nr{clamp(value, -100.0, 100.0), status};
   if (old == nr) return;
+  // ТЗ «Механика войн», п.2: войну государств завершает только перемирие (rules::concludeTruce — только между
+  // государствами); война с участием гильдии меняется как прежде.
+  if (old.s == RelStatus::War && status != RelStatus::War && fa.isState() && fb.isState())
+    fail("Войну " + facName(tx.w(), a) + " и " + facName(tx.w(), b) + " можно завершить только перемирием");
   tx.setRelation(a, b, nr);
   if (old.s != status)
     addLog(tx, status == RelStatus::War ? LogKind::War : LogKind::Diplomacy,
@@ -21,6 +25,13 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
            LogRefs{0, 0, {a, b}});
   // Союзное войско существует только между союзниками (ТЗ 1.c.iv): конец союза распускает общие объекты.
   if (status != RelStatus::Alliance) splitBrokenAlliances(tx, a, b);
+}
+
+void shiftRelation(Tx& tx, Id a, Id b, double delta) {
+  if (!a || !b || a == b || !tx.w().faction(a) || !tx.w().faction(b) || delta == 0) return;
+  Relation r = tx.w().relation(a, b);
+  r.v = clamp(r.v + delta, -100.0, 100.0);
+  tx.setRelation(a, b, r);
 }
 
 std::vector<RelationRow> relationsOf(const World& w, Id faction) {

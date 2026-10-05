@@ -92,6 +92,25 @@ inline bool cropShot(const std::string& name, RectF r, int k = 2) {
   return codec::writePngFile(test::outDir() + "/app_" + name + ".png", img, 6);
 }
 
+// Прокрутить инспектор колесом, пока элемент не окажется в его видимой части (true — виден).
+// Элемент ещё не построен (строки таблиц ниже видимой части не строятся) — сначала вниз, затем вверх.
+inline bool reveal(Harness& h, const std::string& mark) {
+  h.settle();   // прокрутка к новой карточке (scrollToItem) идёт плавно — дождаться её
+  for (int i = 0; i < 60; i++) {
+    const RectF* r = h->uiRect(mark);
+    const RectF* insp = h->uiRect("inspector");
+    if (!insp) return r != nullptr;
+    // Видимая часть — под полосой вкладок; ещё 44 точки — на закреплённую шапку таблицы.
+    const RectF* tabs = h->uiRect("inspector.tabs");
+    const float top = (tabs ? tabs->bottom() : insp->y + 160) + 44;
+    if (r && r->y >= top && r->bottom() <= insp->bottom() - 12) return true;
+    const float dir = r ? (r->y < top ? 2.f : -2.f) : (i < 30 ? -2.f : 2.f);
+    h.wheel(insp->cx(), insp->cy() + 60, dir);
+    h.settle();
+  }
+  return false;
+}
+
 // Показать точку карты в центре видимой части с масштабом zoom и дождаться камеры.
 inline void showAt(Harness& h, Vec2 p, double zoom) {
   h->focusMap(p, zoom);

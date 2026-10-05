@@ -45,7 +45,7 @@ void shotClean(Harness& h, const std::string& name) {
 struct Pair {
   Id a = 0, b = 0;
   std::string na, nb;
-  Id res = 0;   // ресурс, который есть у обеих сторон (не золото)
+  Id res = 0;   // ресурс, который есть у обеих сторон (не золото и не провизия: её едят жители — запас уходит в минус)
   std::string rn;
 };
 
@@ -60,8 +60,9 @@ Pair twoStates(const World& w) {
   p.b = st[1]->id;
   p.na = st[0]->name;
   p.nb = st[1]->name;
+  const Id prov = rules::resourceId(w, schema::kResProvisions);
   for (auto& [r, v] : st[0]->res)
-    if (r != kGold && v >= 60 && st[1]->stock(r) >= 60 && !p.res) p.res = r;
+    if (r != kGold && r != prov && v >= 60 && st[1]->stock(r) >= 60 && !p.res) p.res = r;
   if (const CatalogItem* c = w.resource(p.res)) p.rn = c->name;
   return p;
 }
@@ -165,13 +166,14 @@ TEST(app_trade_per_turn_lifecycle_and_cancel) {
   auto c0 = rules::calc(h->store.world());
   CHECK(c0->faction(p.a)->incTrade >= 30 - 1e-9);
   CHECK(c0->faction(p.b)->expTrade >= 30 - 1e-9);
-  // Два хода: ресурс передаётся после добычи, остаток уменьшается, затем «выполнена».
+  // Два хода: ресурс передаётся после добычи (и расхода: провизию едят жители государства живых), остаток
+  // уменьшается, затем «выполнена».
   for (int turn = 0; turn < 2; turn++) {
     World w = h->store.world();
     auto c = rules::calc(w);
     double prodA = 0, prodB = 0;
-    if (auto it = c->faction(p.a)->resources.find(p.res); it != c->faction(p.a)->resources.end()) prodA = it->second.production;
-    if (auto it = c->faction(p.b)->resources.find(p.res); it != c->faction(p.b)->resources.end()) prodB = it->second.production;
+    if (auto it = c->faction(p.a)->resources.find(p.res); it != c->faction(p.a)->resources.end()) prodA = it->second.production - it->second.consumption;
+    if (auto it = c->faction(p.b)->resources.find(p.res); it != c->faction(p.b)->resources.end()) prodB = it->second.production - it->second.consumption;
     CHECK(h->endTurnNow());
     h.settle();
     const World& w2 = h->store.world();

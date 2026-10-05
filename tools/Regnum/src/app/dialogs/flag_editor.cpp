@@ -1,7 +1,8 @@
 // Regnum — диалог «Флаг» (ТЗ 1.b.iv: флаг государства и гильдии): живой предпросмотр (крупно и в размерах списков),
-// сетка узоров (все FlagPattern мини-флагами), три цвета и цвет эмблемы (геральдическая палитра), сетка эмблем с
-// русскими названиями и «без эмблемы», загрузка изображения PNG/JPEG (системный диалог, без него — ввод пути;
-// хранится как PNG в Flag::png), сброс к узору. Применение — одним действием (Ctrl+Z отменяет).
+// сетка узоров (все FlagPattern мини-флагами), три цвета и цвет эмблемы (геральдическая палитра), эмблемы по группам
+// каталога в прокручиваемой области (подсказка — название, первая ячейка — «без эмблемы»), загрузка изображения
+// PNG/JPEG (системный диалог, без него — ввод пути; хранится как PNG в Flag::png), сброс к узору. Применение — одним
+// действием (Ctrl+Z отменяет).
 #include "app/panels/faction_common.h"
 #include "base/fs.h"
 #include "codec/jpeg.h"
@@ -105,6 +106,7 @@ class FlagEditor final : public Dialog {
   bool draw(App& a) override {
     if (!a.world().faction(id_)) return false;   // фракцию удалили (например, отменой)
     const ui::Theme& t = ui::theme();
+    const float top0 = ui::avail().y;   // начало содержимого окна (для высоты области эмблем)
     Flag& fl = st_->flag;
     const bool img = fl.image && !fl.png.empty();
 
@@ -194,39 +196,86 @@ class FlagEditor final : public Dialog {
     }
     ui::spacer(4);
 
-    // Эмблемы.
+    // Эмблемы: группы блоками (подпись и ячейки) в прокручиваемой области; первая ячейка — «без эмблемы».
     {
-      const auto& names = gfx::emblemNames();
-      const int n = int(names.size()) + 1;   // первая — «без эмблемы»
-      const float cs = 44, gap = 6;
-      float W = ui::avail().w;
-      int perRow = std::max(1, int((W + gap) / (cs + gap)));
-      int rows = (n + perRow - 1) / perRow;
+      const auto& groups = gfx::emblemGroups();
+      const float cs = 42, gap = 6, capH = 18, blockGap = 20, rowGap = 8;
       std::string cur = fl.emblem.empty() ? std::string("без эмблемы") : std::string(gfx::emblemTitle(fl.emblem));
-      int hovered = -1;
+      std::string hoveredTitle;
       RectF capR = ui::next(18);
-      RectF area = ui::next(rows * cs + (rows - 1) * gap);
-      for (int i = 0; i < n; i++) {
-        ui::IdScope s{i};
-        RectF r{area.x + float(i % perRow) * (cs + gap), area.y + float(i / perRow) * (cs + gap), cs, cs};
-        std::string nm = i == 0 ? std::string() : names[size_t(i - 1)];
-        std::string title = i == 0 ? std::string("Без эмблемы") : std::string(gfx::emblemTitle(nm));
-        bool sel = fl.emblem == nm;
-        CellHit h = cell("emb", r, title, !img && sel, img);
-        if (h.hovered) hovered = i;
-        RectF in = r.inset(5);
-        ui::draw::rect(in, emblemGround(fl), 5);
-        if (i == 0) {
-          ui::draw::line(in.x + 6, in.bottom() - 6, in.right() - 6, in.y + 6, fl.emblemColor.alpha(0.85f), 2);
-        } else {
-          Color ec = fl.emblemColor;
-          ui::custom(in.inset(3), [nm, ec](gfx::Canvas& c, RectF d, float) { gfx::drawEmblem(c, nm, d, ec); });
+      // Высота области: классические целиком и начало следующих групп; окно флага не выше экрана (шапка 74, подвал 86).
+      const float above = ui::avail().y - top0;
+      const float viewH = std::clamp(ui::viewport().h - 32 - 74 - 86 - above, capH + cs + 4, 2 * capH + 3 * (cs + gap) + rowGap + 30);
+      {
+        ui::Scroll sc("emblems", viewH);
+        const float W = ui::avail().w;
+        const int fit = std::max(1, int((W + gap) / (cs + gap)));
+        // Блоки групп слева направо с переносом; группа шире области — на всю ширину в несколько строк.
+        struct Block {
+          float x, y;
+          int n, perRow;
+        };
+        std::vector<Block> blocks;
+        float bx = 0, by = 0, rowH = 0;
+        for (size_t gi = 0; gi < groups.size(); gi++) {
+          const int n = int(groups[gi].names.size()) + (gi == 0 ? 1 : 0);
+          const int perRow = std::min(n, fit), rows = (n + perRow - 1) / perRow;
+          const float bw = float(perRow) * (cs + gap) - gap, bh = capH + float(rows) * (cs + gap) - gap;
+          if (bx > 0 && bx + bw > W + 0.5f) {
+            bx = 0;
+            by += rowH + rowGap;
+            rowH = 0;
+          }
+          blocks.push_back({bx, by, n, perRow});
+          bx += bw + blockGap;
+          rowH = std::max(rowH, bh);
         }
-        if (img) ui::draw::rect(r, t.surface2.alpha(0.55f), 8);
-        if (h.clicked) fl.emblem = nm;
-        a.markUi("flag.emblem." + (i == 0 ? std::string("none") : nm), r);
+        const RectF area = ui::next(by + rowH);
+        const float off = sc.offset(), vis0 = off - 2, vis1 = off + viewH + 2;   // видимая полоса от начала области
+        bool anyFocused = false;
+        for (size_t gi = 0; gi < groups.size(); gi++) {
+          const Block& b = blocks[gi];
+          if (b.y + capH > vis0 && b.y < vis1) {
+            ui::at(RectF{area.x + b.x, area.y + b.y, float(b.perRow) * (cs + gap) - gap, capH});
+            ui::caption(groups[gi].title);
+          }
+          for (int i = 0; i < b.n; i++) {
+            // Имена и подписи — из каталога (статические строки), пустое имя — «без эмблемы».
+            const int k = gi == 0 ? i - 1 : i;
+            const std::string_view nm = k < 0 ? std::string_view() : std::string_view(groups[gi].names[size_t(k)]);
+            ui::IdScope s(nm.empty() ? std::string_view("none") : nm);
+            const float ry = b.y + capH + float(i / b.perRow) * (cs + gap);
+            RectF r{area.x + b.x + float(i % b.perRow) * (cs + gap), area.y + ry, cs, cs};
+            const std::string_view title = nm.empty() ? std::string_view("Без эмблемы") : gfx::emblemTitle(nm);
+            const bool sel = fl.emblem == nm;
+            CellHit h = cell("emb", r, title, !img && sel, img);
+            a.markUi("flag.emblem." + std::string(nm.empty() ? std::string_view("none") : nm), r);
+            // Выбранная эмблема видна при открытии; ячейка, получившая фокус (Tab), прокручивается в видимую часть.
+            const bool focusMoved = h.focused && nm != focused_;
+            if (h.focused) {
+              anyFocused = true;
+              focused_ = nm;
+            }
+            if (((sel && !scrolledToCurrent_) || focusMoved) && (ry < off || ry + cs > off + viewH))
+              sc.scrollTo(std::max(0.f, ry - (i < b.perRow ? capH + 2 : gap)), focusMoved);   // первая строка — с подписью группы
+            if (ry + cs < vis0 || ry > vis1) continue;
+            if (h.hovered) hoveredTitle = nm.empty() ? std::string("без эмблемы") : std::string(title);
+            RectF in = r.inset(5);
+            ui::draw::rect(in, emblemGround(fl), 5);
+            if (nm.empty()) {
+              ui::draw::line(in.x + 6, in.bottom() - 6, in.right() - 6, in.y + 6, fl.emblemColor.alpha(0.85f), 2);
+            } else {
+              Color ec = fl.emblemColor;
+              ui::custom(in.inset(3), [nm, ec](gfx::Canvas& c, RectF d, float) { gfx::drawEmblem(c, nm, d, ec); });
+            }
+            if (img) ui::draw::rect(r, t.surface2.alpha(0.55f), 8);
+            if (h.clicked) fl.emblem = std::string(nm);
+          }
+        }
+        if (!anyFocused) focused_ = kNoFocus;
+        scrolledToCurrent_ = true;
       }
-      std::string capRow = "Эмблема · " + (hovered < 0 ? cur : hovered == 0 ? std::string("без эмблемы") : std::string(gfx::emblemTitle(names[size_t(hovered - 1)])));
+      std::string capRow = "Эмблема · " + (hoveredTitle.empty() ? cur : hoveredTitle);
       ui::draw::text(utf8::upper(capRow), capR, ui::Font::Caption, t.textMuted);
     }
 
@@ -266,10 +315,14 @@ class FlagEditor final : public Dialog {
     });
   }
 
+  static constexpr const char* kNoFocus = "\n";   // ни одна ячейка эмблемы не в фокусе
+
   Id id_;
   std::string name_;
   Flag orig_;
   std::shared_ptr<Shared> st_;
+  bool scrolledToCurrent_ = false;   // выбранная эмблема прокручена в видимую часть при открытии
+  std::string focused_ = kNoFocus;   // эмблема в фокусе в прошлом кадре
 };
 
 std::unique_ptr<Dialog> makeFlagEditor(App& a, Id arg) {

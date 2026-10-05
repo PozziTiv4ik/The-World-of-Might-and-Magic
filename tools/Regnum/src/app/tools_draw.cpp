@@ -106,32 +106,24 @@ class SketchTool : public MapTool {
 };
 
 // ---------------------------------------------------------------- новая провинция
+// ТЗ «Фиксы», п.17: два инструмента — сухопутная и морская провинция. Контур забирает весь рельеф своего вида
+// внутри (сушу — в том числе участки, разделённые морем); берег «прилипает».
 class NewProvinceTool final : public SketchTool {
- protected:
-  Color lineColor() const override { return palette().accent; }
-  const char* badge() const override { return "plus"; }
-  const char* icon() const override { return "tool-polygon"; }
-  const char* title() const override { return "Новая провинция"; }
+ public:
+  explicit NewProvinceTool(Terrain t) : ter_(t) {}
 
-  // Суша или море: по первой вершине (а до неё — по указателю). Берег «прилипает».
-  Terrain terrain(App& a) const {
-    std::optional<Vec2> p;
-    if (sk_.active()) p = sk_.points().front();
-    else if (a.ui.cursorMap) p = *a.ui.cursorMap;
-    if (!p) return Terrain::None;
-    return geo::faces(a.world())->terrainAt(*p);
-  }
+ protected:
+  Terrain ter_;
+  Color lineColor() const override { return ter_ == Terrain::Sea ? palette().info : palette().accent; }
+  const char* badge() const override { return "plus"; }
+  const char* icon() const override { return ter_ == Terrain::Sea ? "sea-province" : "tool-polygon"; }
+  const char* title() const override { return ter_ == Terrain::Sea ? "Новая провинция (море)" : "Новая провинция (суша)"; }
+
   static const char* terrainName(Terrain t) { return t == Terrain::Sea ? "Море" : "Суша"; }
-  float extraW(App& a) override {
-    Terrain t = terrain(a);
-    if (t == Terrain::None) return 0;
-    return textW(terrainName(t), ui::Font::Strong) + 34 + 6;
-  }
+  float extraW(App&) override { return textW(terrainName(ter_), ui::Font::Strong) + 34 + 6; }
   void extra(App& a) override {
-    Terrain t = terrain(a);
-    if (t == Terrain::None) return;
-    ui::tag(terrainName(t), t == Terrain::Sea ? ui::Tone::Info : ui::Tone::Success, t == Terrain::Sea ? "sea" : "land");
-    ui::tooltip(t == Terrain::Sea ? "Морская провинция: суша внутри контура не войдёт" : "Сухопутная провинция: граница прилипнет к берегу");
+    ui::tag(terrainName(ter_), ter_ == Terrain::Sea ? ui::Tone::Info : ui::Tone::Success, ter_ == Terrain::Sea ? "sea" : "land");
+    ui::tooltip(ter_ == Terrain::Sea ? "Морская провинция: всё море внутри контура" : "Сухопутная провинция: вся суша внутри контура");
     a.markUi("tool.options.terrain");
   }
 
@@ -139,8 +131,8 @@ class NewProvinceTool final : public SketchTool {
     Id nid = 0;
     double snap = snapTol(a);
     std::vector<std::string> removed;
-    bool ok = a.act("Новая провинция", [&](Tx& tx) {
-      rules::AreaEdit r = rules::createProvince(tx, pts, Terrain::None, snap);  // поглощённые целиком провинции удаляются
+    bool ok = a.act(ter_ == Terrain::Sea ? "Новая морская провинция" : "Новая провинция", [&](Tx& tx) {
+      rules::AreaEdit r = rules::createProvince(tx, pts, ter_, snap);  // поглощённые целиком провинции удаляются
       nid = r.province;
       removed = std::move(r.removed);
       std::string name = newProvinceName(tx.w());
@@ -197,7 +189,11 @@ class KnifeTool final : public SketchTool {
 };
 
 ToolDef newDef() {
-  return {ToolId::NewProvince, "tool-polygon", "Новая провинция", "P", true, [] { return std::make_unique<NewProvinceTool>(); }, 20};
+  return {ToolId::NewProvince, "tool-polygon", "Новая провинция (суша)", "P", true, [] { return std::make_unique<NewProvinceTool>(Terrain::Land); }, 20};
+}
+ToolDef newSeaDef() {
+  return {ToolId::NewSeaProvince, "sea-province", "Новая провинция (море)", "Shift+P", true,
+          [] { return std::make_unique<NewProvinceTool>(Terrain::Sea); }, 21};
 }
 ToolDef addDef() {
   return {ToolId::AddArea, "tool-polygon-plus", "Расширить провинцию", "G", true, [] { return std::make_unique<AreaTool>(true); }, 30};
@@ -210,6 +206,7 @@ ToolDef knifeDef() {
 }
 
 ToolReg regNew(newDef());
+ToolReg regNewSea(newSeaDef());
 ToolReg regAdd(addDef());
 ToolReg regRemove(removeDef());
 ToolReg regKnife(knifeDef());
@@ -218,6 +215,7 @@ ToolReg regKnife(knifeDef());
 
 void registerDrawTools() {
   ToolReg a(newDef());
+  ToolReg a2(newSeaDef());
   ToolReg b(addDef());
   ToolReg c(removeDef());
   ToolReg d(knifeDef());

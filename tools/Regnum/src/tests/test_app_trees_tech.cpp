@@ -309,10 +309,15 @@ TEST(app_trees_tech_research_turns) {
   h.dropToasts();
   h.settle();
   CHECK(h.shot("trees_tech_research"));
-  CHECK(h->endTurnNow());
-  h->toasts().clear();
-  CHECK_EQ(h->world().tech(t)->progress, 1);
-  CHECK(!h->world().tech(t)->studied);
+  // Срок — с модификатором «Время исследования технологий» государства (в демо-мире «Слабый контроль»: +50 %).
+  const int need = rules::researchTurns(h->world(), *h->world().tech(t));
+  CHECK(need >= 2);
+  for (int i = 1; i < need; i++) {
+    CHECK(h->endTurnNow());
+    h->toasts().clear();
+    CHECK_EQ(h->world().tech(t)->progress, i);
+    CHECK(!h->world().tech(t)->studied);
+  }
   CHECK(h->endTurnNow());
   h->toasts().clear();
   CHECK(h->world().tech(t)->studied);

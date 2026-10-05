@@ -299,6 +299,7 @@ struct Ctx {
   // вывод
   platform::Cursor cursor = platform::Cursor::Arrow;
   std::optional<RectF> textInput;
+  WidgetId textFocus = 0;   // поле ввода текста с фокусом (живёт между кадрами: горячие клавиши выключены до Enter, Esc или ухода фокуса)
   bool caretBlink = false;
   double lastInputTime = 0;
 };

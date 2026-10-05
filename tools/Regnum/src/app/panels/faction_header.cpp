@@ -1,5 +1,6 @@
-// Regnum — шапка инспектора государства и гильдии: большой флаг (щелчок — редактор флага), вид, цвет,
-// название крупным шрифтом с переименованием на месте (щелчок, F2), правитель с титулом, казна;
+// Regnum — шапка инспектора государства и гильдии: большой флаг (щелчок — редактор флага), вид, значки основного
+// игрового государства и вассала (переход к сюзерену), цвет, название крупным шрифтом с переименованием на месте
+// (щелчок, F2), правитель с титулом, казна;
 // меню действий: флаг, переименование, государственная гильдия, удаление с подтверждением.
 #include "app/panels/faction_common.h"
 
@@ -41,7 +42,7 @@ void treasuryPill(App& a, double treasury, double net, float width) {
   float vw = ui::measure(v, ui::Font::Strong);
   ui::draw::text(v, RectF{x, r.y, vw + 2, r.h}, ui::Font::Strong, treasury < 0 ? t.danger : t.text);
   x += vw + 6;
-  if (std::fabs(net) >= 0.05) {
+  if (std::fabs(net) >= 0.0005) {
     std::string d = moneySigned(net);
     ui::draw::text(d, RectF{x, r.y + 1, r.right() - x - 6, r.h}, ui::Font::Caption, net > 0 ? t.success : t.danger);
   }
@@ -82,6 +83,16 @@ void drawHeader(App& a, Id id) {
       {
         ui::HStack hs(22, ui::Align::Left, 6);
         ui::tag(kind.label, kind.tone, kind.icon);
+        if (f->isState() && f->mainState) {
+          ui::icon("star-filled", ui::Ink::Accent, 16, "Основное игровое государство");
+          a.markUi("faction.main");
+        }
+        // Вассал (ТЗ «Вассалитет»): значок-ссылка на сюзерена.
+        if (const Faction* sz = f->isState() ? w.faction(f->suzerain) : nullptr) {
+          if (ui::iconButton("banner", "Вассал «" + displayName(*sz) + "» — открыть сюзерена", {.size = ui::Size::Small}))
+            a.select(SelType::Faction, sz->id);
+          a.markUi("faction.suzerain");
+        }
       }
       {
         ui::HStack hs(24, ui::Align::Left, 6);
@@ -151,7 +162,7 @@ void drawHeader(App& a, Id id) {
   {
     const Character* ruler = w.character(f->ruler);
     double net = fc ? fc->net : 0;
-    std::string tre = money(f->treasury()), delta = std::fabs(net) >= 0.05 ? moneySigned(net) : std::string();
+    std::string tre = money(f->treasury()), delta = std::fabs(net) >= 0.0005 ? moneySigned(net) : std::string();
     float pillW = 9 + 22 + ui::measure(tre, ui::Font::Strong) + (delta.empty() ? 4 : 6 + ui::measure(delta, ui::Font::Caption)) + 12;
     ui::Row row({ui::px(42), ui::fr(1), ui::px(std::ceil(pillW))}, 40, 8);
     std::string rulerName = ruler ? (ruler->name.empty() ? std::string("Без имени") : ruler->name) : std::string("?");

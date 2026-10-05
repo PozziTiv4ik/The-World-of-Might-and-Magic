@@ -29,7 +29,7 @@ std::string ref(Seq s, Id id) {
 }
 json::Value refV(Seq s, Id id) { return id ? json::Value(ref(s, id)) : json::Value(); }
 
-std::string money(double v) { return fmtNum(v, 2); }
+std::string money(double v) { return fmtNum(v, 3); }
 
 // Точек геометрии: узлы + промежуточные точки дуг.
 size_t geoPoints(const World& w) {

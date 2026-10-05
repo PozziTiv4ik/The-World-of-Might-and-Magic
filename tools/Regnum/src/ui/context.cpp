@@ -130,6 +130,7 @@ static void processEvents(Ctx& c) {
 void setFocus(WidgetId id, bool visible) {
   Ctx& c = C();
   if (c.focus != id) c.lastInputTime = c.time;
+  if (c.textFocus != id) c.textFocus = 0;   // фокус ушёл с поля ввода
   c.focus = id;
   c.focusVisible = visible;
   c.focusSeen = true;   // назначен в этом кадре — не снимать в его конце
@@ -138,7 +139,13 @@ void setFocus(WidgetId id, bool visible) {
 void clearFocus() {
   C().focus = 0;
   C().focusVisible = false;
+  C().textFocus = 0;
 }
+
+// Идёт ввод текста: поле с фокусом нарисовано в этом кадре (textInput) или было полем ввода в прошлом — тогда
+// горячие клавиши не срабатывают (и с Ctrl), даже если обработчик идёт раньше поля в кадре; снова — после Enter, Esc
+// или снятия фокуса (ТЗ «Фиксы», п.12). Клавиши правки текста поле обрабатывает само.
+static bool typing(const Ctx& c) { return c.textInput.has_value() || (c.focus != 0 && c.focus == c.textFocus); }
 
 static void tabNavigate(Ctx& c, bool back) {
   // Список прошлого кадра (текущий ещё не собран).
@@ -465,7 +472,7 @@ bool wantsMouse() {
 
 bool wantsKeyboard() {
   Ctx& c = C();
-  return c.textInput.has_value();
+  return typing(c);
 }
 
 bool needsRedraw() {
@@ -507,7 +514,7 @@ bool shortcut(Shortcut s) {
   if (modalBlocks()) return false;
   u32 m = normMods(s.mods);
   bool plain = (m & (platform::ModCtrl | platform::ModAlt | platform::ModSuper)) == 0;
-  if (plain && c.textInput) return false;
+  if (typing(c)) return false;
   if (plain && c.focus && hasKey(s.key, s.mods) && (s.key == Key::Space || s.key == Key::Enter)) return false;
   return takeKey(s.key, s.mods);
 }

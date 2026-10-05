@@ -206,12 +206,17 @@ TEST(app_military_faction_tables) {
   CHECK_EQ(f->army.size(), rows0 + 1);
   CHECK(f->army.back().type == UnitType::Monsters);
   Id nrow = f->army.back().id;
-  // Правка выбранной строки: численность и содержание.
-  CHECK(h->uiRect("mil.detail.total") != nullptr);
+  // Правка выбранной строки: численность (только в режиме «Правка резерва») и содержание.
+  CHECK(h->uiRect("mil.detail.total") == nullptr);
+  CHECK(reveal(h, "mil.army.editReserve"));
+  CHECK(h.clickUi("mil.army.editReserve"));
+  h.settle();
+  CHECK(reveal(h, "mil.detail.total"));
   CHECK(h.clickUi("mil.detail.total"));
   h.retype("250");
   h.key(Key::Enter);
   h.settle();
+  CHECK(reveal(h, "mil.detail.upkeep"));
   CHECK(h.clickUi("mil.detail.upkeep"));
   h.retype("7,5");
   h.key(Key::Enter);
@@ -219,6 +224,7 @@ TEST(app_military_faction_tables) {
   f = h->world().faction(hel);
   CHECK_EQ(f->armyRow(nrow)->total, 250);
   CHECK_NEAR(f->armyRow(nrow)->upkeep, 7.5, 1e-9);
+  CHECK(reveal(h, "mil.detail.name"));
   CHECK(h.clickUi("mil.detail.name"));
   h.retype("Ледяные тролли");
   h.key(Key::Enter);
@@ -232,14 +238,18 @@ TEST(app_military_faction_tables) {
   auto c = rules::calc(h->world());
   i64 field = app::mil::rowCalc(*c, hel, inf, false)->field;
   CHECK(field > 0);
+  CHECK(reveal(h, "mil.row.0"));
   CHECK(h.clickUi("mil.row.0"));
+  CHECK(reveal(h, "mil.detail.total"));
   CHECK(h.clickUi("mil.detail.total"));
   h.retype("1");
   h.key(Key::Enter);
   h.settle();
   CHECK_EQ(h->world().faction(hel)->armyRow(inf)->total, field);
   // Удаление строки — с подтверждением (опасное действие).
+  CHECK(reveal(h, "mil.row." + std::to_string(rows0)));
   CHECK(h.clickUi("mil.row." + std::to_string(rows0)));
+  CHECK(reveal(h, "mil.detail.delete"));
   CHECK(h.clickUi("mil.detail.delete"));
   CHECK(h->hasDialog("confirm"));
   CHECK(h.clickUi("dialog.ok"));
@@ -495,6 +505,8 @@ TEST(app_military_guild_forces) {
   const Faction* g = h->world().faction(guild);
   CHECK_EQ(g->army.size(), size_t(1));
   CHECK(g->army[0].type == UnitType::Ranged);
+  CHECK(h.clickUi("mil.army.editReserve"));   // численность напрямую — в режиме «Правка резерва»
+  h.settle();
   CHECK(h.clickUi("mil.detail.total"));
   h.retype("400");
   h.key(Key::Enter);

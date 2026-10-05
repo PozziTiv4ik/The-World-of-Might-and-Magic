@@ -44,11 +44,20 @@ enum class LogKind : u8 { Turn, Economy, Build, Tech, War, Battle, Army, Fleet, 
 // Объекты карты, нарисованные кодом: знаки и фигуры (суша и берег — граф провинций, см. Edge).
 enum class SymbolKind : u8 { Mountain = 0, Peak = 1, Castle = 2, Tower = 3, Count };   // гора, крупная гора, замок, башня
 enum class ShapeKind : u8 { Water = 0, Islet = 1, Wall = 2, River = 3, Count };      // вода, островок, стена, река линией
+// Вид государства: государство живых (по умолчанию), нежити, демонов.
+enum class StateKind : u8 { Living = 0, Undead = 1, Demonic = 2, Count };
+// Где применяется модификатор: везде, провинция, государство (глобальный), войско, герой.
+enum class ModKind : u8 { Any = 0, Province = 1, Faction = 2, Army = 3, Hero = 4, Count };
+// Позиция сделки: ресурс, провинция (переходит к другой стороне), пленный герой.
+enum class DealItemKind : u8 { Resource = 0, Province = 1, Hero = 2, Count };
+// Тип глобальной константы: число, список ресурсов с количествами, список значений.
+enum class ConstType : u8 { Number = 0, Resources = 1, Values = 2, Count };
 
 // Эффекты модификаторов (ТЗ 1.g.ii). Пределы и подписи — schema.h (kEffects).
 enum class Fx : u8 {
   PopGrowthPct, TradePct, TradeFlat, BuildCostPct, ContentmentPerTurn, RebellionPct, ResourcePct, ResourceFlat, Slots,  // локальные
-  IncomePct, DiplomacyPerTurn, ArmyUpkeepPct, FleetUpkeepPct,                                                       // глобальные
+  IncomePct, DiplomacyPerTurn, ArmyUpkeepPct, FleetUpkeepPct, ResearchTimePct,                                      // глобальные
+  LoyaltyPerTurn,                                                                                                     // войско
   Count
 };
 constexpr int kFxCount = int(Fx::Count);
@@ -79,6 +88,21 @@ struct Edge {
 
 struct GarrisonEntry { Id row = 0; i64 count = 0; };       // строка армии владельца
 struct RacePop { Id race = 0; i64 pop = 0; };
+// Модификаторы с ограниченным сроком: модификатор → сколько ходов ещё действует (нет записи — бессрочно).
+using ModTurns = std::map<Id, int>;
+// Рабы государства одной расы: численность и довольство (−100…100).
+struct SlaveGroup { Id race = 0; i64 count = 0; double contentment = 0; };
+// Рабы на работах в провинции (из рабов владельца).
+struct SlaveWork { Id race = 0; i64 count = 0; };
+// Формирование отрядов или кораблей строки: сколько, через сколько ходов поступят в резерв и что за них отдано
+// (люди — из населения, остальное — ресурсами: трупы, демоническая энергия, стоимость кораблей).
+struct Formation {
+  Id row = 0;
+  i64 count = 0;
+  int left = 0;
+  i64 people = 0;
+  std::map<Id, double> paid;
+};
 struct Influence { Id guild = 0; double pct = 0; };          // торговое влияние гильдии, %
 struct ProvBuilding {
   Id building = 0;
@@ -113,8 +137,12 @@ struct Province {
   double localTax = 0;      // местный налог, % (может быть < 0)
   std::vector<ProvBuilding> buildings;
   std::vector<Id> modifiers;
+  ModTurns modTurns;        // срок действия модификаторов (нет записи — бессрочно)
   bool occupied = false;
   Id occupier = 0;
+  std::vector<GarrisonEntry> occGarrison;   // оккупационный гарнизон: строки армии оккупанта
+  int occIdle = 0;          // ходов подряд оккупант без гарнизона и войск в провинции (5 — оккупация снимается)
+  std::vector<SlaveWork> slaves;            // рабы владельца на работах (не больше 10 % населения)
   std::string notes;
   std::string entity;       // ID карточки кампании (необязательно)
 };
@@ -129,7 +157,8 @@ struct Flag {
   std::string png;               // байты PNG, если image
 };
 
-struct ArmyRow { Id id = 0; std::string name; UnitType type = UnitType::LightInf; i64 total = 0; double upkeep = 0; };
+// race — раса отряда из глобальной константы «Расы для отрядов» (пусто — по виду государства и типу отряда).
+struct ArmyRow { Id id = 0; std::string name; UnitType type = UnitType::LightInf; i64 total = 0; double upkeep = 0; std::string race; };
 struct FleetRow { Id id = 0; std::string name; ShipType type = ShipType::Frigate; i64 total = 0; double upkeep = 0; };
 struct CouncilSeat { Id id = 0; std::string position; Id character = 0; };
 
@@ -148,9 +177,18 @@ struct Faction {
   std::vector<FleetRow> fleet;
   std::map<Id, double> res;      // запасы ресурсов; res[kGold] — казна
   std::vector<Id> modifiers;
+  ModTurns modTurns;
   double tax = 10;               // налог государства, % (≥ 0)
   Id homeState = 0;              // гильдия: государство расположения
   bool stateGuild = false;       // гильдия: государственная
+  StateKind stateKind = StateKind::Living;   // вид государства
+  bool mainState = false;        // основное игровое государство (итоги хода — на первой странице)
+  Id suzerain = 0;               // государство-сюзерен (вассалитет)
+  Id rebelOf = 0;                // мятежное государство: от кого откололось
+  std::vector<SlaveGroup> slaves;           // рабы по расам
+  std::vector<Formation> forming;           // формирование отрядов и кораблей (2 хода до резерва)
+  std::vector<GarrisonEntry> tradeFleet;    // корабли из резерва, участвующие в торговле: строка флота → число
+  double pirateRisk = 0;         // вероятность нападения пиратов (%), сгенерированная в конце прошлого хода
   std::string notes;
   std::string entity;
 
@@ -169,6 +207,10 @@ struct Character {
   bool hero = false;             // значимый герой фракции
   double upkeep = 0;             // содержание за ход (расход «специалисты»)
   std::string portrait;          // байты PNG/JPEG или пусто
+  std::vector<Id> modifiers;     // модификаторы героя («Живой», «Некромант», «Мертв», «Взят в плен»…)
+  ModTurns modTurns;
+  Id captor = 0;                 // взят в плен: пленившее государство
+  Id burial = 0;                 // погиб: место захоронения (провинция)
   std::string notes, entity;
 };
 
@@ -181,6 +223,9 @@ struct Modifier {
   std::array<double, kFxCount> fx{};  // значения эффектов
   u32 fxMask = 0;                     // какие эффекты заданы (бит = int(Fx))
   std::vector<Id> targets;            // цели эффекта «дипломатия»
+  std::string key;                    // встроенный модификатор (schema::kMod*); пусто — свой
+  ModKind kind = ModKind::Any;        // где применяется
+  int duration = 0;                   // ходов действия при установке (0 — бессрочно)
   bool has(Fx f) const { return (fxMask >> int(f)) & 1u; }
   double get(Fx f) const { return has(f) ? fx[int(f)] : 0.0; }
 };
@@ -190,6 +235,7 @@ struct BuildingLevel {
   std::map<Id, double> cost;          // ресурс -> количество
   std::vector<Id> modifiers;
   std::string desc;
+  std::map<Id, double> produce;       // ресурсы, которые достроенный уровень даёт владельцу каждый ход
 };
 struct BuildingReq { Id building = 0; int level = 1; };
 struct Building {
@@ -230,6 +276,9 @@ struct Army {
   Vec2 pos;
   std::vector<ArmyGroup> groups;
   Id commander = 0;                   // главный полководец/флотоводец
+  double loyalty = 100;               // верность войска, −100…100 %
+  std::vector<Id> modifiers;          // модификаторы войска («Армия нежити», «Патриотизм»…)
+  ModTurns modTurns;
   bool isFleet() const { return kind == ArmyKind::Fleet; }
   bool allied() const { return groups.size() > 1; }
   Id leader() const { return groups.empty() ? 0 : groups[0].faction; }
@@ -274,6 +323,8 @@ struct DealItem {
   DealMode mode = DealMode::Once;
   int turns = 1;
   int left = 0;
+  DealItemKind kind = DealItemKind::Resource;   // провинция и пленный герой — разово, ref — их ID
+  Id ref = 0;
 };
 struct Deal {
   Id id = 0;
@@ -309,6 +360,9 @@ struct CatalogItem {
   Color color = Color::hex(0x888888);
   std::string icon;
   bool builtin = false;
+  std::string key;                    // встроенный ресурс (schema::kRes*): золото, провизия, трупы, энергия
+  std::vector<Id> modifiers;          // должность: глобальные модификаторы, пока она занята
+  std::vector<Id> vacantModifiers;    // должность: глобальные модификаторы, пока она пустует
 };
 struct Catalogs {
   std::vector<CatalogItem> resources, races, cultures, religions, governments, positions;
@@ -316,11 +370,39 @@ struct Catalogs {
     for (auto& c : list) if (c.id == id) return &c;
     return nullptr;
   }
+  // Встроенный ресурс по ключу (nullptr — нет).
+  const CatalogItem* resourceByKey(std::string_view key) const {
+    for (auto& c : resources) if (c.key == key) return &c;
+    return nullptr;
+  }
+  Id resourceId(std::string_view key) const { const CatalogItem* c = resourceByKey(key); return c ? c->id : 0; }
+};
+
+// Глобальная константа (ТЗ «Общие доработки», п.1): число, список ресурсов или список значений.
+struct Constant {
+  std::string key;                    // устойчивый ключ: встроенные — schema::kConst*, свои — «userN»
+  std::string name;
+  ConstType type = ConstType::Number;
+  double num = 0;
+  std::map<Id, double> res;
+  std::vector<std::string> values;
+  bool builtin = false;               // встроенная: не удаляется, тип не меняется
+  std::string desc;
+};
+struct Constants {
+  std::vector<Constant> list;         // порядок — как в интерфейсе
+  const Constant* find(std::string_view key) const {
+    for (auto& c : list) if (c.key == key) return &c;
+    return nullptr;
+  }
+  double num(std::string_view key, double def = 0) const { const Constant* c = find(key); return c && c->type == ConstType::Number ? c->num : def; }
 };
 
 struct Settings {
   float fillOpacity = 0.5f;
   bool labelStates = true, labelProvinces = true, labelArmies = true;
+  bool showArmies = true;             // войска и флот на карте («Скрыть войска» — false)
+  int figureSize = 34;                // размер значка войска и флота на экране, точки (постоянный при любом масштабе)
   OccupiedIncome occupiedIncome = OccupiedIncome::Owner;
   bool rebellionRoll = false;
   bool autosaveFolder = true;
@@ -464,13 +546,15 @@ enum TableBit : u32 {
   TB_PROVINCES = 1u << 5, TB_FACTIONS = 1u << 6, TB_CHARACTERS = 1u << 7, TB_RELATIONS = 1u << 8,
   TB_MODIFIERS = 1u << 9, TB_BUILDINGS = 1u << 10, TB_TECHS = 1u << 11, TB_ARMIES = 1u << 12,
   TB_ROUTES = 1u << 13, TB_DEALS = 1u << 14, TB_LOG = 1u << 15, TB_SYMBOLS = 1u << 16, TB_SHAPES = 1u << 17,
-  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0x3FFFFu
+  TB_CONSTANTS = 1u << 18,
+  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0x7FFFFu
 };
 
 struct World {
   std::shared_ptr<const Meta> meta = std::make_shared<Meta>();
   std::shared_ptr<const Settings> settings = std::make_shared<Settings>();
   std::shared_ptr<const Catalogs> catalogs = std::make_shared<Catalogs>();
+  std::shared_ptr<const Constants> constants = std::make_shared<Constants>();
   Table<Node> nodes;
   Table<Edge> edges;
   Table<Province> provinces;
@@ -527,6 +611,7 @@ class Tx {
   Meta& meta();
   Settings& settings();
   Catalogs& catalogs();
+  Constants& constants();
   RelMap& relations();
   Id nextId(Seq s);                         // выдать следующий ID последовательности
 
@@ -589,10 +674,11 @@ class Tx {
  private:
   World w_;
   u32 touched_ = 0;
-  bool metaOwned_ = false, settingsOwned_ = false, catalogsOwned_ = false, relOwned_ = false;
+  bool metaOwned_ = false, settingsOwned_ = false, catalogsOwned_ = false, relOwned_ = false, constantsOwned_ = false;
   std::shared_ptr<Meta> meta_;
   std::shared_ptr<Settings> settings_;
   std::shared_ptr<Catalogs> catalogs_;
+  std::shared_ptr<Constants> constants_;
   std::shared_ptr<RelMap> rel_;
   TableEdit<Node> nodes_;
   TableEdit<Edge> edges_;

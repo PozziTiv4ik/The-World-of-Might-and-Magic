@@ -4,10 +4,14 @@
 // позиция отмечена пунктиром, подпись у призрака сообщает, что произойдёт. Отпускание — rules::encounter:
 // свободное место — перемещение; своя фракция — предложение объединить; союзник — союзное войско; статус-кво
 // или незнакомы — объявить войну, затем битва; война — панель битвы; иначе (море, суша, флот, занято) —
-// возврат с причиной. Отказ в диалоге плавно возвращает объект на исходную позицию.
+// возврат с причиной. Войско на знаке «замок» или «башня» провинции государства, с которым его фракция в войне, —
+// штурм (ТЗ «Механика войн», п.4): войско встаёт у стен, окно штурма гарнизона или захвата. Отказ в диалоге плавно
+// возвращает объект на исходную позицию.
 #include "app/tools_edit.h"
+#include "app/flows.h"
 #include "app/panels/military.h"
 #include "gfx/figures.h"
+#include "map/art_scene.h"
 
 namespace rg::app {
 
@@ -28,9 +32,43 @@ struct DragState {
   Vec2 returnFrom;
   double returnStart = 0;
   rules::Encounter preview;  // что произойдёт при отпускании
+  Id siegeProvince = 0;      // штурм: провинция замка или башни под призраком (0 — нет)
+  Id siegeSymbol = 0;
   std::optional<map::ArmyMark> stack;   // нажата стопка: щелчок без перетаскивания приближает её
   bool active() const { return phase == Dragging || phase == Pending || phase == Returning; }
 };
+
+// Штурм (ТЗ «Механика войн», п.4): призрак войска над знаком «замок» или «башня» провинции государства, с которым
+// фракция войска в войне (rules::canSiege). Встреча с другим объектом важнее штурма.
+void siegeTarget(App& a, DragState& d) {
+  d.siegeProvince = d.siegeSymbol = 0;
+  if (d.preview.target) return;
+  const World& w = mil::frameWorld(a);
+  const Army* ar = w.army(d.army);
+  if (!ar || ar->isFleet()) return;
+  auto sc = a.map().artScene();
+  if (!sc) return;
+  // Замок или башня под призраком — даже если поверх нарисована гора: ближайший по середине значка.
+  const double tol = a.map().view().toMapLen(6), reach = tol + 160;   // знаки — до ×8 обычного размера
+  Id sym = 0;
+  const MapSymbol* s = nullptr;
+  double best = 1e300;
+  for (Id id : sc->symbolsIn(Box2(d.pos.x - reach, d.pos.y - reach, d.pos.x + reach, d.pos.y + reach))) {
+    const MapSymbol* x = detail::mapSymbol(w, id);
+    if (!x || (x->kind != SymbolKind::Castle && x->kind != SymbolKind::Tower)) continue;
+    const Box2 b = map::art::symbolBox(*x);
+    if (!b.inflated(tol).contains(d.pos) || dist2(b.center(), d.pos) >= best) continue;
+    best = dist2(b.center(), d.pos);
+    sym = id;
+    s = x;
+  }
+  if (!s) return;
+  Id pid = mil::provinceUnder(w, s->p);
+  if (!pid) pid = mil::provinceUnder(w, d.pos);
+  if (!pid || !rules::canSiege(w, d.army, pid)) return;
+  d.siegeProvince = pid;
+  d.siegeSymbol = sym;
+}
 
 // Приблизить карту к стопке наложившихся объектов так, чтобы они разошлись на отдельные фигурки.
 void expandStack(App& a, const map::ArmyMark& mk) {
@@ -85,6 +123,10 @@ Status statusOf(App& a, const DragState& d) {
   const rules::Encounter& e = d.preview;
   const Army* t = w.army(e.target);
   std::string tn = t ? "«" + mil::objectName(*t) + "»" : std::string();
+  if (d.siegeProvince) {
+    const MapSymbol* s = detail::mapSymbol(w, d.siegeSymbol);
+    return {s && s->kind == SymbolKind::Tower ? "tower" : "castle", "Штурм: " + w.provinceName(d.siegeProvince), ui::Tone::Danger};
+  }
   switch (e.type) {
     case rules::EncounterType::None: {
       Id pid = mil::provinceUnder(w, d.pos);
@@ -178,6 +220,7 @@ class SelectTool final : public MapTool {
     }
     d.pos = e.map + d.grab;
     d.preview = encounterAt(a, d);
+    siegeTarget(a, d);
     a.requestRedraw();
     return true;
   }
@@ -239,7 +282,16 @@ class SelectTool final : public MapTool {
     Color col = mil::leaderColor(w, *ar), col2 = mil::allyColor(w, *ar);
     Status st = statusOf(a, d);
     Color tone = ui::toneColor(st.tone);
-    bool blocked = d.preview.type == rules::EncounterType::Blocked;
+    bool blocked = d.preview.type == rules::EncounterType::Blocked && !d.siegeProvince;
+    if (d.phase == DragState::Dragging && d.siegeProvince)
+      if (const MapSymbol* s = detail::mapSymbol(w, d.siegeSymbol)) {
+        // Цель штурма: замок или башня.
+        const Box2 b = map::art::symbolBox(*s);
+        const gfx::Pt sc = v.toScreen(b.center());
+        const float rr = std::max(size * 0.7f, float(std::max(b.w(), b.h()) * v.zoom * 0.6));
+        c.fillCircle(sc.x, sc.y, rr, tone.alpha(0.16f));
+        c.strokeCircle(sc.x, sc.y, rr, 2.5f, tone);
+      }
     if (d.phase != DragState::Returning) {
       // Исходная позиция и путь.
       gfx::Stroke dash;
@@ -283,7 +335,7 @@ class SelectTool final : public MapTool {
 
   platform::Cursor cursor(App& a) override {
     if (d_->phase == DragState::Dragging)
-      return d_->preview.type == rules::EncounterType::Blocked ? platform::Cursor::NotAllowed : platform::Cursor::Grabbing;
+      return d_->preview.type == rules::EncounterType::Blocked && !d_->siegeProvince ? platform::Cursor::NotAllowed : platform::Cursor::Grabbing;
     if (a.ui.hover.type == SelType::Army) return a.readOnly() ? platform::Cursor::Hand : platform::Cursor::Grab;
     if (a.ui.hover.type == SelType::Route) return platform::Cursor::Hand;
     return platform::Cursor::Arrow;
@@ -302,6 +354,7 @@ class SelectTool final : public MapTool {
       return;
     }
     d.preview = encounterAt(a, d);
+    siegeTarget(a, d);
     rules::Encounter e = d.preview;
     Id id = d.army;
     bool fleet = ar->isFleet();
@@ -311,6 +364,25 @@ class SelectTool final : public MapTool {
       else startReturn(x, *st);
       x.requestRedraw();
     };
+    if (d.siegeProvince) {
+      // Штурм: войско встаёт у стен (место занято — ближайшее свободное рядом), затем окно штурма или захвата.
+      const Id pid = d.siegeProvince;
+      const Vec2 origin = d.origin;
+      std::optional<Vec2> to = rules::validPosition(w, ArmyKind::Army, d.pos, id) ? std::optional<Vec2>(d.pos) : rules::findFreeSpot(w, ArmyKind::Army, d.pos, id);
+      if (!to) {
+        a.toast("Рядом со стенами нет свободного места", ToastKind::Warning, "warning");
+        startReturn(a, d);
+        return;
+      }
+      if (!a.act("Войско у стен: " + w.provinceName(pid), [&](Tx& tx) { rules::moveArmy(tx, id, *to); })) {
+        startReturn(a, d);
+        return;
+      }
+      d = DragState{};
+      a.select(SelType::Army, id);
+      flow::openSiege(a, id, pid, origin);
+      return;
+    }
     switch (e.type) {
       case rules::EncounterType::None: {
         if (dist2(d.pos, d.origin) < 1e-9) {

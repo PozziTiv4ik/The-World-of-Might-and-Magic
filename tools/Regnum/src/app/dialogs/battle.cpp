@@ -1,11 +1,40 @@
 // Regnum — панель битвы (ТЗ 1.c.iv): данные обеих сторон (флаги, полководцы, герои, отряды по фракциям),
 // потери по каждому отряду (не больше численности), выбор победителя, «Отступить» — нападавший остаётся на
 // исходной позиции, «Применить итог» — rules::resolveBattle: потери вычитаются из отрядов и общей численности,
-// проигравший смещается от места боя, объект без отрядов исчезает.
+// проигравший смещается от места боя, объект без отрядов исчезает. Перед боем мятежники переманивают неверную часть
+// войска прежнего государства (ТЗ «Мятеж», п.3); после — трупы, «Судьба героев» (ТЗ «Механика героев», п.1) и штурм
+// победившими мятежниками (ТЗ «Мятеж», п.2).
 #include "app/app_internal.h"
+#include "app/flows.h"
 #include "app/panels/military.h"
 
 namespace rg::app::mil {
+
+void battleAftermath(App& a, const rules::BattleOutcome& out, bool rebels, std::function<void(App&)> then) {
+  auto finish = [then](App& x) {
+    if (then) then(x);
+  };
+  const World& w = a.world();
+  // Трупы победителю (государство нежити, некроманты).
+  if (out.corpses > 0 && w.faction(out.winner))
+    a.toast(w.factionName(out.winner) + ": трупов +" + fmtCount(i64(out.corpses)), ToastKind::Info, "skull");
+  // Затем мятежники, победившие в провинции прежнего государства без его войск, — штурм или захват.
+  std::function<void(App&)> next = finish;
+  if (rebels && out.winnerArmy) {
+    const Id army = out.winnerArmy, winner = out.winner;
+    next = [army, winner, finish](App& x) {
+      const Faction* f = x.world().faction(winner);
+      if (f && f->rebelOf && x.world().army(army)) flow::rebelAftermath(x, army, finish);
+      else finish(x);
+    };
+  }
+  // Герои уничтоженных объектов: сбежал, убит (захоронение — место боя), взят в плен (победителем).
+  std::vector<Id> heroes;
+  for (Id h : out.fallenHeroes)
+    if (w.character(h) && std::find(heroes.begin(), heroes.end(), h) == heroes.end()) heroes.push_back(h);
+  if (!heroes.empty()) flow::openHeroFate(a, heroes, out.winner, out.province, next);
+  else next(a);
+}
 
 namespace {
 
@@ -29,6 +58,7 @@ struct BattleDialog final : Dialog {
   Id attacker = 0, defender = 0;
   Vec2 origin;
   std::function<void(App&, bool)> done;
+  std::function<void(App&)> after;   // после окон итога
   bool decided = false;
   int winner = 0;   // 0 — нападающий, 1 — защитник
   Losses losses;
@@ -44,13 +74,17 @@ struct BattleDialog final : Dialog {
     return {pid ? "Битва · " + w.provinceName(pid) : std::string("Битва"), "battle", ui::Tone::Danger, 880};
   }
 
-  void finish(App& a, bool applied) {
+  // Решение принято: done — сразу, затем окна итога (если битва применена) и after.
+  void finish(App& a, bool applied, std::optional<rules::BattleOutcome> out = std::nullopt) {
     if (decided) return;
     decided = true;
-    if (done) {
-      auto fn = done;
-      detail::later(a, [fn, applied](App& x) { fn(x, applied); });
-    }
+    auto fn = done;
+    auto then = after;
+    detail::later(a, [fn, then, applied, out](App& x) {
+      if (fn) fn(x, applied);
+      if (out) battleAftermath(x, *out, true, then);
+      else if (then) then(x);
+    });
   }
 
   void retreat(App& a) {
@@ -229,12 +263,14 @@ struct BattleDialog final : Dialog {
         if (v > 0) r.losses[aid][k] = v;
     std::string an = objectName(*A), dn = objectName(*D);
     std::string winName = r.attackerWins ? an : dn;
-    if (!a.act("Битва: " + an + " против " + dn, [&](Tx& tx) { rules::resolveBattle(tx, r); })) return;
+    rules::BattleOutcome out;
+    if (!a.act("Битва: " + an + " против " + dn, [&](Tx& tx) { out = rules::resolveBattle(tx, r); })) return;
     Id win = r.attackerWins ? attacker : defender;
     if (a.world().army(win)) a.select(SelType::Army, win);
     else a.clearSelection();
-    a.toast("Победа: " + winName, ToastKind::Success, "battle");
-    finish(a, true);
+    if (out.winner) a.toast("Победа: " + winName, ToastKind::Success, "battle");
+    else a.toast("Обе стороны уничтожены", ToastKind::Warning, "skull");
+    finish(a, true, out);
   }
 
   bool draw(App& a) override {
@@ -323,12 +359,46 @@ DialogReg reg({"battle", makeRegistered});
 
 }  // namespace
 
-void openBattle(App& a, Id attacker, Id defender, Vec2 origin, std::function<void(App&, bool)> done) {
+void openBattle(App& a, Id attacker, Id defender, Vec2 origin, std::function<void(App&, bool)> done, std::function<void(App&)> after) {
+  // ТЗ «Мятеж», п.3: мятежники нападают на войско прежнего государства с отрицательной верностью — неверная часть
+  // переходит к ним до боя, у оставшихся верность 0 %. Перешло целиком — битвы нет, мятежники занимают его место.
+  if (rules::willDefect(a.world(), attacker, defender)) {
+    const World before = a.world();
+    const Army* t = before.army(defender);
+    const Army* r = before.army(attacker);
+    const Vec2 tpos = t->pos;
+    const ArmyKind kind = t->kind;
+    bool gone = false;
+    if (a.act("Переход к мятежникам: " + objectName(*t), [&](Tx& tx) {
+          rules::defect(tx, attacker, defender);
+          if (!tx.w().army(defender)) {
+            gone = true;
+            if (rules::validPosition(tx.w(), kind, tpos, attacker)) rules::moveArmy(tx, attacker, tpos);
+          }
+        })) {
+      const Army* r2 = a.world().army(attacker);
+      const i64 moved = r2 ? unitCount(*r2) - unitCount(*r) : 0;
+      a.toast("К мятежникам перешло " + fmtCount(moved) + " · " + objectName(*t), ToastKind::Warning, "rebellion");
+      if (gone) {
+        if (r2) a.select(SelType::Army, attacker);
+        detail::later(a, [attacker, done, after](App& x) {
+          if (done) done(x, true);
+          auto then = [after](App& y) {
+            if (after) after(y);
+          };
+          if (x.world().army(attacker)) flow::rebelAftermath(x, attacker, then);
+          else then(x);
+        });
+        return;
+      }
+    }
+  }
   auto d = std::make_unique<BattleDialog>();
   d->attacker = attacker;
   d->defender = defender;
   d->origin = origin;
   d->done = std::move(done);
+  d->after = std::move(after);
   a.openDialog(std::move(d));
 }
 

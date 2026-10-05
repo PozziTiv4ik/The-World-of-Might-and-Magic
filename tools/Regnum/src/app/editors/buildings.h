@@ -19,6 +19,9 @@ const char* iconOf(const Building& b);                 // значок пост�
 int levelTurns(const Building& b, int level);          // срок уровня (1…)
 // Стоимость фишками «значок + количество»; payer != nullptr — нехватка красным.
 void costChips(const std::map<Id, double>& cost, const Faction* payer, bool showEmpty = true);
+// Что достроенный уровень даёт владельцу за ход (BuildingLevel::produce): «+количество» по ресурсам; пусто — ничего.
+void produceChips(const std::map<Id, double>& produce);
+std::string produceText(const World& w, const std::map<Id, double>& produce);   // «+2 трупы, +100 демоническая энергия»
 // Хватает ли ресурса у плательщика.
 bool affordable(const std::map<Id, double>& cost, const Faction* payer);
 // Эффекты модификаторов уровня фишками (или «Без эффектов»).
