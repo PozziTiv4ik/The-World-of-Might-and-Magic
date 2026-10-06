@@ -18,10 +18,10 @@ struct H {
   std::string clip;
   std::function<void()> build;
 
-  explicit H(float w_ = 800, float h_ = 600, float s = 1, bool dark = true) : w(w_), h(h_), scale(s), img(int(w_ * s), int(h_ * s)) {
+  explicit H(float w_ = 800, float h_ = 600, float s = 1, int scheme = 0) : w(w_), h(h_), scale(s), img(int(w_ * s), int(h_ * s)) {
     ui::shutdown();
     ui::init();
-    ui::setTheme(dark);
+    ui::setScheme(scheme);
     ui::setUiScale(1);
     ui::setClipboard([this] { return clip; }, [this](const std::string& s) { clip = s; });
   }

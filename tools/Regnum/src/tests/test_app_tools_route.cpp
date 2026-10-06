@@ -180,7 +180,7 @@ TEST(app_tools_route_create_edit_delete) {
 
 TEST(app_tools_route_light_and_cancel) {
   ToolGuard guard;
-  Harness h("tools_route_light", 1440, 900, 1, false);
+  Harness h("tools_route_light", 1440, 900, 1, kAltScheme);
   h.demo();
   // Маршрут демонстрационного мира: выбор щелчком в режиме маршрутов, инспектор в светлой теме.
   Id rid = 0;

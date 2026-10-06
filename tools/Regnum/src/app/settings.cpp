@@ -1,10 +1,36 @@
-// Regnum — настройки: интерфейс (тема, масштаб, проводник) — для программы;
+// Regnum — настройки: интерфейс (цветокор, масштаб, цвета карты, проводник) — для программы;
 // карта, правила и сохранение — настройки мира (World::settings, изменения отменяются Ctrl+Z).
 #include "app/app_internal.h"
 
 namespace rg::app::detail {
 
 namespace {
+
+// Образец цветокора: строка и лента интерфейса, море и суша карты, акцент; под ним — название.
+bool schemeCard(int i, bool selected, RectF r, bool schemeMap) {
+  const ui::Theme t = ui::schemeTheme(i);
+  const ui::Theme& cur = ui::theme();
+  const map::art::Style ms = map::art::paletteStyle(map::art::Style{}, schemeMap ? schemePalette(i) : map::Palette::Source);
+  const ui::SchemeInfo& info = ui::schemeInfo(i);
+  ui::WidgetId wid = ui::id(std::string("##scheme.") + info.id);
+  ui::Interaction it = ui::interact(wid, r, ui::IfFocusable);
+  float hv = ui::animate(wid ^ 0x5c4e, it.hovered ? 1.f : 0.f);
+  RectF pr{r.x, r.y, r.w, r.h - 22};
+  ui::draw::rect(pr, t.surface1, 8);
+  ui::draw::rect(RectF{pr.x + 8, pr.y + 5, 16, 4}, t.accent, 2);
+  ui::draw::rect(RectF{pr.x + 28, pr.y + 5, 12, 4}, t.textDim.alpha(0.55f), 2);
+  RectF mr{pr.x + 5, pr.y + 13, pr.w - 10, pr.h - 18};
+  ui::draw::rect(mr, ms.sea, 5);
+  ui::draw::rect(RectF{mr.x + mr.w * 0.12f, mr.y + mr.h * 0.2f, mr.w * 0.4f, mr.h * 0.6f}, ms.land, 8);
+  ui::draw::rect(RectF{mr.x + mr.w * 0.6f, mr.y + mr.h * 0.42f, mr.w * 0.26f, mr.h * 0.36f}, ms.land, 6);
+  ui::draw::line(mr.x + mr.w * 0.2f, mr.y + mr.h * 0.62f, mr.x + mr.w * 0.44f, mr.y + mr.h * 0.48f, ms.water, 1.5f);
+  if (selected) ui::draw::rectStroke(pr.expand(2), cur.accent, 10, 2);
+  else ui::draw::rectStroke(pr, Color::mix(cur.border, cur.borderStrong, hv), 8, 1);
+  ui::draw::text(info.name, RectF{r.x, pr.bottom() + 4, r.w, 18}, selected ? ui::Font::Strong : ui::Font::Small,
+                 selected ? cur.accent : Color::mix(cur.textDim, cur.text, hv), ui::Align::Center);
+  if (it.hovered) ui::setCursor(platform::Cursor::Hand);
+  return it.clicked;
+}
 
 struct SettingsDlg : Dialog {
   int section = 0;
@@ -13,10 +39,20 @@ struct SettingsDlg : Dialog {
 
   void interfaceSection(App& a) {
     App::Impl& d = a.impl();
-    ui::prop("Тема", a.ui.darkTheme ? "moon" : "sun");
-    int theme = a.ui.darkTheme ? 0 : 1;
-    if (ui::segmented("theme", theme, {{"moon", "Тёмная"}, {"sun", "Светлая"}})) a.setTheme(theme == 0);
-    a.markUi("settings.theme");
+    // Цветокор: тон интерфейса и цвета карты вместе.
+    ui::caption("Цветокор");
+    {
+      const int n = ui::schemeCount();
+      const float gap = 10, w = std::floor((ui::avail().w - gap * float(n - 1)) / float(n));
+      RectF row = ui::next(86);
+      for (int i = 0; i < n; i++) {
+        ui::IdScope s(i);
+        RectF r{row.x + float(i) * (w + gap), row.y, w, row.h};
+        if (schemeCard(i, a.ui.scheme == i, r, a.ui.schemeMap)) a.setScheme(i);
+        a.markUi(std::string("settings.scheme.") + ui::schemeInfo(i).id, r);
+      }
+    }
+    ui::spacer(4);
     ui::prop("Масштаб интерфейса", "zoom-in");
     static const float scales[] = {0.9f, 1.0f, 1.1f, 1.25f, 1.5f};
     int si = 1;
@@ -25,17 +61,10 @@ struct SettingsDlg : Dialog {
     if (ui::segmented("scale", si, {{nullptr, "90 %"}, {nullptr, "100 %"}, {nullptr, "110 %"}, {nullptr, "125 %"}, {nullptr, "150 %"}})) a.setUiScale(scales[si]);
     a.markUi("settings.scale");
     ui::prop("Цвета карты", "map");
-    int pal = a.ui.sourceMap ? 1 : 0;
-    if (ui::segmented("palette", pal, {{nullptr, "Пергамент"}, {nullptr, "Исходные"}})) {
-      a.ui.sourceMap = pal == 1;
-      a.map().setPalette(a.ui.sourceMap ? map::Palette::Source : map::Palette::Parchment);
-      d.mapGen++;
-      d.prefsDirty = true;
-      a.requestRedraw();
-    }
-    ui::tooltip("Пергамент — тёмно-синее море и светлая суша; исходные — цвета исходного изображения карты");
+    int pal = a.ui.schemeMap ? 1 : 0;
+    if (ui::segmented("palette", pal, {{nullptr, "Исходные"}, {nullptr, "Цветокора"}})) a.setSchemeMap(pal == 1);
+    ui::tooltip("Исходные — синее море и белая суша исходного изображения; цветокора — море и суша в тон интерфейса");
     a.markUi("settings.palette");
-    ui::spacer(4);
     bool native = platform::dialogsSupported();
     bool own = d.builtinBrowser || !native;
     if (ui::toggle("Встроенный проводник вместо системных окон", own, !native)) {

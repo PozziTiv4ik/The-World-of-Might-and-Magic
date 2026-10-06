@@ -192,6 +192,7 @@ struct Anim {
 struct Ctx {
   bool inited = false;
   Theme th;
+  int scheme = 0;          // цветовая схема темы (setScheme)
   float uiScale = 1;
   // кадр
   float dpi = 1, ds = 1;       // ds = dpi × uiScale

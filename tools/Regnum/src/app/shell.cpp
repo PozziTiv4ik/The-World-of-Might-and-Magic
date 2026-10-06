@@ -482,9 +482,9 @@ map::RenderOptions renderOptions(App& a) {
   if (a.ui.hover.type == SelType::Province) o.hoverProvince = a.ui.hover.id;
   if (a.ui.hover.type == SelType::Army) o.hoverArmy = a.ui.hover.id;
   o.editBorders = a.ui.editBorders;
+  o.background = ui::theme().bg;
   const Settings& st = *a.world().settings;
   o.labels = st.labelStates || st.labelProvinces || st.labelArmies;
-  o.darkUi = a.ui.darkTheme;
   if (MapTool* t = a.activeTool()) {
     try {
       t->renderOptions(a, o);

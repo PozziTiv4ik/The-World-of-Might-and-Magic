@@ -249,7 +249,7 @@ class Monkey {
   std::string context() {
     auto& u = h_->ui;
     std::string s = fmt("%s %dx%d@%.2g ui%.2g %s", u.screen == app::Screen::Editor ? "editor" : "start", W_, H_, double(dpi_), double(u.uiScale),
-                        u.darkTheme ? "dark" : "light");
+                        ui::schemeInfo(u.scheme).id);
     if (!u.drawer.empty()) s += " drawer=" + u.drawer;
     if (!u.editor.empty()) s += " editor=" + u.editor + "(" + std::to_string(u.editorArg) + ")";
     if (u.sel) {
@@ -856,8 +856,10 @@ class Monkey {
     return "save";
   }
   std::string actTheme() {
-    log("setTheme");
-    h_->setTheme(!h_->ui.darkTheme);
+    int s = rng_.range(0, ui::schemeCount() - 1);
+    log(std::string("setScheme ") + ui::schemeInfo(s).id);
+    h_->setScheme(s);
+    if (chance(0.3)) h_->setSchemeMap(!h_->ui.schemeMap);
     step();
     return "theme";
   }

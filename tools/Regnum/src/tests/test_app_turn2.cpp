@@ -286,7 +286,7 @@ TEST(app_turn2_chronicle_filter_note) {
 }
 
 TEST(app_turn2_light_theme) {
-  Harness h("turn2_light", 1440, 900, 1, false);
+  Harness h("turn2_light", 1440, 900, 1, kAltScheme);
   h.demo();
   CHECK(h->endTurnNow());
   h.settle();

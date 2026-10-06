@@ -52,7 +52,7 @@ using WidgetId = u64;
 using platform::Key;
 
 // ================================================================ тема
-// Токены ARCHITECTURE.md §6. Менять только через setTheme/setUiScale.
+// Токены ARCHITECTURE.md §6. Менять только через setScheme/setUiScale.
 struct Theme {
   bool dark = true;
   Color bg, surface1, surface2, surface3, border, borderStrong;
@@ -77,9 +77,17 @@ struct Theme {
 };
 
 const Theme& theme();
-void setTheme(bool dark);           // тёмная (по умолчанию) или светлая
-Theme darkTheme();
-Theme lightTheme();
+// Цветовые схемы (цветокоры): насыщенные тёмные основы разного тона с золотым или янтарным акцентом.
+// Первая — по умолчанию.
+struct SchemeInfo {
+  const char* id;                   // в настройках программы: "sapphire"
+  const char* name;                 // «Сапфир»
+};
+int schemeCount();
+const SchemeInfo& schemeInfo(int i);   // i вне диапазона — первая схема
+Theme schemeTheme(int i);
+void setScheme(int i);
+int scheme();
 void setUiScale(float s);           // пользовательский множитель 0,9…1,5 (умножается на DPI окна)
 float uiScale();
 

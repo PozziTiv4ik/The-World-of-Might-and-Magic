@@ -219,7 +219,7 @@ TEST(app_shell_tool_options) {
 
 TEST(app_shell_light_and_readonly) {
   factest::HideTestRegs hide;
-  Harness h("shell_light", 1440, 900, 1, false);
+  Harness h("shell_light", 1440, 900, 1, kAltScheme);
   h.demo();
   h.dropToasts();
   Id pid = firstLand(h->world());
@@ -229,6 +229,44 @@ TEST(app_shell_light_and_readonly) {
   h->select(SelType::Faction, h->world().province(pid)->owner);
   h.settle();
   CHECK(h.shot("shell_light_state"));
+}
+
+TEST(app_shell_schemes) {
+  factest::HideTestRegs hide;
+  // У каждого цветокора — своя палитра карты (тот же id); по умолчанию карта в исходных цветах.
+  for (int i = 0; i < ui::schemeCount(); i++)
+    CHECK_EQ(std::string(map::paletteId(app::detail::schemePalette(i))), std::string(ui::schemeInfo(i).id));
+  Harness h("shell_schemes");
+  h.demo();
+  h.dropToasts();
+  CHECK(h->map().palette() == map::Palette::Source);
+  Id pid = firstLand(h->world());
+  for (int i = 0; i < ui::schemeCount(); i++) {
+    const std::string id = ui::schemeInfo(i).id;
+    h->setScheme(i);
+    h->select(SelType::Province, pid);
+    h.settle();
+    h.waitMap();
+    h.dropToasts();
+    h.settle();
+    CHECK(ui::theme().bg == ui::schemeTheme(i).bg);
+    CHECK(h.shot("scheme_" + id + "_map"));
+    h->select(SelType::Faction, h->world().province(pid)->owner);
+    h.settle();
+    CHECK(h.shot("scheme_" + id + "_page"));
+    h->toMap();
+    h.settle();
+  }
+  // Карта в цветах цветокора.
+  h->setScheme(0);
+  h->setSchemeMap(true);
+  CHECK(h->map().palette() == map::Palette::Sapphire);
+  h.settle();
+  h.waitMap();
+  h.settle();
+  CHECK(h.shot("scheme_sapphire_map_colored"));
+  h->setSchemeMap(false);
+  CHECK(h->map().palette() == map::Palette::Source);
 }
 
 }  // namespace rg

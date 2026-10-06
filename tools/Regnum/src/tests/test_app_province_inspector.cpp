@@ -336,7 +336,7 @@ TEST(app_province_overview_screens) {
     CHECK(h.shot("province_overview_bottom"));
   }
   {
-    Harness h("province_shot_light", 1440, 1000, 1, false);
+    Harness h("province_shot_light", 1440, 1000, 1, kAltScheme);
     h.demo();
     Id pid = openProvince(h, "province.overview");
     (void)pid;

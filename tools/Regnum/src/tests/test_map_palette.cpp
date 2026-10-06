@@ -1,5 +1,5 @@
-// Тесты палитры карты: Source — как исходник (цвета map.json, чёрная краска), Parchment — приглушённое море и
-// пергамент. Цвета моря, суши, вод и краски знаков в отрисовке, серые знаков — mix(ink, paper, g / 255), смена
+// Тесты палитры карты: Source — как исходник (цвета map.json, чёрная краска), палитры цветокоров (Sapphire…) —
+// насыщенное море и светлая суша. Цвета моря, суши, вод и краски знаков в отрисовке, серые знаков — mix(ink, paper, g / 255), смена
 // палитры перерисовывает тайлы, превью, миниатюры и мини-карту, легенда и экспорт — в палитре; снимки для глаза.
 #include <chrono>
 #include <thread>
@@ -99,33 +99,40 @@ TEST(map_palette_style) {
   CHECK_EQ(int(src.outside.a), 0);
   // У исходника серый остаётся собой до бита.
   for (int g = 0; g < 256; g++) CHECK(src.tone(u8(g)) == Color(u8(g), u8(g), u8(g)));
-  const map::art::Style par = map::art::paletteStyle(base, Palette::Parchment);
-  CHECK(par.tone(0) == par.ink);
-  CHECK(par.tone(255) == par.paper);
-  CHECK(par.paper == par.land);
-  CHECK_NEAR(par.coastSoft, base.coastSoft, 1e-6);
-  // Море тёмное и приглушённое, суша светлая и тёплая, воды темнее моря, краска тёмная.
-  CHECK(par.sea.luminance() < 0.12 && par.land.luminance() > 0.7);
-  CHECK(par.land.r > par.land.b);
-  CHECK(par.water.luminance() < par.sea.luminance());
-  CHECK(par.ink.luminance() < 0.05);
-  CHECK(par.outside.a == 255 && par.outside.luminance() < par.sea.luminance());
-  int prev = -1;
-  for (int g = 0; g < 256; g += 5) {
-    const int l = int(par.tone(u8(g)).luminance() * 10000);
-    CHECK(l >= prev);
-    prev = l;
+  // Палитры цветокоров: море насыщенное и не светлое, суша светлая и тёплая, воды темнее моря, краска тёмная,
+  // за краем карты — море темнее; у каждой палитры своё море.
+  for (int pi = 1; pi < int(Palette::Count); pi++) {
+    const Palette pal = Palette(pi);
+    const map::art::Style par = map::art::paletteStyle(base, pal);
+    CHECK_MSG(std::string(map::paletteId(pal)) != "source", map::paletteId(pal));
+    CHECK(par.tone(0) == par.ink);
+    CHECK(par.tone(255) == par.paper);
+    CHECK(par.paper == par.land);
+    CHECK_NEAR(par.coastSoft, base.coastSoft, 1e-6);
+    CHECK_MSG(par.sea.luminance() < 0.12 && par.land.luminance() > 0.7, map::paletteId(pal));
+    CHECK(par.land.r > par.land.b);
+    CHECK(par.water.luminance() < par.sea.luminance());
+    CHECK(par.ink.luminance() < 0.05);
+    CHECK(par.outside.a == 255 && par.outside.luminance() < par.sea.luminance());
+    int prev = -1;
+    for (int g = 0; g < 256; g += 5) {
+      const int l = int(par.tone(u8(g)).luminance() * 10000);
+      CHECK(l >= prev);
+      prev = l;
+    }
+    CHECK(mvtest::basemap().style(pal).sea == par.sea);
+    for (int pj = 1; pj < pi; pj++) CHECK(!(map::art::paletteStyle(base, Palette(pj)).sea == par.sea));
   }
-  CHECK(mvtest::basemap().style(Palette::Parchment).sea == par.sea);
+  CHECK_EQ(std::string(map::paletteId(Palette::Source)), std::string("source"));
 }
 
 TEST(map_palette_symbols_tone) {
   // Башня — ровно краской палитры, без полутонов; серые горы — mix(ink, paper, g / 255) серого исходника.
-  const map::art::Style par = map::art::paletteStyle(map::art::Style{}, Palette::Parchment);
+  const map::art::Style par = map::art::paletteStyle(map::art::Style{}, Palette::Sapphire);
   {
     gfx::Image img(30, 30, gfx::premul(par.paper));
     gfx::Canvas c(img);
-    map::art::drawSymbol(c, map::art::Sym::Tower, gfx::Pt{15, 22}, 1, 0, Palette::Parchment);
+    map::art::drawSymbol(c, map::art::Sym::Tower, gfx::Pt{15, 22}, 1, 0, Palette::Sapphire);
     int ink = 0, other = 0;
     for (u32 p : img.px) {
       ink += p == gfx::premul(par.ink);
@@ -139,7 +146,7 @@ TEST(map_palette_symbols_tone) {
       gfx::Image a(160, 140, gfx::premul(Color(255, 255, 255))), b(160, 140, gfx::premul(par.paper));
       gfx::Canvas ca(a), cb(b);
       map::art::drawSymbol(ca, map::art::Sym::Mountain, gfx::Pt{80.3f, 120.6f}, s, v);
-      map::art::drawSymbol(cb, map::art::Sym::Mountain, gfx::Pt{80.3f, 120.6f}, s, v, Palette::Parchment);
+      map::art::drawSymbol(cb, map::art::Sym::Mountain, gfx::Pt{80.3f, 120.6f}, s, v, Palette::Sapphire);
       int worst = 0, dark = 255;
       for (size_t i = 0; i < a.px.size(); i++) {
         const u8 g = u8(a.px[i] & 255);
@@ -154,35 +161,35 @@ TEST(map_palette_symbols_tone) {
 TEST(map_palette_art_layers) {
   // Слои карты в палитре: открытое море, вода озера, суша внутри замка.
   const map::Basemap& bm = mvtest::basemap();
-  const map::art::Style par = bm.style(Palette::Parchment);
+  const map::art::Style par = bm.style(Palette::Sapphire);
   gfx::Image a(64, 64, gfx::premul(par.land));
-  map::art::drawSea(a, bm.index(), map::art::Xf{1, 10, 10}, Palette::Parchment);
+  map::art::drawSea(a, bm.index(), map::art::Xf{1, 10, 10}, Palette::Sapphire);
   for (u32 p : a.px) CHECK_EQ(p, gfx::premul(par.sea));
   const Vec2 lake = lakeCenter();
-  const gfx::Image l = map::art::render(bm.index(), 1, 9, 9, std::floor(lake.x) - 4, std::floor(lake.y) - 4, Palette::Parchment);
+  const gfx::Image l = map::art::render(bm.index(), 1, 9, 9, std::floor(lake.x) - 4, std::floor(lake.y) - 4, Palette::Sapphire);
   CHECK_EQ(l.at(4, 4), gfx::premul(par.water));
   const Vec2 g = plainLand(30);
-  const gfx::Image p = map::art::render(bm.index(), 1, 9, 9, std::floor(g.x) - 4, std::floor(g.y) - 4, Palette::Parchment);
+  const gfx::Image p = map::art::render(bm.index(), 1, 9, 9, std::floor(g.x) - 4, std::floor(g.y) - 4, Palette::Sapphire);
   for (u32 px : p.px) CHECK_EQ(px, gfx::premul(par.land));
   // Источник не меняется: открытое море — ровно цвет моря map.json.
   gfx::Image s(16, 16, gfx::premul(Color(255, 255, 255)));
   map::art::drawSea(s, bm.index(), map::art::Xf{1, 10, 10});
   for (u32 px : s.px) CHECK_EQ(px, gfx::premul(Color(0, 38, 255)));
   // Превью и миниатюра базовой карты — свои в каждой палитре, рисуются один раз.
-  CHECK(bm.preview(Palette::Parchment).get() == bm.preview(Palette::Parchment).get());
-  CHECK(bm.thumb(Palette::Parchment).get() != bm.thumb(Palette::Source).get());
-  CHECK_EQ(bm.thumb(Palette::Parchment)->at(2, 2), gfx::premul(par.sea));
+  CHECK(bm.preview(Palette::Sapphire).get() == bm.preview(Palette::Sapphire).get());
+  CHECK(bm.thumb(Palette::Sapphire).get() != bm.thumb(Palette::Source).get());
+  CHECK_EQ(bm.thumb(Palette::Sapphire)->at(2, 2), gfx::premul(par.sea));
   CHECK_EQ(bm.thumb()->at(2, 2), gfx::premul(Color(0, 38, 255)));
 }
 
 // ================================================================ карта: цвета в кадре
 TEST(map_palette_view_colors) {
   const map::Basemap& bm = mvtest::basemap();
-  const map::art::Style par = bm.style(Palette::Parchment);
+  const map::art::Style par = bm.style(Palette::Sapphire);
   map::MapView mv(&bm);
   CHECK(mv.palette() == Palette::Source);
-  mv.setPalette(Palette::Parchment);
-  CHECK(mv.palette() == Palette::Parchment);
+  mv.setPalette(Palette::Sapphire);
+  CHECK(mv.palette() == Palette::Sapphire);
   mv.setWorld(mvtest::emptyWorld());
   map::RenderOptions opt;
   // Вся карта: море, за краем карты — море чуть темнее.
@@ -226,10 +233,10 @@ TEST(map_palette_switch_repaints) {
   mv.setWorld(mvtest::demo());
   const gfx::Image a = mvtest::renderFull(mv, opt, 960, 540, DPI);
   CHECK(a.px == ref.px);
-  mv.setPalette(Palette::Parchment);
+  mv.setPalette(Palette::Sapphire);
   const gfx::Image b = mvtest::renderFull(mv, opt, 960, 540, DPI);
   CHECK(!mv.stats().fallback);
-  CHECK_EQ(pixelAt(b, mv.view(), {60, 60}), gfx::premul(bm.style(Palette::Parchment).sea));
+  CHECK_EQ(pixelAt(b, mv.view(), {60, 60}), gfx::premul(bm.style(Palette::Sapphire).sea));
   CHECK_EQ(pixelAt(a, mv.view(), {60, 60}), gfx::premul(Color(0, 38, 255)));
   i64 changed = 0;
   for (size_t i = 0; i < a.px.size(); i++) changed += a.px[i] != b.px[i];
@@ -237,17 +244,17 @@ TEST(map_palette_switch_repaints) {
   mv.setPalette(Palette::Source);
   const gfx::Image c = mvtest::renderFull(mv, opt, 960, 540, DPI);
   CHECK(c.px == ref.px);
-  mv.setPalette(Palette::Parchment);
+  mv.setPalette(Palette::Sapphire);
   const gfx::Image d = mvtest::renderFull(mv, opt, 960, 540, DPI);
   CHECK(d.px == b.px);
   // Та же палитра ещё раз — ничего не сбрасывается.
-  mv.setPalette(Palette::Parchment);
-  CHECK(mv.palette() == Palette::Parchment);
+  mv.setPalette(Palette::Sapphire);
+  CHECK(mv.palette() == Palette::Sapphire);
 }
 
 TEST(map_palette_minimap_thumbnail_legend) {
   const map::Basemap& bm = mvtest::basemap();
-  const map::art::Style par = bm.style(Palette::Parchment);
+  const map::art::Style par = bm.style(Palette::Sapphire);
   map::MapView mv(&bm);
   mv.setWorld(mvtest::demo());
   mv.setViewport(RectF(0, 0, W, H), DPI);
@@ -267,13 +274,13 @@ TEST(map_palette_minimap_thumbnail_legend) {
   const gfx::Image m0 = mini();
   CHECK(maxDiff(seaAt(m0), gfx::premul(Color(0, 38, 255))) <= 2);
   // Сразу после смены — миниатюра базовой карты в новой палитре, затем миниатюра карты мира.
-  mv.setPalette(Palette::Parchment);
-  CHECK(mv.mapThumbnail().get() == bm.thumb(Palette::Parchment).get());
+  mv.setPalette(Palette::Sapphire);
+  CHECK(mv.mapThumbnail().get() == bm.thumb(Palette::Sapphire).get());
   const gfx::Image m1 = mini();
   CHECK(maxDiff(seaAt(m1), gfx::premul(par.sea)) <= 2);
-  waitWorldThumb(mv, Palette::Parchment);
+  waitWorldThumb(mv, Palette::Sapphire);
   const std::shared_ptr<const gfx::Image> th = mv.mapThumbnail();
-  CHECK(th.get() != bm.thumb(Palette::Parchment).get());
+  CHECK(th.get() != bm.thumb(Palette::Sapphire).get());
   CHECK_EQ(th->at(2, 2), gfx::premul(par.sea));
   const gfx::Image m2 = mini();
   CHECK(maxDiff(seaAt(m2), gfx::premul(par.sea)) <= 2);
@@ -293,7 +300,7 @@ TEST(map_palette_minimap_thumbnail_legend) {
   CHECK(colorOf(schema::MapMode::Political, "Без владельца") == Color(255, 255, 255));
   CHECK(colorOf(schema::MapMode::Terrain, "Море, реки и озёра") == Color(0, 38, 255));
   CHECK(colorOf(schema::MapMode::Terrain, "Горы, замки и башни") == Color::hex(0x8c8c8c));
-  mv.setPalette(Palette::Parchment);
+  mv.setPalette(Palette::Sapphire);
   CHECK(colorOf(schema::MapMode::Political, "Без владельца") == par.land);
   CHECK(colorOf(schema::MapMode::Resources, "Без ресурса") == par.land);
   CHECK(colorOf(schema::MapMode::Terrain, "Суша") == par.land);
@@ -301,12 +308,12 @@ TEST(map_palette_minimap_thumbnail_legend) {
   CHECK(colorOf(schema::MapMode::Terrain, "Горы, замки и башни") == par.tone(0x8c));
   // Без базовой карты: суша и море по граням — тоже в палитре.
   map::MapView nb(nullptr);
-  nb.setPalette(Palette::Parchment);
+  nb.setPalette(Palette::Sapphire);
   nb.setWorld(mvtest::demo());
   map::RenderOptions opt;
   opt.labels = false;
   const gfx::Image f = mvtest::renderFull(nb, opt, 960, 540, 1);
-  const map::art::Style def = map::art::paletteStyle(map::art::Style{}, Palette::Parchment);
+  const map::art::Style def = map::art::paletteStyle(map::art::Style{}, Palette::Sapphire);
   CHECK_EQ(pixelAt(f, nb.view(), {60, 60}), gfx::premul(def.sea));
   CHECK_EQ(pixelAt(f, nb.view(), {1000, 500}), gfx::premul(def.land));
   gfx::Image nm(200, 120, 0xff000000u);
@@ -320,10 +327,10 @@ TEST(map_palette_export) {
   const map::Basemap& bm = mvtest::basemap();
   map::RenderOptions opt;
   opt.labels = false;
-  const gfx::Image p = map::exportMap(&bm, mvtest::demo(), 960, opt, Palette::Parchment);
+  const gfx::Image p = map::exportMap(&bm, mvtest::demo(), 960, opt, Palette::Sapphire);
   const gfx::Image s = map::exportMap(&bm, mvtest::demo(), 960, opt);
   const int x = int(60 * 960 / 8000.0) + 1, y = int(60 * 960 / 8000.0) + 1;
-  CHECK_EQ(p.at(x, y), gfx::premul(bm.style(Palette::Parchment).sea));
+  CHECK_EQ(p.at(x, y), gfx::premul(bm.style(Palette::Sapphire).sea));
   CHECK_EQ(s.at(x, y), gfx::premul(Color(0, 38, 255)));
   mvtest::savePng(p, "map_palette_export.png");
 }
@@ -331,7 +338,7 @@ TEST(map_palette_export) {
 // ================================================================ снимки для глаза
 TEST(map_palette_shots) {
   map::MapView mv(&mvtest::basemap());
-  mv.setPalette(Palette::Parchment);
+  mv.setPalette(Palette::Sapphire);
   mv.setWorld(mvtest::demo());
   map::RenderOptions opt;
   const gfx::Image fit = mvtest::renderFull(mv, opt, W, H, DPI);

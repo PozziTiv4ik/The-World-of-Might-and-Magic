@@ -382,7 +382,7 @@ TEST(app_trees_tech_copy_tree) {
 
 TEST(app_trees_tech_light_and_readonly) {
   HideTestRegs hide;
-  Harness h("trees_tech_light", 1440, 900, 1, false);
+  Harness h("trees_tech_light", 1440, 900, 1, kAltScheme);
   h.demo();
   Id fid = firstStateWithTechs(h.a());
   denseTree(h.a(), fid);

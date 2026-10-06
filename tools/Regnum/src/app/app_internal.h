@@ -112,6 +112,9 @@ namespace detail {
 
 // Отложить действие до конца кадра (после сведения интерфейса): системные диалоги, открытие файлов.
 void later(App& a, std::function<void(App&)> fn);
+// Палитра карты цветокора scheme (ui::schemeInfo — тот же id) и палитра по настройкам: исходные цвета или цветокора.
+map::Palette schemePalette(int scheme);
+map::Palette mapPalette(const App& a);
 void savePrefs(App& a);
 
 // ---- оболочка (shell.cpp, start.cpp)

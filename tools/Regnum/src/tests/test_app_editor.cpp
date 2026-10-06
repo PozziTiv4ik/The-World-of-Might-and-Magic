@@ -291,13 +291,19 @@ TEST(app_editor_settings_help) {
   h.settle();
   CHECK(h->hasDialog("settings"));
   CHECK(h.shot("settings"));
-  // Светлая тема.
-  const RectF* tr = h->uiRect("settings.theme");
-  CHECK(tr != nullptr);
-  h.click(tr->x + tr->w * 0.75f, tr->cy());
+  // Цветокор «Обсидиан» — образец в настройках; карта остаётся в исходных цветах, пока не выбраны цвета цветокора.
+  CHECK(h.clickUi("settings.scheme.obsidian"));
   h.settle();
-  CHECK(!h->ui.darkTheme);
-  CHECK(!ui::theme().dark);
+  CHECK_EQ(std::string(ui::schemeInfo(h->ui.scheme).id), std::string("obsidian"));
+  CHECK(ui::theme().bg == ui::schemeTheme(h->ui.scheme).bg);
+  CHECK(h->map().palette() == map::Palette::Source);
+  const RectF* pr = h->uiRect("settings.palette");
+  CHECK(pr != nullptr);
+  h.click(pr->x + pr->w * 0.75f, pr->cy());
+  h.settle();
+  CHECK(h->ui.schemeMap);
+  CHECK(h->map().palette() == map::Palette::Obsidian);
+  CHECK(h.shot("settings_scheme"));
   // Настройка мира — через историю (Ctrl+Z).
   const RectF* tabs = h->uiRect("settings.tabs");
   CHECK(tabs != nullptr);
@@ -415,33 +421,34 @@ TEST(app_editor_fullscreen_editor) {
 }
 
 TEST(app_prefs_persist) {
-  // Тема, масштаб, ширина панелей и мини-карта запоминаются в app.json папки данных пользователя.
+  // Цветокор, масштаб, ширина панелей и цвета карты запоминаются в app.json папки данных пользователя.
   std::string dir = tempDir("prefs");
   hl::reset();
   ui::shutdown();
   ui::init();
   {
     app::App a(app::AppConfig{dir});
-    a.setTheme(false);
+    CHECK(a.map().palette() == map::Palette::Source);   // по умолчанию — исходные цвета карты
+    a.setScheme(3);
     a.setUiScale(1.25f);
     a.ui.inspectorWidth = 480;
     a.ui.drawerWidth = 420;
-    CHECK(a.map().palette() == map::Palette::Parchment);   // по умолчанию — «Пергамент»
-    a.ui.sourceMap = true;
+    a.setSchemeMap(true);
   }
   CHECK(fs::isFile(fs::join(dir, "app.json")));
   {
     app::App a(app::AppConfig{dir});
-    CHECK(!a.ui.darkTheme);
+    CHECK_EQ(a.ui.scheme, 3);
     CHECK_NEAR(a.ui.uiScale, 1.25, 1e-6);
     CHECK_NEAR(a.ui.inspectorWidth, 480, 1e-6);
     CHECK_NEAR(a.ui.drawerWidth, 420, 1e-6);
-    CHECK(a.ui.sourceMap);
-    CHECK(a.map().palette() == map::Palette::Source);
+    CHECK(a.ui.schemeMap);
+    CHECK(a.map().palette() == map::Palette::Amethyst);
   }
   {
     app::App a(app::AppConfig{dir, {}, false});   // без запоминания — значения по умолчанию
-    CHECK(a.ui.darkTheme);
+    CHECK_EQ(a.ui.scheme, 0);
+    CHECK(!a.ui.schemeMap);
   }
   ui::shutdown();
 }

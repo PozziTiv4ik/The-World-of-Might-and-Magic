@@ -462,7 +462,7 @@ TEST(app_military_inspector_and_drawer) {
     CHECK(h->ui.sel == (app::Selection{app::SelType::Army, fleet}));
   }
   {
-    Harness h("military_light", 1440, 900, 1, false);
+    Harness h("military_light", 1440, 900, 1, kAltScheme);
     RealArmyTools tools;
     h.demo();
     Id allied = 0;

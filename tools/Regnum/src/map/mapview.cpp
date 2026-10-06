@@ -811,7 +811,7 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
   c.clipRect(RectF(float(clip.x), float(clip.y), float(clip.w), float(clip.h)));
   // Фон за пределами карты: по палитре (продолжение моря) или по теме интерфейса.
   const Color outside = d.colors().outside;
-  const Color back = outside.a ? outside : opt.darkUi ? Color::hex(0x0b0e13) : Color::hex(0xe4ded2);
+  const Color back = outside.a ? outside : opt.background.a ? opt.background : opt.darkUi ? Color::hex(0x0b0e13) : Color::hex(0xe4ded2);
   const gfx::RectI mapDev(int(X0), int(Y0), int(std::lround(X0 + d.mapW() * ds)) - int(X0), int(std::lround(Y0 + d.mapH() * ds)) - int(Y0));
   {
     const gfx::RectI in = clip.intersect(mapDev);

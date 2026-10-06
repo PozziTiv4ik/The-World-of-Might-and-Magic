@@ -28,20 +28,40 @@ Color Style::tone(u8 g) const {
 
 Style paletteStyle(const Style& s, Palette p) {
   Style r = s;
+  // Море, суша, реки и озёра, краска знаков.
+  auto set = [&](u32 sea, u32 land, u32 water, u32 ink) {
+    r.sea = Color::hex(sea);
+    r.land = Color::hex(land);
+    r.water = Color::hex(water);
+    r.ink = Color::hex(ink);
+    r.paper = r.land;
+    r.outside = r.sea.darken(0.12f);   // океан продолжается за краем карты
+  };
   switch (p) {
-    case Palette::Parchment:
-      r.sea = Color::hex(0x375168);
-      r.land = Color::hex(0xece6d6);
-      r.water = Color::hex(0x2f4c6b);
-      r.ink = Color::hex(0x3a352e);
-      r.paper = r.land;
-      r.outside = r.sea.darken(0.09f);   // океан продолжается за краем карты
-      break;
+    case Palette::Sapphire: set(0x1d5596, 0xf3ead5, 0x16447f, 0x2a251f); break;
+    case Palette::Emerald: set(0x11606c, 0xf2e7c9, 0x0d5260, 0x26291f); break;
+    case Palette::Crimson: set(0x1c4466, 0xf3e3c6, 0x173a5c, 0x2e2320); break;
+    case Palette::Amethyst: set(0x2b3f8f, 0xf3ebda, 0x23347c, 0x29242f); break;
+    case Palette::Obsidian: set(0x1a4c78, 0xefe9dd, 0x153f66, 0x232120); break;
     case Palette::Source:
     case Palette::Count: break;
   }
   return r;
 }
+
+}  // namespace rg::map::art
+
+namespace rg::map {
+
+const char* paletteId(Palette p) {
+  static const char* const ids[] = {"source", "sapphire", "emerald", "crimson", "amethyst", "obsidian"};
+  static_assert(std::size(ids) == size_t(Palette::Count));
+  return size_t(p) < std::size(ids) ? ids[size_t(p)] : "source";
+}
+
+}  // namespace rg::map
+
+namespace rg::map::art {
 
 namespace {
 

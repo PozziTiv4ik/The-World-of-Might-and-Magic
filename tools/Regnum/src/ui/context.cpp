@@ -311,7 +311,7 @@ void init() {
   if (c.inited) return;
   std::string err;
   if (!gfx::initFonts(&err)) logError("ui: %s", err.c_str());
-  c.th = darkTheme();
+  c.th = schemeTheme(0);
   c.idStack.assign(1, hash64("regnum-ui"));
   c.inited = true;
 }

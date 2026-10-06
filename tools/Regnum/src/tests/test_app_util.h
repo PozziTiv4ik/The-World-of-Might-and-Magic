@@ -23,6 +23,8 @@ namespace hl = platform::headless;
 
 inline u32 ctrl() { return platform::primaryMod(); }
 
+constexpr int kAltScheme = 2;   // другой цветокор для снимков (багрянец)
+
 // Чистая временная папка теста (внутри каталога артефактов).
 inline std::string tempDir(const std::string& name) {
   std::string d = fs::join(test::outDir(), "app-tmp/" + name);
@@ -35,7 +37,7 @@ struct Harness {
   std::string root, dataDir;
   std::unique_ptr<app::App> app;
 
-  explicit Harness(const std::string& name, int w = 1440, int h = 900, float scale = 1, bool dark = true) {
+  explicit Harness(const std::string& name, int w = 1440, int h = 900, float scale = 1, int scheme = 0) {
     root = tempDir(name);
     dataDir = tempDir(name + ".data");   // рядом, а не внутри: в папке теста — только миры
     hl::reset();
@@ -45,7 +47,7 @@ struct Harness {
     app::AppConfig cfg;
     cfg.dataDir = dataDir;
     app = std::make_unique<app::App>(cfg);
-    app->ui.darkTheme = dark;
+    app->ui.scheme = scheme;
     app->impl().browserDir = root;
     hl::attach(app.get());
     frames(2);

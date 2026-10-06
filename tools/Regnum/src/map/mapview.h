@@ -50,7 +50,8 @@ struct RenderOptions {
   bool editBorders = false;          // режим правки: все границы видны чётко, заливка приглушена
   std::vector<Id> hideArmies;        // объекты, которые сейчас перетаскиваются (рисует инструмент)
   bool labels = true;
-  bool darkUi = true;                // для цвета рамки/фона за пределами карты (у Parchment фон — продолжение моря)
+  bool darkUi = true;                // для цвета рамки за краем карты и фона без background
+  Color background{0, 0, 0, 0};      // фон окна за краем карты (a = 0 — по darkUi); у палитр цветокора — продолжение моря
   bool edgeLine = true;              // тонкая линия по краю карты (экспорт в изображение — без неё)
 };
 

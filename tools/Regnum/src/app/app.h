@@ -296,9 +296,9 @@ struct UiState {
   std::map<std::string, std::string> lastEditor;   // последний редактор раздела
   bool inspectorHidden = false;            // панель выделения свёрнута (кнопка в нижней строке)
   std::optional<int> viewTurn;             // просмотр снимка прошлого хода (только чтение)
-  bool darkTheme = true;
+  int scheme = 0;                          // цветокор (ui::schemeInfo): тон интерфейса и цвета карты
   float uiScale = 1.0f;                    // пользовательский множитель 0,9…1,5
-  bool sourceMap = false;                  // карта цветами исходника (иначе — «Пергамент»: тёмно-синее море, светлая суша)
+  bool schemeMap = false;                  // карта в цветах цветокора (иначе — исходные цвета: синее море, белая суша)
   float drawerWidth = 300;                 // точки интерфейса
   float inspectorWidth = 380;
   std::optional<Vec2> cursorMap;           // точка карты под указателем (строка состояния)
@@ -384,7 +384,8 @@ class App : public platform::App {
   void focusMap(Vec2 p, double zoom = 0);  // 0 — оставить масштаб
   void focusSelection();                   // показать выделенный объект
   void requestRedraw();
-  void setTheme(bool dark);
+  void setScheme(int i);                   // цветокор: интерфейс и палитра карты
+  void setSchemeMap(bool on);              // карта в цветах цветокора или исходного изображения
   void setUiScale(float s);
   void toggleFullscreen();
   void showPalette();                      // Ctrl+K

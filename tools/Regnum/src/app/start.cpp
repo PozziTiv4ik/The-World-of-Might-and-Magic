@@ -179,13 +179,12 @@ void drawStartScreen(App& a) {
   float x0 = std::round((V.w - colW) * 0.5f);
   float y = std::round(std::max(40.f, std::min(V.h * 0.12f, 120.f)));
 
-  // Угол: тема, настройки, справка.
+  // Угол: настройки (цветокор, масштаб), справка.
   {
-    ui::Area corner(RectF{V.w - 24 - 3 * 30 - 2 * 6, 20, 3 * 30 + 2 * 6, 30}, 0);
+    ui::Area corner(RectF{V.w - 24 - 2 * 30 - 6, 20, 2 * 30 + 6, 30}, 0);
     ui::HStack hs(30, ui::Align::Left, 6);
-    if (ui::iconButton(th.dark ? "sun" : "moon", th.dark ? "Светлая тема" : "Тёмная тема")) a.setTheme(!a.ui.darkTheme);
-    a.markUi("start.theme");
     if (ui::iconButton("settings", "Настройки")) a.showSettings();
+    a.markUi("start.settings");
     ui::tooltip("Настройки", parseShortcut("Ctrl+,"));
     if (ui::iconButton("keyboard", "Сочетания клавиш")) a.showHelp();
     ui::tooltip("Сочетания клавиш", {platform::Key::F1, 0});

@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
     wc.minWidth = 1100;
     wc.minHeight = 700;
     wc.maximized = !selftest;
-    wc.darkFrame = a.ui.darkTheme;
+    wc.darkFrame = true;   // все цветокоры тёмные
     wc.appName = "Regnum";
     wc.placementFile = selftest || bench ? std::string() : fs::join(dataDir, "window.ini");
     try {

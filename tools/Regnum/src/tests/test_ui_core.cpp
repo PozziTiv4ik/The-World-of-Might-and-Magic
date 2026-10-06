@@ -391,16 +391,30 @@ TEST(ui_core_theme_switch_and_tokens) {
   H h;
   h.build = [] { ui::label("Текст"); };
   h.frame();
-  u32 darkBg = h.img.at(500, 500);
-  ui::setTheme(false);
-  CHECK(!ui::theme().dark);
-  CHECK(ui::theme().bg == Color::hex(0xf4f1ea));
+  u32 bg0 = h.img.at(500, 500);
+  // Цветокоры: первый — сапфир; все тёмные с почти белым текстом, поверхности светлее фона; id и тон — свои.
+  CHECK(ui::schemeCount() >= 5);
+  CHECK_EQ(ui::scheme(), 0);
+  CHECK_EQ(std::string(ui::schemeInfo(0).id), std::string("sapphire"));
+  for (int i = 0; i < ui::schemeCount(); i++) {
+    const ui::Theme t = ui::schemeTheme(i);
+    CHECK(t.dark && t.bg.luminance() < 0.03 && t.text.luminance() > 0.8);
+    CHECK(t.surface1.luminance() > t.bg.luminance() && t.surface3.luminance() > t.surface1.luminance());
+    for (int j = 0; j < i; j++) {
+      CHECK(std::string(ui::schemeInfo(i).id) != ui::schemeInfo(j).id);
+      CHECK(!(ui::schemeTheme(j).surface1 == t.surface1));
+    }
+  }
+  ui::setScheme(2);
+  CHECK_EQ(ui::scheme(), 2);
+  CHECK(ui::theme().bg == ui::schemeTheme(2).bg);
   h.frame();
-  CHECK(h.img.at(500, 500) != darkBg);
-  ui::setTheme(true);
-  CHECK(ui::theme().accent == Color::hex(0xd6aa4c));
-  CHECK(ui::inkColor(ui::Ink::Muted) == Color::hex(0x737d89));
-  CHECK(ui::toneColor(ui::Tone::Danger) == Color::hex(0xe0605a));
+  CHECK(h.img.at(500, 500) != bg0);
+  ui::setScheme(99);   // вне списка — первый
+  CHECK_EQ(ui::scheme(), 0);
+  CHECK(ui::theme().accent == Color::hex(0xf5b83d));
+  CHECK(ui::inkColor(ui::Ink::Muted) == Color::hex(0x7b8fb8));
+  CHECK(ui::toneColor(ui::Tone::Danger) == Color::hex(0xf25a52));
   CHECK_EQ(ui::shortcutText({Key::S, ui::ModPrimary}).empty(), false);
   ui::setUiScale(3);
   CHECK_NEAR(ui::uiScale(), 1.5, 1e-6);

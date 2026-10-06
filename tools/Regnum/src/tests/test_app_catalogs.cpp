@@ -275,8 +275,8 @@ TEST(app_catalogs_modifier_list_and_readonly) {
 }
 
 TEST(app_catalogs_modifier_light) {
-  Harness h("catalogs_light", 1440, 900, 1, false);
-  h->setTheme(false);
+  Harness h("catalogs_light", 1440, 900, 1, kAltScheme);
+  h->setScheme(kAltScheme);
   h.demo();
   h.dropToasts();
   const Modifier* m = modifierNamed(h->world(), "Мятежные настроения");

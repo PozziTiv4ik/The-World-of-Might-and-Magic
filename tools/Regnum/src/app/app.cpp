@@ -132,6 +132,17 @@ App& app() {
 }
 bool hasApp() { return gApp != nullptr; }
 
+// ---------------------------------------------------------------- цветокор
+// Палитра карты: исходные цвета или палитра цветокора (тот же id, что у схемы интерфейса).
+map::Palette detail::schemePalette(int scheme) {
+  const std::string_view id = ui::schemeInfo(scheme).id;
+  for (int p = 1; p < int(map::Palette::Count); p++)
+    if (id == map::paletteId(map::Palette(p))) return map::Palette(p);
+  return map::Palette::Sapphire;
+}
+
+map::Palette detail::mapPalette(const App& a) { return a.ui.schemeMap ? schemePalette(a.ui.scheme) : map::Palette::Source; }
+
 // ---------------------------------------------------------------- настройки приложения
 static std::string prefsPath(const std::string& dataDir) { return fs::join(dataDir, "app.json"); }
 
@@ -142,9 +153,11 @@ static void loadPrefs(App& a) {
   if (!text) return;
   auto v = json::tryParse(*text);
   if (!v || !v->isObj()) return;
-  a.ui.darkTheme = v->str("theme", "dark") != "light";
+  const std::string scheme = v->str("scheme", "");
+  for (int i = 0; i < ui::schemeCount(); i++)
+    if (scheme == ui::schemeInfo(i).id) a.ui.scheme = i;
   a.ui.uiScale = float(clamp(v->num("uiScale", 1.0), 0.9, 1.5));
-  a.ui.sourceMap = v->str("mapPalette", "parchment") == "source";
+  a.ui.schemeMap = v->boolean("schemeMap", false);
   a.ui.drawerWidth = float(clamp(v->num("panelWidth", 300), 240.0, 560.0));
   a.ui.inspectorWidth = float(clamp(v->num("inspectorWidth", 380), 320.0, 640.0));
   d.browserDir = v->str("browserDir");
@@ -156,9 +169,9 @@ void detail::savePrefs(App& a) {
   d.prefsDirty = false;
   if (!d.cfg.savePrefs) return;
   json::Value v = json::Value::object();
-  v.set("theme", a.ui.darkTheme ? "dark" : "light");
+  v.set("scheme", ui::schemeInfo(a.ui.scheme).id);
   v.set("uiScale", double(a.ui.uiScale));
-  v.set("mapPalette", a.ui.sourceMap ? "source" : "parchment");
+  v.set("schemeMap", a.ui.schemeMap);
   v.set("panelWidth", double(std::round(a.ui.drawerWidth)));
   v.set("inspectorWidth", double(std::round(a.ui.inspectorWidth)));
   v.set("browserDir", d.browserDir);
@@ -179,7 +192,7 @@ App::App(const AppConfig& cfg) : d_(std::make_unique<Impl>()) {
   ui::init();
   ui::setClipboard([] { return platform::clipboardText(); }, [](const std::string& s) { platform::setClipboardText(s); });
   loadPrefs(*this);
-  ui::setTheme(ui.darkTheme);
+  ui::setScheme(ui.scheme);
   ui::setUiScale(ui.uiScale);
 
   std::string dir = cfg.basemapDir.empty() ? detail::findBasemapDir() : cfg.basemapDir;
@@ -192,7 +205,7 @@ App::App(const AppConfig& cfg) : d_(std::make_unique<Impl>()) {
     logWarn("Базовая карта не найдена: assets/basemap");
   }
   d.map = std::make_unique<map::MapView>(d.basemap.get());
-  d.map->setPalette(ui.sourceMap ? map::Palette::Source : map::Palette::Parchment);
+  d.map->setPalette(detail::mapPalette(*this));
   d.map->setWakeCallback([] { platform::wake(); });   // тайлы готовы в фоне — разбудить цикл событий
   d.map->setWorld(store.world());
   storeSub_ = store.subscribe([this](const Change& c) { onStoreChange(c); });
@@ -722,12 +735,25 @@ void App::focusSelection() {
 
 void App::requestRedraw() { platform::invalidate(); }
 
-void App::setTheme(bool dark) {
-  if (ui.darkTheme == dark) return;
-  ui.darkTheme = dark;
+void App::setScheme(int i) {
+  i = clamp(i, 0, ui::schemeCount() - 1);
+  if (ui.scheme == i) return;
+  ui.scheme = i;
+  ui::setScheme(i);
+  d_->map->setPalette(detail::mapPalette(*this));
   d_->prefsDirty = true;
   d_->backdropW = 0;
   d_->mapKey = 0;
+  d_->mapGen++;
+  requestRedraw();
+}
+
+void App::setSchemeMap(bool on) {
+  if (ui.schemeMap == on) return;
+  ui.schemeMap = on;
+  d_->map->setPalette(detail::mapPalette(*this));
+  d_->prefsDirty = true;
+  d_->mapGen++;
   requestRedraw();
 }
 
@@ -854,9 +880,14 @@ void App::onFrame(platform::Frame& f) {
   d.lw = f.logicalW();
   d.lh = f.logicalH();
   d.dpi = f.scale;
-  if (ui::theme().dark != ui.darkTheme) {
-    ui::setTheme(ui.darkTheme);
-    platform::setDarkFrame(ui.darkTheme);
+  if (ui::scheme() != ui.scheme) {   // цветокор задан полем (настройки, тесты)
+    ui::setScheme(ui.scheme);
+    d.backdropW = 0;
+    d.mapKey = 0;
+  }
+  if (const map::Palette pal = detail::mapPalette(*this); d.map->palette() != pal) {
+    d.map->setPalette(pal);
+    d.mapGen++;
   }
   if (std::fabs(ui::uiScale() - ui.uiScale) > 1e-3f) ui::setUiScale(ui.uiScale);
   if (d.frameImg.w != f.w || d.frameImg.h != f.h) d.frameImg.resize(f.w, f.h);

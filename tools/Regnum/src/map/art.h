@@ -10,9 +10,10 @@
 namespace rg::map {
 
 // Палитра карты, нарисованной кодом. Source — цвета исходника (стиль map.json: ярко-синее море, белая суша,
-// чёрная краска знаков и стен); Parchment — приглушённое тёмно-синее море, суша цвета пергамента, реки и озёра
-// глубже моря, знаки мягкой тёмно-бурой краской.
-enum class Palette : u8 { Source, Parchment, Count };
+// чёрная краска знаков и стен); остальные — к цветовым схемам интерфейса (ui::SchemeInfo, тот же id): насыщенное
+// море тона схемы, светлая суша, реки и озёра глубже моря, знаки тёмной тёплой краской.
+enum class Palette : u8 { Source, Sapphire, Emerald, Crimson, Amethyst, Obsidian, Count };
+const char* paletteId(Palette p);   // "source", "sapphire", "emerald", "crimson", "amethyst", "obsidian"
 
 }  // namespace rg::map
 

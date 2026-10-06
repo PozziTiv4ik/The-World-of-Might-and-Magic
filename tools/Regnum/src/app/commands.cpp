@@ -100,7 +100,8 @@ CommandReg cMode9({"map.mode9", modeTitle<8>(), schema::kMapModes[8].icon, "9", 
 // ---- вид и справка
 CommandReg cPalette({"app.palette", "Палитра команд и поиск", "command", "Ctrl+K", [](App& a) { a.showPalette(); }, nullptr, false, "Вид"});
 CommandReg cSettings({"app.settings", "Настройки", "settings", "Ctrl+,", [](App& a) { a.showSettings(); }, nullptr, false, "Вид"});
-CommandReg cTheme({"app.theme", "Сменить тему", "sun", nullptr, [](App& a) { a.setTheme(!a.ui.darkTheme); }, nullptr, false, "Вид"});
+CommandReg cScheme({"app.scheme", "Следующий цветокор", "palette", nullptr, [](App& a) { a.setScheme((a.ui.scheme + 1) % ui::schemeCount()); }, nullptr,
+                    false, "Вид"});
 CommandReg cFull({"app.fullscreen", "Во весь экран", "fullscreen", "F11", [](App& a) { a.toggleFullscreen(); }, nullptr, true, "Вид"});
 CommandReg cHelp({"app.help", "Сочетания клавиш", "keyboard", "F1", [](App& a) { a.showHelp(); }, nullptr, true, "Вид"});
 

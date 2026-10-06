@@ -92,7 +92,7 @@ TEST(app_faction_shots_flag_editor) {
 
 TEST(app_faction_shots_light) {
   HideTestRegs regs;
-  Harness h("faction_shots_light", 1440, 900, 1, false);
+  Harness h("faction_shots_light", 1440, 900, 1, kAltScheme);
   h.demo();
   h.waitMap();
   h.dropToasts();

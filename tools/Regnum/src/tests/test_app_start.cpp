@@ -43,16 +43,19 @@ TEST(app_start_screen_dark) {
 }
 
 TEST(app_start_screen_light) {
-  Harness h("start_light", 1280, 800, 1, false);
+  Harness h("start_light", 1280, 800, 1, kAltScheme);
   seedRecent(h);
   h.dropToasts();
   h.settle();
-  CHECK(!ui::theme().dark);
-  CHECK(h.shot("start_light"));
-  // Тема переключается и с экрана запуска.
-  CHECK(h.clickUi("start.theme"));
+  CHECK(ui::theme().bg == ui::schemeTheme(kAltScheme).bg);
+  CHECK(h.shot("start_scheme"));
+  // Цветокор выбирается в настройках и с экрана запуска.
+  CHECK(h.clickUi("start.settings"));
   h.settle();
-  CHECK(h->ui.darkTheme);
+  CHECK(h->hasDialog("settings"));
+  CHECK(h.clickUi("settings.scheme.sapphire"));
+  h.settle();
+  CHECK_EQ(h->ui.scheme, 0);
 }
 
 TEST(app_start_open_recent) {

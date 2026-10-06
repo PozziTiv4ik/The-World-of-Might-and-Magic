@@ -1,75 +1,93 @@
-// Regnum — тема интерфейса: токены цветов (ARCHITECTURE.md §6), роли шрифтов, тоны, сочетания клавиш.
+// Regnum — тема интерфейса: цветовые схемы (токены цветов, ARCHITECTURE.md §6), роли шрифтов, тоны, сочетания клавиш.
 #include "ui/ui_internal.h"
 
 namespace rg::ui {
 
 using namespace in;
 
-Theme darkTheme() {
+namespace {
+
+// Основа схемы: фон страниц, поверхности (строки и панели, карточки, поля), рамки, текст, акцент и смысловые цвета;
+// наложения наведения, нажатия, выделения и чередования строк — из текста и акцента.
+struct Tokens {
+  u32 bg, surface1, surface2, surface3, border, borderStrong;
+  u32 text, textDim, textMuted;
+  u32 accent, accentHover, onAccent;
+  u32 success, warning, danger, info;
+  u32 track;
+};
+
+constexpr SchemeInfo kSchemes[] = {
+    {"sapphire", "Сапфир"}, {"emerald", "Изумруд"}, {"crimson", "Багрянец"}, {"amethyst", "Аметист"}, {"obsidian", "Обсидиан"},
+};
+
+// Насыщенные, но не светлые: поверхности несут тон схемы (не серые), текст почти белый, акцент — чистое золото
+// (у обсидиана — янтарь); смысловые цвета яркие, чтобы читаться на тёмном.
+constexpr Tokens kTokens[] = {
+    // Сапфир: глубокий синий и золото.
+    {0x0a1426, 0x0f1d38, 0x152649, 0x1b3159, 0x22396a, 0x30508c, 0xf4f2ec, 0xb5c4e0, 0x7b8fb8, 0xf5b83d, 0xffcb5c, 0x1a1103,
+     0x3ccf82, 0xf6a623, 0xf25a52, 0x4cabff, 0x22365e},
+    // Изумруд: глубокий сине-зелёный и золото.
+    {0x061b18, 0x0a2723, 0x0f332d, 0x154038, 0x1a4b42, 0x25685b, 0xf2f4ee, 0xb0d2c6, 0x739c8f, 0xf2b33d, 0xffc75a, 0x1a1103,
+     0x4fd08f, 0xf6a623, 0xf25a52, 0x4cabff, 0x17433b},
+    // Багрянец: густой винный и золото.
+    {0x180910, 0x230e18, 0x2e1420, 0x3b1a2a, 0x4a2133, 0x672e48, 0xf7f0ec, 0xdcbcc6, 0xa07c88, 0xf5b83d, 0xffcb5c, 0x1a1103,
+     0x45c97f, 0xf6a623, 0xff6b5e, 0x5ab0ff, 0x3d1a2b},
+    // Аметист: королевский фиолетовый и золото.
+    {0x110b22, 0x18102f, 0x20163e, 0x2a1e4f, 0x33255e, 0x4a3684, 0xf4f1fb, 0xc4b9e2, 0x8b80b2, 0xf5b83d, 0xffcb5c, 0x1a1103,
+     0x45c98a, 0xf6a623, 0xf25a6c, 0x5aa9ff, 0x2b1f50},
+    // Обсидиан: почти чёрный нейтральный и янтарь — наибольший контраст.
+    {0x09090b, 0x111216, 0x18191f, 0x212329, 0x272a31, 0x383c46, 0xf6f6f3, 0xbabec7, 0x7d828f, 0xffb21f, 0xffc44f, 0x1a1103,
+     0x35cc7c, 0xffa62b, 0xff5a4f, 0x3ea6ff, 0x25282e},
+};
+static_assert(std::size(kSchemes) == std::size(kTokens));
+
+int clampScheme(int i) { return i >= 0 && i < int(std::size(kSchemes)) ? i : 0; }
+
+}  // namespace
+
+int schemeCount() { return int(std::size(kSchemes)); }
+const SchemeInfo& schemeInfo(int i) { return kSchemes[clampScheme(i)]; }
+
+Theme schemeTheme(int i) {
+  const Tokens& k = kTokens[clampScheme(i)];
   Theme t;
   t.dark = true;
-  // Сине-графитовая гамма: закреплённые панели чуть светлее фона страниц, золото — выбор и главное действие.
-  t.bg = Color::hex(0x161d25);
-  t.surface1 = Color::hex(0x1c242d);
-  t.surface2 = Color::hex(0x212a34);
-  t.surface3 = Color::hex(0x28313c);
-  t.border = Color::hex(0x2c3641);
-  t.borderStrong = Color::hex(0x3b4653);
-  t.text = Color::hex(0xebe6dc);
-  t.textDim = Color::hex(0xa8b0ba);
-  t.textMuted = Color::hex(0x737d89);
-  t.accent = Color::hex(0xd6aa4c);
-  t.accentHover = Color::hex(0xe6bd64);
-  t.onAccent = Color::hex(0x1a1408);
-  t.success = Color::hex(0x57b276);
-  t.warning = Color::hex(0xe2a640);
-  t.danger = Color::hex(0xe0605a);
-  t.info = Color::hex(0x5aa6e0);
-  t.shadow = Color(0, 0, 0, 110);
-  t.scrim = Color(6, 9, 12, 140);
-  t.hover = Color(235, 230, 220, 15);
-  t.pressed = Color(235, 230, 220, 26);
-  t.selection = Color(214, 170, 76, 82);
-  t.stripe = Color(235, 230, 220, 6);
-  t.track = Color::hex(0x2e3844);
-  return t;
-}
-
-Theme lightTheme() {
-  Theme t;
-  t.dark = false;
-  t.bg = Color::hex(0xf4f1ea);
-  t.surface1 = Color::hex(0xfbf9f4);
-  t.surface2 = Color::hex(0xffffff);
-  t.surface3 = Color::hex(0xefeae0);
-  t.border = Color::hex(0xddd5c6);
-  t.borderStrong = Color::hex(0xc9bea9);
-  t.text = Color::hex(0x1d1a14);
-  t.textDim = Color::hex(0x5d574c);
-  t.textMuted = Color::hex(0x8f877a);
-  t.accent = Color::hex(0xb07d1f);
-  t.accentHover = Color::hex(0xc48f2c);
-  t.onAccent = Color::hex(0xffffff);
-  t.success = Color::hex(0x2f8a4c);
-  t.warning = Color::hex(0xb7791f);
-  t.danger = Color::hex(0xc2392f);
-  t.info = Color::hex(0x2f7fc0);
-  t.shadow = Color(70, 52, 24, 46);
-  t.scrim = Color(40, 32, 18, 77);
-  t.hover = Color(29, 26, 20, 12);
-  t.pressed = Color(29, 26, 20, 23);
-  t.selection = Color(176, 125, 31, 64);
-  t.stripe = Color(29, 26, 20, 7);
-  t.track = Color::hex(0xe4ddcf);
+  t.bg = Color::hex(k.bg);
+  t.surface1 = Color::hex(k.surface1);
+  t.surface2 = Color::hex(k.surface2);
+  t.surface3 = Color::hex(k.surface3);
+  t.border = Color::hex(k.border);
+  t.borderStrong = Color::hex(k.borderStrong);
+  t.text = Color::hex(k.text);
+  t.textDim = Color::hex(k.textDim);
+  t.textMuted = Color::hex(k.textMuted);
+  t.accent = Color::hex(k.accent);
+  t.accentHover = Color::hex(k.accentHover);
+  t.onAccent = Color::hex(k.onAccent);
+  t.success = Color::hex(k.success);
+  t.warning = Color::hex(k.warning);
+  t.danger = Color::hex(k.danger);
+  t.info = Color::hex(k.info);
+  t.track = Color::hex(k.track);
+  t.shadow = Color(0, 0, 0, 120);
+  t.scrim = Color(u8(t.bg.r / 2), u8(t.bg.g / 2), u8(t.bg.b / 2), 150);
+  t.hover = t.text.withA(16);
+  t.pressed = t.text.withA(28);
+  t.selection = t.accent.withA(82);
+  t.stripe = t.text.withA(7);
   return t;
 }
 
 const Theme& theme() { return C().th; }
 
-void setTheme(bool dark) {
-  C().th = dark ? darkTheme() : lightTheme();
+void setScheme(int i) {
+  C().scheme = clampScheme(i);
+  C().th = schemeTheme(C().scheme);
   C().redraw = true;
 }
+
+int scheme() { return C().scheme; }
 
 void setUiScale(float s) {
   if (!std::isfinite(s)) return;

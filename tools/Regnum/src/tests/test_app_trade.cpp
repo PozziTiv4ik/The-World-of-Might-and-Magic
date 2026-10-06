@@ -282,7 +282,7 @@ TEST(app_trade_tribute_over_turns) {
 }
 
 TEST(app_trade_drawer_and_light) {
-  Harness h("trade_light", 1440, 900, 1, false);
+  Harness h("trade_light", 1440, 900, 1, kAltScheme);
   h.demo();
   // Правая лента → «Экономика»: переговоры и торговля.
   CHECK(h.clickUi("section.economy"));

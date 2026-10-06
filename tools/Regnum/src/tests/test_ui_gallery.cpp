@@ -802,7 +802,7 @@ double timeFrames(H& h, int n) {
 
 TEST(ui_gallery_sheet_controls) {
   for (int dark = 1; dark >= 0; dark--) {
-    H h(1600, 1000, 1, dark != 0);
+    H h(1600, 1000, 1, dark != 0 ? 0 : 2);   // сапфир и багрянец
     Sheet1 s;
     h.build = [&] { buildSheet1(s, 1600, 1000); };
     h.settle();
@@ -826,25 +826,25 @@ TEST(ui_gallery_sheet_controls) {
     h.drain();
     h.img = base;
     CHECK(s.slider > 64);
-    CHECK(h.save(dark ? "controls_dark" : "controls_light"));
-    saveZoom(h, gfx::RectI{24, 24, 380, 360}, 2, dark ? "zoom_buttons_dark" : "zoom_buttons_light");
-    saveZoom(h, gfx::RectI{810, 24, 380, 400}, 2, dark ? "zoom_fields_dark" : "zoom_fields_light");
+    CHECK(h.save(dark ? "controls_sapphire" : "controls_crimson"));
+    saveZoom(h, gfx::RectI{24, 24, 380, 360}, 2, dark ? "zoom_buttons_sapphire" : "zoom_buttons_crimson");
+    saveZoom(h, gfx::RectI{810, 24, 380, 400}, 2, dark ? "zoom_fields_sapphire" : "zoom_fields_crimson");
   }
 }
 
 TEST(ui_gallery_sheet_data) {
   for (int dark = 1; dark >= 0; dark--) {
-    H h(1600, 1000, 1, dark != 0);
+    H h(1600, 1000, 1, dark != 0 ? 0 : 2);   // сапфир и багрянец
     Sheet2 s;
     h.build = [&] { buildSheet2(s, 1600, 1000); };
     h.settle();
-    CHECK(h.save(dark ? "data_dark" : "data_light"));
+    CHECK(h.save(dark ? "data_sapphire" : "data_crimson"));
   }
 }
 
 TEST(ui_gallery_overlays) {
   for (int dark = 1; dark >= 0; dark--) {
-    H h(1600, 1000, 1, dark != 0);
+    H h(1600, 1000, 1, dark != 0 ? 0 : 2);   // сапфир и багрянец
     Overlays s;
     int phase = 0;
     h.build = [&] { buildOverlays(s, 1600, 1000, dark != 0, phase); };
@@ -854,7 +854,7 @@ TEST(ui_gallery_overlays) {
     h.frames(10);
     h.type("сво");
     h.frames(12);
-    CHECK(h.save(dark ? "overlay_combo_dark" : "overlay_combo_light"));
+    CHECK(h.save(dark ? "overlay_combo_sapphire" : "overlay_combo_crimson"));
     h.key(Key::Escape);
     h.frames(4);
     // Меню с подменю и подсказка
@@ -868,14 +868,14 @@ TEST(ui_gallery_overlays) {
     h.move(s.tipR.cx() + 30, s.tipR.cy());
     h.drain();
     h.wait(0.5);
-    CHECK(h.save(dark ? "overlay_menu_dark" : "overlay_menu_light"));
+    CHECK(h.save(dark ? "overlay_menu_sapphire" : "overlay_menu_crimson"));
     h.key(Key::Escape);
     h.key(Key::Escape);
     h.frames(20);
     // Выбор цвета (всплывающее окно у образца)
     h.click(s.colorR.cx(), s.colorR.cy());
     h.frames(14);
-    CHECK(h.save(dark ? "overlay_color_dark" : "overlay_color_light"));
+    CHECK(h.save(dark ? "overlay_color_sapphire" : "overlay_color_crimson"));
     h.key(Key::Escape);
     h.frames(10);
     // Перетаскивание: снимок во время переноса, затем бросок на карточку
@@ -887,7 +887,7 @@ TEST(ui_gallery_overlays) {
     h.move(s.dropR.cx(), s.dropR.cy());
     h.drain();
     h.frames(6);
-    CHECK(h.save(dark ? "overlay_drag_dark" : "overlay_drag_light"));
+    CHECK(h.save(dark ? "overlay_drag_sapphire" : "overlay_drag_crimson"));
     h.up(s.dropR.cx(), s.dropR.cy());
     h.drain();
     CHECK_EQ(s.dropped, 1);
@@ -896,19 +896,19 @@ TEST(ui_gallery_overlays) {
     phase = 2;
     h.frames(30);
     CHECK(ui::anyModalOpen());
-    CHECK(h.save(dark ? "overlay_modal_dark" : "overlay_modal_light"));
+    CHECK(h.save(dark ? "overlay_modal_sapphire" : "overlay_modal_crimson"));
   }
 }
 
 TEST(ui_gallery_compositions) {
   for (int dark = 1; dark >= 0; dark--) {
-    H h(1600, 1000, 1, dark != 0);
+    H h(1600, 1000, 1, dark != 0 ? 0 : 2);   // сапфир и багрянец
     Comp s;
     h.build = [&] { buildComposition(s, 1600, 1000, dark != 0); };
     h.settle();
-    CHECK(h.save(dark ? "editor_dark" : "editor_light"));
-    saveZoom(h, gfx::RectI{1168, 76, 420, 300}, 2, dark ? "zoom_inspector_dark" : "zoom_inspector_light");
-    saveZoom(h, gfx::RectI{76, 330, 430, 260}, 2, dark ? "zoom_council_dark" : "zoom_council_light");
+    CHECK(h.save(dark ? "editor_sapphire" : "editor_crimson"));
+    saveZoom(h, gfx::RectI{1168, 76, 420, 300}, 2, dark ? "zoom_inspector_sapphire" : "zoom_inspector_crimson");
+    saveZoom(h, gfx::RectI{76, 330, 430, 260}, 2, dark ? "zoom_council_sapphire" : "zoom_council_crimson");
   }
 }
 

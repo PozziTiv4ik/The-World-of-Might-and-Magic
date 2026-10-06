@@ -48,7 +48,6 @@ void begin(App& a, State& s) {
   map::RenderOptions o;
   o.mode = a.ui.mapMode;
   o.labels = s.labels;
-  o.darkUi = a.ui.darkTheme;
   if (!s.armies) a.world().armies.each([&](const Army& ar) { o.hideArmies.push_back(ar.id); });
   // Галочка «Войска и флот» экспорта главнее «Скрыть войска» на карте редактора.
   World w = a.world();

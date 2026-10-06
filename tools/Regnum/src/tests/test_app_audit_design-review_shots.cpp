@@ -16,11 +16,11 @@ struct Cfg {
   const char* tag;
   int w, h;
   float scale;
-  bool dark;
+  int scheme;   // цветокор (ui::schemeInfo)
 };
-const Cfg kCfgs[] = {{"d", 1440, 900, 1.f, true}, {"l", 1440, 900, 1.f, false}, {"s", 1100, 700, 1.f, true}, {"z", 1440, 900, 1.25f, true}};
+const Cfg kCfgs[] = {{"d", 1440, 900, 1.f, 0}, {"l", 1440, 900, 1.f, kAltScheme}, {"s", 1100, 700, 1.f, 0}, {"z", 1440, 900, 1.25f, 0}};
 
-// Только выбранные виды (REGNUM_AUDIT_CFG=dl — тёмная и светлая), по умолчанию все.
+// Только выбранные виды (REGNUM_AUDIT_CFG=dl — основной и другой цветокор), по умолчанию все.
 bool wanted(const Cfg& c) {
   const char* v = std::getenv("REGNUM_AUDIT_CFG");
   if (!v || !*v) return true;
@@ -30,7 +30,7 @@ bool wanted(const Cfg& c) {
 struct Rig {
   Harness h;
   const Cfg& c;
-  Rig(const Cfg& cfg, const std::string& name) : h("audit_dr_" + std::string(cfg.tag) + "_" + name, cfg.w, cfg.h, 1, cfg.dark), c(cfg) {
+  Rig(const Cfg& cfg, const std::string& name) : h("audit_dr_" + std::string(cfg.tag) + "_" + name, cfg.w, cfg.h, 1, cfg.scheme), c(cfg) {
     if (cfg.scale != 1.f) h->setUiScale(cfg.scale);
     h.settle();
   }
