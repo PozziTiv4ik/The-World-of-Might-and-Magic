@@ -217,18 +217,18 @@ TEST(app_trees_buildings_unique_and_entries) {
   Id uniq = 0;
   Id owner = uniqueOwner(h->world(), &uniq);
   CHECK(owner != 0 && uniq != 0);
-  // Лента: «Дерево построек» — общее дерево по категориям.
-  CHECK(h.clickUi("drawer.buildings"));
+  // Раздел «Экономика» правой ленты: «Дерево построек» — общее дерево по категориям.
+  CHECK(h.clickUi("section.economy"));
   h.settle();
-  CHECK_EQ(h->ui.drawer, std::string("buildings"));
-  h.waitMap();
+  CHECK(h.clickUi("page.nav.buildings"));
+  h.settle();
+  CHECK_EQ(h->ui.editor, std::string("buildings"));
+  CHECK_EQ(h->ui.editorArg, Id(0));
   h.dropToasts();
   h.settle();
   CHECK(h.shot("trees_buildings_drawer"));
   Id market = buildingByName(h->world(), "Рынок");
-  clickRect(h, "drawer.buildings.item." + std::to_string(market));
-  CHECK_EQ(h->ui.editor, std::string("buildings"));
-  CHECK_EQ(h->ui.editorArg, Id(0));
+  clickRect(h, "bt.node." + std::to_string(market), 0.5f, 0.3f);
   CHECK(h->uiRect("bt.side.name") != nullptr);
   // Уникальная постройка в общем дереве не показывается.
   CHECK(h->uiRect("bt.node." + std::to_string(uniq)) == nullptr);

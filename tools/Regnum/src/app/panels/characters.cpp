@@ -1,7 +1,6 @@
-// Regnum — выдвижная панель «Персонажи»: поиск, фильтр по фракции и героям, список по фракциям (портрет или
-// инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя), создание,
-// удаление с подтверждением.
-// Щелчок открывает инспектор персонажа (character_inspector.cpp).
+// Regnum — раздел «Персонажи» правой ленты: каталог с поиском, фильтром по фракции и героям, список по фракциям
+// (портрет или инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя),
+// создание, удаление с подтверждением. Щелчок открывает страницу персонажа (character_inspector.cpp).
 #include <algorithm>
 
 #include "app/app_internal.h"
@@ -219,18 +218,14 @@ void drawDrawer(App& a) {
   ui::label(cnt, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Center});
 }
 
-DrawerReg drawerReg({"characters", "users", "Персонажи", 40, drawDrawer, "Ctrl+4"});
+SectionReg section({"characters", "users", "Персонажи", 40, "Ctrl+4", drawDrawer, SelType::Character, nullptr, "Все персонажи"});
 CommandReg cmdPanel({"panel.characters", "Персонажи", "users", nullptr,
                      [](App& a) {
-                       if (a.ui.drawer != "characters") a.openDrawer("characters");
+                       if (a.ui.directory != "characters") a.openDirectory("characters");
                      },
-                     [](App& a) { return a.ui.screen == Screen::Editor && a.ui.editor.empty(); }, false, "Панели"});
-CommandReg cmdNew({"character.new", "Новый персонаж", "user-plus", nullptr,
-                   [](App& a) {
-                     if (a.ui.drawer != "characters") a.openDrawer("characters");
-                     createAct(a, 0);
-                   },
-                   [](App& a) { return a.ui.screen == Screen::Editor && a.ui.editor.empty() && !a.readOnly(); }, false, "Панели"});
+                     [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Панели"});
+CommandReg cmdNew({"character.new", "Новый персонаж", "user-plus", nullptr, [](App& a) { createAct(a, 0); },
+                   [](App& a) { return a.ui.screen == Screen::Editor && !a.readOnly(); }, false, "Панели"});
 
 }  // namespace
 }  // namespace rg::app

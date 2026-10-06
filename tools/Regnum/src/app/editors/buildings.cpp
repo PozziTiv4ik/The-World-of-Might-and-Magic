@@ -1636,7 +1636,7 @@ void drawBuildingTree(App& a, Id owner) {
   if (openExt) openBuildingTree(a, openExtOwner, openExt);
 }
 
-EditorReg regBuildings({"buildings", "Дерево построек", drawBuildingTree, "building"});
+EditorReg regBuildings({"buildings", "Дерево построек", drawBuildingTree, "building", "economy", 20});
 
 }  // namespace
 

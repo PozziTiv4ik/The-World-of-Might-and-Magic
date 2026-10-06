@@ -17,7 +17,7 @@ struct MapExport::Impl {
 
 int MapExport::heightFor(int width) { return std::max(1, int(std::lround(double(width) * schema::kMapHeight / schema::kMapWidth))); }
 
-MapExport::MapExport(const Basemap* bm, const World& w, int width, const RenderOptions& opt) : d_(std::make_unique<Impl>(bm)) {
+MapExport::MapExport(const Basemap* bm, const World& w, int width, const RenderOptions& opt, Palette pal) : d_(std::make_unique<Impl>(bm)) {
   Impl& d = *d_;
   const int W = clamp(width, kMinWidth, kMaxWidth), H = heightFor(W);
   const double mw = bm && bm->loaded() ? bm->width() : schema::kMapWidth, mh = bm && bm->loaded() ? bm->height() : schema::kMapHeight;
@@ -27,6 +27,7 @@ MapExport::MapExport(const Basemap* bm, const World& w, int width, const RenderO
   d.opt.editBorders = false;
   d.opt.edgeLine = false;
   d.img = gfx::Image(W, H, gfx::premul(Color(255, 255, 255)));
+  d.mv.setPalette(pal);
   d.mv.setWorld(w);
   d.mv.setViewport(RectF(0, 0, float(W), float(H)), 1);
   d.mv.centerOn(Vec2(mw / 2, mh / 2), double(W) / mw, false);
@@ -64,8 +65,8 @@ bool MapExport::wait(double timeoutSec) { return d_->mv.waitIdle(timeoutSec); }
 
 gfx::Image MapExport::take() { return std::move(d_->img); }
 
-gfx::Image exportMap(const Basemap* bm, const World& w, int width, const RenderOptions& opt) {
-  MapExport e(bm, w, width, opt);
+gfx::Image exportMap(const Basemap* bm, const World& w, int width, const RenderOptions& opt, Palette pal) {
+  MapExport e(bm, w, width, opt, pal);
   for (int i = 0; i < 200 && !e.step(); i++) e.wait(30);
   return e.image();
 }

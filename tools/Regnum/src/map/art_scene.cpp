@@ -239,15 +239,15 @@ Id Scene::shapeAt(Vec2 p, double tol) const {
   return 0;
 }
 
-gfx::Image renderScene(const Scene& s, int width) {
+gfx::Image renderScene(const Scene& s, int width, Palette pal) {
   const MapArt& a = s.art();
   const double ds = double(width) / std::max(1, a.width);
   const int h = std::max(1, int(std::lround(a.height * ds)));
-  gfx::Image img(width, h, gfx::premul(a.style.land));
+  gfx::Image img(width, h, gfx::premul(paletteStyle(a.style, pal).land));
   const Xf P{ds, 0, 0};
-  if (s.hasLand()) drawSea(img, s.index(), P);
-  drawWater(img, s.index(), P);
-  drawSymbols(img, s.index(), P);
+  if (s.hasLand()) drawSea(img, s.index(), P, pal);
+  drawWater(img, s.index(), P, pal);
+  drawSymbols(img, s.index(), P, pal);
   return img;
 }
 

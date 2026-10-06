@@ -1,8 +1,7 @@
-// Regnum — оболочка основного экрана: карта на всё окно, верхняя панель, лента разделов и выдвижная панель,
-// плавающая панель инструментов карты, инспектор справа, строка состояния, легенда, масштаб и мини-карта,
-// уведомления, полноэкранные редакторы, диалоги, глобальные сочетания, ввод мышью над картой.
-#include "app/app_internal.h"
-#include "app/logo.h"
+// Regnum — оболочка основного экрана: закреплённые строки и ленты, карта или страница на её месте, панели справа от
+// карты, уведомления, диалоги, глобальные сочетания, ввод мышью над картой и отрисовка карты. Части оболочки —
+// shell_bars.cpp (верхняя и нижняя строки), shell_side.cpp (ленты и панели), shell_pages.cpp (страницы).
+#include "app/shell_internal.h"
 #include "map/art_scene.h"
 #include "base/fs.h"
 #include "gfx/text.h"
@@ -10,23 +9,26 @@
 namespace rg::app::detail {
 
 using platform::Key;
-namespace {
 
-constexpr float kM = 12;        // поля окна
-constexpr float kTopH = 52;     // высота верхней панели
-constexpr float kRailW = 44;    // лента разделов и панель инструментов
-constexpr float kBtn = 30;      // кнопка-значок
-constexpr float kMiniW = 232;   // мини-карта
+// ================================================================ помощники оболочки
+namespace shell {
 
-App::Impl& D(App& a) { return a.impl(); }
+ui::PanelOpt docked(float pad) { return ui::PanelOpt{.pad = pad, .shadow = false, .border = false, .radius = 0}; }
 
-// Кнопка команды реестра: значок, подсказка с сочетанием, доступность.
-bool commandButton(App& a, const char* cmd, const char* icon = nullptr, bool toggled = false, std::string_view tip = {}) {
+void edgeLine(RectF r, bool left, bool top, bool right, bool bottom) {
+  const Color c = ui::theme().border;
+  if (left) ui::draw::line(r.x + 0.5f, r.y, r.x + 0.5f, r.bottom(), c, 1);
+  if (right) ui::draw::line(r.right() - 0.5f, r.y, r.right() - 0.5f, r.bottom(), c, 1);
+  if (top) ui::draw::line(r.x, r.y + 0.5f, r.right(), r.y + 0.5f, c, 1);
+  if (bottom) ui::draw::line(r.x, r.bottom() - 0.5f, r.right(), r.bottom() - 0.5f, c, 1);
+}
+
+bool commandButton(App& a, const char* cmd, const char* icon, bool toggled, std::string_view tip, ui::Size size) {
   const CommandDef* c = findCommand(cmd);
   if (!c) return false;
   bool en = !c->enabled || c->enabled(a);
   std::string t = tip.empty() ? std::string(c->title) : std::string(tip);
-  bool clicked = ui::iconButton(icon ? icon : c->icon, t, {.toggled = toggled, .disabled = !en});
+  bool clicked = ui::iconButton(icon ? icon : c->icon, t, {.size = size, .toggled = toggled, .disabled = !en});
   if (c->shortcut && *c->shortcut) {
     std::string_view sc = c->shortcut;
     if (sc == "+" || sc == "-") ui::tooltip(t + " · " + std::string(sc));   // «=» на клавише «+» понятнее как «+»
@@ -36,153 +38,6 @@ bool commandButton(App& a, const char* cmd, const char* icon = nullptr, bool tog
   return clicked;
 }
 
-// Левый край вертикальной разделительной линии (в вертикальном потоке).
-void vsep(float w) {
-  RectF r = ui::next(w, 9);
-  const ui::Theme& t = ui::theme();
-  ui::draw::line(r.x + 3, r.cy(), r.right() - 3, r.cy(), t.border, 1);
-}
-
-// ---------------------------------------------------------------- верхняя панель
-void topBar(App& a, RectF r) {
-  App::Impl& d = D(a);
-  const ui::Theme& th = ui::theme();
-  ui::Panel bar("topbar", r, {.pad = 10, .radius = 12});
-  a.markUi("topbar", r);
-  ui::HStack hs(32, ui::Align::Left, 6);
-  // Знак и меню мира
-  {
-    RectF lr = ui::next(30, 30);
-    ui::custom(lr, [](gfx::Canvas& c, RectF dev, float) { drawLogoMark(c, dev.inset(dev.w * 0.08f), dev.w < 40); });
-  }
-  bool dirty = a.dirty();
-  bool compact = r.w < 1240;   // узкое окно: короче название, состояние — только точкой, без кнопки справки
-  std::string name = gfx::ellipsize(a.worldTitle(), ui::textStyle(ui::Font::Strong), compact ? 130.f : 260.f);
-  if (ui::button(name + "##world", {.variant = ui::Variant::Ghost, .iconRight = "chevron-down", .tooltip = "Мир: файл, сохранение, папка проекта"}))
-    ui::openPopup("worldmenu");
-  a.markUi("topbar.world");
-  if (ui::beginMenu("worldmenu")) {
-    ui::menuHeader(a.projectPath().empty() ? std::string("Мир не сохранён") : fs::filename(a.projectPath()));
-    auto item = [&](const char* cmd) {
-      const CommandDef* c = findCommand(cmd);
-      if (!c) return;
-      bool en = !c->enabled || c->enabled(a);
-      if (ui::menuItem(c->title, {.icon = c->icon, .shortcut = parseShortcut(c->shortcut ? c->shortcut : ""), .disabled = !en})) later(a, [id = std::string(cmd)](App& x) { runCommand(x, id); });
-    };
-    item("file.new");
-    item("file.open");
-    item("file.openBundle");
-    ui::menuSeparator();
-    item("file.save");
-    item("file.saveAs");
-    item("file.export");
-    item("file.reveal");
-    ui::menuSeparator();
-    item("turn.history");
-    item("app.settings");
-    ui::menuSeparator();
-    item("file.close");
-    ui::endMenu();
-  }
-  // Состояние сохранения: точка и короткая подпись.
-  {
-    std::string status;
-    ui::Tone tone;
-    if (a.readOnly()) {
-      status = "только просмотр";
-      tone = ui::Tone::Info;
-    } else if (dirty) {
-      status = a.projectPath().empty() ? "не сохранён" : "изменён";
-      tone = ui::Tone::Warning;
-    } else {
-      std::string at = !d.autosavedAt.empty() && d.autosavedAt >= d.savedAt && !a.projectPath().empty() ? d.autosavedAt : d.savedAt;
-      status = at.empty() || compact ? std::string("сохранён") : "сохранён " + localTime(at);
-      tone = ui::Tone::Success;
-    }
-    std::string tip = a.projectPath().empty() ? std::string("Мир ещё не записан на диск — Ctrl+S")
-                                              : (dirty ? "Есть несохранённые изменения — Ctrl+S" : "Все изменения записаны") +
-                                                    std::string("\n") + a.projectPath();
-    if (compact) {
-      std::string full = "Мир " + status + "\n" + tip;
-      ui::label("●", {.font = ui::Font::Small, .color = ui::toneColor(tone), .tooltip = full});
-    } else {
-      RectF dot = ui::next(8, 30);
-      ui::draw::circle(dot.cx(), dot.cy(), 3.5f, ui::toneColor(tone));
-      ui::label(status, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .tooltip = tip});
-    }
-    a.markUi("topbar.status");
-  }
-  ui::separatorV();
-  // Режимы карты 1–9
-  {
-    RectF track = ui::next(9 * kBtn + 8 * 2 + 6, 32);
-    ui::draw::rect(track, th.dark ? th.bg.alpha(0.55f) : th.surface3.alpha(0.8f), 9);
-    ui::Area ar(track.inset(3, 1), 0);
-    ui::HStack modes(30, ui::Align::Left, 2);
-    for (int i = 0; i < int(schema::MapMode::Count); i++) {
-      const schema::EnumInfo& mi = schema::kMapModes[i];
-      ui::IdScope s(i);
-      std::string tip = mi.name;
-      if (ui::iconButton(mi.icon, tip, {.toggled = int(a.ui.mapMode) == i})) a.setMapMode(schema::MapMode(i));
-      ui::tooltip(tip, {Key(int(Key::D1) + i), 0});
-      a.markUi("mode." + std::to_string(i + 1));
-    }
-  }
-  ui::flex();
-  commandButton(a, "edit.undo", "undo", false, a.store.canUndo() ? "Отменить: " + a.store.undoLabel() : std::string("Отменить"));
-  a.markUi("topbar.undo");
-  commandButton(a, "edit.redo", "redo", false, a.store.canRedo() ? "Повторить: " + a.store.redoLabel() : std::string("Повторить"));
-  a.markUi("topbar.redo");
-  ui::separatorV();
-  commandButton(a, "app.palette", "search");
-  a.markUi("topbar.palette");
-  commandButton(a, "app.settings", "settings");
-  a.markUi("topbar.settings");
-  if (!compact) commandButton(a, "app.help", "keyboard");
-  ui::separatorV();
-  // Ход
-  {
-    std::string turn = "Ход " + std::to_string(a.store.world().turn());
-    if (ui::button(turn, {.variant = ui::Variant::Ghost, .icon = "hourglass", .tooltip = "История ходов"})) a.openDialog("turn.history");
-    a.markUi("topbar.turn");
-  }
-  {
-    ui::Disabled dis(a.readOnly());
-    if (ui::button("Завершить ход", {.variant = ui::Variant::Primary, .icon = "next-turn"})) a.endTurn();
-    ui::tooltip("Завершить ход: доходы, расходы, стройки, исследования", parseShortcut("Ctrl+Enter"));
-    a.markUi("topbar.endturn");
-  }
-}
-
-// ---------------------------------------------------------------- баннер просмотра прошлого хода
-void readOnlyBanner(App& a, RectF r) {
-  ui::Panel p("viewturn", r, {.pad = 8, .radius = 12, .glass = true});
-  a.markUi("banner", r);
-  ui::HStack hs(28, ui::Align::Left, 8);
-  ui::icon("history", ui::Ink::Info, 18);
-  ui::label("Ход " + std::to_string(*a.ui.viewTurn) + " · только просмотр", {.font = ui::Font::Strong});
-  ui::flex();
-  if (ui::button("Вернуться к текущему ходу", {.variant = ui::Variant::Primary, .icon = "arrow-right", .size = ui::Size::Small})) a.backToCurrent();
-  a.markUi("banner.back");
-}
-
-// ---------------------------------------------------------------- лента разделов и выдвижная панель
-float railHeight(int n) { return 2 * 7 + n * kBtn + std::max(0, n - 1) * 4; }
-
-void rail(App& a, RectF r) {
-  ui::Panel p("rail", r, {.pad = 7, .radius = 12});
-  a.markUi("rail", r);
-  ui::gap(4);
-  for (auto& dr : drawers()) {
-    ui::IdScope s(dr.id);
-    std::string tip = dr.title;
-    if (ui::iconButton(dr.icon, tip, {.toggled = a.ui.drawer == dr.id})) a.openDrawer(dr.id);
-    if (dr.shortcut) ui::tooltip(tip, parseShortcut(dr.shortcut));
-    a.markUi(std::string("drawer.") + dr.id);
-  }
-}
-
-// Ручка изменения ширины панели (край внутри панели). Возвращает true, пока тянут.
 bool resizeHandle(const char* id, RectF r, float& width, float minW, float maxW, bool leftEdge) {
   struct S {
     float start = 0;
@@ -195,7 +50,7 @@ bool resizeHandle(const char* id, RectF r, float& width, float minW, float maxW,
     ui::setCursor(platform::Cursor::ResizeH);
     const ui::Theme& th = ui::theme();
     float k = ui::animate(wid ^ 7, 1.f, 0.12f);
-    ui::draw::rect(RectF{leftEdge ? r.x + 1 : r.right() - 3, r.y + r.h * 0.5f - 18, 2, 36}, th.accent.alpha(0.7f * k), 1);
+    ui::draw::rect(RectF{leftEdge ? r.x : r.right() - 2, r.y + r.h * 0.5f - 20, 2, 40}, th.accent.alpha(0.75f * k), 1);
   }
   if (it.held && it.dragging) {
     width = clamp(st.start + (leftEdge ? -it.dx : it.dx), minW, maxW);
@@ -204,355 +59,22 @@ bool resizeHandle(const char* id, RectF r, float& width, float minW, float maxW,
   return it.held;
 }
 
-void drawerPanel(App& a, const DrawerDef& dr, RectF r, float maxW) {
-  ui::Panel p("drawer", r, {.pad = 14});
-  a.markUi("drawer", r);
-  if (resizeHandle("##drawer-resize", RectF{r.right() - 6, r.y + 12, 6, r.h - 24}, a.ui.drawerWidth, 260, maxW, false)) D(a).prefsDirty = true;
-  {
-    ui::Row head({ui::px(22), ui::fr(1), ui::px(kBtn)}, kBtn, 8);
-    ui::icon(dr.icon, ui::Ink::Accent, 18);
-    ui::label(dr.title, {.font = ui::Font::Title});
-    if (ui::iconButton("close", "Закрыть панель")) a.openDrawer(dr.id);
-  }
+bool navItem(std::string_view label, const char* icon, bool active, std::string_view hint, int badge, std::string_view tooltip) {
+  std::string b = badge > 0 ? std::to_string(badge) : std::string();
+  return ui::listItem(label, {.icon = icon, .hint = hint, .badge = b, .selected = active, .tooltip = tooltip});
+}
+
+void navCaption(std::string_view text) {
   ui::spacer(2);
-  ui::Scroll sc("body");
-  ui::IdScope s(dr.id);
-  try {
-    dr.draw(a);
-  } catch (const std::exception& e) {
-    a.error(e);
-  }
+  ui::Indent in(12);   // по значкам пунктов
+  ui::caption(text);
 }
 
-// ---------------------------------------------------------------- панель инструментов карты
-struct ToolLayout {
-  std::vector<const ToolDef*> base, edit, map, extra;
-};
-ToolLayout toolLayout(App& a) {
-  ToolLayout L;
-  for (auto& t : toolDefs()) {
-    if (t.id == ToolId::Select || t.id == ToolId::Pan) L.base.push_back(&t);
-    else if (t.mapMode) {
-      if (a.ui.editMap) L.map.push_back(&t);
-    } else if (t.editMode) {
-      if (a.ui.editBorders) L.edit.push_back(&t);
-    } else {
-      L.extra.push_back(&t);
-    }
-  }
-  return L;
-}
-float toolbarHeight(const ToolLayout& L) {
-  int items = int(L.base.size()) + 3 + int(L.edit.size()) + int(L.map.size()) + int(L.extra.size());
-  int seps = 2 + (L.extra.empty() ? 0 : 1);
-  float h = 2 * 7 + items * kBtn + seps * 9 + std::max(0, items + seps - 1) * 4;
-  return h;
-}
+}  // namespace shell
 
-void toolButton(App& a, const ToolDef& t) {
-  ui::IdScope s{int(t.id)};
-  std::string tip = t.title;
-  if (ui::iconButton(t.icon, tip, {.toggled = a.ui.tool == t.id})) a.setTool(t.id);
-  if (t.shortcut && *t.shortcut) ui::tooltip(tip, parseShortcut(t.shortcut));
-  static const char* names[] = {"select", "pan",        "borders-tool", "new-province", "add-area", "remove-area", "fill",
-                                "knife",  "merge",      "delete",       "army",         "fleet",    "route",       "map-objects",
-                                "symbol", "lake",       "river",        "wall",         "land-add", "land-remove", "coast",
-                                "new-sea-province"};
-  a.markUi(std::string("tool.") + (int(t.id) < int(std::size(names)) ? names[int(t.id)] : "other"));
-}
+using namespace shell;
 
-void toolbar(App& a, RectF r, const ToolLayout& L) {
-  const ui::Theme& th = ui::theme();
-  ui::Panel p("maptools", r, {.pad = 7, .radius = 12});
-  a.markUi("toolbar", r);
-  ui::gap(4);
-  for (auto* t : L.base) toolButton(a, *t);
-  vsep(kBtn);
-  // Флажок в углу кнопки режима.
-  auto modeCheck = [&](bool on, bool ro) {
-    RectF br = ui::lastItem().rect;
-    RectF cb{br.right() - 11, br.bottom() - 11, 10, 10};
-    ui::draw::rect(cb.expand(1.5f), th.surface1, 4);
-    if (on) {
-      ui::draw::rect(cb, th.accent, 3);
-      ui::draw::icon("check", cb.inset(0.5f), th.onAccent);
-    } else {
-      ui::draw::rectStroke(cb, ro ? th.border : th.borderStrong, 3, 1.2f);
-    }
-  };
-  // «Галочка» правки границ (ТЗ 1.a.ii): закрытый замок — границы закреплены, открытый — правка. На прошлом ходу
-  // (только просмотр) недоступна.
-  {
-    bool on = a.ui.editBorders;
-    bool ro = a.readOnly();
-    std::string tip = ro ? "Прошлый ход: только просмотр" : "Правка границ";
-    if (ui::iconButton(bordersToggleIcon(on), tip, {.toggled = on, .disabled = ro})) a.setEditBorders(!on);
-    ui::tooltip(tip, ro ? ui::Shortcut{} : parseShortcut("E"));
-    a.markUi("tool.borders");
-    modeCheck(on, ro);
-  }
-  for (auto* t : L.edit) toolButton(a, *t);
-  // Правка карты: суша и берег, воды, горы, замки, башни, стены — свой режим со своими инструментами.
-  {
-    bool on = a.ui.editMap;
-    bool ro = a.readOnly();
-    std::string tip = ro ? "Прошлый ход: только просмотр" : "Правка карты";
-    if (ui::iconButton("map-edit", tip, {.toggled = on, .disabled = ro})) a.setEditMap(!on);
-    ui::tooltip(tip, ro ? ui::Shortcut{} : parseShortcut("T"));
-    a.markUi("tool.mapedit");
-    modeCheck(on, ro);
-  }
-  for (auto* t : L.map) toolButton(a, *t);
-  if (!L.extra.empty()) {
-    vsep(kBtn);
-    for (auto* t : L.extra) toolButton(a, *t);
-  }
-  // «Скрыть войска» (ТЗ «Фиксы», п.2): все войска и флоты на карте.
-  vsep(kBtn);
-  {
-    bool hidden = !a.world().settings->showArmies;
-    if (ui::iconButton(hidden ? "eye-off" : "eye", hidden ? "Показать войска" : "Скрыть войска", {.toggled = hidden, .disabled = a.readOnly()}))
-      a.act(hidden ? "Показать войска" : "Скрыть войска", [hidden](Tx& tx) { tx.settings().showArmies = hidden; });
-    a.markUi("tool.hideArmies");
-  }
-}
-
-// ---------------------------------------------------------------- инспектор
-void inspector(App& a, RectF r, float maxW) {
-  const World& w = a.world();
-  Selection sel = a.ui.sel;
-  ui::Panel p("inspector", r, {.pad = 16});
-  a.markUi("inspector", r);
-  if (resizeHandle("##insp-resize", RectF{r.x, r.y + 12, 6, r.h - 24}, a.ui.inspectorWidth, 320, maxW, true)) D(a).prefsDirty = true;
-  ui::IdScope scope{int(sel.type)};
-  // Шапка
-  {
-    ui::Row head({ui::fr(1), ui::px(kBtn), ui::px(kBtn)}, ui::kAuto, 4);
-    {
-      ui::Group g(0, 4);
-      bool any = false;
-      for (auto& h : headers()) {
-        if (h.type != sel.type || !h.draw) continue;
-        any = true;
-        ui::IdScope hs(h.id);
-        try {
-          h.draw(a, sel.id);
-        } catch (const std::exception& e) {
-          a.error(e);
-        }
-      }
-      if (!any) {
-        std::string cap = selCaption(sel.type);
-        if (sel.type == SelType::Faction)
-          if (const Faction* f = w.faction(sel.id)) cap = f->isGuild() ? "Торговая гильдия" : "Государство";
-        ui::caption(cap);
-        ui::label(entityName(w, sel), {.font = ui::Font::Heading});
-      }
-    }
-    if (ui::iconButton("target", "Показать на карте")) a.focusSelection();
-    ui::tooltip("Показать на карте", parseShortcut("F"));
-    a.markUi("inspector.focus");
-    if (ui::iconButton("close", "Закрыть")) a.clearSelection();
-    ui::tooltip("Закрыть", {Key::Escape, 0});
-    a.markUi("inspector.close");
-  }
-  // Вкладки
-  std::vector<const TabDef*> list;
-  for (auto& t : tabs()) {
-    if (t.type != sel.type || !t.draw) continue;
-    bool vis = true;
-    if (t.visible) {
-      try {
-        vis = t.visible(a, sel.id);
-      } catch (const std::exception& e) {
-        a.error(e);
-        vis = false;
-      }
-    }
-    if (vis) list.push_back(&t);
-  }
-  if (list.empty()) return;
-  std::string& cur = a.ui.tabOf[sel.type];
-  int idx = 0;
-  for (size_t i = 0; i < list.size(); i++)
-    if (cur == list[i]->id) idx = int(i);
-  if (list.size() > 1) {
-    std::vector<ui::Tab> items;
-    items.reserve(list.size());
-    for (auto* t : list) {
-      int badge = 0;
-      if (t->badge) {
-        try {
-          badge = t->badge(a, sel.id);
-        } catch (...) {
-          badge = 0;
-        }
-      }
-      items.push_back(ui::Tab{t->icon, {}, t->title, badge});
-    }
-    ui::tabs("tabs", idx, std::span<const ui::Tab>(items), {.fill = true});
-    a.markUi("inspector.tabs");
-    ui::spacer(2);
-  }
-  idx = clamp(idx, 0, int(list.size()) - 1);
-  cur = list[size_t(idx)]->id;
-  // Своя прокрутка у каждой вкладки: при переключении не оказываемся в середине чужой страницы.
-  const std::string scrollId = std::string("body.") + list[size_t(idx)]->id;
-  ui::Scroll sc(scrollId);
-  ui::IdScope ts(list[size_t(idx)]->id);
-  try {
-    list[size_t(idx)]->draw(a, sel.id);
-  } catch (const std::exception& e) {
-    a.error(e);
-  }
-}
-
-// ---------------------------------------------------------------- строка состояния и легенда
-void statusBar(App& a, float x, float y, float maxW) {
-  // Координаты под указателем и объект под ним — без подсказок.
-  const World& w = a.world();
-  const ui::Theme& th = ui::theme();
-  std::string coords = a.ui.cursorMap ? fmtInt(i64(std::lround(a.ui.cursorMap->x))) + " · " + fmtInt(i64(std::lround(a.ui.cursorMap->y))) : std::string("—");
-  const float pad = 12, gap = 10, cw = 92;
-  const Selection h = a.ui.hover;
-  std::string name = h ? entityName(w, h) : std::string(), sub;
-  const Province* pr = h.type == SelType::Province ? w.province(h.id) : nullptr;
-  const Faction* own = pr ? w.faction(pr->owner) : nullptr;
-  if (own) sub = own->name;
-  else if (pr && !pr->sea) sub = "без владельца";
-  float hw = 0;
-  if (!name.empty()) hw = 16 + ui::measure(name, ui::Font::Small) + 2 + (sub.empty() ? 0 : 6 + ui::measure(sub, ui::Font::Small) + 2);
-  const float W = std::min(maxW, pad + 20 + cw + (hw > 0 ? gap + 1 + gap + hw : 0) + pad);
-  RectF r{x, y, std::round(W), 30};
-  ui::Panel p("status", r, {.pad = 0, .radius = 10, .glass = true});
-  a.markUi("status", r);
-  float cx = r.x + pad;
-  ui::draw::icon("crosshair", RectF{cx, r.cy() - 7, 14, 14}, th.textMuted);
-  cx += 20;
-  ui::draw::text(coords, RectF{cx, r.y, cw, r.h}, ui::Font::Mono, th.textDim);
-  cx += cw + gap;
-  if (hw <= 0 || r.right() - pad - cx < 40) return;
-  ui::draw::line(cx, r.y + 8, cx, r.bottom() - 8, th.border, 1);
-  cx += 1 + gap;
-  const float right = r.right() - pad;
-  if (pr) {
-    if (own) ui::draw::circle(cx + 4, r.cy(), 4.f, own->color);
-    else ui::draw::ring(cx + 4, r.cy(), 3.5f, 1.2f, th.textMuted);
-  } else {
-    ui::draw::icon(selIcon(h.type), RectF{cx - 2, r.cy() - 7, 14, 14}, th.textDim);
-  }
-  const float nx = cx + 16;
-  const float nw = std::min(ui::measure(name, ui::Font::Small) + 2, right - nx);
-  ui::draw::text(name, RectF{nx, r.y, nw, r.h}, ui::Font::Small, th.text);
-  if (!sub.empty() && right - (nx + nw + 6) > 30) ui::draw::text(sub, RectF{nx + nw + 6, r.y, right - (nx + nw + 6), r.h}, ui::Font::Small, th.textMuted);
-}
-
-float legendHeight(int rows) { return 12 + 24 + 4 + rows * 22 + 10; }
-
-void legend(App& a, RectF r, const std::vector<map::LegendItem>& items, int shown) {
-  ui::Panel p("legend", r, {.pad = 12, .radius = 12, .glass = true});
-  a.markUi("legend", r);
-  {
-    ui::Row head({ui::fr(1), ui::px(24)}, 24, 4);
-    ui::caption(schema::kMapModes[int(a.ui.mapMode)].name);
-    bool hide = ui::iconButton("chevron-down", "Скрыть легенду", {.size = ui::Size::Small});
-    ui::tooltip("Скрыть легенду", parseShortcut("L"));
-    if (hide) {
-      a.ui.showLegend = false;
-      D(a).prefsDirty = true;
-    }
-  }
-  ui::spacer(2);
-  ui::gap(0);
-  for (int i = 0; i < shown; i++) {
-    const map::LegendItem& it = items[size_t(i)];
-    ui::IdScope s(i);
-    ui::Row row({ui::px(16), ui::fr(1)}, 22, 8);
-    RectF sw = ui::next(16, 22);
-    if (!it.icon.empty()) ui::draw::icon(it.icon, RectF{sw.x, sw.cy() - 8, 16, 16}, it.color);
-    else {
-      ui::draw::rect(RectF{sw.x, sw.cy() - 5, 16, 10}, it.color, 3);
-      ui::draw::rectStroke(RectF{sw.x, sw.cy() - 5, 16, 10}, Color(0, 0, 0, 40), 3, 1);
-    }
-    ui::label(it.label, {.font = ui::Font::Small});
-  }
-  if (int(items.size()) > shown) ui::label("ещё " + std::to_string(items.size() - size_t(shown)), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-}
-
-// ---------------------------------------------------------------- масштаб и мини-карта
-void zoomColumn(App& a, RectF r) {
-  ui::Panel p("zoom", r, {.pad = 7, .radius = 12});
-  a.markUi("zoom", r);
-  ui::gap(4);
-  commandButton(a, "map.zoomIn");
-  a.markUi("zoom.in");
-  commandButton(a, "map.zoomOut");
-  a.markUi("zoom.out");
-  commandButton(a, "map.fit");
-  a.markUi("zoom.fit");
-  vsep(kBtn);
-  commandButton(a, "map.minimap", nullptr, a.ui.showMinimap);
-  a.markUi("zoom.minimap");
-  commandButton(a, "map.legend", nullptr, a.ui.showLegend);
-  a.markUi("zoom.legend");
-}
-float zoomColumnHeight() { return 2 * 7 + 5 * kBtn + 9 + 5 * 4; }
-
-void minimap(App& a, RectF r) {
-  App::Impl& d = D(a);
-  ui::Panel p("minimap", r, {.pad = 5, .radius = 12, .glass = true});
-  a.markUi("minimap", r);
-  RectF in = r.inset(5);
-  ui::WidgetId wid = ui::id("##minimap");
-  ui::Interaction it = ui::interact(wid, in);
-  map::MapView* mv = d.map.get();
-  float dpi = d.dpi;
-  ui::custom(in, [mv, dpi](gfx::Canvas& c, RectF dev, float) {
-    c.save();
-    c.clipRoundRect(dev, 8 * dpi);
-    mv->renderMinimap(c, RectF{dev.x / dpi, dev.y / dpi, dev.w / dpi, dev.h / dpi}, dpi);
-    c.restore();
-  });
-  ui::draw::rectStroke(in, ui::theme().border, 8, 1);
-  if (it.hovered) ui::setCursor(platform::Cursor::Hand);
-  if (it.held || it.clicked) {
-    float s = ui::uiScale();
-    RectF lr{in.x * s, in.y * s, in.w * s, in.h * s};
-    Vec2 m = mv->minimapToMap(lr, it.mx * s, it.my * s);
-    mv->centerOn(m, 0, !it.dragging);
-    a.requestRedraw();
-  }
-  ui::tooltip("Мини-карта: щелчок — перейти", parseShortcut("M"));
-}
-
-// ---------------------------------------------------------------- полноэкранный редактор
-void editorHost(App& a, const EditorDef& ed, RectF V) {
-  // Полноэкранный редактор занимает всё окно: без полей, рамки и тени.
-  RectF r{0, 0, V.w, V.h};
-  ui::Panel p("editor", r, {.pad = 0, .shadow = false, .border = false, .radius = 0});
-  a.markUi("editor", r);
-  RectF head{r.x + 14, r.y + 10, r.w - 28, 34};
-  {
-    ui::Area ar(head, 0);
-    ui::HStack hs(34, ui::Align::Left, 8);
-    if (ui::iconButton("arrow-left", "Назад к карте")) later(a, [](App& x) { x.closeEditor(); });
-    ui::tooltip("Назад к карте", {Key::Escape, 0});
-    a.markUi("editor.back");
-    if (ed.icon) ui::icon(ed.icon, ui::Ink::Accent, 20);
-    ui::label(ed.title, {.font = ui::Font::Title});
-    ui::flex();
-    commandButton(a, "edit.undo", "undo");
-    commandButton(a, "edit.redo", "redo");
-  }
-  ui::draw::line(r.x, head.bottom() + 10, r.right(), head.bottom() + 10, ui::theme().border, 1);
-  ui::Area body(RectF{r.x, head.bottom() + 11, r.w, r.bottom() - head.bottom() - 11}, 16);
-  ui::IdScope s(ed.id);
-  try {
-    ed.draw(a, a.ui.editorArg);
-  } catch (const std::exception& e) {
-    a.error(e);
-  }
-}
+namespace {
 
 const char* toastIconOf(ToastKind k) {
   switch (k) {
@@ -649,80 +171,54 @@ void drawEditorScreen(App& a) {
   App::Impl& d = D(a);
   RectF V = ui::viewport();
   float s = ui::uiScale();
-  if (!a.ui.editor.empty()) {
-    if (const EditorDef* ed = findEditor(a.ui.editor)) {
-      editorHost(a, *ed, V);
-      drawToasts(a, RectF{kM, kM, V.w - 2 * kM - 8, V.h - 2 * kM - 8});
-      return;
-    }
+  d.toolSlot = RectF{};
+  const float top = kTopH, bottom = V.h - kBotH;
+  const float H = std::max(0.f, bottom - top);
+  topBar(a, RectF{0, 0, V.w, kTopH});
+  bottomBar(a, RectF{0, bottom, V.w, kBotH});
+  float right = V.w;
+  if (!sections().empty() || !drawers().empty()) {
+    sectionStrip(a, RectF{V.w - kStripW, top, kStripW, H});
+    right -= kStripW;
   }
-  float top = kM + kTopH + kM;
-  topBar(a, RectF{kM, kM, V.w - 2 * kM, kTopH});
 
-  // Левая часть: лента разделов, выдвижная панель, инструменты.
-  float left = kM;
-  float maxSide = std::max(320.f, V.w * 0.42f);
-  if (!drawers().empty()) {
-    rail(a, RectF{left, top, kRailW, railHeight(int(drawers().size()))});
-    left += kRailW + kM;
+  // Страница на месте карты: навигация и содержимое.
+  if (a.view() != View::Map) {
+    a.ui.hover = {};
+    a.ui.cursorMap.reset();
+    RectF pr{0, top, std::max(0.f, right), H};
+    pageHost(a, pr);
+    d.rectsNext["map.area"] = RectF{pr.x * s, pr.y * s, pr.w * s, pr.h * s};
+    drawToasts(a, RectF{pr.x + kNavW, top + 8, pr.w - kNavW - 12, H - 16});
+    return;
   }
+
+  // Карта: лента инструментов слева, справа — панель ленты и панель выделения.
+  toolStrip(a, RectF{0, top, kStripW, H});
+  const float left = kStripW;
+  const float maxSide = std::max(280.f, (right - left) * 0.45f);
   if (!a.ui.drawer.empty()) {
     const DrawerDef* dr = nullptr;
     for (auto& x : drawers())
       if (a.ui.drawer == x.id) dr = &x;
     if (dr) {
-      float dw = clamp(a.ui.drawerWidth, 260.f, std::min(640.f, maxSide));
-      drawerPanel(a, *dr, RectF{left, top, dw, V.h - top - kM}, std::min(640.f, maxSide));
-      left += dw + kM;
+      float maxW = std::min(560.f, maxSide);
+      float dw = std::round(clamp(a.ui.drawerWidth, 240.f, maxW));
+      drawerPanel(a, *dr, RectF{right - dw, top, dw, H}, maxW);
+      right -= dw;
     } else {
       a.ui.drawer.clear();
     }
   }
-  ToolLayout L = toolLayout(a);
-  toolbar(a, RectF{left, top, kRailW, toolbarHeight(L)}, L);
-  float mapLeft = left + kRailW + kM;
-
-  // Правая часть: инспектор.
-  float right = V.w - kM;
-  if (a.ui.sel) {
-    float iw = clamp(a.ui.inspectorWidth, 320.f, std::min(720.f, maxSide));
-    inspector(a, RectF{right - iw, top, iw, V.h - top - kM}, std::min(720.f, maxSide));
-    right -= iw + kM;
+  if (a.ui.sel && !a.ui.inspectorHidden) {
+    float maxW = std::min(640.f, std::max(320.f, (right - left) * 0.55f));
+    float iw = std::round(clamp(a.ui.inspectorWidth, 320.f, maxW));
+    inspectorPanel(a, RectF{right - iw, top, iw, H}, maxW);
+    right -= iw;
   }
-  RectF area{mapLeft, top, std::max(0.f, right - mapLeft), V.h - top - kM};
+  RectF area{left, top, std::max(0.f, right - left), H};
   d.rectsNext["map.area"] = RectF{area.x * s, area.y * s, area.w * s, area.h * s};
-
-  if (a.readOnly()) {
-    float bw = std::min(560.f, std::max(360.f, area.w - 24));
-    readOnlyBanner(a, RectF{std::round(area.cx() - bw * 0.5f), top, bw, 44});
-  }
-
-  // Низ слева: строка состояния и легенда.
-  float statusW = std::min(area.w - (a.ui.showMinimap ? kMiniW + 10 + 8 : 0) - kRailW - 16, 720.f);
-  if (statusW > 200) statusBar(a, area.x, V.h - kM - 30, statusW);
-  float bottomY = V.h - kM - 30 - 8;
-  if (a.ui.showLegend && area.w >= 248 + kRailW + 24) {
-    std::vector<map::LegendItem> items = d.map->legend(a.world(), a.ui.mapMode);
-    if (!items.empty()) {
-      int maxRows = int((bottomY - top - 120) / 22);
-      int shown = std::min<int>(int(items.size()), std::clamp(maxRows, 1, 10));
-      float lh = legendHeight(shown + (int(items.size()) > shown ? 1 : 0));
-      if (lh < bottomY - top - 40) legend(a, RectF{area.x, bottomY - lh, 248, lh}, items, shown);
-    }
-  }
-
-  // Низ справа: масштаб и мини-карта.
-  float zh = zoomColumnHeight();
-  RectF zr{area.right() - kRailW, V.h - kM - zh, kRailW, zh};
-  zoomColumn(a, zr);
-  float stackTop = zr.y;
-  if (a.ui.showMinimap && area.w > kMiniW + kRailW + 40) {
-    float mh = std::round(kMiniW * float(schema::kMapHeight / schema::kMapWidth)) + 10;
-    RectF mr{zr.x - 8 - kMiniW - 10, V.h - kM - mh, kMiniW + 10, mh};
-    minimap(a, mr);
-    stackTop = std::min(stackTop, mr.y);
-  }
-  drawToasts(a, RectF{area.x, top, area.w, stackTop - 10 - top});
+  drawToasts(a, RectF{area.x + 12, area.y + 8, area.w - 24, area.h - 16});
 }
 
 // ================================================================ диалоги
@@ -777,7 +273,7 @@ void drawDialogs(App& a) {
 void globalKeys(App& a) {
   App::Impl& d = D(a);
   bool editorScreen = a.ui.screen == Screen::Editor;
-  bool onMap = editorScreen && a.ui.editor.empty() && !a.hasDialog() && !ui::anyModalOpen();
+  bool onMap = a.mapShown() && !a.hasDialog() && !ui::anyModalOpen();
   // 1. Инструмент карты — первым (Esc отменяет построение, Enter завершает, Delete удаляет точку).
   if (onMap && !ui::wantsKeyboard()) {
     if (MapTool* t = a.activeTool()) {
@@ -822,12 +318,23 @@ void globalKeys(App& a) {
     if (hit) runCommand(a, c.id);
   }
   if (editorScreen && ui::shortcut({Key::Z, ui::ModPrimary | platform::ModShift})) a.redo();
-  // 3. Выдвижные панели и инструменты.
-  if (editorScreen && a.ui.editor.empty()) {
+  // 3. Разделы и панели правой ленты, инструменты.
+  if (editorScreen) {
+    for (auto& sec : sections()) {
+      if (!sec.shortcut) continue;
+      ui::Shortcut sc = parseShortcut(sec.shortcut);
+      if (sc && ui::shortcut(sc)) a.openSection(sec.id);
+    }
     for (auto& dr : drawers()) {
       if (!dr.shortcut) continue;
       ui::Shortcut sc = parseShortcut(dr.shortcut);
-      if (sc && ui::shortcut(sc)) a.openDrawer(dr.id);
+      if (!sc || !ui::shortcut(sc)) continue;
+      if (!a.mapShown()) {
+        a.toMap();
+        if (a.ui.drawer != dr.id) a.openDrawer(dr.id);
+      } else {
+        a.openDrawer(dr.id);
+      }
     }
   }
   if (onMap) {
@@ -837,9 +344,9 @@ void globalKeys(App& a) {
       if (sc && ui::shortcut(sc)) a.setTool(t.id);
     }
   }
-  // 4. Esc: редактор → выделение → инструмент.
+  // 4. Esc: редактор → страница или каталог → выделение → инструмент → панель.
   if (editorScreen && ui::shortcut({Key::Escape, 0})) {
-    if (!a.ui.editor.empty()) a.closeEditor();
+    if (a.view() != View::Map) a.back();
     else if (a.ui.sel) a.clearSelection();
     else if (a.ui.tool != ToolId::Select) a.setTool(ToolId::Select);
     else if (!a.ui.drawer.empty()) a.openDrawer(a.ui.drawer);

@@ -1,5 +1,5 @@
-// Regnum — входы в дерево построек: панель ленты «Дерево построек» (общее дерево, ТЗ 1.h.i), вкладка государства
-// «Постройки» (уникальные постройки и стройки в провинциях), команда палитры.
+// Regnum — входы в дерево построек: вкладка государства «Постройки» (уникальные постройки и стройки в провинциях),
+// команда палитры. Общее дерево (ТЗ 1.h.i) — раздел «Экономика» правой ленты.
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
 #include "app/widgets.h"
@@ -51,37 +51,6 @@ Id createIn(App& a, Id owner, BuildingCat cat) {
     b.icon = bld::catIcon(cat);
   });
   return nid;
-}
-
-// ---------------------------------------------------------------- панель ленты: общее дерево
-void drawDrawer(App& a) {
-  const World& w = a.world();
-  const bool ro = a.readOnly();
-  std::vector<const Building*> list = treeOf(w, 0);
-  auto use = usage(w, 0);
-  if (ui::button("Открыть дерево построек", {.variant = ui::Variant::Primary, .icon = "building", .fill = true})) openBuildingTree(a, 0);
-  a.markUi("drawer.buildings.open");
-  for (int c = 0; c < int(BuildingCat::Count); c++) {
-    BuildingCat cat = BuildingCat(c);
-    int n = 0;
-    for (const Building* b : list) n += b->cat == cat;
-    ui::IdScope sc(c);
-    ui::Section s(bld::catName(cat), bld::catIcon(cat), {.badge = std::to_string(n), .actionIcon = ro ? nullptr : "plus", .actionTooltip = "Новая постройка"});
-    if (s.action() && !ro)
-      if (Id nid = createIn(a, 0, cat)) openBuildingTree(a, 0, nid);
-    if (!s) continue;
-    if (n == 0) ui::label("Нет построек", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    for (const Building* b : list) {
-      if (b->cat != cat) continue;
-      ui::IdScope bs{i64(b->id)};
-      const Use& u = use[b->id];
-      std::string hint = u.built + u.building > 0 ? std::to_string(u.built + u.building) : std::string();
-      if (ui::listItem(b->name.empty() ? "Без названия" : b->name, {.icon = bld::iconOf(*b), .subtitle = levelsText(*b), .hint = hint,
-                                                                    .tooltip = hint.empty() ? std::string_view() : std::string_view("Провинций с постройкой")}))
-        openBuildingTree(a, 0, b->id);
-      a.markUi("drawer.buildings.item." + std::to_string(b->id));
-    }
-  }
 }
 
 // ---------------------------------------------------------------- вкладка государства
@@ -219,7 +188,6 @@ bool isState(App& a, Id fid) {
   return f && f->isState();
 }
 
-DrawerReg regDrawer({"buildings", "building", "Дерево построек", 60, drawDrawer});
 TabReg regTab({"faction.buildings", "building", "Постройки", 62, SelType::Faction, isState, drawFaction});
 CommandReg cmdBuildings({"trees.buildings", "Дерево построек", "building", nullptr, [](App& a) { openBuildingTree(a, 0); },
                          [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Вид"});

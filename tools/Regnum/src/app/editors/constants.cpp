@@ -331,31 +331,6 @@ void lockOrDelete(App& a, const Constant& c, const std::string& mark) {
   a.markUi(mark + ".delete");
 }
 
-// ---------------------------------------------------------------- выдвижная панель
-void drawDrawer(App& a) {
-  const World& w = a.world();
-  {
-    ui::HStack hs(30, ui::Align::Left, 6);
-    newButton(a, "constants.new");
-    ui::flex();
-    if (ui::iconButton("maximize", "Открыть окно констант")) a.openEditor("constants", 0);
-    a.markUi("drawer.constants.open");
-  }
-  ui::gap(2);
-  for (const Constant& c : allConstants(w)) {
-    ui::IdScope s(c.key);
-    const std::string mark = "constants." + c.key;
-    ui::Card card({.pad = 10});
-    {
-      ui::Row r({ui::px(18), ui::fr(1), ui::px(28)}, 28, 8);
-      ui::icon(typeIcon(c.type), ui::Ink::Accent, 16, typeName(c.type));
-      nameField(a, c, mark, ui::Font::Strong);
-      lockOrDelete(a, c, mark);
-    }
-    valueEditor(a, c, mark);
-  }
-}
-
 // ---------------------------------------------------------------- окно
 void drawDetail(App& a, const Constant& c) {
   const std::string mark = "constants." + c.key;
@@ -443,8 +418,7 @@ void drawEditor(App& a, Id) {
   }
 }
 
-DrawerReg drawerReg({"constants", "sliders", "Глобальные константы", 95, drawDrawer});
-EditorReg editorReg({"constants", "Глобальные константы", drawEditor, "sliders"});
+EditorReg editorReg({"constants", "Глобальные константы", drawEditor, "sliders", "reference", 30});
 CommandReg commandReg({"editor.constants", "Глобальные константы", "sliders", nullptr, [](App& a) { a.openEditor("constants", 0); },
                        [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Справочники"});
 

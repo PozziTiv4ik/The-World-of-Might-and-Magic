@@ -12,7 +12,7 @@ inline void quick(Harness& h) {
 }
 
 // Прокрутить область area колесом, пока элемент name не окажется в её видимой части.
-inline bool reveal(Harness& h, const std::string& name, const char* area = "editor", float top = 64) {
+inline bool reveal(Harness& h, const std::string& name, const char* area = "editor", float top = 8) {
   for (int i = 0; i < 40; i++) {
     const RectF* r = h->uiRect(name);
     const RectF* ar = h->uiRect(area);
@@ -26,13 +26,13 @@ inline bool reveal(Harness& h, const std::string& name, const char* area = "edit
   return false;
 }
 
-inline bool clickRevealed(Harness& h, const std::string& name, const char* area = "editor", float top = 64) {
+inline bool clickRevealed(Harness& h, const std::string& name, const char* area = "editor", float top = 8) {
   if (!reveal(h, name, area, top)) return false;
   return h.clickUi(name);
 }
 
 // Выбрать в поле со списком пункт по тексту поиска (щелчок, ввод, Enter).
-inline bool pickInCombo(Harness& h, const std::string& name, const std::string& query, const char* area = "editor", float top = 64) {
+inline bool pickInCombo(Harness& h, const std::string& name, const std::string& query, const char* area = "editor", float top = 8) {
   if (!clickRevealed(h, name, area, top)) return false;
   h.type(query);
   h.key(Key::Enter);
@@ -41,7 +41,7 @@ inline bool pickInCombo(Harness& h, const std::string& name, const std::string& 
 }
 
 // Ввести значение в поле: щелчок (всё выделено), ввод, Enter.
-inline bool enterValue(Harness& h, const std::string& name, const std::string& value, const char* area = "editor", float top = 64) {
+inline bool enterValue(Harness& h, const std::string& name, const std::string& value, const char* area = "editor", float top = 8) {
   if (!clickRevealed(h, name, area, top)) return false;
   h.retype(value);
   h.key(Key::Enter);

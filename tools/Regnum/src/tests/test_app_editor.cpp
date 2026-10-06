@@ -126,11 +126,13 @@ TEST(app_editor_drawer_and_inspector_resize) {
   h.settle();
   CHECK_EQ(h->ui.drawer, std::string("test.states"));
   CHECK(gDrawerDrawn > 0);
-  // Ширина панели меняется перетаскиванием края.
+  // Панель прилегает к ленте разделов справа; ширина меняется перетаскиванием левого края.
   const RectF* dr = h->uiRect("drawer");
-  CHECK(dr != nullptr);
+  const RectF* rail = h->uiRect("rail");
+  CHECK(dr != nullptr && rail != nullptr);
+  CHECK_NEAR(dr->right(), rail->x, 0.75);
   float w0 = h->ui.drawerWidth;
-  h.drag(dr->right() - 3, dr->cy(), dr->right() + 57, dr->cy());
+  h.drag(dr->x + 3, dr->cy(), dr->x - 57, dr->cy());
   CHECK(h->ui.drawerWidth > w0 + 40);
   // Повторный щелчок по значку закрывает панель.
   CHECK(h.clickUi("drawer.test.states"));
@@ -258,17 +260,23 @@ TEST(app_editor_map_navigation) {
   // Режимы карты 1–9.
   h.key(Key::D3);
   CHECK(h->ui.mapMode == schema::MapMode::Contentment);
+  // Режим — из выпадающего списка верхней строки и из панели «Слои карты».
+  h.key(Key::L);
+  CHECK_EQ(h->ui.drawer, std::string("layers"));
   CHECK(h.clickUi("mode.1"));
   CHECK(h->ui.mapMode == schema::MapMode::Political);
   // Home — вся карта.
   h.key(Key::Home);
   h.settle();
   CHECK_NEAR(h->map().view().zoom, h->map().minZoom(), 1e-6);
-  // Мини-карта и легенда переключаются.
-  bool mm = h->ui.showMinimap;
+  // M и L открывают и закрывают панель «Слои карты» (мини-карта, режимы, легенда).
+  CHECK(h->uiRect("minimap") != nullptr);
   h.key(Key::M);
-  CHECK(h->ui.showMinimap != mm);
+  CHECK(h->ui.drawer.empty());
   h.key(Key::M);
+  CHECK_EQ(h->ui.drawer, std::string("layers"));
+  h.key(Key::L);
+  CHECK(h->ui.drawer.empty());
   // Инструмент «Перемещение».
   h.key(Key::H);
   CHECK(h->ui.tool == app::ToolId::Pan);
@@ -336,7 +344,7 @@ TEST(app_editor_ui_scale) {
 }
 
 TEST(app_editor_min_window) {
-  // Наименьшее окно 1100×700: верхняя панель компактна, панели не налезают друг на друга.
+  // Наименьшее окно 1100×700: строки компактны, панели не налезают друг на друга.
   Harness h("editor_min", 1100, 700);
   h.demo();
   CHECK(h.clickUi("drawer.test.states"));
@@ -348,15 +356,21 @@ TEST(app_editor_min_window) {
   h.settle();
   CHECK(h.shot("editor_min"));
   const RectF* top = h->uiRect("topbar");
+  const RectF* bottom = h->uiRect("bottombar");
   const RectF* end = h->uiRect("topbar.endturn");
-  const RectF* modes = h->uiRect("mode.9");
-  CHECK(top && end && modes);
-  CHECK(end->right() <= top->right() + 0.5f);
-  CHECK(modes->right() < end->x);
+  const RectF* mode = h->uiRect("topbar.mode");
+  const RectF* undo = h->uiRect("topbar.undo");
+  CHECK(top && bottom && end && mode && undo);
+  CHECK(end->right() <= bottom->right() + 0.5f);
+  CHECK(mode->right() < undo->x);
   const RectF* tools = h->uiRect("toolbar");
   const RectF* ins = h->uiRect("inspector");
-  CHECK(tools && ins);
+  const RectF* dr = h->uiRect("drawer");
+  const RectF* rail = h->uiRect("rail");
+  CHECK(tools && ins && dr && rail);
   CHECK(tools->right() < ins->x);
+  CHECK(ins->right() <= dr->x + 0.5f);
+  CHECK(dr->right() <= rail->x + 0.5f);
 }
 
 namespace {
@@ -367,7 +381,7 @@ void testEditor(app::App& a, Id arg) {
   gEditorArg = arg;
   const Faction* f = a.world().faction(arg);
   ui::label(f ? "Дерево технологий: " + f->name : std::string("Дерево технологий"), {.font = ui::Font::Title});
-  ui::text("Полноэкранный редактор занимает всё окно; Esc или стрелка — назад к карте.", ui::Font::Body, ui::Ink::Dim);
+  ui::text("Редактор занимает место карты; Esc или «К карте» — назад к карте.", ui::Font::Body, ui::Ink::Dim);
 }
 app::EditorReg testEditorReg({"test.techtree", "Дерево технологий", testEditor, "tech-tree"});
 }  // namespace
@@ -384,7 +398,8 @@ TEST(app_editor_fullscreen_editor) {
   CHECK(gEditorDrawn > 0);
   CHECK_EQ(gEditorArg, fid);
   CHECK(h->uiRect("editor") != nullptr);
-  CHECK(h->uiRect("topbar") == nullptr);   // карта и панели скрыты
+  CHECK(h->uiRect("toolbar") == nullptr);   // карта и лента инструментов скрыты, строки и лента разделов — на месте
+  CHECK(h->uiRect("topbar") != nullptr && h->uiRect("pagenav") != nullptr);
   CHECK(h.shot("editor_fullscreen"));
   // Отмена работает и в редакторе.
   double tax0 = h->world().faction(fid)->tax;
@@ -393,7 +408,7 @@ TEST(app_editor_fullscreen_editor) {
   CHECK_NEAR(h->world().faction(fid)->tax, tax0, 1e-9);
   h.key(Key::Escape);
   CHECK(h->ui.editor.empty());
-  CHECK(h->uiRect("topbar") != nullptr);
+  CHECK(h->uiRect("toolbar") != nullptr);
   // Неизвестный редактор не открывается.
   h->openEditor("нет.такого");
   CHECK(h->ui.editor.empty());
@@ -410,7 +425,9 @@ TEST(app_prefs_persist) {
     a.setTheme(false);
     a.setUiScale(1.25f);
     a.ui.inspectorWidth = 480;
-    a.ui.showMinimap = false;
+    a.ui.drawerWidth = 420;
+    CHECK(a.map().palette() == map::Palette::Parchment);   // по умолчанию — «Пергамент»
+    a.ui.sourceMap = true;
   }
   CHECK(fs::isFile(fs::join(dir, "app.json")));
   {
@@ -418,7 +435,9 @@ TEST(app_prefs_persist) {
     CHECK(!a.ui.darkTheme);
     CHECK_NEAR(a.ui.uiScale, 1.25, 1e-6);
     CHECK_NEAR(a.ui.inspectorWidth, 480, 1e-6);
-    CHECK(!a.ui.showMinimap);
+    CHECK_NEAR(a.ui.drawerWidth, 420, 1e-6);
+    CHECK(a.ui.sourceMap);
+    CHECK(a.map().palette() == map::Palette::Source);
   }
   {
     app::App a(app::AppConfig{dir, {}, false});   // без запоминания — значения по умолчанию

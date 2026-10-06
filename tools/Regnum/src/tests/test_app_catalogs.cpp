@@ -15,7 +15,7 @@ void quick(Harness& h) {
 }
 
 // Прокрутить окно редактора колесом, пока элемент name не окажется в видимой части области area.
-bool reveal(Harness& h, const std::string& name, const char* area = "editor", float top = 64) {
+bool reveal(Harness& h, const std::string& name, const char* area = "editor", float top = 8) {
   for (int i = 0; i < 40; i++) {
     const RectF* r = h->uiRect(name);
     const RectF* ar = h->uiRect(area);
@@ -109,11 +109,8 @@ TEST(app_catalogs_modifier_create_effects) {
   Harness h("catalogs_modifier");
   h.demo();
   h.dropToasts();
-  // Лента слева → панель «Модификаторы» → окно.
-  CHECK(h.clickUi("drawer.modifiers"));
-  quick(h);
-  CHECK_EQ(h->ui.drawer, std::string("modifiers"));
-  CHECK(h.clickUi("drawer.modifiers.open"));
+  // Правая лента → раздел «Справочники» → модификаторы.
+  CHECK(h.clickUi("section.reference"));
   quick(h);
   CHECK_EQ(h->ui.editor, std::string("modifiers"));
   u32 before = h->world().modifiers.size();
@@ -295,14 +292,16 @@ TEST(app_catalogs_lists_add_remove) {
   Harness h("catalogs_lists");
   h.demo();
   h.dropToasts();
-  // Лента → «Справочники» → «Расы».
-  CHECK(h.clickUi("drawer.catalogs"));
+  // Правая лента → «Справочники» → справочники → «Расы».
+  CHECK(h.clickUi("section.reference"));
+  quick(h);
+  CHECK(h.clickUi("page.nav.catalogs"));
   quick(h);
   h.settle();
   CHECK(h.shot("catalogs_drawer"));
-  CHECK(h.clickUi("drawer.catalogs.1"));
-  quick(h);
   CHECK_EQ(h->ui.editor, std::string("catalogs"));
+  h->openEditor("catalogs", 2);
+  quick(h);
   size_t races = h->world().catalogs->races.size();
   CHECK(h.clickUi("catalogs.add"));
   quick(h);
@@ -470,9 +469,9 @@ TEST(app_catalogs_character_list_filter) {
   Harness h("catalogs_charlist");
   h.demo();
   h.dropToasts();
-  h.key(Key::D4, ctrl());   // Ctrl+4 — панель «Персонажи»
+  h.key(Key::D4, ctrl());   // Ctrl+4 — раздел «Персонажи» (каталог)
   quick(h);
-  CHECK_EQ(h->ui.drawer, std::string("characters"));
+  CHECK_EQ(h->ui.directory, std::string("characters"));
   // Только герои.
   CHECK(h.clickUi("characters.heroes"));
   quick(h);
@@ -482,7 +481,10 @@ TEST(app_catalogs_character_list_filter) {
   CHECK(h->ui.sel.type == app::SelType::Character);
   const Character* c = h->world().character(h->ui.sel.id);
   CHECK(c && c->hero);
-  // Фильтр по фракции.
+  CHECK(h->view() == app::View::Entity);
+  // Снова каталог (страница персонажа открылась на его месте): фильтр по фракции.
+  CHECK(h.clickUi("page.directory"));
+  quick(h);
   Id fac = c ? c->faction : 0;
   CHECK(pickInCombo(h, "characters.faction", h->world().factionName(fac), "drawer"));
   quick(h);
@@ -515,8 +517,8 @@ TEST(app_catalogs_shots) {
   h.demo();
   h.waitMap();
   h.dropToasts();
-  // Панель «Модификаторы» на ленте.
-  CHECK(h.clickUi("drawer.modifiers"));
+  // Раздел «Справочники»: модификаторы.
+  CHECK(h.clickUi("section.reference"));
   h.move(700, 450);
   quick(h);
   h.settle();

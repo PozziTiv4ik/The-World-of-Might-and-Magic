@@ -103,7 +103,7 @@ void runJob(const std::shared_ptr<TileStore::Shared>& s) {
   } catch (const std::exception& ex) {
     // Ошибка не роняет карту: тайл — цветом суши, повтор — после следующего изменения мира.
     logError("Тайл карты (%d, %d) не нарисован: %s", key.tx, key.ty, ex.what());
-    img = std::make_shared<gfx::Image>(kTile, kTile, gfx::premul(s->bm ? s->bm->landColor() : Color(255, 255, 255)));
+    img = std::make_shared<gfx::Image>(kTile, kTile, gfx::premul(mapStyle(s->bm, sc->style.palette).land));
   }
   std::function<void()> wake;
   {

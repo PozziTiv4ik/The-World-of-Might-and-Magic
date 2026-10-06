@@ -13,6 +13,7 @@ u64 TileStyle::key() const {
   std::memcpy(&dp, &dpi, 4);
   h = hashMix(h, op);
   h = hashMix(h, dp);
+  h = hashMix(h, 0x7a1e00u + u32(palette));
   return h ? h : 1;
 }
 
@@ -134,7 +135,7 @@ std::shared_ptr<const Looks> computeLooks(const World& w, const TileStyle& s) {
   return L;
 }
 
-std::vector<LegendItem> legendFor(const World& w, MapMode mode) {
+std::vector<LegendItem> legendFor(const World& w, MapMode mode, const art::Style& colors) {
   std::vector<LegendItem> out;
   auto states = [&](bool guilds) {
     std::vector<const Faction*> list;
@@ -159,7 +160,7 @@ std::vector<LegendItem> legendFor(const World& w, MapMode mode) {
       bool occ = false;
       w.provinces.each([&](const Province& p) { occ = occ || (p.occupied && p.occupier); });
       if (occ) out.push_back({Color::hex(0x5a5148), "Оккупация", "occupied"});
-      out.push_back({Color::hex(0xffffff), "Без владельца", "land"});
+      out.push_back({colors.land, "Без владельца", "land"});
       break;
     }
     case MapMode::Guilds:
@@ -190,7 +191,7 @@ std::vector<LegendItem> legendFor(const World& w, MapMode mode) {
     }
     case MapMode::Resources:
       catalog(w.catalogs->resources, usedBy([](const Province& p) { return p.resource; }), "resource");
-      out.push_back({Color::hex(0xffffff), "Без ресурса", "land"});
+      out.push_back({colors.land, "Без ресурса", "land"});
       break;
     case MapMode::Religion:
       catalog(w.catalogs->religions, usedBy([](const Province& p) { return p.religion; }), "religion");
@@ -201,9 +202,9 @@ std::vector<LegendItem> legendFor(const World& w, MapMode mode) {
       out.push_back({neutralColor(), "Не указана", "culture"});
       break;
     case MapMode::Terrain:
-      out.push_back({Color::hex(0xffffff), "Суша", "land"});
-      out.push_back({Color::hex(0x0026ff), "Море, реки и озёра", "sea"});
-      out.push_back({Color::hex(0x8c8c8c), "Горы, замки и башни", "mountain"});
+      out.push_back({colors.land, "Суша", "land"});
+      out.push_back({colors.sea, "Море, реки и озёра", "sea"});
+      out.push_back({colors.tone(0x8c), "Горы, замки и башни", "mountain"});
       break;
     case MapMode::Count: break;
   }

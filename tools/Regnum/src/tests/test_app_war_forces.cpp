@@ -8,9 +8,10 @@ using namespace rg::apptest;
 
 namespace {
 
+// Вкладка в панели справа от карты (узкая таблица со строками и карточкой строки), а не страницей.
 void openTab(Harness& h, Id faction, const char* tab) {
   h->ui.tabOf[app::SelType::Faction] = tab;
-  h->select(app::SelType::Faction, faction);
+  h->select(app::SelType::Faction, faction, true);
   h.settle();
   h.dropToasts();
   h.settle();

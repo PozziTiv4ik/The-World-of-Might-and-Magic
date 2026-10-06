@@ -10,11 +10,11 @@
 
 namespace rg::map {
 
-// Превью и миниатюра рисуются по первому запросу, каждая под своим замком: миниатюра для мини-карты не ждёт превью,
-// которое рисуется в фоне.
+// Превью и миниатюра (в каждой палитре) рисуются по первому запросу, каждая под своим замком: миниатюра для
+// мини-карты не ждёт превью, которое рисуется в фоне.
 struct Basemap::Lazy {
   std::mutex previewMu, thumbMu;
-  std::shared_ptr<const gfx::Image> preview, thumb;
+  std::shared_ptr<const gfx::Image> preview[size_t(Palette::Count)], thumb[size_t(Palette::Count)];
 };
 
 namespace {
@@ -40,8 +40,7 @@ const std::string& Basemap::id() const { return art_ ? art_->id : noText(); }
 const std::string& Basemap::sourceSha256() const { return art_ ? art_->sourceSha256 : noText(); }
 int Basemap::width() const { return art_ ? art_->width : 0; }
 int Basemap::height() const { return art_ ? art_->height : 0; }
-Color Basemap::oceanColor() const { return art_ ? art_->style.sea : Color(0, 38, 255); }
-Color Basemap::landColor() const { return art_ ? art_->style.land : Color(255, 255, 255); }
+art::Style Basemap::style(Palette p) const { return art::paletteStyle(art_ ? art_->style : art::Style{}, p); }
 
 bool Basemap::load(const std::string& dirIn, std::string* error) {
   *this = Basemap();
@@ -99,24 +98,26 @@ bool Basemap::isOcean(Vec2 p) const {
   return mask_[size_t(my) * size_t(maskW_) + size_t(mx)] != 0;
 }
 
-std::shared_ptr<const gfx::Image> Basemap::preview() const {
-  if (!loaded()) return nullptr;
+std::shared_ptr<const gfx::Image> Basemap::preview(Palette p) const {
+  if (!loaded() || p >= Palette::Count) return nullptr;
   std::lock_guard<std::mutex> lk(lazy_->previewMu);
-  if (!lazy_->preview) {
+  auto& img = lazy_->preview[size_t(p)];
+  if (!img) {
     const double ds = 2000.0 / width();
-    lazy_->preview = std::make_shared<gfx::Image>(art::render(*index_, ds, 2000, int(std::lround(height() * ds))));
+    img = std::make_shared<gfx::Image>(art::render(*index_, ds, 2000, int(std::lround(height() * ds)), 0, 0, p));
   }
-  return lazy_->preview;
+  return img;
 }
 
-std::shared_ptr<const gfx::Image> Basemap::thumb() const {
-  if (!loaded()) return nullptr;
+std::shared_ptr<const gfx::Image> Basemap::thumb(Palette p) const {
+  if (!loaded() || p >= Palette::Count) return nullptr;
   std::lock_guard<std::mutex> lk(lazy_->thumbMu);
-  if (!lazy_->thumb) {
+  auto& img = lazy_->thumb[size_t(p)];
+  if (!img) {
     const double ds = 480.0 / width();
-    lazy_->thumb = std::make_shared<gfx::Image>(art::render(*index_, ds, 480, int(std::lround(height() * ds))));
+    img = std::make_shared<gfx::Image>(art::render(*index_, ds, 480, int(std::lround(height() * ds)), 0, 0, p));
   }
-  return lazy_->thumb;
+  return img;
 }
 
 }  // namespace rg::map

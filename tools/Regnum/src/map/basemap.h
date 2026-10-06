@@ -4,7 +4,7 @@
 //   map.json   береговая линия, островки, реки и озёра, стены, горы, замки и башни (см. art.h)
 // Береговая линия мира (geo::Coast) — кольца суши map.json. Маска моря и уменьшенные изображения карты (превью для
 // экрана запуска и запасного слоя, миниатюра для мини-карты и списка миров) рисуются кодом: маска — при загрузке,
-// изображения — при первом обращении. Исходное изображение редактор не загружает.
+// изображения — при первом обращении, в каждой палитре отдельно. Исходное изображение редактор не загружает.
 // После load() объект не меняется, поэтому его методы можно вызывать из нескольких потоков.
 #pragma once
 #include <memory>
@@ -36,8 +36,8 @@ class Basemap {
   const std::string& sourceSha256() const;
   int width() const;
   int height() const;
-  Color oceanColor() const;
-  Color landColor() const;
+  // Стиль карты (map.json) в палитре p; не загружено — стиль по умолчанию в палитре p.
+  art::Style style(Palette p = Palette::Source) const;
   const art::MapArt& art() const { return *art_; }
   const art::Index& index() const { return *index_; }
   // Знаки и фигуры карты как записи мира (art::baseObjects): мир без своих объектов показывает их, первая правка
@@ -50,10 +50,10 @@ class Basemap {
   int maskHeight() const { return maskH_; }
   int maskScale() const { return kMaskScale; }
 
-  // Карта целиком (суша, море, воды, знаки), нарисованная кодом: превью шириной 2000 и миниатюра шириной 480.
-  // Рисуются при первом обращении (потокобезопасно); не загружено — nullptr.
-  std::shared_ptr<const gfx::Image> preview() const;
-  std::shared_ptr<const gfx::Image> thumb() const;
+  // Карта целиком (суша, море, воды, знаки), нарисованная кодом в палитре p: превью шириной 2000 и миниатюра
+  // шириной 480. Рисуются при первом обращении (потокобезопасно); не загружено — nullptr.
+  std::shared_ptr<const gfx::Image> preview(Palette p = Palette::Source) const;
+  std::shared_ptr<const gfx::Image> thumb(Palette p = Palette::Source) const;
 
   static constexpr int kMaskScale = 4;   // пиксель маски моря = 4 × 4 единицы карты
 

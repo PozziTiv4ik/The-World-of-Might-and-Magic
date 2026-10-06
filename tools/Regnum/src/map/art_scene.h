@@ -60,7 +60,7 @@ class Scene {
   std::vector<Id> symbolIds_, waterIds_, isletIds_, lineIds_, riverIds_;
 };
 
-// Вся карта сцены шириной width (превью, миниатюра): суша, море (если в сцене есть суша), воды, знаки.
-gfx::Image renderScene(const Scene& s, int width);
+// Вся карта сцены шириной width (превью, миниатюра): суша, море (если в сцене есть суша), воды, знаки — в палитре pal.
+gfx::Image renderScene(const Scene& s, int width, Palette pal = Palette::Source);
 
 }  // namespace rg::map::art

@@ -18,8 +18,9 @@
 //  - При просмотре прошлого хода (readOnly()) act() ничего не меняет и сообщает об этом сам.
 //  - Значение из транзакции получают захватом: Id nid = 0; a.act("…", [&](Tx& tx) { nid = rules::createArmy(...); });
 //  - Занятые оболочкой клавиши: V, H (инструменты), E (правка границ), F (показать выделенное), 1–9 (режимы карты),
-//    M (мини-карта), L (легенда), Home, +/− (масштаб), Пробел (панорама), Esc, F1, F11,
-//    Ctrl+K/N/O/S/Shift+S/Z/Y/Shift+Z/Enter/Q/W/, (запятая). Ctrl+1…9 — свободны для выдвижных панелей (DrawerDef::shortcut).
+//    M, L (слои карты), Home, +/− (масштаб), Пробел (панорама), Esc, F1, F11,
+//    Ctrl+K/N/O/S/Shift+S/Z/Y/Shift+Z/Enter/Q/W/, (запятая). Ctrl+1…9 — разделы и панели правой ленты
+//    (SectionDef::shortcut, DrawerDef::shortcut).
 //  - Колбэки реестров вызываются внутри кадра интерфейса; исключение из них превращается в уведомление.
 //  - Сценарные тесты оболочки — src/tests/test_app_util.h (apptest::Harness: настоящий App на headless-платформе).
 #pragma once
@@ -128,8 +129,9 @@ struct TabDef {
   int order;                           // порядок слева направо
   SelType type;                        // для какого инспектора
   bool (*visible)(App&, Id);           // nullptr — всегда (например, вкладки только для гильдий)
-  void (*draw)(App&, Id);              // тело вкладки (ui:: внутри прокручиваемой области инспектора)
+  void (*draw)(App&, Id);              // тело вкладки (ui:: внутри прокручиваемой области инспектора или страницы)
   int (*badge)(App&, Id) = nullptr;    // число на значке (> 0), −1 — точка; nullptr — нет
+  bool wide = false;                   // на странице — вся ширина (таблицы); иначе колонка обычной ширины
 };
 struct TabReg { explicit TabReg(const TabDef& d); };
 const std::vector<TabDef>& tabs();
@@ -146,7 +148,19 @@ struct HeaderDef {
 struct HeaderReg { explicit HeaderReg(const HeaderDef& d); };
 const std::vector<HeaderDef>& headers();
 
-struct DrawerDef {                     // левая выдвижная панель (списки, хроника и т. п.)
+// Самое нужное о выделении в нижней строке (видно и при свёрнутой панели выделения): ряд HStack высотой 30 —
+// название, фишки владельца, выбор культуры, числа. Несколько записей одного типа — по order. Без записи для
+// типа строка показывает вид и название объекта.
+struct QuickDef {
+  const char* id;
+  SelType type;
+  int order;
+  void (*draw)(App&, Id);
+};
+struct QuickReg { explicit QuickReg(const QuickDef& d); };
+const std::vector<QuickDef>& quicks();
+
+struct DrawerDef {                     // панель справа от карты (низ правой ленты): провинции, войска, слои, хроника
   const char* id;
   const char* icon;
   const char* title;
@@ -157,11 +171,31 @@ struct DrawerDef {                     // левая выдвижная пане
 struct DrawerReg { explicit DrawerReg(const DrawerDef& d); };
 const std::vector<DrawerDef>& drawers();
 
-struct EditorDef {                     // полноэкранный редактор (дерево технологий, построек, модификаторы, справочники)
+// Раздел на всё окно (верх правой ленты): государства, гильдии, персонажи — страницы сущностей с каталогом;
+// экономика, справочники — страницы редакторов (EditorDef::group). Страница занимает место карты; слева —
+// навигация раздела, «← К карте» (Esc) возвращает карту.
+struct SectionDef {
+  const char* id;                      // "states"
+  const char* icon;
+  const char* title;                   // «Государства»
+  int order;
+  const char* shortcut = nullptr;      // «Ctrl+2»
+  void (*directory)(App&) = nullptr;   // каталог раздела (список с поиском и созданием); nullptr — раздел редакторов
+  SelType type = SelType::None;        // сущности раздела (страница сущности — вкладки TabDef этого типа)
+  bool (*owns)(App&, Id) = nullptr;    // сущность относится к разделу (государство или гильдия); nullptr — все этого типа
+  const char* allTitle = nullptr;      // пункт каталога в навигации страницы: «Все государства»
+};
+struct SectionReg { explicit SectionReg(const SectionDef& d); };
+const std::vector<SectionDef>& sections();
+const SectionDef* findSection(std::string_view id);
+
+struct EditorDef {                     // редактор на месте карты (дерево технологий, построек, модификаторы, справочники)
   const char* id;
   const char* title;
-  void (*draw)(App&, Id arg);          // arg — например, фракция; ui:: внутри области редактора под его шапкой
-  const char* icon = nullptr;          // значок в шапке
+  void (*draw)(App&, Id arg);          // arg — например, фракция; ui:: внутри области редактора
+  const char* icon = nullptr;          // значок в навигации
+  const char* group = nullptr;         // раздел (SectionDef::id), в навигации которого стоит редактор; nullptr — сам по себе
+  int order = 100;                     // порядок в навигации раздела
 };
 struct EditorReg { explicit EditorReg(const EditorDef& d); };
 const EditorDef* findEditor(std::string_view id);
@@ -241,6 +275,8 @@ struct Toast {
 
 // ---------------------------------------------------------------- состояние интерфейса
 enum class Screen : u8 { Start, Editor };
+// Что занимает место карты: карта, редактор, страница сущности (выделение страницей) или каталог раздела.
+enum class View : u8 { Map, Editor, Entity, Directory };
 struct UiState {
   Screen screen = Screen::Start;
   Selection sel, hover;                    // hover — объект под указателем на карте
@@ -249,17 +285,22 @@ struct UiState {
   bool editMap = false;                    // режим правки карты: суша и берег, воды, горы, замки, башни, стены
   std::vector<Id> symbolGroup;             // выделенные знаки карты (рамкой или Shift+щелчок); ui.sel — один из них
   schema::MapMode mapMode = schema::MapMode::Political;
-  std::string drawer;                      // открытая левая панель ("" — нет)
+  std::string drawer;                      // открытая панель справа от карты ("" — нет)
   std::map<SelType, std::string> tabOf;    // активная вкладка инспектора по типу
-  std::string editor;                      // открытый полноэкранный редактор ("" — нет)
+  std::string editor;                      // открытый редактор ("" — нет)
   Id editorArg = 0;
+  bool page = false;                       // выделение показано страницей на месте карты (а не панелью справа)
+  std::string directory;                   // открытый каталог раздела ("states", "guilds", "characters"; "" — нет)
+  Selection backSel;                       // выделение на карте до перехода на страницу сущности («К карте» вернёт его)
+  std::map<std::string, Selection> lastOf; // последняя открытая сущность раздела
+  std::map<std::string, std::string> lastEditor;   // последний редактор раздела
+  bool inspectorHidden = false;            // панель выделения свёрнута (кнопка в нижней строке)
   std::optional<int> viewTurn;             // просмотр снимка прошлого хода (только чтение)
   bool darkTheme = true;
   float uiScale = 1.0f;                    // пользовательский множитель 0,9…1,5
-  bool showMinimap = true;
-  bool showLegend = true;
-  float drawerWidth = 340;                 // точки интерфейса
-  float inspectorWidth = 400;
+  bool sourceMap = false;                  // карта цветами исходника (иначе — «Пергамент»: тёмно-синее море, светлая суша)
+  float drawerWidth = 300;                 // точки интерфейса
+  float inspectorWidth = 380;
   std::optional<Vec2> cursorMap;           // точка карты под указателем (строка состояния)
 };
 
@@ -307,9 +348,19 @@ class App : public platform::App {
   void setEditBorders(bool on);            // переключает доступные инструменты
   void setEditMap(bool on);                // режим правки карты (выключает правку границ, и наоборот)
   void setMapMode(schema::MapMode m);
-  void openDrawer(std::string_view id);    // повторный вызов закрывает
+  // Панель справа от карты; повторный вызов закрывает. Имя раздела на всё окно (states…) открывает его каталог.
+  void openDrawer(std::string_view id);
   void openEditor(std::string_view id, Id arg = 0);
   void closeEditor();
+  // ---- страницы на месте карты
+  View view() const;                       // что сейчас на месте карты
+  bool mapShown() const;                   // экран мира и видна карта (не страница и не редактор)
+  void openSection(std::string_view id);   // раздел правой ленты; если он уже открыт — к карте
+  void openDirectory(std::string_view id); // каталог раздела (states, guilds, characters)
+  void setPage(bool on);                   // выделение страницей (true) или панелью справа от карты
+  void back();                             // «Назад»: редактор → страница или каталог → карта
+  void toMap();                            // к карте: закрыть редактор, страницу и каталог
+  const SectionDef* sectionOf(Selection s);   // раздел страницы сущности; nullptr — нет
   void openDialog(std::unique_ptr<Dialog> d);
   bool openDialog(std::string_view id, Id arg = 0);   // по реестру DialogReg (или встроенный); false — нет такого
   void closeDialogs();

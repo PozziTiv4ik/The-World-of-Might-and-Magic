@@ -284,13 +284,11 @@ TEST(app_trade_tribute_over_turns) {
 TEST(app_trade_drawer_and_light) {
   Harness h("trade_light", 1440, 900, 1, false);
   h.demo();
-  CHECK(h.clickUi("drawer.trade"));
-  h.settle();
-  CHECK_EQ(h->ui.drawer, std::string("trade"));
-  shotClean(h, "trade_drawer_light");
-  CHECK(h.clickUi("trade.drawer.new"));
+  // Правая лента → «Экономика»: переговоры и торговля.
+  CHECK(h.clickUi("section.economy"));
   h.settle();
   CHECK_EQ(h->ui.editor, std::string("trade"));
+  shotClean(h, "trade_drawer_light");
   Pair p = twoStates(h->store.world());
   pick(h, "trade.party.a", p.na);
   pick(h, "trade.party.b", p.nb);

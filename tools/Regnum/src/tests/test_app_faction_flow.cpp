@@ -35,7 +35,7 @@ TEST(app_faction_create_and_rename) {
   CHECK(!f->flag.image);
   CHECK(!f->flag.emblem.empty());
   CHECK(f->flag.colors[0] == f->color);
-  CHECK(h->uiRect("states.row." + std::to_string(sel.id)) != nullptr);
+  CHECK(h->view() == app::View::Entity);   // новая фракция — сразу своей страницей
   // Сразу после создания шапка ждёт новое название.
   CHECK(h->uiRect("faction.rename") != nullptr);
   h.retype("Новая Империя");
@@ -71,17 +71,21 @@ TEST(app_faction_create_and_rename) {
   h.key(Key::Enter);
   h.step();
   CHECK_EQ(h->world().faction(gid)->name, std::string("Гильдия пряностей"));
-  // Поиск в списке гильдий.
+  // Поиск в каталоге гильдий.
+  CHECK(h.clickUi("page.directory"));
+  h.step();
+  CHECK_EQ(h->ui.directory, std::string("guilds"));
   CHECK(h.clickUi("guilds.search"));
   h.type("пряност");
   h.step();
   CHECK(h->uiRect("guilds.row." + std::to_string(gid)) != nullptr);
   CHECK(h.shot("faction_drawer_guilds_search"));
-  // Щелчок по строке списка открывает инспектор.
+  // Щелчок по строке каталога открывает страницу гильдии.
   h->clearSelection();
   h.step();
   CHECK(h.clickUi("guilds.row." + std::to_string(gid)));
   CHECK(h->ui.sel == (app::Selection{app::SelType::Faction, gid}));
+  CHECK(h->view() == app::View::Entity);
 }
 
 // ---------------------------------------------------------------- редактор флага
@@ -749,7 +753,7 @@ TEST(app_faction_council_edit) {
   CHECK_EQ(h->world().faction(a)->council[0].character, who0);
 }
 
-// ---------------------------------------------------------------- списки: сочетания, сортировка, двойной щелчок
+// ---------------------------------------------------------------- каталоги: сочетания, строки, переход на страницу
 TEST(app_faction_drawers_keys_sort) {
   HideTestRegs regs;
   Harness h("faction_drawers");
@@ -757,18 +761,15 @@ TEST(app_faction_drawers_keys_sort) {
   h.waitMap();
   h.dropToasts();
   h.key(Key::D2, ctrl());
-  CHECK_EQ(h->ui.drawer, std::string("states"));
+  CHECK_EQ(h->ui.directory, std::string("states"));
   h.key(Key::D3, ctrl());
-  CHECK_EQ(h->ui.drawer, std::string("guilds"));
+  CHECK_EQ(h->ui.directory, std::string("guilds"));
   h.key(Key::D2, ctrl());
-  CHECK_EQ(h->ui.drawer, std::string("states"));
-  // Сортировка по казне: строка самой богатой фракции — первая.
-  CHECK(h.clickUi("states.sort"));
-  h.step();
-  h.key(Key::Down);
-  h.key(Key::Down);
-  h.key(Key::Enter);
-  h.step();
+  CHECK_EQ(h->ui.directory, std::string("states"));
+  // В каталоге — строки всех государств (по названию).
+  h->world().factions.each([&](const Faction& f) {
+    if (f.isState()) CHECK(h->uiRect("states.row." + std::to_string(f.id)) != nullptr);
+  });
   Id richest = 0;
   double best = -1e18;
   h->world().factions.each([&](const Faction& f) {
@@ -777,24 +778,15 @@ TEST(app_faction_drawers_keys_sort) {
       richest = f.id;
     }
   });
-  float topY = 1e9f;
-  Id top = 0;
-  h->world().factions.each([&](const Faction& f) {
-    if (!f.isState()) return;
-    if (const RectF* r = h->uiRect("states.row." + std::to_string(f.id)); r && r->y < topY) {
-      topY = r->y;
-      top = f.id;
-    }
-  });
-  CHECK_EQ(top, richest);
-  // Двойной щелчок — выбрать и показать на карте.
+  // Щелчок по строке — страница государства; Ctrl+2 повторно — к карте.
   const RectF* row = h->uiRect("states.row." + std::to_string(richest));
   CHECK(row != nullptr);
   if (row) {
     RectF rr = *row;
-    h.doubleClick(rr.cx(), rr.cy());
+    h.click(rr.cx(), rr.cy());
   }
   CHECK(h->ui.sel == (app::Selection{app::SelType::Faction, richest}));
+  CHECK(h->view() == app::View::Entity);
   h.settle();
   CHECK(h.shot("faction_drawer_sorted"));
 }

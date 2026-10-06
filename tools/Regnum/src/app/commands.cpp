@@ -7,7 +7,17 @@ namespace rg::app {
 namespace {
 
 bool inEditor(App& a) { return a.ui.screen == Screen::Editor; }
-bool onMap(App& a) { return a.ui.screen == Screen::Editor && a.ui.editor.empty(); }
+bool onMap(App& a) { return a.mapShown(); }
+
+// Панель «Слои карты» (мини-карта, режимы, легенда): с любой страницы — к карте.
+void toggleLayers(App& a) {
+  if (!a.mapShown()) {
+    a.toMap();
+    if (a.ui.drawer != "layers") a.openDrawer("layers");
+  } else {
+    a.openDrawer("layers");
+  }
+}
 bool editable(App& a) { return a.ui.screen == Screen::Editor && !a.readOnly(); }
 
 template <int N>
@@ -66,18 +76,17 @@ CommandReg cFit({"map.fit", "Показать всю карту", "zoom-fit", "H
                  onMap, false, "Карта"});
 CommandReg cZoomIn({"map.zoomIn", "Приблизить", "zoom-in", "+", [](App& a) { zoomBy(a, 1.4); }, onMap, false, "Карта"});
 CommandReg cZoomOut({"map.zoomOut", "Отдалить", "zoom-out", "-", [](App& a) { zoomBy(a, 1 / 1.4); }, onMap, false, "Карта"});
-CommandReg cFocus({"map.focus", "Показать выделенное на карте", "target", "F", [](App& a) { a.focusSelection(); },
-                   [](App& a) { return onMap(a) && bool(a.ui.sel); }, false, "Карта"});
-CommandReg cMinimap({"map.minimap", "Мини-карта", "map", "M", [](App& a) {
-                       a.ui.showMinimap = !a.ui.showMinimap;
-                       a.impl().prefsDirty = true;
-                     },
-                     onMap, false, "Карта"});
-CommandReg cLegend({"map.legend", "Легенда", "list", "L", [](App& a) {
-                      a.ui.showLegend = !a.ui.showLegend;
-                      a.impl().prefsDirty = true;
-                    },
-                    onMap, false, "Карта"});
+CommandReg cFocus({"map.focus", "Показать выделенное на карте", "target", "F",
+                   [](App& a) {
+                     if (a.view() == View::Entity) {   // со страницы выделения — на карту
+                       a.setPage(false);
+                       a.impl().focusAfter = 2;
+                     } else {
+                       a.focusSelection();
+                     }
+                   },
+                   [](App& a) { return (onMap(a) || a.view() == View::Entity) && bool(a.ui.sel); }, false, "Карта"});
+CommandReg cMinimap({"map.minimap", "Мини-карта и слои карты", "map", "M", toggleLayers, inEditor, false, "Карта"});
 CommandReg cMode1({"map.mode1", modeTitle<0>(), schema::kMapModes[0].icon, "1", setMode<0>, onMap, false, "Режимы карты"});
 CommandReg cMode2({"map.mode2", modeTitle<1>(), schema::kMapModes[1].icon, "2", setMode<1>, onMap, false, "Режимы карты"});
 CommandReg cMode3({"map.mode3", modeTitle<2>(), schema::kMapModes[2].icon, "3", setMode<2>, onMap, false, "Режимы карты"});

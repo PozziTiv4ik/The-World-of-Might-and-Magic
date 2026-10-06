@@ -1,6 +1,7 @@
 // Regnum — экспорт карты в картинку (DialogReg «map.export», Ctrl+E): размер (Full HD, 4K, 8K, 1:1 или своя ширина),
-// подписи, войска и флот; файл PNG — системным диалогом (без него — в папку мира или «Документы»). Карта рисуется
-// шагами в кадрах (тайлы — в фоне), PNG пишется в фоне; по готовности — уведомление с кнопкой «Показать».
+// подписи, войска и флот; режим и палитра — как на карте редактора; файл PNG — системным диалогом (без него — в папку
+// мира или «Документы»). Карта рисуется шагами в кадрах (тайлы — в фоне), PNG пишется в фоне; по готовности —
+// уведомление с кнопкой «Показать».
 #include <future>
 
 #include "app/app_internal.h"
@@ -56,7 +57,7 @@ void begin(App& a, State& s) {
     st->showArmies = true;
     w.settings = st;
   }
-  s.exp = std::make_unique<map::MapExport>(a.basemap(), w, widthOf(s), o);
+  s.exp = std::make_unique<map::MapExport>(a.basemap(), w, widthOf(s), o, a.map().palette());
 }
 
 class ExportDialog final : public Dialog {

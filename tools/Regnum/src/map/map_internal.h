@@ -1,6 +1,6 @@
 // Regnum — внутренности отрисовщика карты (общие для файлов src/map/*.cpp, кроме basemap*).
 //
-// Схема кадра. Всё, что лежит под подписями (белая суша, заливка, море, реки, границы, штриховка, знаки карты —
+// Схема кадра. Всё, что лежит под подписями (суша, заливка, море, реки, границы, штриховка, знаки карты —
 // всё нарисовано кодом по объектам map.json и миру), собирается в фоне в непрозрачные «составные» тайлы
 // kTile × kTile пикселей устройства при точном масштабе
 // камеры. Кадр в покое — копирование готовых тайлов; при анимации и до прихода тайлов — лучшие доступные тайлы
@@ -34,9 +34,13 @@ struct TileStyle {
   bool editBorders = false;
   float fillOpacity = 0.5f;
   float dpi = 1;
+  Palette palette = Palette::Source;
   bool operator==(const TileStyle&) const = default;
   u64 key() const;
 };
+
+// Цвета карты в палитре: стиль базовой карты (map.json), без неё — стиль по умолчанию.
+inline art::Style mapStyle(const Basemap* bm, Palette p) { return bm ? bm->style(p) : art::paletteStyle(art::Style{}, p); }
 
 struct ProvLook {
   Color fill{0, 0, 0, 0};    // a == 0 — без заливки (иначе непрозрачный цвет)
@@ -58,7 +62,8 @@ struct Looks {
   bool hatch = true;
 };
 std::shared_ptr<const Looks> computeLooks(const World& w, const TileStyle& s);
-std::vector<LegendItem> legendFor(const World& w, schema::MapMode mode);
+// Легенда режима; цвета суши, моря и знаков — из стиля карты в палитре (mapStyle).
+std::vector<LegendItem> legendFor(const World& w, schema::MapMode mode, const art::Style& colors);
 Color fallbackColor(Id id);   // цвет фракции без записи
 // Цвета шкал режимов данных (t ∈ [0, 1]).
 Color contentmentColor(double t);

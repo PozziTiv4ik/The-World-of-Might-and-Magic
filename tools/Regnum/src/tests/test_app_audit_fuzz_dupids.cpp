@@ -94,11 +94,11 @@ TEST(app_audit_fuzz_dup_trade) {
     }
   }
   h->clearSelection();
-  h->openDrawer("trade");
+  h->openSection("economy");   // окно переговоров и торговли
   h.settle();
   for (auto& m : tap.fresh()) {
     warns++;
-    std::printf("  [ui-fuzz dup] панель «Торговля»: %s\n", m.c_str());
+    std::printf("  [ui-fuzz dup] окно «Переговоры и торговля»: %s\n", m.c_str());
   }
   std::printf("  [ui-fuzz dup] торговля: предупреждений %d\n", warns);
   CHECK_EQ(warns, 0);
@@ -120,7 +120,7 @@ TEST(app_audit_fuzz_dup_trade_empty_click) {
     if (!any && !fid) fid = f;
   }
   CHECK(fid != 0);
-  h->select(SelType::Faction, fid);
+  h->select(SelType::Faction, fid, true);   // панель справа от карты
   h->ui.tabOf[SelType::Faction] = "faction.trade";
   h.settle();
   const RectF* top = h->uiRect("faction.trade.new");
@@ -138,7 +138,7 @@ TEST(app_audit_fuzz_dup_trade_empty_click) {
   for (float y = t.bottom() + 120; y < t.bottom() + 220 && !opened; y += 6) {
     h->closeEditor();
     h.settle();
-    h->select(SelType::Faction, fid);
+    h->select(SelType::Faction, fid, true);   // панель справа от карты
     h->ui.tabOf[SelType::Faction] = "faction.trade";
     h.settle();
     h.click(insR.cx(), y);
@@ -150,7 +150,7 @@ TEST(app_audit_fuzz_dup_trade_empty_click) {
   // Контроль: верхняя кнопка работает.
   h->closeEditor();
   h.settle();
-  h->select(SelType::Faction, fid);
+  h->select(SelType::Faction, fid, true);   // панель справа от карты
   h->ui.tabOf[SelType::Faction] = "faction.trade";
   h.settle();
   h.shot("fuzz_dup_trade_empty");
@@ -162,46 +162,3 @@ TEST(app_audit_fuzz_dup_trade_empty_click) {
   CHECK(opened);
 }
 
-// То же в выдвижной панели «Торговля»: когда активных сделок нет, кнопка пустого состояния «Новая сделка» имеет
-// ID верхней кнопки «Новая сделка» — щелчок по ней не открывает редактор.
-TEST(app_audit_fuzz_dup_trade_drawer_empty_click) {
-  Harness h("fuzz_dup_trade_drawer");
-  h.demo();
-  h.waitMap();
-  std::vector<Id> deals = h->world().deals.ids();
-  h->act("Расторгнуть всё", [&](Tx& tx) {
-    for (Id d : deals) rules::cancelDeal(tx, d);
-  });
-  h.settle();
-  DupTap tap("trade_drawer");
-  h->openDrawer("trade");
-  h.settle();
-  auto warns = tap.fresh();
-  const RectF* top = h->uiRect("trade.drawer.new");
-  const RectF* dr = h->uiRect("drawer");
-  CHECK(top && dr);
-  if (!top || !dr) return;
-  RectF t = *top, d = *dr;
-  bool opened = false;
-  for (float y = t.bottom() + 100; y < t.bottom() + 300 && !opened; y += 6) {
-    h->closeEditor();
-    h.settle();
-    if (h->ui.drawer != "trade") h->openDrawer("trade");
-    h.settle();
-    h.click(d.cx(), y);
-    if (h->ui.editor == "trade") opened = true;
-  }
-  h->closeEditor();
-  h.settle();
-  if (h->ui.drawer != "trade") h->openDrawer("trade");
-  h.settle();
-  h.shot("fuzz_dup_trade_drawer_empty");
-  h.click(t.cx(), t.cy());
-  bool topOk = h->ui.editor == "trade";
-  std::printf("  [ui-fuzz dup] панель «Торговля» без активных сделок: предупреждений %d%s; верхняя кнопка %s; кнопка пустого состояния %s\n",
-              int(warns.size()), warns.empty() ? "" : (" (" + warns[0] + ")").c_str(), topOk ? "работает" : "НЕ работает",
-              opened ? "работает" : "НЕ работает");
-  CHECK(topOk);
-  CHECK(opened);
-  CHECK(warns.empty());
-}

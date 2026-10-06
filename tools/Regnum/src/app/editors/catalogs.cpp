@@ -671,36 +671,7 @@ void drawEditor(App& a, Id arg) {
   if (!ro && sel && ui::shortcut({Key::Delete, 0})) askRemove(a, d, sel);
 }
 
-// ---------------------------------------------------------------- выдвижная панель
-void drawDrawer(App& a) {
-  const World& w = a.world();
-  {
-    ui::HStack hs(30, ui::Align::Left, 6);
-    ui::label("Списки мира", {.ink = ui::Ink::Muted});
-    ui::flex();
-    if (ui::iconButton("maximize", "Открыть окно справочников")) a.openEditor("catalogs", 0);
-    a.markUi("drawer.catalogs.open");
-  }
-  ui::gap(2);
-  for (int i = 0; i < kListCount; i++) {
-    const ListDef& d = kLists[i];
-    const auto& list = rules::catalogList(*w.catalogs, d.list);
-    std::string sub;
-    for (size_t k = 0; k < list.size() && k < 4; k++) sub += (k ? ", " : "") + list[k].name;
-    if (list.size() > 4) sub += "…";
-    if (sub.empty()) sub = "пусто";
-    ui::IdScope s(i);
-    const ui::Theme& th = ui::theme();
-    Color tint = d.colored && !list.empty() ? list.front().color : th.textDim;
-    if (d.list == CatalogList::Resources) tint = th.accent;
-    if (edkit::entityRow(d.title, sub, d.icon, tint, std::to_string(list.size()), false, false, "Открыть справочник"))
-      a.openEditor("catalogs", Id(i + 1));
-    a.markUi(std::string("drawer.catalogs.") + std::to_string(i));
-  }
-}
-
-EditorReg editorReg({"catalogs", "Справочники", drawEditor, "book"});
-DrawerReg drawerReg({"catalogs", "book", "Справочники", 90, drawDrawer});
+EditorReg editorReg({"catalogs", "Справочники", drawEditor, "book", "reference", 20});
 CommandReg commandReg({"editor.catalogs", "Справочники: ресурсы, расы, культуры, религии…", "book", nullptr,
                        [](App& a) { a.openEditor("catalogs", 0); }, [](App& a) { return a.ui.screen == Screen::Editor; }, false,
                        "Справочники"});

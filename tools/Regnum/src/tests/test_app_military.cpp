@@ -24,7 +24,7 @@ TEST(app_military_place_tools) {
   h.settle();
   h->clearSelection();
   h.settle();
-  h->select(app::SelType::Faction, hel);
+  h->select(app::SelType::Faction, hel, true);   // фракция на карте (панель справа)
   h.settle();
   // A — новое войско; фракция по умолчанию — выделенная.
   h.key(Key::A);
@@ -187,7 +187,7 @@ TEST(app_military_faction_tables) {
   Id hel = factionByName(w0, "Хельдвиг");
   CHECK(hel != 0);
   h->ui.tabOf[app::SelType::Faction] = "faction.army";
-  h->select(app::SelType::Faction, hel);
+  h->select(app::SelType::Faction, hel, true);   // узкая таблица в панели справа от карты (строки и карточка строки)
   h.settle();
   h.dropToasts();
   h.settle();
@@ -490,7 +490,7 @@ TEST(app_military_guild_forces) {
   });
   CHECK(guild != 0);
   h->ui.tabOf[app::SelType::Faction] = "faction.army";
-  h->select(app::SelType::Faction, guild);
+  h->select(app::SelType::Faction, guild, true);
   h.settle();
   h.dropToasts();
   h.settle();

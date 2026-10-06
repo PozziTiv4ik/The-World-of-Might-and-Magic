@@ -83,12 +83,15 @@ TEST(app_editors_modifiers_builtin) {
   CHECK(h->uiRect("modifiers.addProvince") == nullptr);
   CHECK(reveal(h, "modifiers.usage"));
   shotClean(h, "editors_mods_auto");
-  // Выдвижная панель: раздел встроенных.
+  // Раздел «Справочники» открывает модификаторы (последний открытый редактор раздела); повторно — к карте.
   h->closeEditor();
   quick(h);
-  CHECK(h.clickUi("drawer.modifiers"));
+  CHECK(h.clickUi("section.reference"));
   quick(h);
-  CHECK(h->uiRect("drawer.modifiers.builtins") != nullptr);
+  CHECK_EQ(h->ui.editor, std::string("modifiers"));
+  CHECK(h.clickUi("section.reference"));
+  quick(h);
+  CHECK(h->ui.editor.empty());
 }
 
 TEST(app_editors_modifiers_effects_kind_term) {

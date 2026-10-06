@@ -118,9 +118,10 @@ void renderStartBackdrop(App& a, gfx::Canvas& c) {
   if (d.backdropW != out.w || d.backdropH != out.h || d.backdropDark != th.dark) {
     if (!d.previewTried) {
       d.previewTried = true;
-      // Миниатюра карты, нарисованная кодом (фон всё равно сильно размыт).
+      // Миниатюра карты, нарисованная кодом (фон всё равно сильно размыт), — в цветах исходника при любой палитре
+      // карты: перекраска в цвета темы отличает сушу от моря по ним.
       if (d.basemap)
-        if (auto img = d.basemap->thumb()) d.preview = *img;
+        if (auto img = d.basemap->thumb(map::Palette::Source)) d.preview = *img;
     }
     d.backdrop.resize(out.w, out.h);
     gfx::Canvas bc(d.backdrop);
@@ -198,12 +199,13 @@ void drawStartScreen(App& a) {
     Color tc = th.text;
     RectF tr{x0 + 96, y, colW - 96, 76};   // во всю высоту знака: хвост «g» не обрезается
     ui::custom(tr, [tc, dark](gfx::Canvas& c, RectF dev, float scale) {
+      // Знак как в верхней строке редактора: прописные с засечками и широкой разрядкой.
       gfx::TextStyle st = ui::textStyle(ui::Font::Display);
-      st.size = 46 * scale;
-      st.weight = gfx::FontWeight::Bold;
-      st.letterSpacing = 0.5f * scale;
+      st.size = 40 * scale;
+      st.weight = gfx::FontWeight::Regular;
+      st.letterSpacing = 10 * scale;
       (void)dark;
-      gfx::drawText(c, "Regnum", st, dev.x, dev.y + 10 * scale, gfx::Paint(tc));
+      gfx::drawText(c, "REGNUM", st, dev.x, dev.y + 14 * scale, gfx::Paint(tc));
     });
     y += 76 + 36;
   }

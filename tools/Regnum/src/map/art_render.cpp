@@ -83,7 +83,7 @@ namespace {
 
 struct Part {
   gfx::Path path;
-  Color color;
+  u8 gray = 0;        // серый рисунка: 0 — краска, 255 — бумага (цвет — по палитре, Style::tone)
   float stroke = 0;   // 0 — заливка, иначе ширина обводки (единицы карты)
 };
 struct Icon {
@@ -150,7 +150,7 @@ Icon makeTower() {
                                      "##########", "##########", "##########", "##########", "##########", "##########", "##########",
                                      "##########"},
                                     5, 15),
-                      Color(0, 0, 0), 0});
+                      0, 0});
   ic.bounds = RectF(-5, -15, 10, 15);
   return ic;
 }
@@ -171,7 +171,7 @@ Icon makeCastle() {
       "#.....#..........#.##.#..........#.....#",
   };
   Icon ic;
-  ic.parts.push_back({rectsFromRows(rows, 20, 31), Color(0, 0, 0), 0});
+  ic.parts.push_back({rectsFromRows(rows, 20, 31), 0, 0});
   ic.bounds = RectF(-20, -31, 40, 31);
   return ic;
 }
@@ -188,10 +188,7 @@ Icon makeCastle() {
 constexpr int kMountainParams = 21;
 using MountainParams = std::array<float, kMountainParams>;
 
-Color gray(float v) {
-  const u8 g = u8(clamp(int(std::lround(v)), 0, 255));
-  return Color(g, g, g);
-}
+u8 gray(float v) { return u8(clamp(int(std::lround(v)), 0, 255)); }
 
 Icon makeMountain(const MountainParams& p) {
   const float ax = 9, ay = 13;
@@ -278,10 +275,10 @@ const Icon& iconOf(Sym k, int v = 0) {
   }
 }
 
-void drawIcon(gfx::Canvas& c, const Icon& ic, gfx::Pt at, float scale) {
+void drawIcon(gfx::Canvas& c, const Icon& ic, gfx::Pt at, float scale, const Style& st) {
   c.save();
   c.concat(gfx::Affine{scale, 0, 0, scale, at.x, at.y});
-  for (const Part& p : ic.parts) c.fillPath(p.path, p.color);
+  for (const Part& p : ic.parts) c.fillPath(p.path, st.tone(p.gray));
   c.restore();
 }
 
@@ -291,7 +288,7 @@ double mountainError(const MountainParams& p, const std::vector<i16>& ink, int w
   const int M = 3, W = w + 2 * M, H = h + 2 * M;
   gfx::Image img(W, H, gfx::premul(Color(255, 255, 255)));
   gfx::Canvas c(img);
-  drawIcon(c, baked(makeMountain(p)), gfx::Pt{float(ax + M), float(ay + M)}, 1);
+  drawIcon(c, baked(makeMountain(p)), gfx::Pt{float(ax + M), float(ay + M)}, 1, Style{});
   double e = 0;
   for (int y = 0; y < H; y++)
     for (int x = 0; x < W; x++) {
@@ -371,7 +368,9 @@ Box2 symbolBox(Sym kind, double x, double y, double s) {
   return Box2(x + r.x * s, y + r.y * s, x + r.right() * s, y + r.bottom() * s);
 }
 
-void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant) { drawIcon(c, iconOf(kind, variant), at, scale); }
+void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant, Palette pal) {
+  drawIcon(c, iconOf(kind, variant), at, scale, paletteStyle(Style{}, pal));
+}
 
 std::string fitMountainIcon(const std::vector<i16>& ink, int w, int h, int ax, int ay, int design, int maxEvals, double* error) {
   MountainParams p = mountainParams(design);
@@ -412,16 +411,17 @@ std::string fitMountainIcon(const std::vector<i16>& ink, int w, int h, int ax, i
 }
 
 // ================================================================ слои
-void drawSea(gfx::Image& img, const Index& idx, const Xf& P) {
+void drawSea(gfx::Image& img, const Index& idx, const Xf& P, Palette pal) {
   const MapArt& a = idx.art();
+  const Style st = paletteStyle(a.style, pal);
   const int W = img.w, H = img.h;
-  const double sigma = double(a.style.coastSoft) * P.ds;
+  const double sigma = double(st.coastSoft) * P.ds;
   const int m = sigma >= 0.35 ? int(std::ceil(sigma * 3)) : 0;
   const int CW = W + 2 * m, CH = H + 2 * m;
   const Xf Pm{P.ds, P.ox - m, P.oy - m};
   std::vector<u32> ids;
   idx.land(Pm.mapBox(CW, CH), ids);
-  const u32 sea = gfx::premul(a.style.sea);
+  const u32 sea = gfx::premul(st.sea);
   if (ids.empty()) {  // одно море
     for (u32& p : img.px) p = sea;
     return;
@@ -442,7 +442,7 @@ void drawSea(gfx::Image& img, const Index& idx, const Xf& P) {
   }
   if (full) return;   // одна суша
   std::vector<u8> glow;
-  const int k = int(std::lround(clamp(double(a.style.coastGlow), 0.0, 1.0) * 256));
+  const int k = int(std::lround(clamp(double(st.coastGlow), 0.0, 1.0) * 256));
   if (m > 0 && k > 0) {
     glow = land;
     blurMask(glow, CW, CH, sigma);
@@ -460,8 +460,9 @@ void drawSea(gfx::Image& img, const Index& idx, const Xf& P) {
   }
 }
 
-void drawWater(gfx::Image& img, const Index& idx, const Xf& P) {
+void drawWater(gfx::Image& img, const Index& idx, const Xf& P, Palette pal) {
   const MapArt& a = idx.art();
+  const Color water = paletteStyle(a.style, pal).water;
   const Box2 box = P.mapBox(img.w, img.h).inflated(1);
   std::vector<u32> ids, rivers;
   idx.water(box, ids);
@@ -471,7 +472,7 @@ void drawWater(gfx::Image& img, const Index& idx, const Xf& P) {
   if (!ids.empty()) {
     gfx::Path path;
     for (u32 i : ids) addRing(path, a.water[i], P);
-    c.fillPath(path, a.style.water, gfx::FillRule::NonZero);
+    c.fillPath(path, water, gfx::FillRule::NonZero);
   }
   for (u32 i : rivers) {
     const River& r = a.rivers[i];
@@ -485,12 +486,13 @@ void drawWater(gfx::Image& img, const Index& idx, const Xf& P) {
       if (k == 0) p.moveTo(q.x, q.y);
       else p.lineTo(q.x, q.y);
     }
-    c.strokePath(p, strokeOf(float(w * P.ds)), a.style.water);
+    c.strokePath(p, strokeOf(float(w * P.ds)), water);
   }
 }
 
-void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P) {
+void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P, Palette pal) {
   const MapArt& a = idx.art();
+  const Style ps = paletteStyle(a.style, pal);
   const Box2 box = P.mapBox(img.w, img.h).inflated(2);
   gfx::Canvas c(img);
   std::vector<u32> ids;
@@ -505,21 +507,21 @@ void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P) {
     }
     gfx::Stroke st = strokeOf(float(l.w * P.ds));
     if (l.dash > 0) st.dash = {float(l.dash * P.ds), float(l.dash * P.ds)};
-    c.strokePath(p, st, Color(0, 0, 0));
+    c.strokePath(p, st, ps.ink);
   }
   idx.symbols(box, ids);
   for (u32 i : ids) {
     const Symbol& s = a.symbols[i];
-    drawSymbol(c, s.kind, P(Vec2(s.x, s.y)), float(P.ds * s.s), s.v);
+    drawIcon(c, iconOf(s.kind, s.v), P(Vec2(s.x, s.y)), float(P.ds * s.s), ps);
   }
 }
 
-gfx::Image render(const Index& idx, double ds, int w, int h, double ox, double oy) {
-  gfx::Image img(w, h, gfx::premul(idx.art().style.land));
+gfx::Image render(const Index& idx, double ds, int w, int h, double ox, double oy, Palette pal) {
+  gfx::Image img(w, h, gfx::premul(paletteStyle(idx.art().style, pal).land));
   const Xf P{ds, ox, oy};
-  drawSea(img, idx, P);
-  drawWater(img, idx, P);
-  drawSymbols(img, idx, P);
+  drawSea(img, idx, P, pal);
+  drawWater(img, idx, P, pal);
+  drawSymbols(img, idx, P, pal);
   return img;
 }
 

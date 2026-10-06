@@ -632,9 +632,13 @@ void writeThumbnail(App& a) {
       base = gfx::Image();
       if (const gfx::Image* img = thumb.get()) {
         gfx::Image t = img->scaled(320, 180);
+        // Доля суши в точке — проекция цвета на ось «море → суша» палитры карты (любой палитры).
+        const map::art::Style st = d.basemap->style(d.map->palette());
+        const float dr = float(st.land.r) - st.sea.r, dg = float(st.land.g) - st.sea.g, db = float(st.land.b) - st.sea.b;
+        const float len2 = std::max(1.f, dr * dr + dg * dg + db * db);
         for (u32& p : t.px) {
-          float r = float((p >> 16) & 255) / 255.f, g = float((p >> 8) & 255) / 255.f;
-          float k = clamp((r + g) * 0.5f, 0.f, 1.f);
+          float r = float((p >> 16) & 255) - st.sea.r, g = float((p >> 8) & 255) - st.sea.g, b = float(p & 255) - st.sea.b;
+          float k = clamp((r * dr + g * dg + b * db) / len2, 0.f, 1.f);
           p = gfx::premul(Color::mix(Color::hex(0x1c2a3d), Color::hex(0xe8e2d4), k));
         }
         base = std::move(t);

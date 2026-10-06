@@ -27,8 +27,27 @@ const std::vector<TabDef>& tabs() { return reg<TabDef>(); }
 HeaderReg::HeaderReg(const HeaderDef& d) { insertSorted(reg<HeaderDef>(), d); }
 const std::vector<HeaderDef>& headers() { return reg<HeaderDef>(); }
 
+QuickReg::QuickReg(const QuickDef& d) { insertSorted(reg<QuickDef>(), d); }
+const std::vector<QuickDef>& quicks() { return reg<QuickDef>(); }
+
 DrawerReg::DrawerReg(const DrawerDef& d) { insertSorted(reg<DrawerDef>(), d); }
 const std::vector<DrawerDef>& drawers() { return reg<DrawerDef>(); }
+
+SectionReg::SectionReg(const SectionDef& d) {
+  auto& v = reg<SectionDef>();
+  for (auto it = v.begin(); it != v.end(); ++it)
+    if (std::string_view(it->id) == d.id) {
+      v.erase(it);
+      break;
+    }
+  insertSorted(v, d);
+}
+const std::vector<SectionDef>& sections() { return reg<SectionDef>(); }
+const SectionDef* findSection(std::string_view id) {
+  for (auto& s : reg<SectionDef>())
+    if (id == s.id) return &s;
+  return nullptr;
+}
 
 EditorReg::EditorReg(const EditorDef& d) {
   auto& v = reg<EditorDef>();
@@ -125,10 +144,9 @@ static void loadPrefs(App& a) {
   if (!v || !v->isObj()) return;
   a.ui.darkTheme = v->str("theme", "dark") != "light";
   a.ui.uiScale = float(clamp(v->num("uiScale", 1.0), 0.9, 1.5));
-  a.ui.showMinimap = v->boolean("minimap", true);
-  a.ui.showLegend = v->boolean("legend", true);
-  a.ui.drawerWidth = float(clamp(v->num("drawerWidth", 340), 260.0, 640.0));
-  a.ui.inspectorWidth = float(clamp(v->num("inspectorWidth", 400), 320.0, 720.0));
+  a.ui.sourceMap = v->str("mapPalette", "parchment") == "source";
+  a.ui.drawerWidth = float(clamp(v->num("panelWidth", 300), 240.0, 560.0));
+  a.ui.inspectorWidth = float(clamp(v->num("inspectorWidth", 380), 320.0, 640.0));
   d.browserDir = v->str("browserDir");
   d.builtinBrowser = v->boolean("builtinBrowser", false);
 }
@@ -140,9 +158,8 @@ void detail::savePrefs(App& a) {
   json::Value v = json::Value::object();
   v.set("theme", a.ui.darkTheme ? "dark" : "light");
   v.set("uiScale", double(a.ui.uiScale));
-  v.set("minimap", a.ui.showMinimap);
-  v.set("legend", a.ui.showLegend);
-  v.set("drawerWidth", double(std::round(a.ui.drawerWidth)));
+  v.set("mapPalette", a.ui.sourceMap ? "source" : "parchment");
+  v.set("panelWidth", double(std::round(a.ui.drawerWidth)));
   v.set("inspectorWidth", double(std::round(a.ui.inspectorWidth)));
   v.set("browserDir", d.browserDir);
   v.set("builtinBrowser", d.builtinBrowser);
@@ -175,6 +192,7 @@ App::App(const AppConfig& cfg) : d_(std::make_unique<Impl>()) {
     logWarn("Базовая карта не найдена: assets/basemap");
   }
   d.map = std::make_unique<map::MapView>(d.basemap.get());
+  d.map->setPalette(ui.sourceMap ? map::Palette::Source : map::Palette::Parchment);
   d.map->setWakeCallback([] { platform::wake(); });   // тайлы готовы в фоне — разбудить цикл событий
   d.map->setWorld(store.world());
   storeSub_ = store.subscribe([this](const Change& c) { onStoreChange(c); });
@@ -282,11 +300,137 @@ void App::redo() {
 bool App::dirty() const { return ui.screen == Screen::Editor && (store.dirty() || d_->forceTables != 0); }
 
 // ================================================================ интерфейс
+// Государство, гильдия и персонаж открываются страницей на месте карты; провинция, войско, маршрут и объекты
+// карты — панелью справа от карты (страницей — по кнопке «Развернуть»).
+static bool pageType(SelType t) { return t == SelType::Faction || t == SelType::Character; }
+
 void App::select(Selection s, bool focus) {
   if (s && !detail::selectionExists(world(), s)) s = Selection{};
+  const bool wasMap = view() == View::Map;
+  if (s && pageType(s.type) && !focus) {
+    // Страница сущности: выделение на карте запоминается — «К карте» вернёт его.
+    if (ui.sel && !pageType(ui.sel.type)) ui.backSel = ui.sel;
+    ui.page = true;
+    ui.directory.clear();
+  } else {
+    ui.page = false;
+    if (s) {
+      ui.directory.clear();
+      ui.backSel = {};
+    }
+  }
   ui.sel = s;
-  if (s && focus) focusSelection();
+  if (const SectionDef* sec = sectionOf(s)) ui.lastOf[sec->id] = s;
+  if (s && focus) {
+    if (wasMap || view() != View::Map) focusSelection();
+    else d_->focusAfter = 2;   // со страницы на карту — когда известна её раскладка
+  }
   requestRedraw();
+}
+
+View App::view() const {
+  if (!ui.editor.empty()) return View::Editor;
+  if (!ui.directory.empty()) return View::Directory;
+  if (ui.page && ui.sel) return View::Entity;
+  return View::Map;
+}
+
+bool App::mapShown() const { return ui.screen == Screen::Editor && view() == View::Map; }
+
+const SectionDef* App::sectionOf(Selection s) {
+  if (!s) return nullptr;
+  for (auto& sec : sections()) {
+    if (sec.type != s.type || !sec.directory) continue;
+    if (sec.owns && !sec.owns(*this, s.id)) continue;
+    return &sec;
+  }
+  return nullptr;
+}
+
+void App::setPage(bool on) {
+  if (!ui.sel) on = false;
+  if (ui.page == on && ui.directory.empty()) return;
+  if (!on) ui.backSel = {};
+  ui.page = on;
+  ui.directory.clear();
+  d_->mapKey = 0;
+  requestRedraw();
+}
+
+void App::openDirectory(std::string_view id) {
+  const SectionDef* sec = findSection(id);
+  if (!sec || !sec->directory) return;
+  ui.editor.clear();
+  ui.editorArg = 0;
+  ui.directory = std::string(id);
+  requestRedraw();
+}
+
+void App::toMap() {
+  ui.editor.clear();
+  ui.editorArg = 0;
+  ui.directory.clear();
+  if (ui.page) {
+    ui.page = false;
+    // Со страницы государства, гильдии или персонажа — к выделению на карте, с которого на неё перешли.
+    if (pageType(ui.sel.type)) ui.sel = ui.backSel && detail::selectionExists(world(), ui.backSel) ? ui.backSel : Selection{};
+  }
+  ui.backSel = {};
+  d_->mapKey = 0;
+  requestRedraw();
+}
+
+void App::back() {
+  if (!ui.editor.empty()) closeEditor();
+  else if (!ui.directory.empty()) {
+    ui.directory.clear();
+    requestRedraw();
+  } else if (ui.page) {
+    toMap();
+  }
+}
+
+void App::openSection(std::string_view id) {
+  const SectionDef* sec = findSection(id);
+  if (!sec) return;
+  // Раздел уже на экране (у редактора без раздела — страница под ним) — к карте.
+  View v = view();
+  bool active = false;
+  if (v == View::Editor) {
+    const EditorDef* e = findEditor(ui.editor);
+    if (e && e->group) active = std::string_view(e->group) == sec->id;
+    else v = !ui.directory.empty() ? View::Directory : ui.page && ui.sel ? View::Entity : View::Map;
+  }
+  if (v == View::Directory) active = ui.directory == sec->id;
+  else if (v == View::Entity) active = sectionOf(ui.sel) == sec;
+  // Разделы ленты — верхний уровень: другой раздел открывается вместо текущей страницы, а не поверх неё.
+  toMap();
+  if (active) return;
+  if (sec->directory) {
+    if (ui.sel && sectionOf(ui.sel) == sec) {   // сущность раздела выделена на карте — её страница
+      ui.editor.clear();
+      setPage(true);
+      return;
+    }
+    auto it = ui.lastOf.find(sec->id);
+    if (it != ui.lastOf.end() && detail::selectionExists(world(), it->second) && sectionOf(it->second) == sec) {
+      ui.editor.clear();
+      select(it->second);
+      return;
+    }
+    openDirectory(sec->id);
+    return;
+  }
+  // Раздел редакторов: последний открытый или первый по порядку.
+  const EditorDef* pick = nullptr;
+  auto le = ui.lastEditor.find(sec->id);
+  if (le != ui.lastEditor.end()) pick = findEditor(le->second);
+  if (!pick || !pick->group || std::string_view(pick->group) != sec->id) {
+    pick = nullptr;
+    for (auto& e : editors())
+      if (e.group && std::string_view(e.group) == sec->id && (!pick || e.order < pick->order)) pick = &e;
+  }
+  if (pick) openEditor(pick->id, 0);
 }
 
 void App::setTool(ToolId t) {
@@ -306,6 +450,11 @@ void App::setTool(ToolId t) {
   if (def->mapMode && !ui.editMap) {
     toast("Включите правку карты (T), чтобы менять сушу, воды, горы, замки и башни", ToastKind::Info, "lock");
     return;
+  }
+  // Инструмент карты со страницы (например, «Поставить войско» на странице государства) — на карту.
+  if (t != ToolId::Select && t != ToolId::Pan && ui.screen == Screen::Editor && view() != View::Map) {
+    if (view() == View::Entity) setPage(false);
+    else toMap();
   }
   if (tool_ && ui.tool == t) return;
   if (tool_) {
@@ -372,6 +521,12 @@ void App::setMapMode(schema::MapMode m) {
 }
 
 void App::openDrawer(std::string_view id) {
+  if (const SectionDef* sec = findSection(id)) {   // раздел на всё окно — его каталог (или страницы редакторов)
+    if (!sec->directory) openSection(id);
+    else if (ui.directory == id && ui.editor.empty()) back();
+    else openDirectory(id);
+    return;
+  }
   if (ui.drawer == id) ui.drawer.clear();
   else {
     bool found = false;
@@ -389,6 +544,7 @@ void App::openEditor(std::string_view id, Id arg) {
   }
   ui.editor = std::string(id);
   ui.editorArg = arg;
+  if (const EditorDef* e = findEditor(id); e && e->group) ui.lastEditor[e->group] = std::string(id);
   requestRedraw();
 }
 
@@ -670,7 +826,7 @@ bool App::animating() {
   if (ui::needsRedraw()) return true;
   if (!toasts_.empty()) return true;
   if (!d_->later.empty()) return true;
-  if (ui.screen == Screen::Editor && ui.editor.empty()) {
+  if (mapShown()) {
     if (d.map->animating() || d.map->needsRedraw()) return true;
     if (tool_ && tool_->animating(*this)) return true;
   }
@@ -727,7 +883,7 @@ void App::onFrame(platform::Frame& f) {
   const double p1 = nowSeconds();
   gfx::Canvas c(d.frameImg);
   try {
-    if (ui.screen == Screen::Editor && ui.editor.empty()) detail::renderMap(*this, c);
+    if (mapShown()) detail::renderMap(*this, c);
     else if (ui.screen == Screen::Start) detail::renderStartBackdrop(*this, c);
     else c.clear(ui::theme().bg);
   } catch (const std::exception& e) {
@@ -741,7 +897,7 @@ void App::onFrame(platform::Frame& f) {
 
   // Курсор: интерфейс, иначе инструмент карты.
   platform::Cursor cur = ui::cursor();
-  if (cur == platform::Cursor::Arrow && d.mapHovered && ui.screen == Screen::Editor && ui.editor.empty() && !hasDialog()) {
+  if (cur == platform::Cursor::Arrow && d.mapHovered && mapShown() && !hasDialog()) {
     if (d.panning) cur = platform::Cursor::Grabbing;
     else if (d.spaceDown || ui.tool == ToolId::Pan) cur = platform::Cursor::Grab;
     else if (tool_) cur = tool_->cursor(*this);
@@ -786,15 +942,19 @@ void App::onFrame(platform::Frame& f) {
 void App::buildFrame() {
   Impl& d = *d_;
   if (ui.sel && !detail::selectionExists(world(), ui.sel)) ui.sel = Selection{};
+  if (!ui.sel) ui.page = false;
   if (ui.hover && !detail::selectionExists(world(), ui.hover)) ui.hover = Selection{};
   if (!ui.editor.empty() && !findEditor(ui.editor)) ui.editor.clear();
+  if (!ui.directory.empty() && !findSection(ui.directory)) ui.directory.clear();
   d.mapHovered = false;
 
   if (ui.screen == Screen::Start) {
     detail::drawStartScreen(*this);
   } else {
-    if (ui.editor.empty()) detail::mapInput(*this);
+    if (mapShown()) detail::mapInput(*this);
     detail::drawEditorScreen(*this);
+    // Со страницы на карту: показать выделение, когда раскладка карты (панели справа) уже известна.
+    if (d.focusAfter > 0 && --d.focusAfter == 0 && mapShown()) focusSelection();
   }
   // Диалоги
   Impl& fs = *d_;
@@ -815,7 +975,7 @@ void App::buildFrame() {
   for (auto& p : pending) openDialog(std::move(p));
 
   detail::globalKeys(*this);
-  if (ui.screen == Screen::Editor && ui.editor.empty()) detail::mapWheel(*this);
+  if (mapShown()) detail::mapWheel(*this);
   if (ui.screen == Screen::Editor) detail::autosaveTick(*this);
 }
 

@@ -1,6 +1,7 @@
-// Regnum — составные тайлы карты: белая суша → заливка провинций → море → реки и озёра → заливка сухопутных
+// Regnum — составные тайлы карты: суша → заливка провинций → море → реки и озёра → заливка сухопутных
 // провинций на морской части → штриховка оккупации → границы провинций → границы государств (внутренняя обводка)
-// → знаки карты. Море, воды и знаки рисуются кодом по объектам базовой карты (map.json, см. art_render.h).
+// → знаки карты. Море, воды и знаки рисуются кодом по объектам базовой карты (map.json, см. art_render.h), цвета
+// суши, моря, вод и знаков — палитры стиля тайлов (TileStyle::palette).
 #include <future>
 #include <mutex>
 
@@ -173,8 +174,9 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
   const float dpi = sc.style.dpi;
   const TileXf P{ds, double(tx) * T, double(ty) * T};
   const Box2 tb(P.ox / ds, P.oy / ds, (P.ox + T) / ds, (P.oy + T) / ds);
-  const Color land = bm && bm->loaded() ? bm->landColor() : Color(255, 255, 255);
-  gfx::Image img(T, T, gfx::premul(land));
+  const Palette pal = sc.style.palette;
+  const art::Style colors = mapStyle(bm && bm->loaded() ? bm : nullptr, pal);
+  gfx::Image img(T, T, gfx::premul(colors.land));
   const geo::FaceSet* fs = g.faces.get();
   const double coastGrow = std::max(1.5, 0.75 / ds);   // заливка под мягкий край моря, единицы карты
   const Box2 qb = tb.inflated(coastGrow + 12.0 / ds);
@@ -223,8 +225,8 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
   const art::Xf AX{ds, P.ox, P.oy};
   const art::Scene* as = sc.art.get();
   const bool seaArt = as && as->hasLand();
-  if (seaArt) art::drawSea(img, as->index(), AX);
-  if (as) art::drawWater(img, as->index(), AX);
+  if (seaArt) art::drawSea(img, as->index(), AX, pal);
+  if (as) art::drawWater(img, as->index(), AX, pal);
 
   gfx::Canvas c(img);
   // Без суши в сцене (нет ни графа мира, ни базовой карты) море — грани с рельефом «море» цветом моря.
@@ -238,7 +240,7 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
         sea.close();
       }
     }
-    if (!sea.empty()) c.fillPath(sea, bm ? bm->oceanColor() : Color(0, 38, 255), gfx::FillRule::EvenOdd);
+    if (!sea.empty()) c.fillPath(sea, colors.sea, gfx::FillRule::EvenOdd);
   }
   // 2а. Сухопутная провинция (без галочки «Морская») на морской части карты: заливка её морских граней поверх
   //     моря с прозрачностью режима — иначе море закрывает заливку и выбранный цвет не виден (ТЗ 1.a.vii).
@@ -346,7 +348,7 @@ gfx::Image renderTile(const TileScene& sc, const GeoIndex& g, const Basemap* bm,
   }
 
   // 6. Знаки карты (стены, горы, замки, башни) — поверх всего, без подкраски.
-  if (as) art::drawSymbols(img, as->index(), AX);
+  if (as) art::drawSymbols(img, as->index(), AX, pal);
   return img;
 }
 

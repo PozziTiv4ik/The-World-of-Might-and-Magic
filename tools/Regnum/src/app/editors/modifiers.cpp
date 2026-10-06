@@ -1109,75 +1109,8 @@ void drawEditor(App& a, Id arg) {
   if (a.ui.editor == "modifiers" && a.ui.editorArg == arg) a.ui.editorArg = sel;
 }
 
-// ---------------------------------------------------------------- выдвижная панель
-void drawDrawer(App& a) {
-  const World& w = a.world();
-  bool ro = a.readOnly();
-  auto& q = ui::state<std::string>(ui::id("##q"));
-  {
-    ui::Row r({ui::fr(1), ui::px(30), ui::px(30)}, 30, 6);
-    if (ui::shortcut({Key::F, ui::ModPrimary})) ui::setKeyboardFocus(ui::id("q"));
-    ui::searchField("q", q, "Поиск");
-    if (ui::iconButton("plus", "Новый модификатор", {.disabled = ro})) {
-      if (Id nid = createModifierAct(a)) a.openEditor("modifiers", nid);
-    }
-    a.markUi("drawer.modifiers.new");
-    if (ui::iconButton("maximize", "Открыть окно модификаторов")) a.openEditor("modifiers", 0);
-    a.markUi("drawer.modifiers.open");
-  }
-  auto uses = usageCounts(w);
-  std::vector<Entry> own, built;
-  collect(w, uses, nullptr, own, built);
-  ui::gap(2);
-  float listH = 0;
-  if (const RectF* dr = a.uiRect("drawer")) listH = dr->bottom() / ui::uiScale() - 16 - ui::avail().y;
-  std::optional<ui::Scroll> sc;   // поиск закреплён сверху, список прокручивается
-  if (listH > 120) sc.emplace("list", listH);
-  int shownN = 0;
-  auto row = [&](const Entry& e) {
-    const Modifier& m = e.m;
-    ui::IdScope s{i64(e.id)};
-    bool open = edkit::entityRow(orName(m.name, "Без названия"), effectSummary(m), modIcon(m), m.color, e.uses ? std::to_string(e.uses) : std::string(),
-                                 false, missingTargets(m), {});
-    if (open) a.openEditor("modifiers", e.id);
-    if (ui::beginTooltip(300)) {
-      ui::label(orName(m.name, "Модификатор"), {.font = ui::Font::Strong});
-      if (!m.desc.empty()) ui::text(m.desc, ui::Font::Small, ui::Ink::Dim);
-      edkit::effectChips(m);
-      ui::label(isAuto(m) ? std::string("Ставится сам")
-                : e.uses  ? "Используется: " + usageText(usageOf(w, m.id))
-                          : std::string("Нигде не используется"),
-                {.font = ui::Font::Small, .ink = ui::Ink::Muted, .wrap = true});
-      ui::endTooltip();
-    }
-  };
-  if (own.empty() && q.empty() && !ro) {
-    if (ui::emptyState("sparkles", "Своих модификаторов пока нет.", "Новый модификатор", "plus"))
-      if (Id nid = createModifierAct(a)) a.openEditor("modifiers", nid);
-  }
-  for (const Entry& e : own) {
-    if (!q.empty() && !utf8::matches(e.m.name, q)) continue;
-    shownN++;
-    row(e);
-  }
-  int builtN = 0;
-  for (const Entry& e : built) builtN += q.empty() || utf8::matches(e.m.name, q) ? 1 : 0;
-  if (builtN > 0) {
-    ui::Section s("Встроенные", "lock", {.defaultOpen = !q.empty(), .badge = std::to_string(builtN), .card = false});
-    a.markUi("drawer.modifiers.builtins");
-    if (s)
-      for (const Entry& e : built) {
-        if (!q.empty() && !utf8::matches(e.m.name, q)) continue;
-        row(e);
-      }
-    shownN += builtN;
-  }
-  if (shownN == 0) ui::label("Ничего не найдено", {.ink = ui::Ink::Muted, .align = ui::Align::Center});
-}
-
-EditorReg editorReg({"modifiers", "Модификаторы", drawEditor, "sparkles"});
-DrawerReg drawerReg({"modifiers", "sparkles", "Модификаторы", 80, drawDrawer, "Ctrl+8"});
-CommandReg commandReg({"editor.modifiers", "Окно модификаторов", "sparkles", nullptr, [](App& a) { a.openEditor("modifiers", 0); },
+EditorReg editorReg({"modifiers", "Модификаторы", drawEditor, "sparkles", "reference", 10});
+CommandReg commandReg({"editor.modifiers", "Модификаторы", "sparkles", "Ctrl+8", [](App& a) { a.openEditor("modifiers", 0); },
                        [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Справочники"});
 
 }  // namespace

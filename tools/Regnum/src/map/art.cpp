@@ -19,6 +19,30 @@ const char* symName(Sym k) {
   }
 }
 
+// ================================================================ палитра
+Color Style::tone(u8 g) const {
+  // Целочисленно: при чёрной краске и белой бумаге серый остаётся тем же до бита.
+  auto ch = [g](u8 a, u8 b) { return u8((u32(a) * (255u - g) + u32(b) * g + 127u) / 255u); };
+  return Color(ch(ink.r, paper.r), ch(ink.g, paper.g), ch(ink.b, paper.b));
+}
+
+Style paletteStyle(const Style& s, Palette p) {
+  Style r = s;
+  switch (p) {
+    case Palette::Parchment:
+      r.sea = Color::hex(0x375168);
+      r.land = Color::hex(0xece6d6);
+      r.water = Color::hex(0x2f4c6b);
+      r.ink = Color::hex(0x3a352e);
+      r.paper = r.land;
+      r.outside = r.sea.darken(0.09f);   // океан продолжается за краем карты
+      break;
+    case Palette::Source:
+    case Palette::Count: break;
+  }
+  return r;
+}
+
 namespace {
 
 // Число с не более чем dec знаками после запятой, без хвостовых нулей.

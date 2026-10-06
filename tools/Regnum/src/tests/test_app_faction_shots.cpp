@@ -63,15 +63,12 @@ TEST(app_faction_shots_drawers) {
   h.demo();
   h.waitMap();
   h.dropToasts();
-  Id st = findFaction(h->world(), "Королевство Альмарин");
-  h->openDrawer("states");
-  h->select(app::SelType::Faction, st);
+  h->openDrawer("states");   // каталог раздела
   h.settle();
   h.waitMap();
   CHECK(h->uiRect("states.add") != nullptr);
   CHECK(h.shot("faction_drawer_states"));
   h->openDrawer("guilds");
-  h->clearSelection();
   h.settle();
   h.waitMap();
   CHECK(h->uiRect("guilds.add") != nullptr);

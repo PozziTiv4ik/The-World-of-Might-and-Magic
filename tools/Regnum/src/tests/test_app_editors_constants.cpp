@@ -1,4 +1,4 @@
-// Сценарии «Глобальных констант» (ТЗ «Общие доработки», п.1–2): вкладка левой ленты и окно — встроенные видны
+// Сценарии «Глобальных констант» (ТЗ «Общие доработки», п.1–2): окно раздела «Справочники» — встроенные видны
 // всегда, первая правка создаёт запись мира (Ctrl+Z возвращает шаблон), золото до тысячных, список ресурсов,
 // список значений (базовые расы закреплены; переименование и удаление своей расы правит строки войск),
 // своя константа (создание по типу, переименование, удаление с подтверждением), просмотр прошлого хода.
@@ -10,8 +10,19 @@ using namespace rg::apptest::editors;
 
 namespace {
 
-const char* kDrawer = "drawer";
-constexpr float kTop = 40;
+const char* kArea = "editor";
+constexpr float kTop = 8;
+
+// Окно констант открыто, константа key выбрана в списке (её карточка — справа).
+bool sel(Harness& h, const std::string& key) {
+  if (h->ui.editor != "constants") {
+    h->openEditor("constants");
+    quick(h);
+  }
+  if (!clickRevealed(h, "constants.list." + key, kArea, kTop)) return false;
+  quick(h);
+  return true;
+}
 
 double num(const World& w, const char* key) { return rules::constantOf(w, key).num; }
 
@@ -41,16 +52,20 @@ TEST(app_editors_constants_builtin) {
   Harness h("editors_constants_builtin");
   h.demo();
   h.dropToasts();
-  // Лента слева → «Глобальные константы».
-  CHECK(h.clickUi("drawer.constants"));
+  // Правая лента → «Справочники» → «Глобальные константы».
+  CHECK(h.clickUi("section.reference"));
   quick(h);
-  CHECK_EQ(h->ui.drawer, std::string("constants"));
-  for (const Constant& c : schema::builtinConstants()) CHECK_MSG(h->uiRect("constants." + c.key + ".name") != nullptr, c.key);
+  CHECK(h.clickUi("page.nav.constants"));
+  quick(h);
+  CHECK_EQ(h->ui.editor, std::string("constants"));
+  for (const Constant& c : schema::builtinConstants()) CHECK_MSG(h->uiRect("constants.list." + c.key) != nullptr, c.key);
+  CHECK(sel(h, schema::cst::ColonizationCost));
+  CHECK(h->uiRect("constants.colonizationCost.name") != nullptr);
   CHECK(h->uiRect("constants.colonizationCost.delete") == nullptr);   // встроенные не удаляются
   shotClean(h, "editors_constants_drawer");
   // Стоимость колонизации — золото до тысячных: первая правка создаёт запись мира.
   CHECK(h->world().constants->find(schema::cst::ColonizationCost) == nullptr);
-  CHECK(enterValue(h, "constants.colonizationCost.num", "12,345", kDrawer, kTop));
+  CHECK(enterValue(h, "constants.colonizationCost.num", "12,345", kArea, kTop));
   CHECK(h->world().constants->find(schema::cst::ColonizationCost) != nullptr);
   CHECK_NEAR(num(h->world(), schema::cst::ColonizationCost), 12.345, 1e-9);
   // Ctrl+Z — снова значение по умолчанию (записи нет).
@@ -60,31 +75,34 @@ TEST(app_editors_constants_builtin) {
   CHECK_NEAR(num(h->world(), schema::cst::ColonizationCost), 0.0, 1e-12);
   // Трупов на воина-нежить: по умолчанию 1, правка — 2,5.
   CHECK_NEAR(num(h->world(), schema::cst::CorpsesPerUnit), 1.0, 1e-12);
-  CHECK(enterValue(h, "constants.corpsesPerUnit.num", "2.5", kDrawer, kTop));
+  CHECK(sel(h, schema::cst::CorpsesPerUnit));
+  CHECK(enterValue(h, "constants.corpsesPerUnit.num", "2.5", kArea, kTop));
   CHECK_NEAR(num(h->world(), schema::cst::CorpsesPerUnit), 2.5, 1e-12);
   // Стоимость линкора — список ресурсов: древесина 40, золото 250,125; золото убирается крестиком.
-  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Древесина", kDrawer, kTop));
+  CHECK(sel(h, schema::cst::ShipLineCost));
+  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Древесина", kArea, kTop));
   Id wood = 0;
   for (auto& [rid, v] : rules::constantOf(h->world(), schema::cst::ShipLineCost).res) wood = rid;
   CHECK(wood != 0);
-  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(wood), "40", kDrawer, kTop));
-  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Золото", kDrawer, kTop));
-  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(kGold), "250.125", kDrawer, kTop));
+  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(wood), "40", kArea, kTop));
+  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Золото", kArea, kTop));
+  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(kGold), "250.125", kArea, kTop));
   {
     const Constant& c = rules::constantOf(h->world(), schema::cst::ShipLineCost);
     CHECK_EQ(c.res.size(), size_t(2));
     CHECK_NEAR(c.res.count(wood) ? c.res.at(wood) : -1, 40.0, 1e-9);
     CHECK_NEAR(c.res.count(kGold) ? c.res.at(kGold) : -1, 250.125, 1e-9);
   }
-  CHECK(clickRevealed(h, "constants.shipLineCost.res." + std::to_string(kGold) + ".remove", kDrawer, kTop));
+  CHECK(clickRevealed(h, "constants.shipLineCost.res." + std::to_string(kGold) + ".remove", kArea, kTop));
   quick(h);
   CHECK_EQ(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.count(kGold), size_t(0));
   // Расы для отрядов: базовые закреплены (замок, без удаления).
-  CHECK(reveal(h, "constants.unitRaces.addval", kDrawer, kTop));
+  CHECK(sel(h, schema::cst::UnitRaces));
+  CHECK(reveal(h, "constants.unitRaces.addval", kArea, kTop));
   CHECK(h->uiRect("constants.unitRaces.val.0.lock") != nullptr);
   CHECK(h->uiRect("constants.unitRaces.val.0.remove") == nullptr);
   // Своя раса: добавить, назначить строке войск, переименовать (строка — следом), удалить (строка — по виду государства).
-  CHECK(clickRevealed(h, "constants.unitRaces.addval", kDrawer, kTop));
+  CHECK(clickRevealed(h, "constants.unitRaces.addval", kArea, kTop));
   h.type("Драконы");
   h.key(Key::Enter);
   quick(h);
@@ -95,15 +113,15 @@ TEST(app_editors_constants_builtin) {
   quick(h);
   const size_t idx = rules::unitRaces(h->world()).size() - 1;
   const std::string mark = "constants.unitRaces.val." + std::to_string(idx);
-  CHECK(enterValue(h, mark, "Драконы-маги", kDrawer, kTop));
+  CHECK(enterValue(h, mark, "Драконы-маги", kArea, kTop));
   CHECK(hasValue(h->world(), schema::cst::UnitRaces, "Драконы-маги"));
   CHECK(!hasValue(h->world(), schema::cst::UnitRaces, "Драконы"));
   CHECK_EQ(rowRace(h->world(), row), std::string("Драконы-маги"));
   // Повтор базовой расы — отказ.
-  CHECK(enterValue(h, mark, "живой", kDrawer, kTop));
+  CHECK(enterValue(h, mark, "живой", kArea, kTop));
   CHECK(hasValue(h->world(), schema::cst::UnitRaces, "Драконы-маги"));
   shotClean(h, "editors_constants_races");
-  CHECK(clickRevealed(h, mark + ".remove", kDrawer, kTop));
+  CHECK(clickRevealed(h, mark + ".remove", kArea, kTop));
   quick(h);
   CHECK(!hasValue(h->world(), schema::cst::UnitRaces, "Драконы-маги"));
   CHECK_EQ(rowRace(h->world(), row), std::string());
@@ -115,8 +133,7 @@ TEST(app_editors_constants_user_and_window) {
   Harness h("editors_constants_user");
   h.demo();
   h.dropToasts();
-  CHECK(h.clickUi("drawer.constants"));
-  quick(h);
+  CHECK(sel(h, schema::cst::ColonizationCost));
   // «+» → «Число»: своя константа, название получает фокус.
   CHECK(h.clickUi("constants.new"));
   quick(h);
@@ -129,13 +146,13 @@ TEST(app_editors_constants_user_and_window) {
   h.key(Key::Enter);
   quick(h);
   CHECK_EQ(rules::constantOf(h->world(), "user1").name, std::string("Налог на соль"));
-  CHECK(enterValue(h, "constants.user1.num", "-7,5", kDrawer, kTop));
+  CHECK(enterValue(h, "constants.user1.num", "-7,5", kArea, kTop));
   CHECK_NEAR(num(h->world(), "user1"), -7.5, 1e-12);
   // Название встроенной занято — отказ.
-  CHECK(enterValue(h, "constants.user1.name", "Стоимость колонизации", kDrawer, kTop));
+  CHECK(enterValue(h, "constants.user1.name", "Стоимость колонизации", kArea, kTop));
   CHECK_EQ(rules::constantOf(h->world(), "user1").name, std::string("Налог на соль"));
   // «+» → «Список значений».
-  CHECK(clickRevealed(h, "constants.new", kDrawer, kTop));
+  CHECK(clickRevealed(h, "constants.new", kArea, kTop));
   quick(h);
   CHECK(h.clickUi("constants.new.values"));
   quick(h);
@@ -143,21 +160,20 @@ TEST(app_editors_constants_user_and_window) {
   CHECK(v && v->type == ConstType::Values);
   h.key(Key::Escape);   // фокус названия — снять, имя по умолчанию
   quick(h);
-  CHECK(clickRevealed(h, "constants.user2.addval", kDrawer, kTop));
+  CHECK(clickRevealed(h, "constants.user2.addval", kArea, kTop));
   h.type("Север");
   h.key(Key::Enter);
   quick(h);
   CHECK(hasValue(h->world(), "user2", "Север"));
   // Удаление своей константы — с подтверждением; Ctrl+Z возвращает.
-  CHECK(clickRevealed(h, "constants.user1.delete", kDrawer, kTop));
+  CHECK(sel(h, "user1"));
+  CHECK(clickRevealed(h, "constants.user1.delete", kArea, kTop));
   CHECK(confirmDialog(h));
   CHECK(h->world().constants->find("user1") == nullptr);
   h.key(Key::Z, ctrl());
   quick(h);
   CHECK(h->world().constants->find("user1") != nullptr);
   // Окно констант: список и карточка.
-  CHECK(clickRevealed(h, "drawer.constants.open", kDrawer, kTop));
-  quick(h);
   CHECK_EQ(h->ui.editor, std::string("constants"));
   CHECK(h.clickUi("constants.list.frigateCost"));
   quick(h);
@@ -175,11 +191,10 @@ TEST(app_editors_constants_user_and_window) {
   h->toasts().clear();
   CHECK(h->viewTurn(1));
   quick(h);
-  if (h->ui.drawer != "constants") CHECK(h.clickUi("drawer.constants"));
-  quick(h);
+  CHECK(sel(h, schema::cst::ColonizationCost));
   CHECK(h->readOnly());
   double was = num(h->world(), schema::cst::ColonizationCost);
-  CHECK(enterValue(h, "constants.colonizationCost.num", "99", kDrawer, kTop));
+  CHECK(enterValue(h, "constants.colonizationCost.num", "99", kArea, kTop));
   CHECK_NEAR(num(h->world(), schema::cst::ColonizationCost), was, 1e-12);
   CHECK_NEAR(num(h->store.world(), schema::cst::ColonizationCost), was, 1e-12);
   h->backToCurrent();

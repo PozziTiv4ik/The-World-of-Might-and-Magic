@@ -46,9 +46,10 @@ TEST(app_export_map_png) {
   CHECK(img.has_value());
   CHECK_EQ(img->w, 1920);
   CHECK_EQ(img->h, 1080);
-  // Карта целиком: в углу — море (синее), в кадре много цветов (суша, провинции, знаки, подписи).
+  // Карта целиком: в углу — море цвета палитры редактора, в кадре много цветов (суша, провинции, знаки, подписи).
+  const Color sea = h->basemap()->style(h->map().palette()).sea;
   const u8* c0 = &img->rgba[0];
-  CHECK(c0[2] > 150 && c0[0] < 100);
+  CHECK(std::abs(int(c0[0]) - sea.r) < 24 && std::abs(int(c0[1]) - sea.g) < 24 && std::abs(int(c0[2]) - sea.b) < 24);
   std::vector<u32> colors;
   for (size_t i = 0; i < img->rgba.size(); i += 4 * 997) colors.push_back(u32(img->rgba[i]) << 16 | u32(img->rgba[i + 1]) << 8 | img->rgba[i + 2]);
   std::sort(colors.begin(), colors.end());

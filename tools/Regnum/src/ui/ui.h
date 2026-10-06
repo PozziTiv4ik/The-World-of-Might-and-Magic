@@ -103,7 +103,7 @@ Color inkColor(Ink k);
 Color toneColor(Tone t);            // Neutral — textDim
 
 enum class Variant : u8 { Primary, Secondary, Ghost, Danger, Subtle };
-enum class Size : u8 { Small, Normal };
+enum class Size : u8 { Small, Normal, Large };   // Large — кнопки-значки лент оболочки (36, значок 20)
 enum class Align : u8 { Left, Center, Right };
 
 // Сочетание клавиш. mods — platform::Mod*, ModPrimary — Ctrl (Windows/Linux) или ⌘ (macOS).
@@ -907,6 +907,8 @@ void path(const gfx::Path& p, Color c);
 void pathStroke(const gfx::Path& p, Color c, float width, gfx::Cap cap = gfx::Cap::Round);
 void icon(std::string_view name, RectF r, Color c);
 void text(std::string_view s, RectF r, Font f, Color c, Align a = Align::Left, bool ellipsis = true);
+// Текст своим начертанием (надпись-знак, разрядка): одна строка с многоточием.
+void textStyled(std::string_view s, RectF r, const gfx::TextStyle& st, Color c, Align a = Align::Left);
 void image(const gfx::Image& img, RectF r, float radius = 0, float opacity = 1);
 void pushClip(RectF r);
 void popClip();

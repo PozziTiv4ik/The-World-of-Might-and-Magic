@@ -928,8 +928,8 @@ void drawEditor(App& a, Id arg) {
   ui::spacer(8);
 }
 
-TabReg armyTab({"faction.army", "army", "Войска", 50, SelType::Faction, nullptr, drawArmyTab});
-TabReg fleetTab({"faction.fleet", "fleet", "Флот", 52, SelType::Faction, nullptr, drawFleetTab});
+TabReg armyTab({"faction.army", "army", "Войска", 50, SelType::Faction, nullptr, drawArmyTab, nullptr, true});
+TabReg fleetTab({"faction.fleet", "fleet", "Флот", 52, SelType::Faction, nullptr, drawFleetTab, nullptr, true});
 EditorReg editorReg({"military", "Войска и флот", drawEditor, "army"});
 
 }  // namespace

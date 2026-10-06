@@ -80,6 +80,8 @@ struct App::Impl {
   bool fitPending = false;                 // показать всю карту, когда известен размер окна
   // ---- элементы оболочки (логические пиксели)
   std::unordered_map<std::string, RectF> rects, rectsNext;
+  RectF toolSlot;                          // место параметров инструмента в верхней строке (точки интерфейса; пусто — нет)
+  int focusAfter = 0;                      // показать выделение на карте через столько кадров (после смены раскладки)
   // ---- экран запуска
   gfx::Image preview;                      // уменьшенная базовая карта
   bool previewTried = false;

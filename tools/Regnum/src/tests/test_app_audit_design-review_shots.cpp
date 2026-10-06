@@ -238,7 +238,7 @@ TEST(app_audit_dr_objects) {
   }
 }
 
-// ---------------------------------------------------------------- выдвижные панели
+// ---------------------------------------------------------------- панели и разделы правой ленты
 TEST(app_audit_dr_drawers) {
   HideTestRegs regs;
   for (const Cfg& c : kCfgs) {
@@ -250,6 +250,13 @@ TEST(app_audit_dr_drawers) {
       r.h.settle();
       r.shot(std::string("drawer_") + d.id);
       r.h->openDrawer(d.id);   // закрыть
+      r.h.settle();
+    }
+    for (const app::SectionDef& s : app::sections()) {
+      r.h->openSection(s.id);
+      r.h.settle();
+      r.shot(std::string("section_") + s.id);
+      r.h->toMap();
       r.h.settle();
     }
     // Выдвижная панель и инспектор одновременно (самая тесная раскладка).

@@ -1,4 +1,4 @@
-// Regnum — настройки: интерфейс (тема, масштаб, мини-карта, легенда, проводник) — для программы;
+// Regnum — настройки: интерфейс (тема, масштаб, проводник) — для программы;
 // карта, правила и сохранение — настройки мира (World::settings, изменения отменяются Ctrl+Z).
 #include "app/app_internal.h"
 
@@ -24,16 +24,18 @@ struct SettingsDlg : Dialog {
       if (std::fabs(a.ui.uiScale - scales[i]) < 0.01f) si = i;
     if (ui::segmented("scale", si, {{nullptr, "90 %"}, {nullptr, "100 %"}, {nullptr, "110 %"}, {nullptr, "125 %"}, {nullptr, "150 %"}})) a.setUiScale(scales[si]);
     a.markUi("settings.scale");
+    ui::prop("Цвета карты", "map");
+    int pal = a.ui.sourceMap ? 1 : 0;
+    if (ui::segmented("palette", pal, {{nullptr, "Пергамент"}, {nullptr, "Исходные"}})) {
+      a.ui.sourceMap = pal == 1;
+      a.map().setPalette(a.ui.sourceMap ? map::Palette::Source : map::Palette::Parchment);
+      d.mapGen++;
+      d.prefsDirty = true;
+      a.requestRedraw();
+    }
+    ui::tooltip("Пергамент — тёмно-синее море и светлая суша; исходные — цвета исходного изображения карты");
+    a.markUi("settings.palette");
     ui::spacer(4);
-    bool mm = a.ui.showMinimap, lg = a.ui.showLegend;
-    if (ui::toggle("Мини-карта", mm)) {
-      a.ui.showMinimap = mm;
-      d.prefsDirty = true;
-    }
-    if (ui::toggle("Легенда режима карты", lg)) {
-      a.ui.showLegend = lg;
-      d.prefsDirty = true;
-    }
     bool native = platform::dialogsSupported();
     bool own = d.builtinBrowser || !native;
     if (ui::toggle("Встроенный проводник вместо системных окон", own, !native)) {

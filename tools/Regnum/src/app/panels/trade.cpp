@@ -1,7 +1,6 @@
 // Regnum — переговоры и торговля в панелях: вкладка фракции «Переговоры и торговля» (государства и гильдии,
 // ТЗ 1.b.vii, 1.d.iii; «Механика героев», п.2) — доходы и расходы по сделкам и дани, сделки фракции, «Новая сделка»
-// с заполненной стороной, дань; выдвижная панель «Переговоры и торговля» на ленте разделов — активные сделки всего
-// мира и вход в окно.
+// с заполненной стороной, дань. Окно сделок всего мира — раздел «Экономика» правой ленты.
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
 #include "app/editors/trade.h"
@@ -71,53 +70,6 @@ int tabBadge(App& a, Id fid) {
 
 TabReg tab({"faction.trade", "trade", "Переговоры и торговля", 45, SelType::Faction, nullptr, drawTab, tabBadge});
 
-// ---------------------------------------------------------------- выдвижная панель
-void drawDrawer(App& a) {
-  const World& w = a.world();
-  {
-    ui::Disabled dis(a.readOnly());
-    ui::Row r({ui::fr(1), ui::px(30)}, 30, 6);
-    if (ui::button("Новая сделка", {.variant = ui::Variant::Primary, .icon = "plus", .fill = true})) newDeal(a, 0);
-    a.markUi("trade.drawer.new");
-    if (ui::iconButton("tribute", "Дань или репарации")) a.openDialog("tribute");
-    a.markUi("trade.drawer.tribute");
-  }
-  int active = 0;
-  double gold = 0;
-  w.deals.each([&](const Deal& d) {
-    if (d.status != DealStatus::Active) return;
-    active++;
-    for (auto& it : d.items)
-      if (it.mode == DealMode::PerTurn && it.res == kGold && it.left > 0) gold += it.amount;
-  });
-  {
-    ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
-    ui::stat(std::to_string(active), "Активных", {.icon = "handshake", .tone = ui::Tone::Accent});
-    ui::stat(fmtNum(gold, 3), "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success});
-  }
-  {
-    ui::HStack hs(24, ui::Align::Left, 6);
-    ui::caption("Активные сделки");
-    ui::flex();
-    if (ui::link("Все", "chevron-right")) a.openEditor("trade");
-    a.markUi("trade.drawer.all");
-  }
-  bool any = false;
-  for (const Deal* d : trade::dealsOf(w, 0)) {
-    if (d->status != DealStatus::Active) continue;
-    any = true;
-    if (trade::dealCard(a, w, *d, {.clickable = true})) {
-      trade::draft().highlight = d->id;
-      a.openEditor("trade");
-    }
-  }
-  if (!any) {
-    ui::spacer(8);
-    if (ui::emptyState("handshake", "Активных сделок нет.", a.readOnly() ? std::string_view() : "Новая сделка", "plus")) newDeal(a, 0);
-  }
-}
-
-DrawerReg drawer({"trade", "trade", "Переговоры и торговля", 60, drawDrawer});
 
 }  // namespace
 }  // namespace rg::app

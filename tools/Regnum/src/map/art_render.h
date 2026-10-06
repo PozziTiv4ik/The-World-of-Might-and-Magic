@@ -41,18 +41,20 @@ class Index {
   Grid land_, water_, rivers_, lines_, symbols_;
 };
 
+// Цвета слоёв — стиль карты idx (map.json) в палитре pal (paletteStyle).
 // Море: цвет моря поверх img с непрозрачностью «море минус суша» и мягким краем берега.
-void drawSea(gfx::Image& img, const Index& idx, const Xf& P);
+void drawSea(gfx::Image& img, const Index& idx, const Xf& P, Palette pal = Palette::Source);
 // Реки и озёра: кольца воды (внешние контуры против часовой, острова — по часовой; правило NonZero, так что
 // пересекающиеся озёра сливаются) и реки линией.
-void drawWater(gfx::Image& img, const Index& idx, const Xf& P);
+void drawWater(gfx::Image& img, const Index& idx, const Xf& P, Palette pal = Palette::Source);
 // Стены и знаки (горы, замки, башни) — в порядке отрисовки.
-void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P);
+void drawSymbols(gfx::Image& img, const Index& idx, const Xf& P, Palette pal = Palette::Source);
 // Карта целиком (суша, море, воды, знаки) в изображение w × h.
-gfx::Image render(const Index& idx, double ds, int w, int h, double ox = 0, double oy = 0);
+gfx::Image render(const Index& idx, double ds, int w, int h, double ox = 0, double oy = 0, Palette pal = Palette::Source);
 
-// Значок знака в пикселях устройства: точка привязки (середина основания) в at, масштаб ds · s; variant — рисунок.
-void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant = 0);
+// Значок знака в пикселях устройства: точка привязки (середина основания) в at, масштаб ds · s; variant — рисунок;
+// краска — палитры pal.
+void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant = 0, Palette pal = Palette::Source);
 // Габарит значка относительно точки привязки (единицы карты при s = 1) и габарит знака на карте.
 RectF symbolBounds(Sym kind);
 Box2 symbolBox(Sym kind, double x, double y, double s);

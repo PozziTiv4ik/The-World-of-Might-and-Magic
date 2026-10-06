@@ -59,9 +59,8 @@ TEST(audit_tzprov_basemap_zoom_shots) {
   CHECK(h->newWorld("Пустой мир"));
   h.settle();
   h.dropToasts();
-  // Без панелей поверх карты: мини-карта и легенда скрыты.
-  h->ui.showMinimap = false;
-  h->ui.showLegend = false;
+  // Без панелей справа от карты.
+  h->ui.drawer.clear();
   struct Z {
     const char* name;
     double zoom;
@@ -375,8 +374,7 @@ TEST(audit_tzprov_hatch_over_water_shot) {
   ToolGuard guard;
   Harness h("audit_tzprov_hatch", 1440, 900, 1);
   h.demo();
-  h->ui.showMinimap = false;
-  h->ui.showLegend = false;
+  h->ui.drawer.clear();
   const World& w = h->world();
   Id occ = 0;
   w.provinces.each([&](const Province& p) {

@@ -7,6 +7,15 @@
 #include "base/base.h"
 #include "gfx/canvas.h"
 
+namespace rg::map {
+
+// Палитра карты, нарисованной кодом. Source — цвета исходника (стиль map.json: ярко-синее море, белая суша,
+// чёрная краска знаков и стен); Parchment — приглушённое тёмно-синее море, суша цвета пергамента, реки и озёра
+// глубже моря, знаки мягкой тёмно-бурой краской.
+enum class Palette : u8 { Source, Parchment, Count };
+
+}  // namespace rg::map
+
 namespace rg::map::art {
 
 using Ring = std::vector<Vec2>;
@@ -38,7 +47,16 @@ struct Style {
   Color water{0, 38, 255, 255};   // реки и озёра
   float coastSoft = 2.5f;         // ширина светлой каймы моря у берега: σ размытия суши, единицы карты
   float coastGlow = 0.3f;         // сила каймы: доля размытой суши, на которую светлеет море (0 — нет)
+  // От палитры, в map.json не хранятся. Знаки нарисованы серыми: серый g рисуется как mix(ink, paper, g / 255)
+  // (у исходника краска чёрная и бумага белая, то есть серый остаётся собой).
+  Color ink{0, 0, 0, 255};        // краска стен и знаков
+  Color paper{255, 255, 255, 255};
+  Color outside{0, 0, 0, 0};      // фон окна за краем карты; a == 0 — цвет темы интерфейса
+  Color tone(u8 g) const;
 };
+
+// Стиль карты в палитре p: Source — s как есть, иначе цвета палитры (ширина каймы — из s).
+Style paletteStyle(const Style& s, Palette p);
 
 struct MapArt {
   std::string id, source, sourceSha256;

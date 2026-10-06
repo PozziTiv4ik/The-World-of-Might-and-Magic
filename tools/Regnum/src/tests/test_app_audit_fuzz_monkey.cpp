@@ -521,7 +521,8 @@ class Monkey {
   std::string actRandomClick() {
     // Чаще — внутри панелей (выдвижная, инспектор, редактор), иначе — где угодно.
     std::vector<RectF> areas;
-    for (const char* n : {"drawer", "inspector", "editor", "topbar", "toolbar", "rail", "status", "legend", "minimap", "zoom", "banner"})
+    for (const char* n : {"drawer", "inspector", "editor", "topbar", "toolbar", "rail", "status", "legend", "minimap", "zoom", "banner", "page",
+                          "pagenav", "bottombar"})
       if (const RectF* r = h_->uiRect(n)) areas.push_back(*r);
     RectF a = !areas.empty() && chance(0.7) ? pick(areas) : RectF{0, 0, float(W_), float(H_)};
     float x = rx(a.x, a.right()), y = rx(a.y, a.bottom());
@@ -709,6 +710,15 @@ class Monkey {
     return "key";
   }
   std::string actDrawer() {
+    // Разделы правой ленты (страницы на месте карты) и панели справа от карты.
+    auto& ss = app::sections();
+    if (!ss.empty() && chance(0.4)) {
+      const auto& sec = ss[size_t(rng_.range(0, int(ss.size()) - 1))];
+      log(std::string("openSection ") + sec.id);
+      h_->openSection(sec.id);
+      step();
+      return "section";
+    }
     auto& ds = app::drawers();
     if (ds.empty()) return "drawer-none";
     const auto& d = ds[size_t(rng_.range(0, int(ds.size()) - 1))];

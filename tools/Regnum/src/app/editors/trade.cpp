@@ -707,7 +707,7 @@ void drawEditor(App& a, Id arg) {
   }
 }
 
-EditorReg editor({"trade", "Переговоры и торговля", drawEditor, "trade"});
+EditorReg editor({"trade", "Переговоры и торговля", drawEditor, "trade", "economy", 10});
 
 bool editorScreen(App& a) { return a.ui.screen == Screen::Editor; }
 CommandReg cmdTrade({"trade.open", "Переговоры и торговля: сделки, обмен пленными и провинциями", "trade", nullptr, [](App& a) { a.openEditor("trade"); },

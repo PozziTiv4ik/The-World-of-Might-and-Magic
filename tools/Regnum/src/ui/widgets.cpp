@@ -54,7 +54,7 @@ void drawFieldFrame(RectF r, const Interaction& it, bool focused, bool disabled,
 
 namespace {
 
-float ctlH(Size s) { return s == Size::Small ? C().th.controlHSmall : C().th.controlH; }
+float ctlH(Size s) { return s == Size::Small ? C().th.controlHSmall : s == Size::Large ? 36.f : C().th.controlH; }
 
 // Свой тон приглушённого фона: бейджи, теги, иконки в кружках.
 Color tint(Color c, float k) { return c.alpha(k); }
@@ -400,7 +400,7 @@ bool iconButton(const char* icon, std::string_view tip, const IconButtonOpt& o) 
     cmdStroke(r, t.accent.alpha(0.38f * on), rad, 1);
     fg = mixc(fg, t.accent, on);
   }
-  float is = o.size == Size::Small ? t.iconSizeSmall : t.iconSize;
+  float is = o.size == Size::Small ? t.iconSizeSmall : o.size == Size::Large ? 20.f : t.iconSize;
   RectF ir{r.x + std::round((r.w - is) * 0.5f), r.y + std::round((r.h - is) * 0.5f), is, is};
   if (down) ir.y += 0.5f;
   cmdIcon(icon ? icon : "", ir, fg);

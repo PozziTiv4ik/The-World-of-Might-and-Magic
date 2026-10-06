@@ -155,7 +155,7 @@ void outlineShape(gfx::Canvas& c, const map::View& v, const MapShape& s, Color c
 void ghostSymbol(gfx::Canvas& c, const map::View& v, SymbolKind kind, Vec2 at, float scale, u8 variant, float alpha) {
   c.save();
   c.setOpacity(alpha);
-  map::art::drawSymbol(c, map::art::symOf(kind), v.toScreen(at), float(v.zoom * scale), variant);
+  map::art::drawSymbol(c, map::art::symOf(kind), v.toScreen(at), float(v.zoom * scale), variant, app().map().palette());
   c.restore();
 }
 

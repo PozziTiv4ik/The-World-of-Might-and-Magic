@@ -108,8 +108,9 @@ struct Palette : Dialog {
       std::string id = it.cmd->id;
       later(a, [id](App& x) { runCommand(x, id); });
     } else if (it.sel) {
+      // Государство, гильдия и персонаж — страницей, остальное — показать на карте.
       Selection s = it.sel;
-      later(a, [s](App& x) { x.select(s, true); });
+      later(a, [s](App& x) { x.select(s, s.type != SelType::Faction && s.type != SelType::Character); });
     }
   }
 
@@ -269,12 +270,18 @@ struct Help : Dialog {
         row(t.editMode ? std::string(t.title) + " · правка границ" : t.mapMode ? std::string(t.title) + " · правка карты" : std::string(t.title), t.shortcut);
       }
       ui::spacer(6);
-      ui::caption("Панели");
+      ui::caption("Разделы и панели");
+      for (auto& sec : sections()) {
+        if (!sec.shortcut) continue;
+        ui::IdScope ss(sec.id);
+        row(sec.title, sec.shortcut);
+      }
       for (auto& d : drawers()) {
         if (!d.shortcut) continue;
         ui::IdScope ds(d.id);
         row(d.title, d.shortcut);
       }
+      row("Назад, к карте", "Esc");
       row("Поле ввода: отменить правку", "Esc");
       row("Следующее поле", "Tab");
     }

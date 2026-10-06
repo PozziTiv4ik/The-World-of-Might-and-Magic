@@ -311,7 +311,7 @@ void turnui::showChronicle(App& a, int turn) {
     f.query.clear();
     if (turn > 0) f.from = f.to = turn;
   }
-  if (!a.ui.editor.empty()) a.closeEditor();
+  if (!a.mapShown()) a.toMap();   // хроника — панель справа от карты
   if (a.ui.drawer != "chronicle") a.openDrawer("chronicle");
 }
 

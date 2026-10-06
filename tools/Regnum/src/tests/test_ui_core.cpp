@@ -398,9 +398,9 @@ TEST(ui_core_theme_switch_and_tokens) {
   h.frame();
   CHECK(h.img.at(500, 500) != darkBg);
   ui::setTheme(true);
-  CHECK(ui::theme().accent == Color::hex(0xd9a441));
-  CHECK(ui::inkColor(ui::Ink::Muted) == Color::hex(0x6f7886));
-  CHECK(ui::toneColor(ui::Tone::Danger) == Color::hex(0xe05a4f));
+  CHECK(ui::theme().accent == Color::hex(0xd6aa4c));
+  CHECK(ui::inkColor(ui::Ink::Muted) == Color::hex(0x737d89));
+  CHECK(ui::toneColor(ui::Tone::Danger) == Color::hex(0xe0605a));
   CHECK_EQ(ui::shortcutText({Key::S, ui::ModPrimary}).empty(), false);
   ui::setUiScale(3);
   CHECK_NEAR(ui::uiScale(), 1.5, 1e-6);

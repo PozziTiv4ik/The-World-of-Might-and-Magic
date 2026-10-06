@@ -625,6 +625,11 @@ void text(std::string_view s, RectF r, Font f, Color c, Align a, bool ellipsis) 
   cmdText(t, x, r.y + (r.h - t->layout.height) * 0.5f, c);
 }
 
+void textStyled(std::string_view s, RectF r, const gfx::TextStyle& st, Color c, Align a) {
+  if (s.empty()) return;
+  textIn(s, r, st, c, a);
+}
+
 void image(const gfx::Image& img, RectF r, float radius, float opacity) {
   if (!in::list() || r.empty() || img.empty()) return;
   Cmd& k = in::push(Op::Image);

@@ -87,11 +87,15 @@ struct MapView::Impl {
   u64 artVersion = 0;
   double artChanged = 0;       // время последней смены сцены
 
+  // палитра (меняется только под previewMu: фоновое превью сверяет с ней свою)
+  Palette palette = Palette::Source;
+
   // карта целиком (запасной слой, мини-карта): превью и миниатюра сцены рисуются в фоне
-  std::shared_ptr<const gfx::Image> thumb;   // миниатюра базовой карты (пока нет миниатюры мира)
+  std::shared_ptr<const gfx::Image> thumb;   // миниатюра базовой карты в палитре (пока нет миниатюры мира)
   std::mutex previewMu;
   std::shared_ptr<const gfx::Image> preview, worldThumb;
   u64 previewFor = 0;          // версия сцены, по которой нарисованы preview и worldThumb
+  Palette previewPal = Palette::Source;   // и палитра
   bool previewBusy = false;
   std::atomic<bool> previewArrived{false};
 
@@ -115,6 +119,7 @@ struct MapView::Impl {
   // мини-карта
   gfx::Image miniTint;
   const gfx::Image* miniThumb = nullptr;   // миниатюра, по которой собран miniTint
+  Palette miniPal = Palette::Source;       // палитра miniTint
   u64 miniVer = 0;              // растёт при каждой пересборке miniTint
   gfx::Image miniDev;           // miniTint в пикселях устройства со скруглёнными углами
   u64 miniDevVer = ~u64(0);
@@ -128,6 +133,7 @@ struct MapView::Impl {
 
   double mapW() const { return bm ? bm->width() : schema::kMapWidth; }
   double mapH() const { return bm ? bm->height() : schema::kMapHeight; }
+  art::Style colors() const { return mapStyle(bm, palette); }
 
   // ---------------------------------------------------------------- камера
   // Свободная часть области просмотра (между панелями); слишком маленькая или не заданная — вся область.
@@ -310,37 +316,42 @@ struct MapView::Impl {
     });
   }
 
-  // Превью и миниатюра карты мира: по сцене, в фоне; после правки — когда она затихнет.
+  // Превью и миниатюра карты мира: по сцене, в фоне; после правки — когда она затихнет; после смены палитры — сразу.
   bool previewDue() {
     std::lock_guard<std::mutex> lk(previewMu);
-    return art && previewFor != artVersion && !previewBusy;
+    return art && (previewFor != artVersion || previewPal != palette) && !previewBusy;
   }
   void ensurePreview() {
     {
       std::lock_guard<std::mutex> lk(previewMu);
-      if (!art || previewFor == artVersion || previewBusy) return;
-      if (previewFor != 0 && now - artChanged < kPreviewDelay) return;
+      if (!art || (previewFor == artVersion && previewPal == palette) || previewBusy) return;
+      if (previewFor != 0 && previewFor != artVersion && now - artChanged < kPreviewDelay) return;
       previewBusy = true;
     }
     if (previewJob.valid()) previewJob.wait();
     auto sc = art;
     const u64 ver = artVersion;
+    const Palette pal = palette;
     auto self = this;
     // Impl живёт дольше задачи: деструктор ждёт её (см. ~Impl).
-    previewJob = jobs::submit([self, sc, ver] {
+    previewJob = jobs::submit([self, sc, ver, pal] {
       std::shared_ptr<const gfx::Image> pv, th;
       try {
-        pv = std::make_shared<gfx::Image>(art::renderScene(*sc, 2000));
-        th = std::make_shared<gfx::Image>(art::renderScene(*sc, 480));
+        pv = std::make_shared<gfx::Image>(art::renderScene(*sc, 2000, pal));
+        th = std::make_shared<gfx::Image>(art::renderScene(*sc, 480, pal));
       } catch (const std::exception& e) {
         logError("Превью карты не нарисовано: %s", e.what());
       }
       std::function<void()> w;
       {
         std::lock_guard<std::mutex> lk(self->previewMu);
-        if (pv) self->preview = pv;
-        if (th) self->worldThumb = th;
+        // Палитра сменилась, пока рисовалось, — изображения не нужны (следующее превью — в новой).
+        if (pal == self->palette) {
+          if (pv) self->preview = pv;
+          if (th) self->worldThumb = th;
+        }
         self->previewFor = ver;
+        self->previewPal = pal;
         self->previewBusy = false;
         w = self->wake;
       }
@@ -564,8 +575,8 @@ void MapView::Impl::drawTiles(gfx::Image& target, const gfx::RectI& clipIn, doub
       }
     if (back.empty())
       for (const gfx::RectI& r : missing) {
-        // Ничего нет: суша цветом базовой карты.
-        gfx::Image one(1, 1, gfx::premul(bm ? bm->landColor() : Color(255, 255, 255)));
+        // Ничего нет: суша цветом палитры.
+        gfx::Image one(1, 1, gfx::premul(colors().land));
         back.push_back({std::make_shared<gfx::Image>(one), double(r.x), double(r.y), double(r.right()), double(r.bottom()), r, false});
       }
   }
@@ -605,6 +616,22 @@ MapView::~MapView() = default;
 
 void MapView::setWorld(const World& w) { d_->applyWorld(w); }
 void MapView::worldChanged(const World&, const World& after, u32) { d_->applyWorld(after); }
+
+void MapView::setPalette(Palette p) {
+  Impl& d = *d_;
+  if (p >= Palette::Count || p == d.palette) return;
+  {
+    std::lock_guard<std::mutex> lk(d.previewMu);
+    d.palette = p;
+    // Превью и миниатюра мира — в прежней палитре: до новых (ensurePreview) запасной слой и мини-карта берут
+    // миниатюру базовой карты в новой. Тайлы — другого стиля (TileStyle::palette, см. render).
+    d.preview = nullptr;
+    d.worldThumb = nullptr;
+  }
+  d.thumb = nullptr;
+}
+
+Palette MapView::palette() const { return d_->palette; }
 
 void MapView::setWakeCallback(std::function<void()> fn) {
   {
@@ -739,7 +766,7 @@ std::shared_ptr<const gfx::Image> MapView::mapThumbnail() const {
     std::lock_guard<std::mutex> lk(d_->previewMu);
     if (d_->worldThumb) return d_->worldThumb;
   }
-  return d_->bm ? d_->bm->thumb() : nullptr;
+  return d_->bm ? d_->bm->thumb(d_->palette) : nullptr;
 }
 
 bool MapView::loading() const { return d_->labelsPending || d_->store.busy(); }
@@ -761,6 +788,7 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
   st.editBorders = opt.editBorders;
   st.fillOpacity = d.world.settings->fillOpacity;
   st.dpi = v.dpi;
+  st.palette = d.palette;
   d.setStyle(st);
 
   const float dpi = v.dpi;
@@ -781,8 +809,9 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
   c.save();
   c.setTransform(gfx::Affine());
   c.clipRect(RectF(float(clip.x), float(clip.y), float(clip.w), float(clip.h)));
-  // Фон за пределами карты.
-  const Color back = opt.darkUi ? Color::hex(0x0b0e13) : Color::hex(0xe4ded2);
+  // Фон за пределами карты: по палитре (продолжение моря) или по теме интерфейса.
+  const Color outside = d.colors().outside;
+  const Color back = outside.a ? outside : opt.darkUi ? Color::hex(0x0b0e13) : Color::hex(0xe4ded2);
   const gfx::RectI mapDev(int(X0), int(Y0), int(std::lround(X0 + d.mapW() * ds)) - int(X0), int(std::lround(Y0 + d.mapH() * ds)) - int(Y0));
   {
     const gfx::RectI in = clip.intersect(mapDev);
@@ -859,32 +888,34 @@ void MapView::renderMinimap(gfx::Canvas& c, RectF rect, float dpi) {
     std::lock_guard<std::mutex> lk(d.previewMu);
     thumb = d.worldThumb;
   }
-  if (!thumb && !d.thumb && d.bm) d.thumb = d.bm->thumb();
+  if (!thumb && !d.thumb && d.bm) d.thumb = d.bm->thumb(d.palette);
   if (!thumb) thumb = d.thumb;
-  const bool thumbChanged = thumb.get() != d.miniThumb;
-  // Перерисовывается, только когда меняются геометрия, политические цвета провинций или миниатюра карты.
+  const bool baseChanged = thumb.get() != d.miniThumb || d.miniPal != d.palette;   // подложка: миниатюра или палитра
+  // Перерисовывается, только когда меняются геометрия, политические цвета провинций, миниатюра карты или палитра.
   std::shared_ptr<const Looks> looks;
-  if (d.miniGen != d.gen || d.miniTint.empty() || thumbChanged) {
+  if (d.miniGen != d.gen || d.miniTint.empty() || baseChanged) {
     d.miniGen = d.gen;
     TileStyle ps;
     ps.mode = schema::MapMode::Political;
     looks = computeLooks(d.world, ps);
-    const bool same = !thumbChanged && !d.miniTint.empty() && d.miniLooks && d.miniNodes.same(d.world.nodes) &&
+    const bool same = !baseChanged && !d.miniTint.empty() && d.miniLooks && d.miniNodes.same(d.world.nodes) &&
                       d.miniEdges.same(d.world.edges) && d.miniLooks->prov == looks->prov;
     if (same) looks = nullptr;
   }
   if (looks) {
     d.miniVer++;
     d.miniThumb = thumb.get();
+    d.miniPal = d.palette;
     d.miniLooks = looks;
     d.miniNodes = d.world.nodes;
     d.miniEdges = d.world.edges;
     auto fs = geo::faces(d.world);
+    const art::Style colors = d.colors();
     if (thumb) {
       d.miniTint = *thumb;
     } else {
-      // Без базовой карты: белая суша и море по граням.
-      d.miniTint = gfx::Image(480, int(std::lround(480 * d.mapH() / d.mapW())), gfx::premul(Color(255, 255, 255)));
+      // Без базовой карты: суша и море по граням цветами палитры.
+      d.miniTint = gfx::Image(480, int(std::lround(480 * d.mapH() / d.mapW())), gfx::premul(colors.land));
       gfx::Canvas sc(d.miniTint);
       const double k = d.miniTint.w / d.mapW();
       gfx::Path sea;
@@ -899,7 +930,7 @@ void MapView::renderMinimap(gfx::Canvas& c, RectF rect, float dpi) {
         }
       }
       if (fs->faces.empty()) sea.addRect(RectF(0, 0, float(d.miniTint.w), float(d.miniTint.h)));
-      sc.fillPath(sea, Color(0, 38, 255), gfx::FillRule::EvenOdd);
+      sc.fillPath(sea, colors.sea, gfx::FillRule::EvenOdd);
     }
     gfx::Image layer(d.miniTint.w, d.miniTint.h, 0);
     gfx::Canvas lc(layer);
@@ -975,7 +1006,7 @@ Vec2 MapView::minimapToMap(RectF rect, float sx, float sy) const {
   return {clamp(x, 0.0, d_->mapW()), clamp(y, 0.0, d_->mapH())};
 }
 
-std::vector<LegendItem> MapView::legend(const World& w, schema::MapMode mode) const { return legendFor(w, mode); }
+std::vector<LegendItem> MapView::legend(const World& w, schema::MapMode mode) const { return legendFor(w, mode, d_->colors()); }
 
 // ================================================================ попадание
 Id MapView::provinceAt(float sx, float sy) const {

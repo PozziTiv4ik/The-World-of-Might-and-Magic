@@ -448,16 +448,27 @@ void Sketch::draw(App& a, gfx::Canvas& c, const map::View& v, Color line, Color 
 float textW(std::string_view s, ui::Font f) { return std::ceil(ui::measure(s, f)); }
 
 OptionsBar::OptionsBar(App& a, const char* icon, std::string_view title, float width) {
-  RectF area = a.mapArea();
+  if (!a.mapShown()) return;
   const float s = ui::uiScale();
-  RectF ar{area.x / s, area.y / s, area.w / s, area.h / s};
-  if (ar.w < 260 || ar.h < 120) return;
-  float head = 16 + 18 + 6 + textW(title, ui::Font::Strong) + 6 + 9 + 6;
-  float w = std::min(std::ceil(head + width), ar.w - 24);
-  float y = ar.y + (a.readOnly() ? 52 : 0);
-  RectF r{std::round(ar.cx() - w * 0.5f), y, w, 46};
+  float head = 8 + 18 + 6 + textW(title, ui::Font::Strong) + 6 + 9 + 6;
+  float w = std::ceil(head + width);
+  RectF slot = a.impl().toolSlot;   // середина верхней строки (shell_bars.cpp)
+  RectF r;
+  if (slot.w >= w) {
+    // В верхней строке: по середине окна, если там свободно, иначе по середине свободного места.
+    float cx = clamp(ui::viewport().w * 0.5f, slot.x + w * 0.5f, slot.right() - w * 0.5f);
+    r = RectF{std::round(cx - w * 0.5f), slot.y + std::round((slot.h - 32) * 0.5f), w, 32};
+    panel_.emplace("##tool.options", r, ui::PanelOpt{.pad = 1, .shadow = false, .border = false, .radius = 0});
+  } else {
+    // Узкое окно: строка параметров прилегает к верхней строке над картой.
+    RectF area = a.mapArea();
+    RectF ar{area.x / s, area.y / s, area.w / s, area.h / s};
+    if (ar.w < 200 || ar.h < 120) return;
+    r = RectF{ar.x, ar.y, ar.w, 40};
+    panel_.emplace("##tool.options", r, ui::PanelOpt{.pad = 5, .shadow = false, .border = false, .radius = 0});
+    ui::draw::line(r.x, r.bottom() - 0.5f, r.right(), r.bottom() - 0.5f, ui::theme().border, 1);
+  }
   open_ = true;
-  panel_.emplace("##tool.options", r, ui::PanelOpt{.pad = 8, .radius = 12, .glass = true});
   a.markUi("tool.options", r);
   row_.emplace(30, ui::Align::Left, 6);
   ui::icon(icon, ui::Ink::Accent, 18);

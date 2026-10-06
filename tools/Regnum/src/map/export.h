@@ -1,7 +1,7 @@
 // Regnum — экспорт всей карты в изображение (чтобы показать мир без редактора): тот же вид, что в редакторе, —
-// режим карты, подписи, войска и флот, — без выделения, наведения и инструментов. Карта целиком ложится в кадр
-// width × heightFor(width) (пропорции карты 16 : 9). Тайлы рисуются в фоне, поэтому экспорт идёт шагами: step()
-// вызывается каждый кадр, пока не вернёт true.
+// режим карты, палитра, подписи, войска и флот, — без выделения, наведения и инструментов. Карта целиком ложится
+// в кадр width × heightFor(width) (пропорции карты 16 : 9). Тайлы рисуются в фоне, поэтому экспорт идёт шагами:
+// step() вызывается каждый кадр, пока не вернёт true.
 #pragma once
 #include <memory>
 
@@ -14,7 +14,8 @@ class MapExport {
   static constexpr int kMinWidth = 640, kMaxWidth = 10000;
   static int heightFor(int width);
 
-  MapExport(const Basemap* bm, const World& w, int width, const RenderOptions& opt);
+  // pal — палитра карты (как в редакторе: MapView::palette()).
+  MapExport(const Basemap* bm, const World& w, int width, const RenderOptions& opt, Palette pal = Palette::Source);
   ~MapExport();
   MapExport(const MapExport&) = delete;
   MapExport& operator=(const MapExport&) = delete;
@@ -34,6 +35,6 @@ class MapExport {
 };
 
 // Экспорт целиком, с ожиданием фоновых тайлов (тесты, командная строка).
-gfx::Image exportMap(const Basemap* bm, const World& w, int width, const RenderOptions& opt);
+gfx::Image exportMap(const Basemap* bm, const World& w, int width, const RenderOptions& opt, Palette pal = Palette::Source);
 
 }  // namespace rg::map
