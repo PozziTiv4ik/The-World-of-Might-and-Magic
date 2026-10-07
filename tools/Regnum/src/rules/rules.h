@@ -103,6 +103,7 @@ struct ProvinceCalc {
   double slaveIncome = 0;             // доход владельца с рабов на работах
   double energy = 0;                  // осквернённая провинция: демоническая энергия владельцу за ход
   std::map<Id, double> produce;       // ресурсы от построек владельцу за ход
+  std::map<Id, double> essence;       // эссенции от построек генерации владельцу за ход
   Effects fx;
 };
 
@@ -114,8 +115,23 @@ struct RowCalc {
   double upkeepEach = 0, upkeepTotal = 0;
 };
 
-// consumption — расход (провизия государства живых); net = production + tradeIn − tradeOut − consumption.
-struct ResourceFlow { double stock = 0, production = 0, tradeIn = 0, tradeOut = 0, consumption = 0, net = 0; };
+// consumption — расход (провизия государства живых); conversionIn/Out — постройки преобразования этого хода;
+// net = production + tradeIn − tradeOut − consumption − conversionIn + conversionOut.
+struct ResourceFlow {
+  double stock = 0, production = 0, tradeIn = 0, tradeOut = 0, consumption = 0, net = 0;
+  double conversionIn = 0, conversionOut = 0;
+};
+// Эссенция элемента фракции за ход: генерация построек, содержание элементалей (может увести запас в долг).
+struct EssenceFlow { double stock = 0, generation = 0, upkeep = 0, net = 0; };
+// Шаг постройки преобразования в конце хода (план расчёта, его же исполняет endTurn): start — начинается цикл (ресурсы
+// на входе списываются), finish — цикл завершается (ресурс на выходе поступает), cycle — ходов до конца после хода.
+struct ConvertStep {
+  Id province = 0, building = 0;
+  bool start = false, finish = false;
+  int cycle = 0;
+  std::map<Id, double> in;            // списывается при начале цикла
+  ResAmount out;                      // поступает при завершении
+};
 
 struct FactionCalc {
   Id id = 0;
@@ -132,8 +148,15 @@ struct FactionCalc {
   i64 slaves = 0;                     // всего рабов
   double pirateRisk = 0;              // вероятность нападения пиратов в конце хода, %
   double researchFactor = 1;          // множитель времени исследования
-  bool famine = false;                // запас провизии меньше нуля («Голод»)
+  bool famine = false;                // недостача провизии («Голод»)
+  // Провизия (группа ресурсов «Провизия» с подгруппами): расход населения 0,001 на жителя отнимается поровну со всех
+  // её ресурсов, которые есть у государства; недостача копится и держит «Голод», пока не будет покрыта.
+  double provisionNeed = 0;           // расход за ход
+  double provisionStock = 0;          // запас всех ресурсов провизии
+  double provisionDebt = 0, provisionDebtNext = 0;   // недостача сейчас и после хода
   std::map<Id, ResourceFlow> resources;
+  std::map<Id, EssenceFlow> essences; // все эссенции справочника и запасы фракции
+  std::vector<ConvertStep> conversions;
   Effects fx;
 };
 
@@ -159,8 +182,9 @@ struct Deployed {
 Deployed deployed(const World& w, Id faction);
 // Резерв строки: общая численность − в поле (войска, гарнизоны, оккупационные гарнизоны) или в море (флоты, торговля).
 i64 reserveOf(const World& w, Id faction, Id row);
-// Срок исследования технологии с модификатором «Время исследования технологий» государства.
-int researchTurns(const World& w, const Tech& t);
+// Срок исследования технологии с модификатором «Время исследования технологий» государства (faction — для общей
+// технологии: изучающая фракция; 0 — дерево технологии).
+int researchTurns(const World& w, const Tech& t, Id faction = 0);
 // Население государства (сумма по его сухопутным провинциям).
 i64 statePopulation(const World& w, Id state);
 
@@ -179,11 +203,50 @@ std::vector<Id> removeLastBuildingLevel(Tx& tx, Id building);
 Id createTech(Tx& tx, Id faction, const std::string& name = {});
 void removeTech(Tx& tx, Id tech);            // убирает из зависимостей
 void copyTechTree(Tx& tx, Id from, Id to);   // копия дерева технологий (без изученности)
-enum class CatalogList : u8 { Resources, Races, Cultures, Religions, Governments, Positions };
+enum class CatalogList : u8 { Resources, Races, Cultures, Religions, Governments, Positions, Essences };
 Id addCatalogItem(Tx& tx, CatalogList list, const std::string& name);
 void removeCatalogItem(Tx& tx, CatalogList list, Id item);   // чистит все ссылки; «Золото» удалить нельзя
 std::vector<CatalogItem>& catalogList(Catalogs& c, CatalogList list);
 const std::vector<CatalogItem>& catalogList(const Catalogs& c, CatalogList list);
+
+// ---- группы ресурсов (ТЗ «Добавления в справочники», п.3–4)
+Id addResGroup(Tx& tx, const std::string& name, Id parent = 0);
+void renameResGroup(Tx& tx, Id group, const std::string& name);
+void setGroupParent(Tx& tx, Id group, Id parent);              // без циклов
+// Удалить группу: её подгруппы и ресурсы переходят в родительскую группу. Группу правил (провизия, звери, ездовые,
+// чудовища) удалить нельзя.
+void removeResGroup(Tx& tx, Id group);
+void setResourceGroup(Tx& tx, Id resource, Id group);          // 0 — без группы
+// Ресурсы группы с подгруппами в порядке справочника (выбор подгруппы — только она, группы — все её подгруппы).
+std::vector<Id> resourcesIn(const World& w, Id group);
+// Подгруппы группы (прямые дети; 0 — группы верхнего уровня) в порядке справочника.
+std::vector<Id> childGroups(const World& w, Id parent);
+// Путь группы: «Звери / Ездовые наземные».
+std::string groupPath(const World& w, Id group);
+// Ресурсы провизии (группа «Провизия» с подгруппами).
+std::vector<Id> provisionResources(const World& w);
+
+// ---- реликвии (ТЗ «Доработки», п.8 и 10)
+Id addRelic(Tx& tx, const std::string& name = {}, Rarity rarity = Rarity::Common);
+void setRelic(Tx& tx, Id relic, const std::string& name, Rarity rarity, const std::string& desc);
+void removeRelic(Tx& tx, Id relic);                            // убирается из инвентарей
+Id relicHolder(const World& w, Id relic);                      // персонаж с реликвией; 0 — свободна
+// Положить реликвию в инвентарь персонажа (от прежнего владельца — переходит) или убрать.
+void giveRelic(Tx& tx, Id character, Id relic);
+void takeRelic(Tx& tx, Id character, Id relic);
+
+// ---- особые отряды (ТЗ «Ввод новых механик», п.4–5)
+Id addSpecial(Tx& tx, const std::string& name = {});
+// Записать особый отряд (имя, тип, раса, ключевой ресурс, цены) — с проверками; строки армий с ним повторяют запись.
+void setSpecial(Tx& tx, const SpecialUnit& s);
+void removeSpecial(Tx& tx, Id special);                        // строки армий становятся обычными, постройки теряют доступ
+struct SpecialSource { Id special = 0, building = 0, province = 0; };
+// Особые отряды, доступные государству: достроенная постройка доступа в его сухопутной провинции.
+std::vector<SpecialSource> specialAccess(const World& w, Id state);
+bool hasSpecialAccess(const World& w, Id state, Id special);
+std::vector<Id> specialBuildings(const World& w, Id special);  // постройки, дающие доступ
+// Строка армии особого отряда (нужна постройка доступа).
+Id addSpecialRow(Tx& tx, Id faction, Id special);
 
 void setProvinceOwner(Tx& tx, Id province, Id faction);     // гарнизон → резерв прежнего владельца, столица, оккупация
 void setOccupied(Tx& tx, Id province, Id occupier /*0 — снять*/);
@@ -263,12 +326,28 @@ void setRowTotal(Tx& tx, Id faction, Id row, i64 total);   // правка ре�
 // Строка удаляется вместе с отрядами в войсках и гарнизонах; воины возвращаются в население (нежить — в трупы,
 // демоны — в демоническую энергию), формирование строки отменяется с возвратом.
 void removeRow(Tx& tx, Id faction, Id row);
-void setRowRace(Tx& tx, Id faction, Id row, const std::string& race);
+void setRowRace(Tx& tx, Id faction, Id row, const std::string& race);   // у элементалей — только «Элементали»
+// Тип строки армии: имя по типу следует за типом, раса по умолчанию — тоже, неподходящий ключевой ресурс снимается.
+void setRowType(Tx& tx, Id faction, Id row, UnitType type);
+// Ключевой ресурс юнита (ТЗ «Ввод новых механик», п.2): из группы типа (кавалерия — «Ездовые наземные», воздушная
+// кавалерия — «Ездовые летающие», звери — «Звери» без «Чудовищ», чудовища — «Чудовища»), механизмы — «Запчасти
+// механизмов» (не меньше 1 на юнит). res 0 — снять.
+void setRowKey(Tx& tx, Id faction, Id row, Id res, double perUnit = 1);
+std::vector<Id> keyResources(const World& w, UnitType type);   // подходящие ключевые ресурсы
+bool keyAllowed(const World& w, UnitType type, Id res);
+// Дополнительный ресурс и эссенция на юнит (≥ 0; 0 — убрать), содержание элементалей эссенцией за юнит в ход.
+void setRowExtra(Tx& tx, Id faction, Id row, Id res, double perUnit);
+void setRowEssence(Tx& tx, Id faction, Id row, Id essence, double perUnit);
+void setRowEssUpkeep(Tx& tx, Id faction, Id row, Id essence, double perUnit);
+// Строки армии особого отряда повторяют его запись (после правки справочника).
+void syncSpecialRows(Tx& tx, Id special);
 
 // ================================================================ формирование и резерв
 // ТЗ «Общие доработки», п.10: отряды — из населения государства (нежить — из трупов, демоны — из демонической
 // энергии), корабли — за ресурсы констант стоимости; через 2 хода — в резерв.
-struct RecruitCost { i64 people = 0; std::map<Id, double> res; std::vector<std::string> problems; };
+// people — из населения (живые; нежить и демоны — трупы и энергия в res); res — ресурсы (ключевой, дополнительные,
+// трупы, энергия, стоимость кораблей); ess — эссенции элементов.
+struct RecruitCost { i64 people = 0; std::map<Id, double> res, ess; std::vector<std::string> problems; };
 RecruitCost recruitCost(const World& w, Id faction, Id row, i64 count);
 void recruit(Tx& tx, Id faction, Id row, i64 count);
 void cancelFormation(Tx& tx, Id faction, int index);          // возврат людей и ресурсов
@@ -278,6 +357,17 @@ void setTradeFleet(Tx& tx, Id faction, Id row, i64 count);
 void setOccupationGarrison(Tx& tx, Id province, Id row, i64 count);
 // Верность войска −100…100 % (с «Непреклонным лоялистом» не уменьшается, у «Армии нежити» — 100 %).
 void setArmyLoyalty(Tx& tx, Id army, double loyalty);
+// Эссенции элементов фракции (начальные запасы и правка).
+void setEssence(Tx& tx, Id faction, Id essence, double amount);
+
+// ================================================================ гарнизон (ТЗ «Доработки», п.1)
+// Герой владельца в гарнизоне: доступный, не в войске и не в другом гарнизоне.
+void setGarrisonHero(Tx& tx, Id province, Id character, bool on);
+Id heroGarrison(const World& w, Id character);                 // провинция, в гарнизоне которой герой; 0 — нет
+// Верность гарнизона −100…100 % (как у войска: модификаторы государства и «Непреклонный лоялист», у государства
+// нежити — всегда 100 %).
+void setGarrisonLoyalty(Tx& tx, Id province, double loyalty);
+double garrisonLoyaltyDelta(const World& w, Id province);
 
 // ================================================================ войска и флот
 Id createArmy(Tx& tx, ArmyKind kind, Id faction, Vec2 pos);
@@ -359,9 +449,18 @@ struct MutinyResult {
   Id rebelState = 0, rebelArmy = 0, loyalArmy = 0;
   bool full = false;                  // войско восстало целиком (верность −100 %)
   std::vector<Id> loyalHeroes;        // верные герои восставшего целиком войска — окно «Судьба героя»
+  Id province = 0;                    // провинция мятежа
+  bool garrisonLoyal = false;         // в гарнизоне провинции остались верные отряды
 };
-// Мятеж всех войск государства в провинции войска army (каждое — по своей верности).
+// Мятеж всех войск государства в провинции войска army и её гарнизона (каждое — по своей верности).
 MutinyResult mutiny(Tx& tx, Id army);
+// Мятеж гарнизона с отрицательной верностью (и войск владельца в провинции): неверная часть — войско мятежников рядом,
+// верная остаётся в гарнизоне с верностью 0 %; герои с «Недовольством правителем» уходят к мятежникам.
+bool canGarrisonMutiny(const World& w, Id province, std::string* why = nullptr);
+MutinyResult garrisonMutiny(Tx& tx, Id province);
+// Мятежники штурмуют гарнизон прежнего государства с отрицательной верностью: неверная часть переходит к ним.
+bool willGarrisonDefect(const World& w, Id rebelArmy, Id province);
+void garrisonDefect(Tx& tx, Id rebelArmy, Id province);
 // Мятежное государство «Мятеж (Название)»: существующее или новое, в войне с origin.
 Id rebelStateFor(Tx& tx, Id origin);
 // Мятежники нападают на войско прежнего государства с отрицательной верностью: неверная часть переходит к ним.
@@ -426,11 +525,39 @@ struct BuildOption {
   std::map<Id, double> cost;         // с учётом множителя провинции
   bool can = false;
   std::vector<std::string> reasons;  // почему нельзя
+  // Поставить готовой (изначальные постройки, без цены и срока): можно, если нет других причин, кроме нехватки ресурсов.
+  bool canPlace = false;
+  std::vector<std::string> placeReasons;
 };
 std::vector<BuildOption> buildOptions(const World& w, Id province);
 void startBuilding(Tx& tx, Id province, Id building);  // новый или следующий уровень
 void cancelBuilding(Tx& tx, Id province, Id building); // полный возврат стоимости
 void demolish(Tx& tx, Id province, Id building);
+// Мгновенно завершить строящийся уровень (уплаченное остаётся уплаченным) — ТЗ «Доработки», п.5.
+void completeBuilding(Tx& tx, Id province, Id building);
+// Поставить готовую постройку уровня level без цены и срока (изначальные постройки провинции): те же условия, что у
+// строительства, кроме цены. Уже есть — уровень меняется (строящуюся сначала отмените).
+void placeBuilding(Tx& tx, Id province, Id building, int level);
+// Постройка преобразования в провинции: «Простаивает» (idle) или «Работает».
+void setConvertIdle(Tx& tx, Id province, Id building, bool idle);
+// Требования построек (ТЗ «Доработки», п.4 и 7): общая постройка зависит только от общих построек и технологий,
+// уникальная — ещё и от построек и технологий своего государства; без циклов.
+bool canRequireBuilding(const World& w, Id building, Id req, std::string* why = nullptr);
+bool canRequireTech(const World& w, Id building, Id tech, std::string* why = nullptr);
+void setBuildingReq(Tx& tx, Id building, Id req, int level);  // level 0 — снять
+void setBuildingTech(Tx& tx, Id building, Id tech, bool on);
+std::vector<Id> techUnlocks(const World& w, Id tech);          // постройки, которые требуют технологию
+// Культовая постройка (ТЗ «Доработки», п.2): общая — одна на всю карту, уникальная — одна у своего государства.
+// Провинция, где она уже есть или строится (кроме exceptProvince); 0 — нигде.
+Id cultBuiltIn(const World& w, Id building, Id exceptProvince = 0);
+// Рецепт постройки преобразования (до трёх разных ресурсов на входе, срок цикла ≥ 1 хода).
+void setRecipe(Tx& tx, Id building, const Recipe& r);
+// Дополнительные возможности постройки: преобразование, генерация эссенции, доступ к особым отрядам. Выключение
+// снимает их данные (рецепт и циклы в провинциях, эссенции уровней, список особых отрядов).
+enum class BuildingRole : u8 { Convert, Essence, Special };
+void setBuildingRole(Tx& tx, Id building, BuildingRole role, bool on);
+void setLevelEssence(Tx& tx, Id building, int level, Id essence, double perTurn);   // 0 — убрать
+void setBuildingSpecial(Tx& tx, Id building, Id special, bool on);
 // Слоты: провинции, где после изменения мира построек больше слотов, — и какие постройки будут снесены (с конца
 // списка). ТЗ «Фиксы», п.10: предупреждение до действия.
 struct SlotLoss { Id province = 0; int slots = 0, used = 0; std::vector<Id> buildings; };
@@ -440,14 +567,19 @@ std::vector<SlotLoss> excessBuildings(const World& w);   // все провин�
 void trimExcessBuildings(Tx& tx, const std::vector<SlotLoss>* only = nullptr);
 
 // ================================================================ технологии
+// Общее дерево технологий (Tech::faction == 0, ТЗ «Доработки», п.6–7) изучает каждая фракция отдельно
+// (Faction::techs); faction — изучающая фракция (для технологии своего дерева — 0 или её фракция).
 struct ResearchCheck { bool ok = false; std::vector<Id> missing; };
-ResearchCheck canResearch(const World& w, Id tech);
-void setStudied(Tx& tx, Id tech, bool studied);
-void startResearch(Tx& tx, Id tech);
-void stopResearch(Tx& tx, Id tech);
+TechProgress techState(const World& w, Id tech, Id faction = 0);
+bool techStudied(const World& w, Id tech, Id faction = 0);
+ResearchCheck canResearch(const World& w, Id tech, Id faction = 0);
+void setStudied(Tx& tx, Id tech, bool studied, Id faction = 0);
+void startResearch(Tx& tx, Id tech, Id faction = 0);
+void stopResearch(Tx& tx, Id tech, Id faction = 0);
 bool wouldCycle(const World& w, Id tech, Id prereq);
+// Связь: технологии одного дерева; уникальная может зависеть от общей, общая от уникальной — нет.
 void setPrereq(Tx& tx, Id tech, Id prereq, bool on);  // с проверкой цикла
-void autoLayout(Tx& tx, Id faction);                  // расстановка дерева по слоям
+void autoLayout(Tx& tx, Id faction);                  // расстановка дерева по слоям (0 — общее дерево)
 constexpr double kTreeColStep = 280, kTreeRowStep = 120;  // шаг столбцов (слоёв) и строк autoLayout
 
 // ================================================================ гильдии и маршруты
@@ -464,7 +596,13 @@ void removeRoute(Tx& tx, Id route);
 struct LogRefs { Id province = 0, army = 0; std::vector<Id> factions; };
 Id addLog(Tx& tx, LogKind kind, const std::string& text, const LogRefs& refs = {});
 
-struct TurnFactionLine { Id faction = 0; double treasuryBefore = 0, treasuryAfter = 0, income = 0, expenses = 0; std::map<Id, double> resources; };
+struct TurnFactionLine {
+  Id faction = 0;
+  double treasuryBefore = 0, treasuryAfter = 0, income = 0, expenses = 0;
+  std::map<Id, double> resources;     // изменение запасов ресурсов (кроме золота)
+  std::map<Id, double> essences;      // изменение запасов эссенций элементов
+  double provisionDebt = 0;           // недостача провизии после хода (голод, если больше нуля)
+};
 // События хода, которые требуют решения после него: восстание провинции (армия мятежников — битва с войском,
 // гарнизоном или захват) и мятеж войска с верностью −100 % (верные герои — «Судьба героя»).
 struct TurnEvent {

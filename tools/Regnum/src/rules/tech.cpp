@@ -1,4 +1,5 @@
-// Regnum — технологии: изучение, исследование, зависимости без циклов, раскладка дерева (ТЗ 1.b.v).
+// Regnum — технологии: изучение, исследование, зависимости без циклов, раскладка дерева (ТЗ 1.b.v). Общее дерево
+// (Tech::faction == 0, ТЗ «Доработки», п.6–7) каждая фракция изучает отдельно — Faction::techs.
 #include <unordered_set>
 
 #include "rules/internal.h"
@@ -17,34 +18,86 @@ std::string techList(const World& w, const std::vector<Id>& ids) {
 
 }  // namespace
 
-ResearchCheck canResearch(const World& w, Id tech) {
+TechProgress techState(const World& w, Id tech, Id faction) {
+  const Tech* t = w.tech(tech);
+  if (!t) return {};
+  if (t->faction) return TechProgress{t->studied, t->research, t->progress};
+  const Faction* f = w.faction(faction);
+  if (!f) return {};
+  auto it = f->techs.find(tech);
+  return it == f->techs.end() ? TechProgress{} : it->second;
+}
+
+bool techStudied(const World& w, Id tech, Id faction) { return techState(w, tech, faction).studied; }
+
+namespace {
+// Изучающая фракция: технология своего дерева — его фракция; общая — faction (обязательна).
+Id learner(const World& w, const Tech& t, Id faction) {
+  if (t.faction) return t.faction;
+  if (!faction) fail("Общую технологию изучает каждое государство отдельно — выберите государство");
+  needFaction(w, faction);
+  return faction;
+}
+TechProgress& commonState(Tx& tx, Id faction, Id tech) { return tx.faction(faction).techs[tech]; }
+void dropEmpty(Tx& tx, Id faction, Id tech) {
+  auto& m = tx.faction(faction).techs;
+  auto it = m.find(tech);
+  if (it != m.end() && it->second == TechProgress{}) m.erase(it);
+}
+}  // namespace
+
+ResearchCheck canResearch(const World& w, Id tech, Id faction) {
   ResearchCheck r;
   const Tech* t = w.tech(tech);
   if (!t) return r;
+  const Id who = t->faction ? t->faction : faction;
+  if (!who) return r;
   for (Id p : t->prereqs) {
     const Tech* pt = w.tech(p);
-    if (pt && !pt->studied && !contains(r.missing, p)) r.missing.push_back(p);
+    if (pt && !techStudied(w, p, who) && !contains(r.missing, p)) r.missing.push_back(p);
   }
-  r.ok = !t->studied && r.missing.empty();
+  r.ok = !techStudied(w, tech, who) && r.missing.empty();
   return r;
 }
 
-void setStudied(Tx& tx, Id tech, bool studied) {
+void setStudied(Tx& tx, Id tech, bool studied, Id faction) {
   const Tech& t = needTech(tx.w(), tech);
+  if (t.common()) {
+    const Id who = learner(tx.w(), t, faction);
+    const TechProgress cur = techState(tx.w(), tech, who);
+    if (studied) {
+      if (cur.studied) return;
+      ResearchCheck c = canResearch(tx.w(), tech, who);
+      if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
+      TechProgress& m = commonState(tx, who, tech);
+      m.studied = true;
+      m.research = false;
+      m.progress = std::max(1, t.turns);
+      addLog(tx, LogKind::Tech, facName(tx.w(), who) + ": изучена общая технология " + techName(tx.w(), tech), LogRefs{0, 0, {who}});
+      return;
+    }
+    if (!cur.studied) return;
+    std::vector<Id> deps = idsWhere(tx.w().techs, [&](const Tech& x) { return contains(x.prereqs, tech) && techStudied(tx.w(), x.id, who); });
+    if (!deps.empty()) fail("От неё зависят изученные технологии: " + techList(tx.w(), deps));
+    TechProgress& m = commonState(tx, who, tech);
+    m = TechProgress{};
+    dropEmpty(tx, who, tech);
+    return;
+  }
   if (studied) {
     if (t.studied) return;
     ResearchCheck c = canResearch(tx.w(), tech);
     if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
-    Id faction = t.faction;
+    const Id owner = t.faction;
     Tech& m = tx.tech(tech);
     m.studied = true;
     m.research = false;
     m.progress = m.turns;
-    addLog(tx, LogKind::Tech, facName(tx.w(), faction) + ": изучена технология " + techName(tx.w(), tech), LogRefs{0, 0, {faction}});
+    addLog(tx, LogKind::Tech, facName(tx.w(), owner) + ": изучена технология " + techName(tx.w(), tech), LogRefs{0, 0, {owner}});
     return;
   }
   if (!t.studied) return;
-  std::vector<Id> deps = idsWhere(tx.w().techs, [&](const Tech& x) { return x.studied && contains(x.prereqs, tech); });
+  std::vector<Id> deps = idsWhere(tx.w().techs, [&](const Tech& x) { return x.faction && x.studied && contains(x.prereqs, tech); });
   if (!deps.empty()) fail("От неё зависят изученные технологии: " + techList(tx.w(), deps));
   Tech& m = tx.tech(tech);
   m.studied = false;
@@ -52,21 +105,41 @@ void setStudied(Tx& tx, Id tech, bool studied) {
   m.progress = 0;
 }
 
-void startResearch(Tx& tx, Id tech) {
+void startResearch(Tx& tx, Id tech, Id faction) {
   const Tech& t = needTech(tx.w(), tech);
+  if (t.common()) {
+    const Id who = learner(tx.w(), t, faction);
+    const TechProgress cur = techState(tx.w(), tech, who);
+    if (cur.studied) fail("Технология уже изучена");
+    if (cur.research) fail("Технология уже исследуется");
+    ResearchCheck c = canResearch(tx.w(), tech, who);
+    if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
+    int left = std::max(1, researchTurns(tx.w(), t, who) - std::max(0, cur.progress));
+    commonState(tx, who, tech).research = true;
+    addLog(tx, LogKind::Tech, facName(tx.w(), who) + ": начато исследование общей технологии " + techName(tx.w(), tech) + ", осталось " + nTurns(left),
+           LogRefs{0, 0, {who}});
+    return;
+  }
   if (t.studied) fail("Технология уже изучена");
   if (t.research) fail("Технология уже исследуется");
   ResearchCheck c = canResearch(tx.w(), tech);
   if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
-  Id faction = t.faction;
+  const Id owner = t.faction;
   int left = std::max(1, researchTurns(tx.w(), t) - std::max(0, t.progress));
   tx.tech(tech).research = true;
-  addLog(tx, LogKind::Tech, facName(tx.w(), faction) + ": начато исследование " + techName(tx.w(), tech) + ", осталось " + nTurns(left),
-         LogRefs{0, 0, {faction}});
+  addLog(tx, LogKind::Tech, facName(tx.w(), owner) + ": начато исследование " + techName(tx.w(), tech) + ", осталось " + nTurns(left),
+         LogRefs{0, 0, {owner}});
 }
 
-void stopResearch(Tx& tx, Id tech) {
+void stopResearch(Tx& tx, Id tech, Id faction) {
   const Tech& t = needTech(tx.w(), tech);
+  if (t.common()) {
+    const Id who = learner(tx.w(), t, faction);
+    if (!techState(tx.w(), tech, who).research) return;
+    commonState(tx, who, tech).research = false;   // пройденные ходы сохраняются
+    dropEmpty(tx, who, tech);
+    return;
+  }
   if (!t.research) return;
   tx.tech(tech).research = false;  // пройденные ходы сохраняются
 }
@@ -94,13 +167,25 @@ void setPrereq(Tx& tx, Id tech, Id prereq, bool on) {
   const Tech& p = needTech(tx.w(), prereq);
   if (on) {
     if (tech == prereq) fail("Технология не может зависеть от самой себя");
-    if (t.faction != p.faction) fail("Связывать можно только технологии одного дерева");
+    // ТЗ «Доработки», п.7: уникальная технология может зависеть от общей, общая от уникальной — нет.
+    if (t.faction != p.faction) {
+      if (t.faction == 0) fail("Общая технология не может зависеть от уникальной технологии государства");
+      if (p.faction != 0) fail("Связывать можно технологии одного дерева или уникальную технологию с общей");
+    }
     if (contains(t.prereqs, prereq)) return;
     if (wouldCycle(tx.w(), tech, prereq)) fail("Связь создаст цикл зависимостей");
-    // ТЗ 1.b.v: изученная технология не может зависеть от неизученной.
-    if (t.studied && !p.studied)
-      fail("Изученная технология " + techName(tx.w(), tech) + " не может зависеть от неизученной " + techName(tx.w(), prereq) +
-           ": сначала изучите её или снимите изученность");
+    // ТЗ 1.b.v: изученная технология не может зависеть от неизученной (общая — у каждой фракции, изучившей её).
+    if (t.faction) {
+      if (t.studied && !techStudied(tx.w(), prereq, t.faction))
+        fail("Изученная технология " + techName(tx.w(), tech) + " не может зависеть от неизученной " + techName(tx.w(), prereq) +
+             ": сначала изучите её или снимите изученность");
+    } else {
+      tx.w().factions.each([&](const Faction& f) {
+        if (techStudied(tx.w(), tech, f.id) && !techStudied(tx.w(), prereq, f.id))
+          fail(facName(tx.w(), f.id) + " изучило " + techName(tx.w(), tech) + ", но не " + techName(tx.w(), prereq) +
+               ": изученная технология не может зависеть от неизученной");
+      });
+    }
     tx.tech(tech).prereqs.push_back(prereq);
   } else if (contains(t.prereqs, prereq)) {
     eraseValue(tx.tech(tech).prereqs, prereq);
@@ -110,7 +195,7 @@ void setPrereq(Tx& tx, Id tech, Id prereq, bool on) {
 // Раскладка: слои по длиннейшему пути от корней, длинные связи — через фиктивные узлы,
 // порядок в слоях — барицентрические проходы вниз/вверх с выбором раскладки с наименьшим числом пересечений.
 void autoLayout(Tx& tx, Id faction) {
-  needFaction(tx.w(), faction);
+  if (faction) needFaction(tx.w(), faction);   // 0 — общее дерево
   std::vector<const Tech*> ts;
   tx.w().techs.each([&](const Tech& t) { if (t.faction == faction) ts.push_back(&t); });
   if (ts.empty()) return;

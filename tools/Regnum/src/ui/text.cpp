@@ -554,7 +554,10 @@ bool textField(std::string_view name, std::string& value, const TextOpt& o) {
   c.last.changed = changed;
   c.last.active = focused;
   c.last.focused = focused;
-  if (!o.tooltip.empty()) tooltip(o.tooltip);
+  // Текст без фокуса не поместился (многоточие) — подсказка с полным текстом (и у недоступного поля); своя подсказка
+  // поля — под ним.
+  if (!focused && !value.empty() && textCut(value, p.textRect.w, st)) fullTextTip(wid, r, fullTextWith(value, o.tooltip));
+  else if (!o.tooltip.empty()) tooltip(o.tooltip);
   return changed;
 }
 

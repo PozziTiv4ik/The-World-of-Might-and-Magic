@@ -77,6 +77,7 @@ bool catalogField(App& a, std::string_view id, rules::CatalogList list, Id value
     case rules::CatalogList::Religions: defIcon = "religion"; break;
     case rules::CatalogList::Governments: defIcon = "crown"; break;
     case rules::CatalogList::Positions: defIcon = "council"; break;
+    case rules::CatalogList::Essences: defIcon = "essence"; break;
   }
   const bool colored = list != rules::CatalogList::Governments && list != rules::CatalogList::Positions;
   std::vector<std::string> labels;
@@ -303,40 +304,8 @@ std::string factionSubtitle(const World& w, const Faction& f) {
 }
 
 // ---------------------------------------------------------------- портреты
-const gfx::Image* portraitOf(const Character& c) {
-  if (c.portrait.empty()) return nullptr;
-  struct Entry {
-    std::shared_ptr<gfx::Image> img;
-    u64 frame = 0;
-  };
-  static std::unordered_map<u64, Entry> cache;
-  u64 key = hash64(c.portrait);
-  auto it = cache.find(key);
-  if (it == cache.end()) {
-    if (cache.size() > 160) {
-      // Убрать давно не нужные (изображения прошлого кадра ещё могут рисоваться — оставляем их).
-      for (auto i = cache.begin(); i != cache.end();) {
-        if (i->second.frame + 2 < ui::frameIndex()) i = cache.erase(i);
-        else ++i;
-      }
-    }
-    Entry e;
-    auto rgba = codec::decodePng(c.portrait);
-    if (!rgba) rgba = codec::decodeJpeg(c.portrait);
-    if (rgba && !rgba->empty()) {
-      gfx::Image img = gfx::Image::fromRgba(rgba->rgba.data(), rgba->w, rgba->h);
-      // Квадрат по центру и уменьшение до 96 точек.
-      int side = std::min(img.w, img.h);
-      gfx::Image sq(side, side);
-      int ox = (img.w - side) / 2, oy = (img.h - side) / 2;
-      for (int y = 0; y < side; y++) std::memcpy(sq.row(y), img.row(y + oy) + ox, size_t(side) * sizeof(u32));
-      e.img = std::make_shared<gfx::Image>(side > 96 ? sq.scaled(96, 96) : std::move(sq));
-    }
-    it = cache.emplace(key, std::move(e)).first;
-  }
-  it->second.frame = ui::frameIndex();
-  return it->second.img ? it->second.img.get() : nullptr;
-}
+// Портрет для круга — общий для всех мест (w::faceImage): квадрат, смещённый к верху, чтобы в круге было лицо.
+const gfx::Image* portraitOf(const Character& c) { return w::faceImage(c); }
 
 Id armyOfCharacter(const World& w, Id character) {
   Id found = 0;

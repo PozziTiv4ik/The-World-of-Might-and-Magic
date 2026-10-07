@@ -100,11 +100,12 @@ std::string checkInvariants(const World& w) {
   });
   w.techs.each([&](const Tech& t) {
     upd(Seq::Tech, t.id);
-    if (!w.faction(t.faction)) bad("технология без фракции");
+    if (t.faction && !w.faction(t.faction)) bad("технология без фракции");   // 0 — общее дерево
     // Пройдено ходов исследования — до 1000: с модификатором времени исследования срок может быть больше turns.
     if (t.turns < 1 || t.progress < 0 || t.progress > 1000 || (t.studied && t.research)) bad("технология: ходы");
     if (!uniq(t.prereqs)) bad("повтор условия");
-    for (Id p : t.prereqs) if (!w.tech(p) || w.tech(p)->faction != t.faction || p == t.id) bad("условие технологии");
+    for (Id p : t.prereqs)
+      if (!w.tech(p) || (w.tech(p)->faction != t.faction && !(t.faction && w.tech(p)->faction == 0)) || p == t.id) bad("условие технологии");
   });
   w.provinces.each([&](const Province& p) {
     upd(Seq::Province, p.id);
@@ -207,7 +208,7 @@ TEST(io_normalize_hand_edited) {
   f3["homeState"] = "f1";
   json::Value& f1 = byId(fac, "factions", "f1");
   f1["modifiers"] = parse("[\"m1\", \"m1\", \"m77\"]");
-  f1["res"]["rs99"] = 10;
+  f1["res"]["rs9999"] = 10;
   f1["capital"] = 3;  // ссылка числом — допустима
   writeJson(dir, "data/factions.json", fac);
 
@@ -312,7 +313,7 @@ TEST(io_normalize_hand_edited) {
   CHECK_EQ(nf3->homeState, Id(0));
   CHECK(hasWarning(ws, "data/factions.json", "f3.army[1].type", "dragons"));
   CHECK((w.faction(1)->modifiers == std::vector<Id>{1}));
-  CHECK(!w.faction(1)->res.count(99));
+  CHECK(!w.faction(1)->res.count(9999));
   CHECK_EQ(w.faction(1)->capital, Id(3));
   // Персонажи.
   CHECK_EQ(w.character(1)->faction, Id(0));

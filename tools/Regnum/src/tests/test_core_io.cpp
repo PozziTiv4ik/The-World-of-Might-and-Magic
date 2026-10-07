@@ -121,7 +121,7 @@ TEST(io_file_format) {
 
   std::string cat = read(fs::join(dir, "data/catalogs.json"));
   CHECK(cat.find("\"color\": \"#0a141e80\"") != std::string::npos);  // цвет с прозрачностью
-  CHECK(cat.find("\"id\": \"rs7\"") != std::string::npos);
+  CHECK(cat.find("\"id\": \"rs900\"") != std::string::npos);
 }
 
 TEST(io_coordinates_rounded) {

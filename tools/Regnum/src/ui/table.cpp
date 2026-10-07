@@ -98,6 +98,7 @@ static void tableBegin(Table::Impl& d, std::string_view name, std::span<const Co
   }
   // Сортировка по щелчку на шапке
   if (d.headerH > 0) {
+    const auto hst = styleWith(Font::Small, gfx::FontWeight::Semibold);
     for (size_t i = 0; i < d.cols.size(); i++) {
       const Column& col = d.cols[i];
       RectF hr{d.colX[i], d.headerY, d.colW[i], d.headerH};
@@ -116,9 +117,15 @@ static void tableBegin(Table::Impl& d, std::string_view name, std::span<const Co
         c.sticky[d.id ^ 0x5047ull] = d.sortCol < 0 ? 0.f : float(d.desc ? -(d.sortCol + 1) : d.sortCol + 1);
       }
       if (col.sortable && hi.hovered) c.cursor = platform::Cursor::Hand;
-      if (hi.hovered && !col.tooltip.empty()) {
-        setLast(hid, hr, hi);
-        tooltip(col.tooltip);
+      if (hi.hovered) {
+        // Заголовок не поместился (ширина — как при отрисовке шапки) — подсказка с полным заголовком.
+        const std::string_view title = displayText(col.title);
+        const float room = d.colW[i] - 20 - (col.icon ? 16 + (title.empty() ? 0 : 5) : 0) - (col.sortable ? 14 : 0);
+        const bool cut = textCut(title, std::max(0.f, room), hst);
+        if (cut || !col.tooltip.empty()) {
+          setLast(hid, hr, hi);
+          tooltip(cut ? fullTextWith(title, col.tooltip) : std::string(col.tooltip));
+        }
       }
       animate(hid ^ 1, hi.hovered ? 1.f : 0.f);
     }
@@ -273,7 +280,11 @@ void Table::text(std::string_view s, Ink ink, Font f) {
   if (cr.empty()) return;
   Impl& d = *d_;
   Font ff = d.footerOpen && f == Font::Body ? Font::Strong : f;
-  textIn(displayText(s), cr, styleOf(ff), inkColor(ink), d.cols[size_t(d.col)].align);
+  const std::string_view shown = displayText(s);
+  const gfx::TextStyle& st = styleOf(ff);
+  textIn(shown, cr, st, inkColor(ink), d.cols[size_t(d.col)].align);
+  // Текст ячейки обрезан многоточием — подсказка с полным текстом (щелчок по строке её по-прежнему выделяет).
+  if (textCut(shown, cr.w, st)) fullTextTip(id(i64(0x7e470000) + d.col), cr, shown);
 }
 
 bool Table::footer() {

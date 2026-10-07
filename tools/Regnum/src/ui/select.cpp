@@ -20,7 +20,8 @@ struct ComboState {
 
 constexpr float kRowH = 30;
 
-void drawOptionRow(RectF row, const Option& op, bool highlighted, bool selected, bool none) {
+// Пункт списка; true — подпись или подсказка справа обрезаны многоточием (tip — полный текст для подсказки).
+bool drawOptionRow(RectF row, const Option& op, bool highlighted, bool selected, bool none, std::string& tip) {
   const Theme& t = C().th;
   if (highlighted) cmdRect(row, t.dark ? t.surface3.lighten(0.04f) : t.surface3, 6);
   float x = row.x + 10;
@@ -34,14 +35,23 @@ void drawOptionRow(RectF row, const Option& op, bool highlighted, bool selected,
     x += 24;
   }
   float right = row.right() - 10 - (selected ? 22 : 0);
+  bool hintCut = false;
   if (!op.hint.empty()) {
     const auto& hs = styleOf(Font::Small);
     float hw = std::min(textWidth(op.hint, hs), (right - x) * 0.45f);
     textIn(op.hint, RectF{right - hw, row.y, hw, row.h}, hs, t.textMuted, Align::Right);
+    hintCut = textCut(op.hint, hw, hs);
     right -= hw + 10;
   }
-  textIn(displayText(op.label), RectF{x, row.y, right - x, row.h}, selected ? styleWith(Font::Body, gfx::FontWeight::Semibold) : styleOf(Font::Body), fg);
+  const std::string_view label = displayText(op.label);
+  const gfx::TextStyle st = selected ? styleWith(Font::Body, gfx::FontWeight::Semibold) : styleOf(Font::Body);
+  textIn(label, RectF{x, row.y, right - x, row.h}, st, fg);
   if (selected) cmdIcon("check", RectF{row.right() - 28, row.cy() - 8, 16, 16}, t.accent);
+  const bool labelCut = textCut(label, right - x, st);
+  if (!labelCut && !hintCut) return false;
+  tip.assign(label.data(), label.size());
+  if (hintCut) tip += "\n" + std::string(op.hint);
+  return true;
 }
 
 }  // namespace
@@ -113,12 +123,17 @@ static bool comboImpl(std::string_view name, int& index, int count, const std::f
   }
   float chevX = r.right() - 26;
   std::string_view shown = cur >= 0 ? displayText(sel.label) : (index < 0 && hasNone ? o.noneLabel : o.placeholder);
-  textIn(shown, RectF{x, r.y, chevX - x - 4, r.h}, styleOf(Font::Body), cur >= 0 ? t.text : t.textMuted);
+  const RectF shownR{x, r.y, chevX - x - 4, r.h};
+  textIn(shown, shownR, styleOf(Font::Body), cur >= 0 ? t.text : t.textMuted);
   float rot = animate(wid ^ 0xc0b1ull, open ? 180.f : 0.f, 0.16f);
   drawChevron(RectF{chevX + 2, r.cy() - 7, 14, 14}, open ? t.accent : t.textMuted, rot);
   setLast(wid, r, it);
   focusRing(r, t.radiusField);
-  if (!o.tooltip.empty() && !open) tooltip(o.tooltip);
+  // Подпись выбранного пункта не поместилась — подсказка с полной подписью (своя подсказка поля — под ней).
+  if (!open) {
+    if (textCut(shown, shownR.w, styleOf(Font::Body))) fullTextTip(wid, r, fullTextWith(shown, o.tooltip));
+    else if (!o.tooltip.empty()) tooltip(o.tooltip);
+  }
   Item fieldItem = c.last;
   bool changed = false;
   if (!open) return false;
@@ -196,16 +211,19 @@ static bool comboImpl(std::string_view name, int& index, int count, const std::f
     textIn("Ничего не найдено", er, styleOf(Font::Body), t.textMuted, Align::Center);
   } else {
     VirtualList vl("##list", rows, kRowH, kRowH * float(visible));
+    std::string tip;
     for (int k : vl) {
       RectF row = next(kRowH);
       int idx = rowIndex(k);
       Option op = idx >= 0 ? get(idx) : Option{o.noneLabel, nullptr, {}, {}, false};
-      Interaction ri = interact(id(i64(k)), row);
+      const WidgetId rid = id(i64(k));
+      Interaction ri = interact(rid, row);
       if (ri.hovered && c.mouseMoved) {
         cs.highlight = k;
       }
       if (ri.clicked && !op.disabled) pick = idx;
-      drawOptionRow(row, op, k == cs.highlight, idx == index, idx < 0);
+      // Подпись пункта обрезана многоточием — подсказка с полной подписью.
+      if (drawOptionRow(row, op, k == cs.highlight, idx == index, idx < 0, tip)) fullTextTip(rid, row, tip);
     }
     if (cs.scrollToHighlight && cs.highlight >= 0) {
       vl.scrollToRow(cs.highlight);
@@ -359,7 +377,9 @@ bool multiSelect(std::string_view name, std::vector<int>& selected, std::span<co
             cmdIcon(op.icon, RectF{tx, row.cy() - 8, 16, 16}, t.textDim);
             tx += 24;
           }
-          textIn(displayText(op.label), RectF{tx, row.y, row.right() - tx - 8, row.h}, styleOf(Font::Body), op.disabled ? t.textMuted : t.text);
+          const RectF lr{tx, row.y, row.right() - tx - 8, row.h};
+          textIn(displayText(op.label), lr, styleOf(Font::Body), op.disabled ? t.textMuted : t.text);
+          if (textCut(displayText(op.label), lr.w, styleOf(Font::Body))) fullTextTip(id(i64(i)), row, displayText(op.label));
           if (ri.clicked && !op.disabled) {
             if (on) selected.erase(std::find(selected.begin(), selected.end(), i));
             else selected.push_back(i);

@@ -1,6 +1,8 @@
 // Regnum — реализация модели мира, транзакций и хранилища.
 #include "core/world.h"
 
+#include "core/content.h"
+
 namespace rg {
 
 // ---------------------------------------------------------------- World
@@ -47,24 +49,17 @@ World newWorld(const std::string& name) {
   auto item = [](Id id, const char* n, u32 color, const char* icon, bool builtin = false, const char* key = "") {
     CatalogItem c; c.id = id; c.name = n; c.color = Color::hex(color); c.icon = icon; c.builtin = builtin; c.key = key; return c;
   };
-  cat->resources = {
-    item(kGold, "Золото", 0xe2b33c, "coins", true),
-    item(2, "Провизия", 0xd9c36b, "grain", false, "provisions"),
-    item(3, "Древесина", 0x8a6a43, "wood"),
-    item(4, "Камень", 0x9aa0a8, "stone"),
-    item(5, "Железо", 0x6d7c8f, "iron"),
-    item(6, "Лошади", 0xa0714f, "horse"),
-  };
-  meta->seq[int(Seq::Resource)] = 6;
+  cat->resources = {item(kGold, "Золото", 0xe2b33c, "coins", true)};
+  meta->seq[int(Seq::Resource)] = 1;
   const char* govs[] = {"Монархия", "Империя", "Республика", "Теократия", "Олигархия", "Племенной союз"};
   for (int i = 0; i < 6; i++) cat->governments.push_back(item(Id(i + 1), govs[i], 0x888888, ""));
   meta->seq[int(Seq::Government)] = 6;
-  const char* pos[] = {"Канцлер", "Казначей", "Маршал", "Адмирал", "Тайный советник", "Придворный маг"};
-  for (int i = 0; i < 6; i++) cat->positions.push_back(item(Id(i + 1), pos[i], 0x888888, ""));
-  meta->seq[int(Seq::Position)] = 6;
   w.meta = meta;
   w.catalogs = cat;
-  return w;
+  // Базовые записи: должности, эссенции, группы ресурсов, религии, особый отряд и его постройка.
+  Tx tx(w);
+  content::seed(tx);
+  return std::move(tx).finish();
 }
 
 // ---------------------------------------------------------------- Tx

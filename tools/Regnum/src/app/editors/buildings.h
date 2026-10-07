@@ -9,6 +9,9 @@ namespace rg::app {
 void openBuildingTree(App& a, Id owner, Id building = 0);
 // Окно выбора строительства в провинции (ТЗ 1.f.ii); также по имени: app.openDialog("build.picker", province).
 std::unique_ptr<Dialog> buildPickerDialog(Id province);
+// Окно выбора модификаторов уровня постройки (level — с 1); также по имени: app.openDialog("bt.mods", building),
+// тогда — первый уровень.
+std::unique_ptr<Dialog> levelModsDialog(Id building, int level);
 
 namespace bld {
 
@@ -29,6 +32,29 @@ void levelEffects(const World& w, const BuildingLevel& L, bool compact = false);
 std::string costText(const World& w, const std::map<Id, double>& cost);   // «150 золота, 40 железа» (подсказки)
 // Плитка значка постройки цвета категории (в потоке, сторона size).
 void iconTile(const Building& b, float size, bool dim = false);
+
+// Значок и подпись (ресурс и количество, срок) — элемент строки с переносом по ширине области.
+struct Token {
+  std::string icon;
+  Color color;
+  std::string text;
+  ui::Ink ink = ui::Ink::Normal;
+  std::string tip;
+  ui::Font font = ui::Font::Strong;
+};
+void tokens(const std::vector<Token>& list, float gap = 10);
+// Постройка преобразования (ТЗ «Доработки», п.3): входы → выход, срок цикла. payer — нехватка входов красным.
+std::vector<Token> recipeTokens(const World& w, const Recipe& r, const Faction* payer = nullptr);
+std::string recipeText(const World& w, const Recipe& r);   // «Железо 10 + Уголь 5 → Сталь 3 · 2 хода»
+bool recipeValid(const World& w, const Recipe& r);          // есть вход с количеством и ресурс на выходе
+// Постройка генерации эссенции: эссенции уровня за ход («+5» значком цвета эссенции).
+std::vector<Token> essenceTokens(const World& w, const std::map<Id, double>& essence);
+std::string essenceText(const World& w, const std::map<Id, double>& essence);   // «+5 эссенция пламени»
+// Культовая постройка (ТЗ «Доработки», п.2): «Одна на всю карту» (общая) или «Одна на государство» (уникальная);
+// nullptr — не культовая.
+const char* cultRule(const Building& b);
+// Особые отряды постройки доступа: названия через запятую.
+std::string specialsText(const World& w, const std::vector<Id>& specials);
 
 }  // namespace bld
 }  // namespace rg::app

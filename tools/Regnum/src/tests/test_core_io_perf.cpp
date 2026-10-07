@@ -19,6 +19,7 @@ World bigWorld(size_t* points) {
   Rng rng(42);
   auto q = [](double v) { return std::round(v * 4) / 4; };
 
+  tx.catalogs().religions.clear();   // базовые религии нового мира заменяются своими
   for (int i = 0; i < 6; i++) {
     CatalogItem r;
     r.id = Id(i + 1);

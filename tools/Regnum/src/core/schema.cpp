@@ -10,12 +10,14 @@ const EnumInfo kUnitTypes[int(UnitType::Count)] = {
   {"light_cav", "Лёгкая кавалерия", "u-light-cav"},
   {"medium_cav", "Средняя кавалерия", "u-medium-cav"},
   {"heavy_cav", "Тяжёлая кавалерия", "u-heavy-cav"},
+  {"air_cav", "Воздушная кавалерия", "u-air-cav"},
   {"flying", "Летающие отряды", "u-flying"},
   {"casters", "Колдующие отряды", "u-casters"},
   {"ranged", "Стрелки", "u-ranged"},
   {"beasts", "Звери", "u-beasts"},
   {"monsters", "Чудовища", "u-monsters"},
   {"machines", "Военные механизмы", "u-machines"},
+  {"elementals", "Элементали", "u-elementals"},
 };
 
 const EnumInfo kShipTypes[int(ShipType::Count)] = {
@@ -49,6 +51,8 @@ const EnumInfo kBuildingCats[int(BuildingCat::Count)] = {
   {"economic", "Экономические", "b-economic", 0, 0xd6a531},
   {"industrial", "Промышленные", "b-industrial", 0, 0x7f8a99},
   {"residential", "Жилые", "b-residential", 0, 0x4f9d69},
+  {"religious", "Религиозные", "b-religious", 0, 0x5b8fd6},
+  {"cult", "Культовые", "b-cult", 0, 0x9b5bd6},
 };
 
 const EnumInfo kFactionKinds[2] = {
@@ -144,10 +148,56 @@ const EnumInfo kConstTypes[int(ConstType::Count)] = {
 
 const BuiltinResource kBuiltinResources[4] = {
   {kResGold, "Золото", 0xe2b33c, "coins", nullptr},
-  {kResProvisions, "Провизия", 0xd9c36b, "grain", "Зерно"},
   {kResCorpses, "Трупы", 0x8e8a7e, "skull", nullptr},
   {kResEnergy, "Демоническая энергия", 0xc0392b, "flame", nullptr},
+  {kResMechParts, "Запчасти механизмов", 0x8d97a5, "hammer", grp::MatIndustrial},
 };
+
+const BuiltinResource* builtinResource(std::string_view key) {
+  for (const BuiltinResource& b : kBuiltinResources)
+    if (key == b.key) return &b;
+  return nullptr;
+}
+
+const EnumInfo kRarities[int(Rarity::Count)] = {
+  {"common", "Обычная", "relic", 0, 0xe9e6dc},
+  {"rare", "Редкая", "relic", 1, 0x3f8cff},
+  {"epic", "Эпическая", "relic", 2, 0xa45cff},
+  {"legendary", "Легендарная", "relic", 3, 0xff9b26},
+  {"epochal", "Эпохальная", "relic", 4, 0xff3d3d},
+};
+
+bool needsPeople(UnitType t) {
+  return t != UnitType::Beasts && t != UnitType::Monsters && t != UnitType::Machines && t != UnitType::Elementals;
+}
+bool isCavalry(UnitType t) { return t == UnitType::LightCav || t == UnitType::MediumCav || t == UnitType::HeavyCav; }
+bool isElemental(UnitType t) { return t == UnitType::Elementals; }
+
+KeyRule keyRule(UnitType t) {
+  KeyRule k;
+  if (isCavalry(t)) {
+    k.group = grp::MountsGround;
+  } else if (t == UnitType::AirCav) {
+    k.group = grp::MountsFlying;
+  } else if (t == UnitType::Beasts) {
+    k.group = grp::Beasts;
+    k.exclude = grp::Monsters;
+  } else if (t == UnitType::Monsters) {
+    k.group = grp::Monsters;
+  } else if (t == UnitType::Machines) {
+    k.resKey = kResMechParts;
+    k.fixedOne = false;
+  }
+  return k;
+}
+bool needsKeyResource(UnitType t) {
+  const KeyRule k = keyRule(t);
+  return k.group || k.resKey;
+}
+
+bool isRuleGroup(std::string_view key) {
+  return key == grp::Provisions || key == grp::Beasts || key == grp::MountsGround || key == grp::MountsFlying || key == grp::Monsters;
+}
 
 namespace {
 
@@ -325,6 +375,10 @@ const char* idPrefix(Seq s) {
     case Seq::Position: return "po";
     case Seq::Symbol: return "";
     case Seq::Shape: return "";
+    case Seq::Essence: return "es";
+    case Seq::Relic: return "re";
+    case Seq::Special: return "su";
+    case Seq::ResGroup: return "rg";
     default: return "x";
   }
 }

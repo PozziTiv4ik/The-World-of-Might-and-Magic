@@ -34,10 +34,19 @@ TEST(app_editors_modifiers_builtin) {
   // Все встроенные (ТЗ 1.1–1.26) — в списке, даже без записей мира.
   CHECK_EQ(schema::builtinModifiers().size(), size_t(26));
   for (const Modifier& m : schema::builtinModifiers()) CHECK_MSG(h->uiRect("modifiers.builtin." + m.key) != nullptr, m.key);
-  CHECK(h->uiRect("modifiers.builtins") != nullptr);
+  // Список сгруппирован по виду: для провинций, глобальные, для армий, для героев, везде (сверху вниз).
+  {
+    float y = -1;
+    for (const char* g : {"province", "faction", "army", "hero", "any"}) {
+      const RectF* r = h->uiRect(std::string("modifiers.group.") + g);
+      CHECK_MSG(r != nullptr, g);
+      if (r) CHECK_MSG(r->y > y, g);
+      if (r) y = r->y;
+    }
+  }
   // «Патриотизм» — шаблон: записи мира нет, удалить нельзя.
   CHECK_EQ(rules::builtinModId(h->world(), schema::mod::Patriotism), Id(0));
-  CHECK(clickRevealed(h, "modifiers.builtin.patriotism"));
+  CHECK(clickRevealed(h, "modifiers.builtin.patriotism", "modifiers.list"));
   CHECK(h->ui.editorArg >= kTemplateIds);
   CHECK(h->uiRect("modifiers.builtinTag") != nullptr);
   CHECK(h->uiRect("modifiers.autoTag") == nullptr);
@@ -70,14 +79,14 @@ TEST(app_editors_modifiers_builtin) {
     CHECK(selRow && patRow && std::fabs(selRow->y - patRow->y) < 1);
   }
   // Копия встроенного — свой модификатор без ключа.
-  CHECK(clickRevealed(h, "modifiers.builtin.ravaged"));
+  CHECK(clickRevealed(h, "modifiers.builtin.ravaged", "modifiers.list"));
   h.key(Key::D, ctrl());
   quick(h);
   const Modifier* copy = rec(h->world(), h->ui.editorArg);
   CHECK(copy && copy->key.empty() && copy->has(Fx::ResourcePct));
   CHECK(h->uiRect("modifiers.delete") != nullptr);
   // Автоматический «Слабый контроль»: помечен, действует у государств демо-мира (три советника), вручную не добавляется.
-  CHECK(clickRevealed(h, "modifiers.builtin.weakControl"));
+  CHECK(clickRevealed(h, "modifiers.builtin.weakControl", "modifiers.list"));
   CHECK(h->uiRect("modifiers.autoTag") != nullptr);
   CHECK(h->uiRect("modifiers.addFaction") == nullptr);
   CHECK(h->uiRect("modifiers.addProvince") == nullptr);
@@ -165,4 +174,84 @@ TEST(app_editors_modifiers_effects_kind_term) {
   CHECK(pickInCombo(h, "modifiers.addFaction", h->world().factionName(state)));
   const int after = rules::researchTurns(h->world(), *h->world().tech(tech));
   CHECK_MSG(after > before, std::to_string(before) + " → " + std::to_string(after));
+}
+
+// Список модификаторов сгруппирован по виду: группы сворачиваются (число — в заголовке), поиск их раскрывает, выбор
+// модификатора свёрнутой группы извне раскрывает её, ↑↓ идут по видимым строкам.
+TEST(app_editors_modifiers_groups) {
+  Harness h("editors_mods_groups");
+  h.demo();
+  h.dropToasts();
+  h->openEditor("modifiers", 0);
+  quick(h);
+  // Шаблон или запись мира встроенного модификатора — ID строки списка.
+  auto entryId = [&](const char* key) -> Id {
+    const auto& tpl = schema::builtinModifiers();
+    for (size_t i = 0; i < tpl.size(); i++)
+      if (tpl[i].key == key) {
+        const Id rid = rules::builtinModId(h->world(), key);
+        return rid ? rid : kTemplateIds + Id(i);
+      }
+    return 0;
+  };
+  // Группы раскрыты; «Живой» — в «Для героев», под её заголовком.
+  {
+    const RectF* g = h->uiRect("modifiers.group.hero");
+    const RectF* r = h->uiRect("modifiers.builtin.living");
+    CHECK(g && r && r->y > g->y);
+  }
+  // Свернуть «Для героев»: строк группы нет, заголовок остаётся.
+  CHECK(clickRevealed(h, "modifiers.group.hero", "modifiers.list"));
+  CHECK(h->uiRect("modifiers.builtin.living") == nullptr);
+  CHECK(h->uiRect("modifiers.builtin.dead") == nullptr);
+  CHECK(h->uiRect("modifiers.group.hero") != nullptr);
+  shotClean(h, "editors_mods_groups");
+  // Поиск раскрывает: «Живой» найден в свёрнутой группе.
+  h.key(Key::F, ctrl());
+  h.type("Живой");
+  quick(h);
+  CHECK(h->uiRect("modifiers.builtin.living") != nullptr);
+  CHECK(h->uiRect("modifiers.group.hero") != nullptr);
+  // Поиск выбрал «Живой»; поиск очищен — выбранный виден (его группа раскрыта).
+  CHECK_EQ(h->ui.editorArg, entryId(schema::mod::Living));
+  h.key(Key::A, ctrl());
+  h.key(Key::Backspace);
+  h.key(Key::Escape);
+  quick(h);
+  CHECK(h->uiRect("modifiers.builtin.living") != nullptr);
+  CHECK(h->uiRect("modifiers.selected") != nullptr);
+  // Снова свернуть: выбранный остаётся выбранным, но строки не видно.
+  CHECK(clickRevealed(h, "modifiers.group.hero", "modifiers.list"));
+  CHECK(h->uiRect("modifiers.builtin.living") == nullptr);
+  CHECK_EQ(h->ui.editorArg, entryId(schema::mod::Living));
+  // Выбор модификатора свёрнутой группы извне раскрывает её.
+  const Id dead = entryId(schema::mod::Dead);
+  CHECK(dead != 0);
+  h->openEditor("modifiers", dead);
+  quick(h);
+  CHECK(h->uiRect("modifiers.builtin.dead") != nullptr);
+  CHECK(h->uiRect("modifiers.selected") != nullptr);
+  // ↑↓ — по видимым строкам: «Глобальные» свёрнуты, после последнего «Для провинций» идёт первый «Для армий».
+  CHECK(clickRevealed(h, "modifiers.group.faction", "modifiers.list"));
+  const char* lastProv = nullptr;
+  const char* firstArmy = nullptr;
+  for (const Modifier& m : schema::builtinModifiers()) {
+    if (m.kind == ModKind::Province) lastProv = m.key.c_str();
+    if (m.kind == ModKind::Army && !firstArmy) firstArmy = m.key.c_str();
+  }
+  CHECK(lastProv && firstArmy);
+  bool ownArmy = false, ownProv = false;
+  h->world().modifiers.each([&](const Modifier& m) {
+    if (m.key.empty() && m.kind == ModKind::Army) ownArmy = true;
+    if (m.key.empty() && m.kind == ModKind::Province) ownProv = true;
+  });
+  CHECK(!ownArmy && !ownProv);   // в демо-мире свои модификаторы — «Везде»
+  if (lastProv && firstArmy) {
+    h->openEditor("modifiers", entryId(lastProv));
+    quick(h);
+    h.key(Key::Down);
+    CHECK_EQ(h->ui.editorArg, entryId(firstArmy));
+    h.key(Key::Up);
+    CHECK_EQ(h->ui.editorArg, entryId(lastProv));
+  }
 }

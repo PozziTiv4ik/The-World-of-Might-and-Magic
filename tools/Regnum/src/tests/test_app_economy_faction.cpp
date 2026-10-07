@@ -13,26 +13,30 @@ TEST(app_economy_faction_lines) {
   const Id st = biggestState(h->world());
   CHECK(st != 0);
   CHECK(h->world().faction(st)->stateKind == StateKind::Living);
-  // Голод: запас провизии меньше нуля.
+  // Голод: недостача провизии (ресурсов группы «Провизия» не хватило на расход населения).
+  const std::vector<Id> provs = rules::provisionResources(h->world());
+  CHECK(!provs.empty());
   CHECK(h->act("Провизия", [&](Tx& tx) {
-    Id prov = rules::ensureResource(tx, schema::kResProvisions);
-    tx.faction(st).res[prov] = -5;
+    for (Id r : provs) tx.faction(st).res.erase(r);
+    tx.faction(st).provisionDebt = 5;
   }));
-  const Id provisions = rules::resourceId(h->world(), schema::kResProvisions);
   auto c = rules::calc(h->world());
   const rules::FactionCalc* fc = c->faction(st);
   CHECK(fc->famine);
-  CHECK_NEAR(fc->resources.at(provisions).consumption, double(fc->population) * schema::kProvisionsPerPerson, 1e-9);
+  CHECK_NEAR(fc->provisionNeed, double(fc->population) * schema::kProvisionsPerPerson, 1e-9);
+  // Запасов нет: на расход и прошлую недостачу идёт только добыча провизии этого хода (провинции с «Зерном»).
+  double produced = 0;
+  for (Id r : provs)
+    if (auto it = fc->resources.find(r); it != fc->resources.end()) produced += std::max(0.0, it->second.production);
+  CHECK_NEAR(fc->provisionDebtNext, std::max(0.0, fc->provisionNeed + 5 - produced), 1e-9);
   openTab(h, st, "faction.economy");
   CHECK(h->uiRect("economy.famine") != nullptr);
   shotClean(h, "economy_faction_famine");
-  CHECK(ensureVisible(h, "economy.use." + std::to_string(provisions)));
-  shotClean(h, "economy_faction_resources");
   // Казна — до тысячных.
   CHECK(typeNumber(h, "economy.stock.1", "1234,567"));
   CHECK_NEAR(h->world().faction(st)->treasury(), 1234.567, 1e-9);
-  // Провизия снова не меньше нуля — голода нет.
-  CHECK(typeNumber(h, "economy.stock." + std::to_string(provisions), "10"));
+  // Недостача покрыта — голода нет.
+  CHECK(h->act("Провизия", [&](Tx& tx) { tx.faction(st).provisionDebt = 0; }));
   CHECK(!rules::calc(h->world())->faction(st)->famine);
   h.settle();
   CHECK(h->uiRect("economy.famine") == nullptr);

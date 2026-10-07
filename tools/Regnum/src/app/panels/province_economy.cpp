@@ -1,7 +1,8 @@
-// Regnum — вкладка «Экономика» инспектора провинции (ТЗ 1.a.vi, 1.d.ii, 1.d.iv–v): ресурс и добыча, ресурсы от
-// построек, базовая и текущая торговая ценность (маршруты: +10 % и +2,5 % за государство на пути), местный и общий
-// налог (не меньше 1 %), доход государству (налоги, рабы на работах, золото построек; пустошь нежити и осквернение
-// перекрывают доход с ценности), торговое влияние гильдий (сумма ≤ 100 %), штабы (≤ 5), доход гильдий.
+// Regnum — вкладка «Экономика» инспектора провинции (ТЗ 1.a.vi, 1.d.ii, 1.d.iv–v): ресурс и добыча, ресурсы и
+// эссенции элементов от построек, базовая и текущая торговая ценность (маршруты: +10 % и +2,5 % за государство на
+// пути), местный и общий налог (не меньше 1 %), доход государству (налоги, рабы на работах, золото построек; пустошь
+// нежити и осквернение перекрывают доход с ценности), торговое влияние гильдий (сумма ≤ 100 %), штабы (≤ 5), доход
+// гильдий.
 #include "app/widgets.h"
 #include "gfx/text.h"
 
@@ -94,14 +95,19 @@ void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, b
     if (p.resource) prov::breakdown("Добыча за ход", prov::productionLines(wd, p, pc));
     a.markUi("province.production");
   }
-  // Ресурсы от достроенных построек — владельцу каждый ход.
-  if (!pc.produce.empty()) {
+  // Ресурсы и эссенции элементов от достроенных построек — владельцу каждый ход.
+  if (!pc.produce.empty() || !pc.essence.empty()) {
     ui::label("Постройки дают за ход", {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "building"});
     std::vector<prov::ChipSpec> chips;
     for (auto& [r, v] : pc.produce) {
       const CatalogItem* c = wd.resource(r);
       chips.push_back({"+" + amountText(v), w::resourceIcon(wd, r), Color(0, 0, 0, 0), ui::Tone::Success,
                        (c ? c->name : std::string("Ресурс")) + " за ход от построек"});
+    }
+    for (auto& [e, v] : pc.essence) {
+      const CatalogItem* c = wd.essence(e);
+      chips.push_back({"+" + amountText(v), "essence", w::essenceColor(wd, e), ui::Tone::Success,
+                       (c ? c->name : std::string("Эссенция")) + " за ход от построек генерации"});
     }
     RectF at = ui::avail();
     prov::flowChips("produce", chips);

@@ -175,6 +175,7 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
     case rules::CatalogList::Religions: defIcon = "religion"; break;
     case rules::CatalogList::Governments: defIcon = "crown"; break;
     case rules::CatalogList::Positions: defIcon = "council"; break;
+    case rules::CatalogList::Essences: defIcon = "essence"; break;
   }
   bool colored = list != rules::CatalogList::Governments && list != rules::CatalogList::Positions;
   for (const auto& c : items) {
@@ -504,6 +505,152 @@ const char* resourceIcon(const World& w, Id res) {
 Color resourceColor(const World& w, Id res) {
   const CatalogItem* c = w.resource(res);
   return c ? c->color : Color::hex(0x9aa0a8);
+}
+
+// ---------------------------------------------------------------- группы ресурсов, эссенции, реликвии, портреты
+namespace {
+// Группы в порядке дерева (родитель, затем его подгруппы) с глубиной.
+void groupTree(const World& w, Id parent, int depth, std::vector<std::pair<Id, int>>& out) {
+  for (Id g : rules::childGroups(w, parent)) {
+    out.push_back({g, depth});
+    if (depth < 16) groupTree(w, g, depth + 1, out);
+  }
+}
+}  // namespace
+
+std::vector<std::pair<Id, int>> groupOrder(const World& w) {
+  std::vector<std::pair<Id, int>> out;
+  groupTree(w, 0, 0, out);
+  return out;
+}
+
+bool resGroupPicker(std::string_view id, Id& group, std::string_view noneLabel, bool disabled) {
+  const World& w = app().world();
+  Options o;
+  for (auto [g, depth] : groupOrder(w)) {
+    const ResGroup* x = w.catalogs->group(g);
+    std::string pad;
+    for (int i = 0; i < depth; i++) pad += "    ";
+    o.add(g, pad + orUnnamed(x ? x->name : std::string(), "Без названия"), depth ? nullptr : "folder", Color(0, 0, 0, 0),
+          std::to_string(rules::resourcesIn(w, g).size()));
+  }
+  int idx = o.indexOf(group);
+  ui::ComboOpt co;
+  co.noneLabel = noneLabel;
+  co.placeholder = noneLabel.empty() ? std::string_view("Группа") : noneLabel;
+  co.disabled = disabled;
+  co.icon = "folder";
+  co.tooltip = "Группа ресурсов";
+  if (!ui::combo(id, idx, o.finish(), co)) return false;
+  const Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
+  if (nv == group) return false;
+  group = nv;
+  return true;
+}
+
+bool resourceFrom(std::string_view id, Id& value, const std::vector<Id>& ids, std::string_view placeholder, bool disabled,
+                  std::string_view tooltip, std::string_view noneLabel) {
+  const World& w = app().world();
+  Options o;
+  o.reserve(ids.size());
+  for (Id r : ids) {
+    const CatalogItem* c = w.resource(r);
+    if (!c) continue;
+    // Справа — группа ресурса (без пути: путь виден в справочнике и в подсказке поля).
+    const ResGroup* g = w.catalogs->group(c->group);
+    o.add(r, orUnnamed(c->name, "Без названия"), resourceIcon(w, r), Color(0, 0, 0, 0), g ? orUnnamed(g->name, "Без названия") : std::string());
+  }
+  int idx = o.indexOf(value);
+  ui::ComboOpt co;
+  co.placeholder = placeholder;
+  co.noneLabel = noneLabel;
+  co.disabled = disabled;
+  co.icon = "resource";
+  co.tooltip = tooltip;
+  co.popupWidth = 340;
+  co.search = 1;   // поиск по названию в любом списке (Enter выбирает найденное)
+  if (!ui::combo(id, idx, o.finish(), co)) return false;
+  const Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
+  if (nv == value) return false;
+  value = nv;
+  return true;
+}
+
+bool resourceByGroup(std::string_view id, Id& value, bool disabled, const std::vector<Id>* only) {
+  const World& w = app().world();
+  struct St {
+    Id group = 0;
+    bool init = false;
+  };
+  ui::IdScope scope(id);
+  St& st = ui::state<St>(ui::id("##resgroup"));
+  if (!st.init) {
+    st.init = true;
+    if (const CatalogItem* c = w.resource(value)) st.group = c->group;
+  }
+  if (st.group && !w.catalogs->group(st.group)) st.group = 0;
+  bool changed = false;
+  ui::Row row({ui::fr(1, 120), ui::fr(1, 140)}, 30, 6);
+  resGroupPicker("group", st.group, "Все ресурсы", disabled);
+  std::vector<Id> list;
+  for (Id r : rules::resourcesIn(w, st.group))
+    if (!only || std::find(only->begin(), only->end(), r) != only->end()) list.push_back(r);
+  if (value && std::find(list.begin(), list.end(), value) == list.end() && w.resource(value)) list.insert(list.begin(), value);
+  changed = resourceFrom("res", value, list, "Ресурс", disabled, {});
+  return changed;
+}
+
+bool essencePicker(std::string_view id, Id& value, std::string_view noneLabel, bool disabled) {
+  const World& w = app().world();
+  Options o;
+  for (const CatalogItem& e : w.catalogs->essences) o.add(e.id, orUnnamed(e.name, "Без названия"), nullptr, e.color);
+  int idx = o.indexOf(value);
+  ui::ComboOpt co;
+  co.noneLabel = noneLabel;
+  co.placeholder = noneLabel.empty() ? std::string_view("Эссенция") : noneLabel;
+  co.disabled = disabled;
+  co.icon = "essence";
+  co.tooltip = "Эссенция элемента";
+  if (!ui::combo(id, idx, o.finish(), co)) return false;
+  const Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
+  if (nv == value) return false;
+  value = nv;
+  return true;
+}
+
+Color essenceColor(const World& w, Id essence) {
+  const CatalogItem* c = w.essence(essence);
+  return c ? c->color : Color::hex(0x8b6bff);
+}
+
+Color rarityColor(Rarity r) { return Color::hex(schema::rarity(r).color); }
+
+ui::ChipAction relicChip(const Relic& r, bool removable, std::string_view tooltip) {
+  ui::ChipOpt co;
+  co.icon = "relic";
+  co.glow = rarityColor(r.rarity);   // подсветка редкости
+  co.removable = removable;
+  co.clickable = true;
+  std::string tip = std::string(schema::rarity(r.rarity).name) + " реликвия" + (r.desc.empty() ? std::string() : "\n" + r.desc);
+  if (!tooltip.empty()) tip = std::string(tooltip);
+  co.tooltip = tip;
+  ui::IdScope s{i64(r.id) + 0x7e000000LL};
+  return edkit::chip(orUnnamed(r.name, "Без названия"), co);
+}
+
+}  // namespace rg::app::w
+
+namespace rg::app::chars {
+const gfx::Image* portraitImage(const Character& c, bool square);   // panels/character_common.cpp
+}
+
+namespace rg::app::w {
+
+const gfx::Image* faceImage(const Character& c) { return chars::portraitImage(c, true); }
+
+void heroAvatar(const Character& c, float size, bool ring, std::string_view tooltip, Color initials) {
+  ui::avatar(c.name.empty() ? std::string_view("?") : std::string_view(c.name),
+             {.image = faceImage(c), .color = initials, .size = size, .ring = ring, .tooltip = tooltip});
 }
 
 void resourceAmount(Id res, double amount, ui::Ink ink) {

@@ -4,7 +4,7 @@
 type: tool_documentation
 status: active
 canon_level: support
-updated_real_date: 2026-10-06
+updated_real_date: 2026-10-07
 ---
 
 Regnum — нативный редактор мира «Меча и Магии»: карта провинций, государства, гильдии, войска, экономика и ходы. Документ — контракт для всех, кто пишет код редактора (людей и агентов).
@@ -32,9 +32,9 @@ tools/Regnum/
     codec/  zlib (inflate/deflate, crc32), png, jpeg, zip, base64
     gfx/    path.h, image, raster (AA), stroke, canvas, font (TrueType), icons, emblems, flag
     platform/ platform.h, win32.cpp, x11.cpp, cocoa.cpp, headless.cpp
-    core/   world.h (модель, транзакции, хранилище), schema (перечисления), io (JSON, папка проекта, zip-архив, снимки ходов)
+    core/   world.h (модель, транзакции, хранилище), schema (перечисления), content (базовые записи мира), io (JSON, папка проекта, zip-архив, снимки ходов)
     geo/    geom, grid, topo (грани плоского графа), ops (операции над провинциями)
-    rules/  mods, builtins, calc, entities, population, forces, military, capture, heroes, rebellion, diplomacy, truce, trade, build, tech, guilds, routes, turn, log, areas, mapobjects
+    rules/  mods, builtins, calc, entities, catalog, population, forces, military, capture, heroes, rebellion, diplomacy, truce, trade, build, tech, guilds, routes, turn, log, areas, mapobjects
     map/    art, art_render, art_scene, art_extract (карта кодом: объекты, отрисовка, сцена мира, разбор), basemap, mapview, tiles, labels, overlay, marks, export, demo_world
     ui/     ui.h — собственный immediate-mode интерфейс, тема, виджеты, таблицы, всплывающие окна
     app/    main.cpp, приложение, экраны, панели, диалоги, редакторы деревьев, проект
@@ -74,6 +74,10 @@ tools/Regnum/
 - Объекты карты — таблицы `symbols` (`MapSymbol`: вид, точка привязки, масштаб, рисунок, порядок `z`) и `shapes` (`MapShape`: вода с островами, островок, стена, река), файл `data/map.json`; `Meta::mapObjects` / `World::ownMapObjects()` — мир хранит свои объекты (иначе показывает объекты базовой карты).
 
 Перечисления, подписи, значки, пределы эффектов и константы ТЗ — `src/core/schema.h`. Формулы — [RULES.md](RULES.md). Формат файлов — [FORMAT.md](FORMAT.md).
+
+Базовые записи мира — `src/core/content.h`: должности, 18 эссенций элементов, группы ресурсов «Руда», «Звери», «Провизия», «Материалы» с подгруппами и ресурсами, 61 религия, встроенные ресурсы (трупы, демоническая энергия, запчасти механизмов), особый отряд «Драконы Бездны» и общая постройка «Цитадель Бездны». `newWorld` создаёт их сразу и пишет версию `Meta::content`; мир меньшей версии дополняется при чтении (нормализация) один раз — записи сопоставляются по названию, прежние названия базовых должностей переименовываются вместе с местами совета. Новые базовые записи — новой версией `content::kVersion` с отдельным шагом `seed`.
+
+Справочники (`Catalogs`): ресурсы (с группой `CatalogItem::group`), группы ресурсов (`ResGroup`, дерево по `parent`; ключи групп правил — `schema::grp`), расы, культуры, религии, формы правления, должности, эссенции элементов, реликвии (`Relic`, редкость `Rarity`), особые отряды (`SpecialUnit`). Общее дерево технологий — технологии с `faction == 0`, их изучение — у каждой фракции своё (`Faction::techs`).
 
 ## 5. Модули и их контракты
 
@@ -226,6 +230,8 @@ std::shared_ptr<const Calc> calc(const World&);   // кеш по версии м
 Объекты карты (`rules/mapobjects.cpp`): `ensureMapObjects` — перенос объектов базовой карты в мир при первой правке (те же ID); знаки — `addSymbol`, `placeSymbol` (точка и порядок `z`), `setSymbol` (вид, масштаб, рисунок), `removeSymbol`; фигуры — `addShape`, точки контура и островов (`setShapePoint`, `insertShapePoint`, `removeShapePoint`; контур не пересекает сам себя), `moveShape`, `setShapeLine` (ширина и пунктир), `removeShape`.
 
 Новые механики (ТЗ 2026-10): `builtins.cpp` — встроенные модификаторы, ресурсы и глобальные константы (создаются в мире при первом обращении; до этого действует шаблон `schema`), модификаторы сущностей со сроками и правилами (`setModifiers`, `addModifier`, `dropModifier`), модификаторы, которые ставятся сами (`autoModifiers`: столица, совет, голод, должности); `population.cpp` — распределение людей целыми числами, рабы, колонизация, пустошь нежити и осквернение; `forces.cpp` — формирование отрядов (население, трупы, демоническая энергия, стоимость кораблей), роспуск резерва, флот в торговле, оккупационный гарнизон, верность; `capture.cpp` — штурм гарнизона и захват провинции; `heroes.cpp` — судьба героев, воскрешение, пленники; `rebellion.cpp` — мятеж войск, мятежное государство, восстание провинции, переход перед боем; `truce.cpp` — перемирие и вассалитет. События хода, требующие решения (восстания, мятежи с верностью −100 %), — `TurnReport::events`.
+
+ТЗ 2026-10-07: `catalog.cpp` — группы ресурсов (`resourcesIn` — с подгруппами), реликвии и инвентарь, особые отряды и доступ к ним (`specialAccess`, `addSpecialRow`, `syncSpecialRows`), ключевой ресурс и цены строк армии (`setRowType`, `setRowKey`, `keyResources`, `setRowExtra`, `setRowEssence`, `setRowEssUpkeep`), запасы эссенций; `forces.cpp` — найм с ключевым и дополнительными ресурсами и эссенциями (звери, чудовища, механизмы и элементали — без людей), верность гарнизона; `military.cpp` — герои гарнизона; `rebellion.cpp` — мятеж гарнизона и переход гарнизона перед штурмом; `build.cpp` — культовые постройки, требования к технологиям и правила общего/уникального дерева, мгновенное завершение и изначальные постройки, постройки преобразования и их возможности (`setBuildingRole`, `setRecipe`, `setLevelEssence`, `setBuildingSpecial`); `tech.cpp` — общее дерево (`techState`, изучение за фракцию); `calc.cpp` — провизия по группе (поровну, недостача), план построек преобразования (`FactionCalc::conversions` — его же исполняет `endTurn`), эссенции (генерация, содержание элементалей).
 
 ### 5.7 core/io
 

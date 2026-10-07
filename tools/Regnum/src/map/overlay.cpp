@@ -308,7 +308,9 @@ void drawArmies(const FrameCtx& f) {
   for (const MarkLayout::Mark& m : f.marks->marks) {
     const Army* top = w.army(m.members.front());
     if (!top) continue;
-    const gfx::Pt c = f.dev(m.pos);
+    // Центр — точка карты (шаг ¼ пикселя, как у спрайта фигурки); фигурки стопки и значки — целыми сдвигами от него:
+    // отметка двигается с картой как одно целое.
+    const gfx::Pt c = markAnchor(f.X0, f.Y0, f.ds, m.pos);
     const RectF bounds(c.x + m.rel.x * dpi, c.y + m.rel.y * dpi, m.rel.w * dpi, m.rel.h * dpi);
     if (bounds.right() < f.clip.x || bounds.x > f.clip.right() || bounds.bottom() < f.clip.y || bounds.y > f.clip.bottom()) continue;
     const Color col = leaderColor(w, *top);
@@ -343,7 +345,7 @@ void drawArmies(const FrameCtx& f) {
     f.c->boxShadow(br, br.h * 0.5f, 4 * dpi, 0, Color(0, 0, 0, 80), gfx::Pt(0, 1 * dpi));
     f.c->fillRoundRect(br, br.h * 0.5f, Color(20, 24, 31, 238));
     f.c->strokeRoundRect(br.inset(0.5f * dpi), br.h * 0.5f, 1.0f * dpi, col.withA(230));
-    gfx::drawText(*f.c, txt, ts, std::round(br.x + (br.w - tw) * 0.5f), std::round(br.y + (br.h - fm.lineHeight) * 0.5f), Color(244, 240, 230));
+    gfx::drawText(*f.c, txt, ts, br.x + std::round((br.w - tw) * 0.5f), br.y + std::round((br.h - fm.lineHeight) * 0.5f), Color(244, 240, 230));
     // Значок стопки: число объектов на золотом круге.
     if (m.members.size() > 1) {
       const std::string ct = countBadgeText(m.members.size());
@@ -352,7 +354,7 @@ void drawArmies(const FrameCtx& f) {
       f.c->boxShadow(cb, cb.h * 0.5f, 4 * dpi, 0, Color(0, 0, 0, 90), gfx::Pt(0, 1 * dpi));
       f.c->fillRoundRect(cb, cb.h * 0.5f, kGold);
       f.c->strokeRoundRect(cb.inset(0.5f * dpi), cb.h * 0.5f, 1.2f * dpi, Color(70, 46, 8, 230));
-      gfx::drawText(*f.c, ct, ts, std::round(cb.x + (cb.w - cw) * 0.5f), std::round(cb.y + (cb.h - fm.lineHeight) * 0.5f), Color(38, 26, 6));
+      gfx::drawText(*f.c, ct, ts, cb.x + std::round((cb.w - cw) * 0.5f), cb.y + std::round((cb.h - fm.lineHeight) * 0.5f), Color(38, 26, 6));
     }
   }
 }

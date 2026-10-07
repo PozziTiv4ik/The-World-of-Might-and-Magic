@@ -8,8 +8,9 @@
 
 namespace rg::app {
 
-// Открыть дерево технологий фракции и выделить технологию (0 — без выделения).
-void openTechTree(App& a, Id faction, Id tech = 0);
+// Открыть дерево технологий фракции и выделить технологию (0 — без выделения). faction 0 — общее дерево (ТЗ
+// «Доработки», п.6): learner — государство, за которое показывается и правится изучение (0 — прежнее).
+void openTechTree(App& a, Id faction, Id tech = 0, Id learner = 0);
 
 }  // namespace rg::app
 
@@ -132,8 +133,9 @@ ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o = {});
 // Фишки эффектов набора модификаторов (польза — зелёным, вред — красным) с переносом. false — эффектов нет.
 bool effectChips(const World& w, const std::vector<Id>& modifiers);
 // Список модификаторов фишками с переносом (щелчок — окно модификаторов, крестик — убрать) и выбор для
-// добавления. Как w::modifierList, но без пустого ряда, когда список пуст. true — список изменился.
-bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled = false);
+// добавления (picker = false — без него: добавление в отдельном окне). Как w::modifierList, но без пустого ряда,
+// когда список пуст. true — список изменился.
+bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled = false, bool picker = true);
 
 // Переключатель дерева: выбор фракции (states — только государства). Доступен и при просмотре прошлого хода
 // (это переход, а не правка). noneLabel непусто — пункт «0» первым (например, «Общее дерево»).

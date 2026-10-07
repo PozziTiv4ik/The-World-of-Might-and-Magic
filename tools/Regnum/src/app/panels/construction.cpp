@@ -1,5 +1,7 @@
 // Regnum — вкладка провинции «Постройки» (ТЗ 1.f.i–ii): слоты (величина, тип города, модификаторы), постройки
-// с уровнями и улучшением, стройки с ходом и отменой (возврат стоимости), снос, выбор нового строительства.
+// с уровнями и улучшением, стройки с ходом, отменой (возврат стоимости) и мгновенным завершением, снос, выбор нового
+// строительства. Постройка преобразования — «Работает / Простаивает», рецепт, ход цикла, «Ждёт ресурсы»; генерация
+// эссенции и доступ к особым отрядам — что даёт постройка (ТЗ «Доработки», п.3, 5; «Ввод новых механик», п.4–5).
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
 #include "app/widgets.h"
@@ -9,6 +11,87 @@ namespace rg::app {
 namespace {
 
 using platform::Key;
+
+// Постройка преобразования в провинции: переключатель «Работает / Простаивает» (rules::setConvertIdle), рецепт
+// (нехватка входов у владельца — красным), ход цикла (ProvBuilding::cycle — ходов до конца) или состояние: новый цикл
+// начнётся в конце хода (шаг есть в плане FactionCalc::conversions) либо «Ждёт ресурсы».
+void converter(App& a, Id pid, const ProvBuilding& pb, const Building& b, const Faction* owner, const rules::FactionCalc* fc, bool ro) {
+  const World& w = a.world();
+  ui::IdScope cs("convert");
+  const Id bid = b.id;
+  const std::string id = std::to_string(bid);
+  const int turns = std::max(1, b.recipe.turns);
+  ui::separator();
+  {
+    int mode = pb.idle ? 1 : 0;
+    if (ui::segmented("mode", mode,
+                      {{"play", "Работает", "Преобразует ресурсы по рецепту"}, {"moon", "Простаивает", "Ничего не делает, ресурсы не тратятся"}},
+                      {.size = ui::Size::Small, .disabled = ro}) &&
+        (mode == 1) != pb.idle) {
+      const bool idle = mode == 1;
+      a.act(idle ? "Постройка простаивает" : "Постройка работает", [&](Tx& tx) { rules::setConvertIdle(tx, pid, bid, idle); });
+    }
+    a.markUi("prov.convert." + id);
+  }
+  {
+    std::vector<bld::Token> tk = bld::recipeTokens(w, b.recipe, pb.idle ? nullptr : owner);
+    tk.insert(tk.begin(), bld::Token{"convert", ui::theme().info, {}, ui::Ink::Normal, "Преобразование ресурсов"});
+    bld::tokens(tk);
+    a.markUi("prov.recipe." + id);
+  }
+  // Шаг плана хода для этой постройки.
+  const rules::ConvertStep* step = nullptr;
+  if (fc)
+    for (const rules::ConvertStep& s : fc->conversions)
+      if (s.province == pid && s.building == bid) step = &s;
+  if (pb.cycle > 0) {
+    const int left = std::min(pb.cycle, turns);
+    const std::string text = pb.idle ? "приостановлен · ещё " + nTurns(left) : left == 1 ? std::string("завершится в конце хода") : "ещё " + nTurns(left);
+    ui::progress(double(turns - left) / double(turns), {.tone = pb.idle ? ui::Tone::Neutral : ui::Tone::Info, .height = 5, .text = text});
+    a.markUi("prov.cycle." + id);
+  } else if (!pb.idle) {
+    if (!bld::recipeValid(w, b.recipe)) {
+      ui::label("Рецепт не задан", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
+    } else if (!owner) {
+      ui::label("Без владельца-государства не работает", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
+    } else if (step && step->start) {
+      ui::label(turns == 1 ? std::string("Преобразование — в конце хода") : "Новый цикл — в конце хода, " + nTurns(turns),
+                {.font = ui::Font::Small, .ink = ui::Ink::Info, .icon = "repeat"});
+      a.markUi("prov.cycleStart." + id);
+    } else {
+      ui::label("Ждёт ресурсы", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "hourglass",
+                                 .tooltip = "Цикл начнётся, когда у государства хватит ресурсов на входе"});
+      a.markUi("prov.waiting." + id);
+    }
+  }
+}
+
+// Что ещё даёт достроенная постройка: эссенции за ход (генерация), особые отряды (доступ).
+void extras(App& a, const Building& b, int level, const Faction* owner) {
+  const World& w = a.world();
+  if (b.essenceGen && owner && level >= 1 && level <= int(b.levels.size())) {
+    std::vector<bld::Token> tk = bld::essenceTokens(w, b.levels[size_t(level - 1)].essence);
+    if (!tk.empty()) {
+      tk.insert(tk.begin(), bld::Token{"repeat", ui::theme().textMuted, {}, ui::Ink::Muted, "Даёт за ход"});
+      bld::tokens(tk, 6);
+      a.markUi("prov.essence." + std::to_string(b.id));
+    }
+  }
+  if (b.specialAccess && !b.specials.empty()) {
+    ui::IdScope ss("specials");
+    tree::ChipFlow flow;
+    for (Id sid : b.specials) {
+      const SpecialUnit* su = w.special(sid);
+      if (!su) continue;
+      ui::IdScope s2{i64(sid)};
+      std::string tip = "Особый отряд: " + std::string(schema::unitType(su->type).name) + "\nОткрыть в справочнике";
+      if (tree::chip(su->name.empty() ? std::string("Без названия") : su->name, {.icon = "special-unit", .tone = ui::Tone::Accent, .clickable = true, .tooltip = tip}) ==
+          ui::ChipAction::Click)
+        a.openEditor("catalogs", 9);
+    }
+    a.markUi("prov.specials." + std::to_string(b.id));
+  }
+}
 
 const Faction* ownerState(const World& w, const Province& p) {
   const Faction* f = w.faction(p.owner);
@@ -203,7 +286,7 @@ void drawBuildings(App& a, Id pid) {
         std::string name = b->name;
         int total = bld::levelTurns(*b, pb.level);
         ui::Card card({.pad = 10, .tone = ui::Tone::Info});
-        ui::Row row({ui::px(40), ui::fr(1), ui::px(30)}, ui::kAuto, 10);
+        ui::Row row({ui::px(40), ui::fr(1), ui::px(30), ui::px(30)}, ui::kAuto, 8);
         bld::iconTile(*b, 40, true);
         {
           ui::Group g(0, 4);
@@ -214,6 +297,14 @@ void drawBuildings(App& a, Id pid) {
           ui::progress(double(total - pb.left) / double(std::max(1, total)),
                        {.tone = ui::Tone::Info, .height = 5, .text = "ещё " + nTurns(pb.left)});
         }
+        // Мгновенное завершение (ТЗ «Доработки», п.5): уровень готов сразу, уплаченное остаётся уплаченным.
+        if (ui::iconButton("bolt", "Завершить сейчас", {.disabled = ro, .tone = ui::Tone::Accent})) {
+          const Id bid = pb.building;
+          const int lvl = pb.level;
+          if (a.act("Завершить постройку сейчас", [&](Tx& tx) { rules::completeBuilding(tx, pid, bid); }))
+            a.toast("Достроено: " + name + (lvl > 1 ? " " + tree::roman(lvl) : std::string()), ToastKind::Success, "bolt");
+        }
+        a.markUi("prov.complete." + std::to_string(pb.building));
         if (ui::iconButton("close", "Отменить строительство: стоимость вернётся", {.disabled = ro, .tone = ui::Tone::Danger}))
           askCancel(a, pid, pb.building, name, pb.level);
         a.markUi("prov.cancel." + std::to_string(pb.building));
@@ -240,6 +331,7 @@ void drawBuildings(App& a, Id pid) {
               ui::HStack hs(20, ui::Align::Left, 6);
               ui::label(name, {.font = ui::Font::Strong});
               if (b->owner) ui::icon("crown", ui::Ink::Accent, 14, "Уникальная постройка государства");
+              if (const char* rule = bld::cultRule(*b)) ui::iconColored("b-cult", bld::catColor(BuildingCat::Cult), 14, std::string("Культовая постройка: ") + utf8::lower(rule));
             }
             ui::label("Уровень " + tree::roman(pb.level) + " из " + tree::roman(std::max(1, maxL)) + " · " + bld::catName(b->cat),
                       {.font = ui::Font::Small, .ink = ui::Ink::Muted});
@@ -247,10 +339,13 @@ void drawBuildings(App& a, Id pid) {
               bld::levelEffects(w, b->levels[size_t(pb.level - 1)], true);
               bld::produceChips(b->levels[size_t(pb.level - 1)].produce);
             }
+            extras(a, *b, pb.builtLevel(), owner);
           }
           if (ui::iconButton("trash", "Снести постройку", {.disabled = ro, .tone = ui::Tone::Danger})) askDemolish(a, pid, pb.building, name);
           a.markUi("prov.demolish." + std::to_string(pb.building));
         }
+        // Преобразование ресурсов (ТЗ «Доработки», п.3).
+        if (b->convert) converter(a, pid, pb, *b, owner, ownerId ? calc->faction(ownerId) : nullptr, ro);
         // Улучшение: стоимость и срок следующего уровня
         if (pb.level < maxL) {
           const rules::BuildOption* o = optionOf(pb.building);

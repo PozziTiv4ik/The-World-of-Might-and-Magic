@@ -4,7 +4,7 @@
 type: tool_documentation
 status: active
 canon_level: support
-updated_real_date: 2026-10-06
+updated_real_date: 2026-10-07
 ---
 
 Собственный immediate-mode интерфейс редактора поверх `gfx::Canvas`. Каждый кадр панель описывается заново вызовами функций; всё, что должно жить между кадрами (фокус, прокрутка, раскрытие разделов, анимации, буфер правки поля, сортировка таблиц), хранится внутри по устойчивому ID. Один заголовок — `ui/ui.h`; внутренности (`ui_internal.h`, `*.cpp`) панелям не нужны.
@@ -104,7 +104,7 @@ bool App::animating() { return ui::needsRedraw(); }
 
 ```cpp
 ui::label("Население", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "population"});
-ui::label(name, {.font = ui::Font::Display});                         // одна строка, многоточие
+ui::label(name, {.font = ui::Font::Display});                         // одна строка, многоточие (полный текст — в подсказке)
 ui::label(pct(tax), {.tooltip = "Налог государства"});                 // с подсказкой — интерактивна; ID = текст + подсказка
 ui::text("Абзац переносится по словам.", ui::Font::Body, ui::Ink::Dim);
 ui::caption("Расы");                                                  // мелкий заголовок группы прописными
@@ -210,6 +210,7 @@ ui::pie(slices, {.size = 108, .thickness = 15, .centerValue = "38 %", .centerLab
 ui::sparkline(history, {.height = 32});
 ui::badge("12");  ui::badge("Новое", ui::Tone::Success);  ui::tag("Война", ui::Tone::Danger, "war");
 if (ui::chip(name, {.color = faction.color, .clickable = true}) == ui::ChipAction::Click) select(id);
+ui::chip("Корона Севера", {.icon = "relic", .glow = Color::hex(0xa45cff)});   // подсветка цветом: рамка, фон, значок
 ui::avatar("Эдрик Третий", {.size = 36, .ring = true});      // изображение или инициалы
 ui::flag(faction.flag, 66, 44);                               // gfx::drawFlag; флаг живёт до endFrame
 if (ui::emptyState("army", "Войск пока нет.", "Новое войско", "plus")) createArmy();   // кнопка — в своей области ID («##emptyState»): подпись может совпадать с кнопкой над списком
@@ -251,6 +252,7 @@ if (n) { ui::TreeNode c("Эльвенмор", {.dot = color, .leaf = true}); }
 ```cpp
 ui::iconButton("save", "Сохранить", {.shortcut = {Key::S, ui::ModPrimary}});
 ui::tooltip("Своя подсказка", {Key::F2, 0});          // к последнему элементу; 350 мс, рядом — сразу
+ui::hoverTip("##name", cellRect, fullName);            // над прямоугольником своей отрисовки; наведение и щелчок не перехватывает
 if (ui::beginTooltip(280)) { ui::label("Богатая"); ui::progress(0.4); ui::endTooltip(); }
 
 if (ui::button("Ещё", {.iconRight = "chevron-down"})) ui::openPopup("more");   // якорь — последний элемент
@@ -270,6 +272,7 @@ if (ui::beginPopup("filter", {.side = ui::Side::Below, .width = 260})) { ...; ui
 
 - Всплывающее окно переворачивается, если не помещается, и прижимается к краю экрана. Размер — по содержимому (первый кадр — невидимый замер); если в нём есть элементы «на всю ширину», задайте `width`.
 - Щелчок вне закрывает (повторный щелчок по открывателю — закрывает, а не открывает заново); Esc закрывает верхнее; ↑↓ Enter в меню, → открывает подменю, ← закрывает.
+- Текст, обрезанный многоточием, сам показывает подсказку с полным текстом: `label`, `button`, однострочное поле без фокуса (и недоступное), выпадающий список и его пункты, ячейка `Table::text` и заголовок столбца. Своя подсказка элемента идёт под полным текстом. Для своей отрисовки (подпись поверх строки таблицы) — `ui::hoverTip`.
 
 ```cpp
 if (ui::beginModal("delete", {.title = "Удалить провинцию?", .icon = "trash", .tone = ui::Tone::Danger}, &askOpen)) {

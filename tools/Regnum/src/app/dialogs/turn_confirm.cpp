@@ -1,7 +1,8 @@
 // Regnum — подтверждение завершения хода с предварительным итогом: пробный ход (rules::endTurn на черновике,
-// мир не меняется) — казна каждой фракции до и после с доходом и расходом, изменения запасов, стройки и
-// исследования, которые завершатся, истекающие сделки и выплаты, предупреждения (долги, недостачи, восстания).
-// Две страницы (ТЗ «Фиксы», п.16): основные игровые государства (Faction::mainState) и все остальные фракции.
+// мир не меняется) — казна каждой фракции до и после с доходом и расходом, изменения запасов ресурсов и эссенций
+// элементов, недостача провизии (голод), стройки и исследования, которые завершатся, истекающие сделки и выплаты,
+// преобразование ресурсов, предупреждения (долги, голод, нехватка эссенций на содержание элементалей, недостачи,
+// восстания). Две страницы (ТЗ «Фиксы», п.16): основные игровые государства (Faction::mainState) и все остальные.
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
 #include "app/widgets.h"
@@ -43,7 +44,7 @@ std::unique_ptr<Preview> makePreview(const World& w) {
       double d = l->treasuryAfter - l->treasuryBefore;
       if (d > 0.5) pg.up++;
       if (d < -0.5) pg.down++;
-      if (!l->resources.empty()) pg.resRows++;
+      if (hasStockChanges(*l)) pg.resRows++;
     }
   }
   return p;
@@ -55,17 +56,6 @@ void turnArrow(int from, int to) {
   ui::tag("Ход " + std::to_string(from), ui::Tone::Neutral, "hourglass");
   ui::icon("arrow-right", ui::Ink::Muted, 16);
   ui::tag("Ход " + std::to_string(to), ui::Tone::Accent, "next-turn");
-}
-
-// Строка «значок ресурса + изменение» (в ячейке).
-void resourceDeltas(const World& w, const std::map<Id, double>& res) {
-  ui::HStack hs(24, ui::Align::Left, 14);
-  for (auto& [rid, v] : res) {
-    ui::IdScope s{i64(rid)};
-    const CatalogItem* c = w.resource(rid);
-    ui::iconColored(w::resourceIcon(w, rid), w::resourceColor(w, rid), 16, c ? std::string_view(c->name) : std::string_view("Ресурс"));
-    ui::label(fmtSigned(v, std::fabs(v - std::round(v)) > 1e-9 ? (rid == kGold ? 3 : 1) : 0), {.ink = deltaInk(v)});
-  }
 }
 
 void groupHeader(const char* icon, ui::Tone tone, std::string_view title, size_t n) {
@@ -134,20 +124,22 @@ struct ConfirmDlg : Dialog {
     }
   }
 
-  void resourcesTab(App&) {
+  // Изменения запасов: ресурсы, эссенции элементов и недостача провизии после хода (голод).
+  void resourcesTab(App& a) {
     const World& w = p->before;
     std::vector<const rules::TurnFactionLine*> rows;
     for (auto* l : cur().lines)
-      if (!l->resources.empty()) rows.push_back(l);
+      if (hasStockChanges(*l)) rows.push_back(l);
     ui::Column cols[] = {{page == kPageMain ? "Государство" : "Фракция", nullptr, ui::fr(1.2f)}, {"Изменение запасов", "resource", ui::fr(2.2f)}};
     ui::Table t("resources", cols, int(rows.size()),
-                {.rowHeight = 40, .height = bodyH(), .selectable = false, .emptyIcon = "resource", .emptyText = "Запасы ресурсов не изменятся"});
+                {.rowHeight = 40, .height = bodyH(), .selectable = false, .emptyIcon = "resource", .emptyText = "Запасы не изменятся"});
     for (int i : t) {
       const rules::TurnFactionLine& l = *rows[size_t(i)];
+      a.markUi("turn.confirm.stock." + std::to_string(l.faction), t.rowRect());
       t.cell();
       factionLabel(w, l.faction);
-      t.cell();
-      resourceDeltas(w, l.resources);
+      const RectF cr = t.cell();
+      stockDeltas(w, l, cr.w, 24);
     }
   }
 
@@ -170,29 +162,32 @@ struct ConfirmDlg : Dialog {
     group("build", ui::Tone::Info, "Стройки завершатся", d.builds);
     group("research", ui::Tone::Info, "Исследования", d.techs);
     group("handshake", ui::Tone::Accent, "Сделки и выплаты завершатся", d.deals);
+    group("convert", ui::Tone::Success, "Экономика", d.economy);
     group("list", ui::Tone::Neutral, "Прочее", d.other);
   }
 
-  void warningsTab(App&) {
+  void warningsTab(App& a) {
     const TurnDigest& d = cur().dg;
     if (d.warnings() == 0) {
       RectF r = ui::next(bodyH());
       ui::Area ar(RectF{r.x, r.y + r.h * 0.5f - 70, r.w, 140}, 0);
-      ui::emptyState("check-circle", "Всё спокойно: долгов, голода, недостач и восстаний не будет.");
+      ui::emptyState("check-circle", "Всё спокойно: долгов, голода, нехватки эссенций, недостач и восстаний не будет.");
       return;
     }
     ui::Scroll sc("warnings", bodyH());
-    auto group = [&](const char* icon, ui::Tone tone, std::string_view title, const std::vector<const LogEntry*>& list) {
+    auto group = [&](const char* icon, ui::Tone tone, std::string_view title, const std::vector<const LogEntry*>& list, const char* mark) {
       if (list.empty()) return;
       ui::IdScope s(title);
       groupHeader(icon, tone, title, list.size());
+      a.markUi(mark);
       for (const LogEntry* e : list) logRow(p->after, *e, {.clickable = false, .showTime = false, .maxLines = 3});
       ui::spacer(4);
     };
-    group("rebellion", ui::Tone::Danger, "Восстания", d.rebellions);
-    group("treasury", ui::Tone::Danger, "Долги казны", d.debts);
-    group("grain", ui::Tone::Danger, "Голод", d.famine);
-    group("warning", ui::Tone::Warning, "Недостачи по сделкам", d.shortfalls);
+    group("rebellion", ui::Tone::Danger, "Восстания", d.rebellions, "turn.confirm.warn.rebellions");
+    group("treasury", ui::Tone::Danger, "Долги казны", d.debts, "turn.confirm.warn.debts");
+    group("grain", ui::Tone::Danger, "Голод", d.famine, "turn.confirm.warn.famine");
+    group("essence", ui::Tone::Danger, "Эссенции на содержание элементалей", d.essences, "turn.confirm.warn.essences");
+    group("warning", ui::Tone::Warning, "Недостачи по сделкам", d.shortfalls, "turn.confirm.warn.shortfalls");
   }
 
   bool draw(App& a) override {
@@ -220,6 +215,7 @@ struct ConfirmDlg : Dialog {
       std::vector<std::string> parts;
       if (!d.debts.empty()) parts.push_back("долги казны: " + std::to_string(d.debts.size()));
       if (!d.famine.empty()) parts.push_back("голод: " + std::to_string(d.famine.size()));
+      if (!d.essences.empty()) parts.push_back("эссенции: " + std::to_string(d.essences.size()));
       if (!d.shortfalls.empty()) parts.push_back("недостачи: " + std::to_string(d.shortfalls.size()));
       if (!d.rebellions.empty()) parts.push_back("восстания: " + std::to_string(d.rebellions.size()));
       const ui::Theme& th = ui::theme();

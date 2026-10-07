@@ -734,6 +734,7 @@ struct ChipOpt {
   bool selected = false;
   bool clickable = false;
   std::string_view tooltip;
+  Color glow{0, 0, 0, 0};           // a > 0 — подсветка фишки этим цветом (рамка, фон, значок): редкость реликвии
 };
 ChipAction chip(std::string_view label, const ChipOpt& o = {});
 
@@ -824,6 +825,9 @@ void spinner(float size = 18, Tone tone = Tone::Accent);
 // ================================================================ подсказки и всплывающие окна
 // Подсказка к последнему элементу (появляется через 350 мс наведения).
 void tooltip(std::string_view text, Shortcut s = {});
+// Подсказка над прямоугольником r без перехвата наведения и щелчка (полный текст обрезанной подписи в своей отрисовке,
+// например в ячейке строки таблицы). Поля, выпадающие списки и ячейки Table::text показывают такую подсказку сами.
+void hoverTip(std::string_view key, RectF r, std::string_view text);
 // Своё содержимое подсказки: if (ui::beginTooltip()) { ...; ui::endTooltip(); }
 bool beginTooltip(float width = 260);
 void endTooltip();

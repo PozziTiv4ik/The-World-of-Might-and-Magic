@@ -333,10 +333,15 @@ TEST(app_faction_tax_and_resources) {
   CHECK(typeNumber(h, "economy.tax", "-5"));
   CHECK_NEAR(h->world().faction(a)->tax, 0, 1e-9);
   // Запас зерна правится, ниже нуля не опускается; казна может уйти в долг.
-  CHECK(typeNumber(h, "economy.stock.2", "1234"));
-  CHECK_NEAR(h->world().faction(a)->stock(2), 1234, 1e-9);
-  CHECK(typeNumber(h, "economy.stock.2", "-7"));
-  CHECK_NEAR(h->world().faction(a)->stock(2), 0, 1e-9);
+  Id grain = 0;
+  for (const CatalogItem& c : h->world().catalogs->resources)
+    if (c.name == "Зерно") grain = c.id;
+  CHECK(grain != 0 && h->world().faction(a)->stock(grain) > 0);
+  const std::string field = "economy.stock." + std::to_string(grain);
+  CHECK(typeNumber(h, field, "1234"));
+  CHECK_NEAR(h->world().faction(a)->stock(grain), 1234, 1e-9);
+  CHECK(typeNumber(h, field, "-7"));
+  CHECK_NEAR(h->world().faction(a)->stock(grain), 0, 1e-9);
   CHECK(typeNumber(h, "economy.stock.1", "-50"));
   CHECK_NEAR(h->world().faction(a)->treasury(), -50, 1e-9);
   CHECK(h.shot("faction_economy_edited"));

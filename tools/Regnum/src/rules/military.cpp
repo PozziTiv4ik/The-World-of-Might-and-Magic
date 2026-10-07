@@ -298,6 +298,8 @@ void setHero(Tx& tx, Id army, Id character, bool on) {
   if (characterHas(tx.w(), character, schema::mod::Captive)) fail(q(tx.w().characterName(character)) + " в плену");
   if (Id other = heroArmy(tx.w(), character, army))
     fail(q(tx.w().characterName(character)) + " уже сопровождает " + armyName(tx.w(), other));
+  if (Id prov = heroGarrison(tx.w(), character))
+    fail(q(tx.w().characterName(character)) + " стоит в гарнизоне провинции " + provName(tx.w(), prov) + " — сначала уберите его оттуда");
   if (!c.faction) fail(q(tx.w().characterName(character)) + " не состоит ни в одной фракции");
   Army& m = tx.army(army);
   ArmyGroup* g = groupOf(m, c.faction);
@@ -342,6 +344,36 @@ void setGarrison(Tx& tx, Id province, Id row, i64 count) {
   } else {
     gs.push_back(GarrisonEntry{row, count});
   }
+}
+
+Id heroGarrison(const World& w, Id character) {
+  Id found = 0;
+  w.provinces.each([&](const Province& p) {
+    if (!found && contains(p.garrisonHeroes, character)) found = p.id;
+  });
+  return found;
+}
+
+void setGarrisonHero(Tx& tx, Id province, Id character, bool on) {
+  const Province& p = needProvince(tx.w(), province);
+  const Character& c = needCharacter(tx.w(), character);
+  const bool here = contains(p.garrisonHeroes, character);
+  if (!on) {
+    if (here) eraseValue(tx.province(province).garrisonHeroes, character);
+    return;
+  }
+  if (here) return;
+  if (p.sea) fail("В морской провинции не бывает гарнизона");
+  if (!p.owner) fail("У провинции нет владельца — гарнизон некому назначить");
+  if (c.faction != p.owner)
+    fail(q(tx.w().characterName(character)) + (c.faction ? " — герой " + facName(tx.w(), c.faction) : std::string(" не состоит ни в одной фракции")) +
+         ": в гарнизон назначаются только герои " + facName(tx.w(), p.owner));
+  if (characterHas(tx.w(), character, schema::mod::Dead)) fail(q(tx.w().characterName(character)) + " мёртв");
+  if (characterHas(tx.w(), character, schema::mod::Captive)) fail(q(tx.w().characterName(character)) + " в плену");
+  if (Id a = heroArmy(tx.w(), character)) fail(q(tx.w().characterName(character)) + " сопровождает " + armyName(tx.w(), a) + " — сначала уберите его оттуда");
+  if (Id other = heroGarrison(tx.w(), character))
+    fail(q(tx.w().characterName(character)) + " уже в гарнизоне провинции " + provName(tx.w(), other));
+  tx.province(province).garrisonHeroes.push_back(character);
 }
 
 void disband(Tx& tx, Id army) {

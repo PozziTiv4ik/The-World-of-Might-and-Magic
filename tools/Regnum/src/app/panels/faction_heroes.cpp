@@ -1,7 +1,8 @@
-// Regnum — вкладка «Герои» (ТЗ 1.b.iv: список значимых героев государства): портрет, имя, титул или состояние
-// («Мертв» с местом захоронения, «В плену» с пленившим государством — ТЗ «Механика героев»), содержание за ход
-// (расход «специалисты», золото до тысячных), отметка «в войске»; воскрешение погибшего (окно «hero.resurrect»);
-// пленники государства — чужие герои в плену и чьи они; новый герой, назначение персонажа героем, снятие, переход.
+// Regnum — вкладка «Герои» (ТЗ 1.b.iv: список значимых героев государства): портрет в круге, имя, титул или
+// состояние («Мертв» с местом захоронения, «В плену» с пленившим государством — ТЗ «Механика героев»), содержание за
+// ход (расход «специалисты», золото до тысячных), отметка «в войске» или «в гарнизоне», число реликвий инвентаря
+// (ТЗ «Доработки», п.10); воскрешение погибшего (окно «hero.resurrect»); пленники государства — чужие герои в плену и
+// чьи они; новый герой, назначение персонажа героем, снятие, переход.
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -88,14 +89,21 @@ void drawHeroes(App& a, Id id) {
       } else {
         ui::Column cols[] = {{"Герой", nullptr, ui::fr(1, 120), ui::Align::Left, true},
                              {{}, "coins", ui::px(66), ui::Align::Left, true, "Содержание за ход"},
-                             {{}, "army", ui::px(40), ui::Align::Center, true, "В войске или флоте"},
+                             {{}, "army", ui::px(40), ui::Align::Center, true, "В войске, флоте или гарнизоне"},
+                             {{}, "inventory", ui::px(44), ui::Align::Center, true, "Реликвии в инвентаре"},
                              {{}, nullptr, ui::px(70)}};
         ui::Table t("heroes", cols, int(heroes.size()), {.rowHeight = 46, .selectable = false});
+        auto relicsOf = [&](const Character& c) {
+          int n = 0;
+          for (Id r : c.inventory) n += w.relic(r) ? 1 : 0;
+          return n;
+        };
         t.sort([&](int x, int y, int col) {
           const Character& A = *heroes[size_t(x)];
           const Character& B = *heroes[size_t(y)];
           if (col == 1) return A.upkeep < B.upkeep ? -1 : A.upkeep > B.upkeep ? 1 : 0;
-          if (col == 2) return int(armyOfCharacter(w, A.id) != 0) - int(armyOfCharacter(w, B.id) != 0);
+          if (col == 2) return int(armyOfCharacter(w, A.id) != 0 || rules::heroGarrison(w, A.id) != 0) - int(armyOfCharacter(w, B.id) != 0 || rules::heroGarrison(w, B.id) != 0);
+          if (col == 3) return relicsOf(A) - relicsOf(B);
           return compareRu(A.name, B.name);
         });
         for (int i : t) {
@@ -134,6 +142,34 @@ void drawHeroes(App& a, Id id) {
             if (ui::lastItem().hovered) ui::setCursor(platform::Cursor::Hand);
             if (ui::lastItem().clicked) a.select(SelType::Army, army, true);
             a.markUi("heroes.army." + std::to_string(i));
+          } else if (const Province* gp = w.province(rules::heroGarrison(w, cid))) {
+            // В гарнизоне провинции (ТЗ «Доработки», п.1).
+            t.cell();
+            const Id pid = gp->id;
+            ui::iconColored("castle", th.accent, 16, "В гарнизоне: " + (gp->name.empty() ? std::string("Без названия") : gp->name) + " — показать");
+            if (ui::lastItem().hovered) ui::setCursor(platform::Cursor::Hand);
+            if (ui::lastItem().clicked) a.select(SelType::Province, pid, true);
+            a.markUi("heroes.garrison." + std::to_string(i));
+          } else {
+            t.text("—", ui::Ink::Muted);
+          }
+          // Реликвии инвентаря: число, в подсказке — названия и редкость; щелчок — персонаж (инвентарь).
+          if (const int nr = relicsOf(c)) {
+            t.cell();
+            std::vector<std::string> names;
+            for (Id r : c.inventory)
+              if (const Relic* rel = w.relic(r)) names.push_back((rel->name.empty() ? std::string("Без названия") : rel->name) + " · " + schema::rarity(rel->rarity).name);
+            Rarity best = Rarity::Common;
+            for (Id r : c.inventory)
+              if (const Relic* rel = w.relic(r)) best = std::max(best, rel->rarity);
+            {
+              ui::HStack hs(24, ui::Align::Center, 3);
+              ui::iconColored("relic", w::rarityColor(best), 14, join(names, "\n"));
+              if (ui::lastItem().hovered) ui::setCursor(platform::Cursor::Hand);
+              if (ui::lastItem().clicked) a.select(SelType::Character, cid);
+              ui::label(std::to_string(nr), {.font = ui::Font::Small, .ink = ui::Ink::Dim});
+            }
+            a.markUi("heroes.relics." + std::to_string(cid));
           } else {
             t.text("—", ui::Ink::Muted);
           }
@@ -156,9 +192,12 @@ void drawHeroes(App& a, Id id) {
           }
         }
         if (t.footer()) {
+          int relics = 0;
+          for (const Character* c : heroes) relics += relicsOf(*c);
           t.text("Итого");
           t.text(money(upkeep));
           t.text({});
+          t.text(relics ? std::to_string(relics) : std::string(), ui::Ink::Dim);
           t.text({});
         }
       }

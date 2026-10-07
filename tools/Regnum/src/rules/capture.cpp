@@ -133,8 +133,12 @@ BattleOutcome resolveSiege(Tx& tx, const SiegeResult& r) {
     out.loser = r.attackerWins ? owner : L;
   }
   if (anyLeft && r.attackerWins) {
-    // Гарнизон разбит: уцелевшие возвращаются в резерв владельца.
-    tx.province(r.province).garrison.clear();
+    // Гарнизон разбит: уцелевшие возвращаются в резерв владельца, герои гарнизона — в окно «Судьба героев».
+    for (Id h : P.garrisonHeroes) out.fallenHeroes.push_back(h);
+    Province& gp = tx.province(r.province);
+    gp.garrison.clear();
+    gp.garrisonHeroes.clear();
+    gp.garrisonLoyalty = schema::kMaxLoyalty;
     out.winnerArmy = tx.w().army(r.attacker) ? r.attacker : 0;
     std::vector<Id> heroes;
     for (const ArmyGroup& g : A.groups)
@@ -203,6 +207,13 @@ void capture(Tx& tx, Id army, Id province, Capture how, int slavesPct) {
   if (!o.can[int(how)]) fail(o.why[int(how)]);
   const Id L = a.leader(), owner = p0.owner;
   const std::string pn = provName(tx.w(), province);
+  // Герои гарнизона без отрядов покидают захваченную провинцию (остаются героями своего государства).
+  if (!p0.garrisonHeroes.empty()) {
+    std::vector<std::string> names;
+    for (Id h : p0.garrisonHeroes) names.push_back(q(tx.w().characterName(h)));
+    tx.province(province).garrisonHeroes.clear();
+    addLog(tx, LogKind::War, "Герои гарнизона провинции " + pn + " покинули её: " + join(names, ", "), LogRefs{province, army, {L, owner}});
+  }
   switch (how) {
     case Capture::Occupy: {
       setOccupied(tx, province, L);

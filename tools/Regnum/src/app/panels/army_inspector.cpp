@@ -1,8 +1,8 @@
-// Regnum — инспектор войска и флота (ТЗ 1.c.iii–v): фигурка, название, флаги фракций; верность −100…100 % с
-// изменением за ход и модификаторы войска со сроками («Общие доработки», п.12; «Модификаторы»), кнопка «Мятеж» при
-// отрицательной верности («Механика мятежа», п.1); состав по фракциям (союзное войско — отдельные плитки), отряды из
-// резерва своей фракции, герои и главный полководец (флотоводец), кнопки «Разделить», «Распустить союз»,
-// «Расформировать»; провинция под объектом; события.
+// Regnum — инспектор войска и флота (ТЗ 1.c.iii–v): значок (портрет главного полководца в круге или фигурка),
+// название, флаги фракций; верность −100…100 % с изменением за ход и модификаторы войска со сроками («Общие
+// доработки», п.12; «Модификаторы»), кнопка «Мятеж» при отрицательной верности («Механика мятежа», п.1); состав по
+// фракциям (союзное войско — отдельные плитки), отряды из резерва своей фракции, герои (портреты в кругах) и главный
+// полководец (флотоводец), кнопки «Разделить», «Распустить союз», «Расформировать»; провинция под объектом; события.
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -28,7 +28,9 @@ void drawHeader(App& a, Id id) {
   const Army* ar = w.army(id);
   if (!ar) return;
   ui::Row r({ui::px(54), ui::fr(1)}, ui::kAuto, 10);
-  figure(w, *ar, 54, false);
+  const RectF fig = ui::next(54, 54);
+  objectBadgeIn(w, *ar, fig, false);   // портрет главного полководца или фигурка
+  a.markUi("army.figure", fig);
   ui::Group g(0, 2);
   std::string cap = objectCaption(*ar);
   std::string name = objectName(*ar);
@@ -40,9 +42,10 @@ void drawHeader(App& a, Id id) {
   ui::caption(cap);
   {
     float aw = ui::avail().w;
-    float nw = std::min(ui::measure(name, ui::Font::Heading) + 2, std::max(40.f, aw - 34));
+    const float full = ui::measure(name, ui::Font::Heading) + 2;
+    float nw = std::min(full, std::max(40.f, aw - 34));
     ui::Row nr({ui::px(nw), ui::px(26)}, 32, 4);
-    ui::label(name, {.font = ui::Font::Heading});
+    ui::label(name, {.font = ui::Font::Heading, .tooltip = full > nw ? std::string_view(name) : std::string_view()});   // не поместилось — полностью
     ui::Disabled dis(a.readOnly());
     if (ui::iconButton("edit", "Переименовать", {.size = ui::Size::Small, .shortcut = {platform::Key::F2, 0}})) {
       bool fleet = ar->isFleet();
@@ -220,10 +223,14 @@ void heroesList(App& a, const Army& ar, const ArmyGroup& g) {
       ui::tooltip(leaderWord(ar));
       a.markUi("army.cmd." + std::to_string(h));
     }
-    ui::avatar(ch->name, {.size = 28, .ring = cmd});
+    w::heroAvatar(*ch, 28, cmd);   // портрет в круге (лицо — ближе к верху), без портрета — инициалы
+    a.markUi("army.hero." + std::to_string(h));
     {
       ui::Group gg(0, 0);
-      ui::label(ch->name.empty() ? std::string("Без имени") : ch->name, {.font = cmd ? ui::Font::Strong : ui::Font::Body});
+      const std::string name = ch->name.empty() ? std::string("Без имени") : ch->name;
+      const ui::Font nf = cmd ? ui::Font::Strong : ui::Font::Body;
+      const float room = ui::avail().w;
+      ui::label(name, {.font = nf, .tooltip = ui::measure(name, nf) > room ? std::string_view(name) : std::string_view()});
       ui::label(cmd ? std::string(leaderWord(ar)) : (ch->title.empty() ? std::string("Герой") : ch->title),
                 {.font = ui::Font::Caption, .ink = cmd ? ui::Ink::Accent : ui::Ink::Muted});
     }
@@ -243,16 +250,16 @@ void heroesList(App& a, const Army& ar, const ArmyGroup& g) {
     if (x->hero != y->hero) return x->hero;
     return compareRu(x->name, y->name) < 0;
   });
-  // Последний пункт — новый герой фракции (сразу в составе; если полководца нет — он и главный).
+  // Последний пункт — новый герой фракции (сразу в составе; если полководца нет — он и главный). Герой в другом войске
+  // или в гарнизоне провинции виден, но не выбирается.
   std::vector<std::string> hints;
   std::vector<Id> ids;
   std::vector<bool> busy;
   for (const Character* c : list) {
-    Id at = heroLocation(w, c->id, ar.id);
-    busy.push_back(at != 0);
+    const std::string at = heroBusy(w, c->id, ar.id);
+    busy.push_back(!at.empty());
     ids.push_back(c->id);
-    if (at) hints.push_back("в «" + objectName(*w.army(at)) + "»");
-    else hints.push_back(c->title.empty() ? std::string(c->hero ? "герой" : "") : c->title);
+    hints.push_back(!at.empty() ? at : (c->title.empty() ? std::string(c->hero ? "герой" : "") : c->title));
   }
   Color fc = w::factionColor(w, g.faction);
   std::vector<ui::Option> opts;
@@ -498,11 +505,14 @@ void loyaltyCard(App& a, const Army& ar) {
   if (ar.loyalty < 0) {
     std::string why;
     const bool can = rules::canMutiny(w, id, &why);
-    ui::Disabled dis(ro || !can);
-    if (ui::button("Мятеж", {.variant = ui::Variant::Danger, .icon = "rebellion", .fill = true,
-                             .tooltip = can ? std::string("Неверная часть войск государства в провинции отделится и восстанет") : why}))
-      flow::startMutiny(a, id);
-    a.markUi("army.mutiny");
+    {
+      ui::Disabled dis(ro || !can);
+      if (ui::button("Мятеж", {.variant = ui::Variant::Danger, .icon = "rebellion", .fill = true,
+                               .tooltip = can ? std::string("Неверная часть войск государства в провинции отделится и восстанет") : why}))
+        flow::startMutiny(a, id);
+      a.markUi("army.mutiny");
+    }
+    if (!can && !ro) ui::label(why, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info", .wrap = true});   // почему недоступно
   }
 }
 
@@ -534,8 +544,9 @@ void runMutiny(App& a, Id army) {
     else war(x);
   };
   if (rebel && w.army(rebel)) a.select(SelType::Army, rebel);
-  // Войско восстало целиком (п.1.2): верные герои — «Судьба героя», пленившее — мятежное государство.
-  if (res.full && !res.loyalHeroes.empty()) flow::openHeroFate(a, res.loyalHeroes, rebelState, pid, aftermath);
+  // Войско восстало целиком (п.1.2): его верные герои — «Судьба героя», пленившее — мятежное государство (и когда
+  // в провинции остался верный гарнизон: героям не к кому присоединиться).
+  if (!res.loyalHeroes.empty()) flow::openHeroFate(a, res.loyalHeroes, rebelState, pid, aftermath);
   else aftermath(a);
 }
 

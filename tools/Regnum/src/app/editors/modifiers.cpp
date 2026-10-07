@@ -1,5 +1,6 @@
 // Regnum — окно модификаторов (ТЗ 1.g, ТЗ «Модификаторы»): список своих и встроенных модификаторов с поиском и
-// фильтром, создание, копия, удаление своих с предупреждением о местах использования; карточка модификатора
+// фильтром, сгруппированный по виду (для провинций, глобальные, для армий, для героев, везде; группы сворачиваются,
+// поиск и фильтр их раскрывают), создание, копия, удаление своих с предупреждением о местах использования; карточка модификатора
 // (название, значок, цвет, описание, где действует, срок по умолчанию), все эффекты schema::kEffects в пределах ТЗ
 // (локальные, глобальные, эффекты войск), цели дипломатии, живой предпросмотр и «Где используется» со ссылками.
 // Встроенные (schema::builtinModifiers, 1.1–1.26) видны всегда: пока записи мира нет, показывается шаблон, первая
@@ -82,6 +83,41 @@ int tplIndex(Id id) {
 }
 bool isAuto(const Modifier& m) { return !m.key.empty() && schema::isAutoKey(m.key); }
 bool isBuiltin(const Modifier& m) { return !m.key.empty() && schema::builtinModifier(m.key) != nullptr; }
+
+// ---------------------------------------------------------------- группы списка по виду модификатора
+// Список сгруппирован по тому, где модификатор действует (ModKind); группы сворачиваются, поиск и фильтр их раскрывают.
+struct KindGroup {
+  ModKind kind;
+  const char* title;
+  const char* icon;
+  const char* mark;   // метка строки группы: modifiers.group.<mark>
+};
+const KindGroup kKindGroups[] = {
+    {ModKind::Province, "Для провинций", "province", "province"},
+    {ModKind::Faction, "Глобальные", "crown", "faction"},
+    {ModKind::Army, "Для армий", "army", "army"},
+    {ModKind::Hero, "Для героев", "hero", "hero"},
+    {ModKind::Any, "Везде", "sparkles", "any"},
+};
+constexpr int kKindGroupCount = int(std::size(kKindGroups));
+int groupIndex(ModKind k) {
+  for (int i = 0; i < kKindGroupCount; i++)
+    if (kKindGroups[i].kind == k) return i;
+  return kKindGroupCount - 1;
+}
+
+// Свёрнутые группы списка: состояние окна, пока открыт тот же мир (другой мир — все раскрыты).
+std::array<bool, kKindGroupCount>& closedGroups(App& a) {
+  static std::array<bool, kKindGroupCount> closed{};
+  static u64 tag = 0;
+  const Meta& m = *a.store.world().meta;
+  const u64 t = hashMix(hash64(a.dataDir()), hash64(m.createdAt + "|" + m.basemap));
+  if (t != tag) {
+    tag = t;
+    closed = {};
+  }
+  return closed;
+}
 
 // ---------------------------------------------------------------- использование
 struct ModUse {
@@ -308,6 +344,7 @@ struct EdState {
   std::string seenQuery;   // запрос и фильтр прошлого кадра (смена — выделение к первому найденному)
   int seenFilter = 0;
   Id seenSel = 0;          // выделение прошлого кадра (новое — прокрутить список к строке)
+  int seenGroup = -1;      // группа выделенного прошлого кадра (новая — раскрыть её)
   std::string selKey;      // выделен встроенный: его ключ (запись отменили Ctrl+Z — выделение остаётся на шаблоне)
 };
 
@@ -392,8 +429,15 @@ void listRow(App& a, const Entry& e, Id& sel, EdState& st) {
                     : e.uses          ? "Используется: " + usageText(usageOf(w, m.id))
                                       : std::string("Нигде не используется");
   if (edkit::entityRow(orName(m.name, "Без названия"), effectSummary(m), modIcon(m), m.color, e.uses ? std::to_string(e.uses) : std::string(),
-                       e.id == sel, missingTargets(m), tip))
+                       e.id == sel, missingTargets(m), e.builtin ? "Встроенный · " + tip : tip))
     sel = e.id;
+  if (e.builtin) {   // встроенный — замок на плитке значка
+    const ui::Theme& th = ui::theme();
+    const RectF rr = ui::lastItem().rect;
+    const float cx = rr.x + 10 + 30 - 1, cy = rr.cy() + 15 - 1;
+    ui::draw::circle(cx, cy, 7, th.surface1);
+    ui::draw::icon("lock", RectF{cx - 5, cy - 5, 10, 10}, th.textMuted);
+  }
   if (e.id == sel) {
     a.markUi("modifiers.selected");
     if (st.seenSel != sel) ui::scrollToItem();
@@ -401,8 +445,30 @@ void listRow(App& a, const Entry& e, Id& sel, EdState& st) {
   if (e.builtin && !m.key.empty()) a.markUi("modifiers.builtin." + m.key);
 }
 
-void drawList(App& a, EdState& st, Id& sel, const std::vector<const Entry*>& own, const std::vector<const Entry*>& built, size_t totalOwn,
-              size_t totalAll) {
+// Строка группы: шеврон, значок вида, название, число. true — щелчок (свернуть/развернуть).
+bool groupHeader(App& a, const KindGroup& g, size_t n, bool open, bool forced) {
+  const ui::Theme& th = ui::theme();
+  ui::IdScope s(g.mark);
+  const RectF r = ui::next(0, 30);
+  ui::Interaction it = ui::interact(ui::id("##head"), r);
+  if (it.hovered && !forced) ui::setCursor(platform::Cursor::Hand);
+  const float hv = ui::animate(ui::id("##hv"), it.hovered && !forced ? 1.f : 0.f);
+  if (hv > 0.01f) ui::draw::rect(r, th.hover.alpha(hv), 6);
+  ui::draw::icon(open ? "chevron-down" : "chevron-right", RectF{r.x + 6, r.cy() - 7, 14, 14}, forced ? th.textMuted.alpha(0.5f) : th.textMuted);
+  ui::draw::icon(g.icon, RectF{r.x + 26, r.cy() - 8, 16, 16}, th.textDim);
+  const std::string cnt = fmtInt(i64(n));
+  const float pw = std::max(22.f, std::ceil(ui::measure(cnt, ui::Font::Caption)) + 12);
+  const RectF pr{r.right() - 10 - pw, r.cy() - 9, pw, 18};
+  ui::draw::text(g.title, RectF{r.x + 50, r.y, pr.x - r.x - 58, r.h}, ui::Font::Strong, th.text);
+  ui::draw::rect(pr, th.surface3, 9);
+  ui::draw::text(cnt, pr, ui::Font::Caption, th.textDim, ui::Align::Center);
+  a.markUi(std::string("modifiers.group.") + g.mark, r);
+  return it.clicked && !forced;
+}
+
+using Groups = std::array<std::vector<const Entry*>, kKindGroupCount>;
+
+void drawList(App& a, EdState& st, Id& sel, const Groups& groups, size_t shown, size_t totalOwn, size_t totalAll) {
   bool ro = a.readOnly();
   {
     ui::Row r({ui::fr(1), ui::px(30)}, 30, 6);
@@ -429,23 +495,27 @@ void drawList(App& a, EdState& st, Id& sel, const std::vector<const Entry*>& own
   a.markUi("modifiers.filter");
   RectF rest = ui::avail();
   float footH = ui::lineHeight(ui::Font::Small);
-  size_t shown = own.size() + built.size();
+  const bool filtering = !st.query.empty() || st.filter != 0;   // поиск и фильтр раскрывают группы
+  auto& closed = closedGroups(a);
   {
-    ui::Scroll sc("list", std::max(60.f, rest.h - footH - 8));
+    const float listH = std::max(60.f, rest.h - footH - 8);
+    a.markUi("modifiers.list", RectF{rest.x, rest.y, rest.w, listH});
+    ui::Scroll sc("list", listH);
     ui::gap(2);
     if (shown == 0) {
       ui::spacer(16);
       ui::label("Ничего не найдено", {.ink = ui::Ink::Muted, .align = ui::Align::Center});
     }
-    if (!own.empty()) ui::caption("Свои · " + std::to_string(own.size()));
-    else if (totalOwn == 0 && st.query.empty() && st.filter == 0) ui::label("Своих модификаторов пока нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    for (const Entry* e : own) listRow(a, *e, sel, st);
-    if (!built.empty()) {
-      ui::spacer(4);
-      ui::caption("Встроенные · " + std::to_string(built.size()));
-      a.markUi("modifiers.builtins");
+    for (int gi = 0; gi < kKindGroupCount; gi++) {
+      const auto& items = groups[size_t(gi)];
+      if (items.empty()) continue;
+      const bool open = filtering || !closed[size_t(gi)];
+      if (groupHeader(a, kKindGroups[gi], items.size(), open, filtering)) closed[size_t(gi)] = !closed[size_t(gi)];
+      if (!open) continue;
+      for (const Entry* e : items) listRow(a, *e, sel, st);
+      ui::spacer(2);
     }
-    for (const Entry* e : built) listRow(a, *e, sel, st);
+    if (totalOwn == 0 && !filtering) ui::label("Своих модификаторов пока нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   }
   st.seenSel = sel;
   std::string cnt = fmtInt(i64(totalAll)) + " " + plural(i64(totalAll), "модификатор", "модификатора", "модификаторов");
@@ -1036,13 +1106,17 @@ void drawEditor(App& a, Id arg) {
   auto autos = autoUse(w);
   std::vector<Entry> own, built;
   collect(w, uses, &autos, own, built);
-  std::vector<const Entry*> shownOwn, shownBuilt;
-  for (const Entry& e : own)
-    if (passes(e, st)) shownOwn.push_back(&e);
-  for (const Entry& e : built)
-    if (passes(e, st)) shownBuilt.push_back(&e);
-  std::vector<const Entry*> shown = shownOwn;
-  shown.insert(shown.end(), shownBuilt.begin(), shownBuilt.end());
+  // Группы по виду (в каждой — свои по названию, затем встроенные в порядке ТЗ) и строки в порядке показа.
+  const bool filtering = !st.query.empty() || st.filter != 0;
+  auto& closed = closedGroups(a);
+  Groups groups;
+  size_t matched = 0;
+  for (const std::vector<Entry>* list : {&own, &built})
+    for (const Entry& e : *list)
+      if (passes(e, st)) {
+        groups[size_t(groupIndex(e.m.kind))].push_back(&e);
+        matched++;
+      }
   auto findEntry = [&](Id id) -> const Entry* {
     for (const Entry& e : own)
       if (e.id == id) return &e;
@@ -1061,6 +1135,15 @@ void drawEditor(App& a, Id arg) {
   if (!findEntry(sel) && !st.selKey.empty())
     for (const Entry& e : built)
       if (e.m.key == st.selKey) sel = e.id;
+  // Выделение сменилось или модификатор перешёл в другую группу — его группа раскрывается.
+  if (const Entry* e = findEntry(sel)) {
+    const int gi = groupIndex(e->m.kind);
+    if (sel != st.seenSel || gi != st.seenGroup) closed[size_t(gi)] = false;
+    st.seenGroup = gi;
+  }
+  std::vector<const Entry*> shown;   // видимые строки (раскрытые группы) в порядке показа
+  for (int gi = 0; gi < kKindGroupCount; gi++)
+    if (filtering || !closed[size_t(gi)]) shown.insert(shown.end(), groups[size_t(gi)].begin(), groups[size_t(gi)].end());
   bool visible = std::any_of(shown.begin(), shown.end(), [&](const Entry* e) { return e->id == sel; });
   if (!findEntry(sel) || (refiltered && !visible && !shown.empty())) {
     const Entry* first = !shown.empty() ? shown.front() : !own.empty() ? &own.front() : !built.empty() ? &built.front() : nullptr;
@@ -1083,7 +1166,7 @@ void drawEditor(App& a, Id arg) {
   ui::draw::line(L.right() + 12, R.y, L.right() + 12, R.bottom(), th.border, 1);
   {
     ui::Area la(L, 0);
-    drawList(a, st, sel, shownOwn, shownBuilt, own.size(), own.size() + built.size());
+    drawList(a, st, sel, groups, matched, own.size(), own.size() + built.size());
   }
   {
     ui::Area da(D, 0);

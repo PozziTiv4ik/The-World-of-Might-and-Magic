@@ -1,9 +1,10 @@
 // Regnum — инспектор персонажа: шапка (портрет, имя, фракция, титул; заметные состояния «Мертв» с местом захоронения
 // и «Взят в плен» с пленившим государством), вкладка «Сведения» (портрет из PNG/JPEG, имя, титул, фракция, отметка
 // героя, содержание — расход на специалистов ТЗ 1.e.i, золото до тысячных; модификаторы героя со сроками — ТЗ
-// «Модификаторы»; воскрешение погибшего — ТЗ «Механика героев»; заметки и раздел «Канон» — связь с карточкой,
-// выбор среди одноимённых, портрет из карточки) и вкладка «Роли» (правитель, лорд провинций, места в совете, герой и
-// полководец войск — ТЗ 1.a.vi, 1.b.iv, 1.c.iii) с назначением только в своей фракции и снятием.
+// «Модификаторы»; воскрешение погибшего — ТЗ «Механика героев»; инвентарь — реликвии справочника с подсветкой
+// редкости, ТЗ «Доработки», п.10; заметки и раздел «Канон» — связь с карточкой, поиск по части имени и выбор из
+// найденных, портрет из карточки) и вкладка «Роли» (правитель, лорд провинций, места в совете, герой и полководец
+// войск — ТЗ 1.a.vi, 1.b.iv, 1.c.iii — и гарнизон провинции) с назначением только в своей фракции и снятием.
 #include <algorithm>
 
 #include "app/app_internal.h"
@@ -17,7 +18,8 @@ struct Roles {
   std::vector<std::pair<Id, Id>> seats;
   std::vector<Id> armies;
   std::vector<Id> commands;
-  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size(); }
+  Id garrison = 0;
+  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size() + (garrison ? 1 : 0); }
 };
 Roles rolesOf(const World& w, Id character);
 std::string rolesText(const World& w, const Roles& r);
@@ -179,6 +181,72 @@ void modifiersSection(App& a, const World& w, const Character& c, bool ro) {
   }
 }
 
+// Инвентарь героя (ТЗ «Доработки», п.10: «В инвентарь можно будет добавлять реликвии из соответствующего
+// справочника»): реликвии фишками с подсветкой редкости, крестик — убрать (rules::takeRelic), щелчок и значок
+// заголовка — справочник реликвий; добавить — реликвии справочника: свободные, затем у других персонажей (подпись
+// «у <имя>»; выбор передаёт реликвию этому герою — rules::giveRelic).
+void inventorySection(App& a, const World& w, const Character& c, bool ro) {
+  const Id cid = c.id;
+  std::vector<const Relic*> mine;
+  for (Id rid : c.inventory)
+    if (const Relic* r = w.relic(rid)) mine.push_back(r);
+  const ui::Theme& th = ui::theme();
+  ui::Section s("Инвентарь", "inventory",
+                {.badge = mine.empty() ? std::string() : std::to_string(mine.size()), .actionIcon = "book", .actionTooltip = "Справочник реликвий"});
+  {
+    const RectF hr = ui::lastItem().rect;
+    a.markUi("character.inventory", hr);
+    a.markUi("character.relicsCatalog", RectF{hr.right() - (th.padCard - 4) - 26, hr.cy() - 13, 26, 26});
+  }
+  if (s.action()) a.openEditor("catalogs", 8);
+  if (!s) return;
+  if (mine.empty()) {
+    ui::label("Пусто", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+  } else {
+    edkit::chipsBegin();
+    for (const Relic* r : mine) {
+      const Id rid = r->id;
+      const ui::ChipAction act = w::relicChip(*r, !ro);
+      a.markUi("character.relic." + std::to_string(rid));
+      if (act == ui::ChipAction::Remove) a.act("Убрать реликвию", [&](Tx& tx) { rules::takeRelic(tx, cid, rid); });
+      else if (act == ui::ChipAction::Click) a.openEditor("catalogs", 8);
+    }
+    edkit::chipsEnd();
+  }
+  if (ro) return;
+  // Кандидаты: свободные реликвии, затем у других персонажей; внутри — по названию.
+  struct Cand {
+    const Relic* r;
+    Id holder;
+    std::string label, hint;
+  };
+  std::vector<Cand> cand;
+  for (const Relic& r : w.catalogs->relics) {
+    if (std::find(c.inventory.begin(), c.inventory.end(), r.id) != c.inventory.end()) continue;
+    const Id holder = rules::relicHolder(w, r.id);
+    cand.push_back({&r, holder, orName(r.name, "Без названия"),
+                    holder ? "у " + orName(w.characterName(holder), "Без имени") : std::string(schema::rarity(r.rarity).name)});
+  }
+  std::stable_sort(cand.begin(), cand.end(), [](const Cand& x, const Cand& y) {
+    if ((x.holder != 0) != (y.holder != 0)) return x.holder == 0;
+    return compareRu(x.label, y.label) < 0;
+  });
+  std::vector<ui::Option> opts;
+  opts.reserve(cand.size());
+  for (const Cand& k : cand) opts.push_back(ui::Option{k.label, "relic", w::rarityColor(k.r->rarity), k.hint});
+  int idx = -1;
+  const std::string_view ph = w.catalogs->relics.empty() ? "Реликвий в справочнике нет" : cand.empty() ? "Все реликвии у героя" : "Добавить реликвию";
+  if (ui::combo("addRelic", idx, std::span<const ui::Option>(opts),
+                {.placeholder = ph, .search = 1, .icon = "plus", .disabled = cand.empty(), .popupWidth = 340, .tooltip = "Реликвия из справочника"}) &&
+      idx >= 0 && idx < int(cand.size())) {
+    const Id rid = cand[size_t(idx)].r->id;
+    const Id from = cand[size_t(idx)].holder;
+    if (a.act(from ? "Передать реликвию" : "Реликвия в инвентарь", [&](Tx& tx) { rules::giveRelic(tx, cid, rid); }) && from)
+      a.toast("«" + cand[size_t(idx)].label + "» передана от «" + orName(w.characterName(from), "Без имени") + "»", ToastKind::Info, "relic");
+  }
+  a.markUi("character.addRelic");
+}
+
 void drawInfo(App& a, Id cid) {
   const World& w = a.world();
   const Character* cp = w.character(cid);
@@ -247,6 +315,7 @@ void drawInfo(App& a, Id cid) {
     }
   }
   modifiersSection(a, w, c, ro);
+  inventorySection(a, w, c, ro);
   if (ui::Section s("Заметки", "note", {.defaultOpen = !c.notes.empty() || !c.entity.empty()}); s) {
     canon::notesField(a, SelType::Character, cid);
     a.markUi("character.notes");
@@ -420,12 +489,27 @@ void drawRoles(App& a, Id cid) {
       }
     }
   }
-  // Войска и флот: герой и главный полководец (ТЗ 1.c.iii).
+  // Войска и флот: герой и главный полководец (ТЗ 1.c.iii); герой в гарнизоне провинции (ТЗ «Доработки», п.1).
   {
-    std::string badge = std::to_string(r.armies.size());
-    ui::Section s("Войска и флот", "army", {.badge = r.armies.empty() ? std::string_view() : std::string_view(badge)});
+    const size_t n = r.armies.size() + (r.garrison ? 1 : 0);
+    std::string badge = std::to_string(n);
+    ui::Section s("Войска и флот", "army", {.badge = n == 0 ? std::string_view() : std::string_view(badge)});
     a.markUi("character.roles.armies");
     if (s) {
+      if (const Province* gp = w.province(r.garrison)) {
+        const Id pid = gp->id;
+        ui::IdScope sc("garrison");
+        ui::Row row({ui::fr(1), ui::px(24)}, 30, 6);
+        ui::ChipOpt co;
+        co.icon = "castle";
+        co.color = w::factionColor(w, gp->owner);
+        co.clickable = true;
+        co.tooltip = "Гарнизон провинции — открыть";
+        if (ui::chip("Гарнизон · " + orName(gp->name, "Без названия"), co) == ui::ChipAction::Click) a.select(SelType::Province, pid, true);
+        a.markUi("character.garrison");
+        removeButton("Покинуть гарнизон", ro, [&] { a.act("Герой покинул гарнизон", [&](Tx& tx) { rules::setGarrisonHero(tx, pid, cid, false); }); });
+        a.markUi("character.garrisonLeave");
+      }
       for (Id aid : r.armies) {
         const Army* ar = w.army(aid);
         if (!ar) continue;

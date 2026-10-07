@@ -1,7 +1,9 @@
 // Regnum — полноэкранный редактор дерева построек (ТЗ 1.h.i–ii, 1.f.ii): общее дерево (одинаковое для всех
 // государств) или уникальные постройки государства. Дорожки категорий (военные, экономические, промышленные,
-// жилые), карточки построек, требования к другим постройкам (связи, уровень), панель свойств с уровнями:
-// срок, стоимость по ресурсам, модификаторы, описание.
+// жилые, религиозные, культовые), карточки построек, требования к другим постройкам (связи, уровень) и к
+// технологиям, панель свойств: особые возможности (преобразование ресурсов по рецепту, генерация эссенции,
+// доступ к особым отрядам), уровни — срок, стоимость по ресурсам, ресурсы и эссенции за ход, модификаторы (окно
+// выбора с созданием нового), описание. ТЗ «Доработки», п.2–5, 7, «Ввод новых механик», п.4–5.
 #include <unordered_map>
 #include <unordered_set>
 
@@ -106,6 +108,101 @@ void iconTile(const Building& b, float size, bool dim) {
   ui::draw::icon(iconOf(b), RectF{r.cx() - is * 0.5f, r.cy() - is * 0.5f, is, is}, dim ? c.alpha(0.5f) : c);
 }
 
+void tokens(const std::vector<Token>& list, float gap) {
+  if (list.empty()) return;
+  ui::IdScope scope("tokens");
+  const RectF area = ui::avail();
+  const float h = 20, rowGap = 4;
+  float x = area.x, y = area.y;
+  for (size_t i = 0; i < list.size(); i++) {
+    const Token& t = list[i];
+    ui::IdScope s{int(i)};
+    const float iw = t.icon.empty() ? 0.f : (t.text.empty() ? 16.f : 19.f);
+    const float tw = t.text.empty() ? 0.f : std::ceil(ui::measure(t.text, t.font)) + 2;
+    const float w = iw + tw;
+    if (x > area.x && x + w > area.right() + 0.5f) {
+      x = area.x;
+      y += h + rowGap;
+    }
+    if (!t.icon.empty()) {
+      ui::at(RectF{x, y + 2, 16, 16});
+      ui::iconColored(t.icon.c_str(), t.color, 16, t.tip);
+    }
+    if (!t.text.empty()) {
+      ui::at(RectF{x + iw, y, tw, h});
+      ui::label(t.text, {.font = t.font, .ink = t.ink, .tooltip = t.tip});
+    }
+    x += w + gap;
+  }
+  ui::next(y + h - area.y);
+}
+
+bool recipeValid(const World& w, const Recipe& r) {
+  bool in = false;
+  for (const ResAmount& x : r.in) in = in || (x.amount > 0 && w.resource(x.res));
+  return in && r.out.res && w.resource(r.out.res);
+}
+
+std::vector<Token> recipeTokens(const World& w, const Recipe& r, const Faction* payer) {
+  const ui::Theme& th = ui::theme();
+  std::vector<Token> out;
+  for (const ResAmount& x : r.in) {
+    const CatalogItem* c = w.resource(x.res);
+    if (!c || !(x.amount > 0)) continue;
+    const bool lack = payer && payer->stock(x.res) + 1e-9 < x.amount;
+    std::string tip = (c->name.empty() ? std::string("Ресурс") : c->name) + " на входе: " + fmtNum(x.amount, 3);
+    if (payer) tip += ", есть " + fmtNum(std::max(0.0, payer->stock(x.res)), 3);
+    out.push_back({w::resourceIcon(w, x.res), lack ? th.danger : w::resourceColor(w, x.res), fmtNum(x.amount, 3), lack ? ui::Ink::Danger : ui::Ink::Normal, tip});
+  }
+  if (out.empty()) out.push_back({"warning", th.warning, "нет входа", ui::Ink::Warning, {}, ui::Font::Small});
+  out.push_back({"arrow-right", th.textMuted, {}, ui::Ink::Muted, {}});
+  if (const CatalogItem* c = w.resource(r.out.res))
+    out.push_back({w::resourceIcon(w, r.out.res), w::resourceColor(w, r.out.res), fmtNum(r.out.amount, 3), ui::Ink::Success,
+                   (c->name.empty() ? std::string("Ресурс") : c->name) + " на выходе: " + fmtNum(r.out.amount, 3)});
+  else
+    out.push_back({"warning", th.warning, "нет выхода", ui::Ink::Warning, {}, ui::Font::Small});
+  out.push_back({"hourglass", th.textMuted, nTurns(std::max(1, r.turns)), ui::Ink::Muted, "Цикл преобразования", ui::Font::Small});
+  return out;
+}
+
+std::string recipeText(const World& w, const Recipe& r) {
+  std::vector<std::string> in;
+  for (const ResAmount& x : r.in)
+    if (const CatalogItem* c = w.resource(x.res); c && x.amount > 0) in.push_back(c->name + " " + fmtNum(x.amount, 3));
+  const CatalogItem* o = w.resource(r.out.res);
+  return (in.empty() ? std::string("—") : join(in, " + ")) + " → " + (o ? o->name + " " + fmtNum(r.out.amount, 3) : std::string("—")) + " · " +
+         nTurns(std::max(1, r.turns));
+}
+
+std::vector<Token> essenceTokens(const World& w, const std::map<Id, double>& essence) {
+  std::vector<Token> out;
+  for (auto& [e, v] : essence) {
+    const CatalogItem* c = w.essence(e);
+    if (!c || !(v > 0)) continue;
+    out.push_back({"essence", w::essenceColor(w, e), "+" + fmtNum(v, 3), ui::Ink::Success, (c->name.empty() ? std::string("Эссенция") : c->name) + ": +" + fmtNum(v, 3) + " за ход"});
+  }
+  return out;
+}
+
+std::string essenceText(const World& w, const std::map<Id, double>& essence) {
+  std::vector<std::string> p;
+  for (auto& [e, v] : essence)
+    if (const CatalogItem* c = w.essence(e); c && v > 0) p.push_back("+" + fmtNum(v, 3) + " " + utf8::lower(c->name));
+  return join(p, ", ");
+}
+
+const char* cultRule(const Building& b) {
+  if (b.cat != BuildingCat::Cult) return nullptr;
+  return b.owner ? "Одна на государство" : "Одна на всю карту";
+}
+
+std::string specialsText(const World& w, const std::vector<Id>& specials) {
+  std::vector<std::string> n;
+  for (Id s : specials)
+    if (const SpecialUnit* su = w.special(s)) n.push_back(su->name.empty() ? std::string("Без названия") : su->name);
+  return join(n, ", ");
+}
+
 }  // namespace bld
 
 namespace {
@@ -126,10 +223,16 @@ struct BN {
   std::string name, desc, icon;
   BuildingCat cat = BuildingCat::Economic;
   std::vector<BuildingReq> reqs;
+  std::vector<Id> techs;           // требуемые технологии
   std::vector<BuildingLevel> levels;
   Vec2 pos;
   int built = 0, building = 0;   // провинций с постройкой: достроено / строится
   bool match = true;
+  // Особые возможности.
+  bool convert = false, essenceGen = false, specialAccess = false;
+  Recipe recipe;
+  std::vector<Id> specials;
+  Id cultAt = 0;                   // культовая: провинция, где она уже есть или строится (0 — нигде)
 };
 
 struct LinkSel {
@@ -227,42 +330,30 @@ Box2 boundsOf(const std::vector<BN>& bs, const Lanes& L) {
 }
 
 std::string bname(const BN& b) { return b.name.empty() ? std::string("Без названия") : b.name; }
+std::string bname(const Building& b) { return b.name.empty() ? std::string("Без названия") : b.name; }
+std::string tname(const Tech& t) { return t.name.empty() ? std::string("Без названия") : t.name; }
 
-// Цикл требований: req (через свои требования) уже зависит от b.
-bool wouldCycle(const World& w, Id b, Id req) {
-  if (b == req) return true;
-  std::vector<Id> st{req};
-  std::unordered_set<Id> seen{req};
-  while (!st.empty()) {
-    Id id = st.back();
-    st.pop_back();
-    const Building* x = w.building(id);
-    if (!x) continue;
-    for (const BuildingReq& r : x->requires_) {
-      if (r.building == b) return true;
-      if (seen.insert(r.building).second) st.push_back(r.building);
-    }
-  }
-  return false;
-}
-
-void addReq(Tx& tx, Id b, Id req) {
-  const Building* x = tx.w().building(b);
-  const Building* y = tx.w().building(req);
-  if (!x || !y) fail("Постройка не найдена");
-  if (b == req) fail("Постройка не может требовать саму себя");
-  if (y->owner != 0 && y->owner != x->owner) fail("Требовать можно только общие постройки и уникальные постройки того же государства");
-  for (const BuildingReq& r : x->requires_)
-    if (r.building == req) return;
-  if (wouldCycle(tx.w(), b, req)) fail("Связь создаст цикл требований");
-  tx.building(b).requires_.push_back(BuildingReq{req, 1});
-}
+// Требования построек — правилами (ТЗ «Доработки», п.4 и 7): общая постройка требует только общие, уникальная —
+// общие и своего государства; без циклов. Отказ правила — уведомлением с причиной.
+void addReq(App& a, Id b, Id req) { a.act("Требование постройки", [&](Tx& tx) { rules::setBuildingReq(tx, b, req, 1); }); }
 
 void removeReq(App& a, LinkSel l) {
-  a.act("Удалить требование постройки", [&](Tx& tx) {
-    auto& rq = tx.building(l.b).requires_;
-    rq.erase(std::remove_if(rq.begin(), rq.end(), [&](const BuildingReq& r) { return r.building == l.req; }), rq.end());
-  });
+  a.act("Удалить требование постройки", [&](Tx& tx) { rules::setBuildingReq(tx, l.b, l.req, 0); });
+}
+
+void setReqLevel(App& a, Id b, Id req, int level) {
+  a.act("Уровень требуемой постройки", [&](Tx& tx) { rules::setBuildingReq(tx, b, req, level); });
+}
+
+// Цвет значка особой возможности постройки (карточка, переключатели).
+Color roleColor(rules::BuildingRole r) {
+  const ui::Theme& th = ui::theme();
+  switch (r) {
+    case rules::BuildingRole::Convert: return th.info;
+    case rules::BuildingRole::Essence: return Color::hex(0x9b7bff);
+    case rules::BuildingRole::Special: return th.accent;
+  }
+  return th.textDim;
 }
 
 void askDelete(App& a, const BN& b) {
@@ -388,8 +479,10 @@ void autoLayout(App& a, const std::vector<BN>& bs) {
 struct Card {
   BN b;
   Vec2 at;
+  std::string cultAt;      // культовая: провинция, где уже стоит
   bool sel = false, hover = false, dim = false, drop = false, dropBad = false, outHot = false, inHot = false, hasIn = false, hasOut = false, ghost = false;
 };
+constexpr u32 kEssenceInk = 0x9b7bff;   // значок генерации эссенции на карточке
 struct EdgeD {
   Curve k;
   Color col;
@@ -450,11 +543,36 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
   c.strokeRoundRect(tile.inset(0.5f * px), 11, 1 * px, cc.alpha(0.35f));
   std::string ic = !b.icon.empty() && gfx::hasIcon(b.icon) ? b.icon : std::string(bld::catIcon(b.cat));
   icon(c, ic, tile.inset(10), cc);
-  // Название и подпись
+  // Название и подпись (культовая — одна на карту или на государство)
   text(c, bname(b), textStyle(14, gfx::FontWeight::Semibold), RectF{r.x + 66, r.y + 13, kBW - 66 - 14, 20}, k.text);
-  std::string sub = std::string(bld::catName(b.cat)) + " · " + std::to_string(b.levels.size()) + " " +
-                    plural(i64(b.levels.size()), "уровень", "уровня", "уровней");
-  text(c, sub, textStyle(11.5f), RectF{r.x + 66, r.y + 35, kBW - 66 - 14, 16}, k.textMuted);
+  std::string sub = b.cat == BuildingCat::Cult ? std::string(b.owner ? "Одна на государство" : "Одна на всю карту")
+                                               : std::string(bld::catName(b.cat)) + " · " + std::to_string(b.levels.size()) + " " +
+                                                     plural(i64(b.levels.size()), "уровень", "уровня", "уровней");
+  text(c, sub, textStyle(11.5f), RectF{r.x + 66, r.y + 35, kBW - 66 - 14, 16}, b.cat == BuildingCat::Cult ? Color::mix(k.textMuted, cc, 0.55f) : k.textMuted);
+  // Особые возможности, требуемые технологии, где уже стоит культовая постройка.
+  {
+    float fx = r.x + 66;
+    const float fy = r.y + 53, fr = r.right() - 14;
+    auto feat = [&](const char* name, Color col) {
+      icon(c, name, RectF{fx, fy, 13, 13}, col);
+      fx += 18;
+    };
+    if (b.convert) feat("convert", k.info);
+    if (b.essenceGen) feat("essence", Color::hex(kEssenceInk));
+    if (b.specialAccess) feat("special-unit", k.accent);
+    if (!b.techs.empty()) {
+      icon(c, "tech-tree", RectF{fx, fy, 13, 13}, k.textMuted);
+      std::string n = std::to_string(b.techs.size());
+      gfx::TextStyle st = textStyle(10.5f, gfx::FontWeight::Semibold);
+      float tw = gfx::measureText(n, st);
+      text(c, n, st, RectF{fx + 15, fy - 1, tw + 2, 15}, k.textMuted);
+      fx += 15 + tw + 8;
+    }
+    if (!cd.cultAt.empty() && fx < fr - 30) {
+      icon(c, "map-pin", RectF{fx, fy, 13, 13}, k.accent);
+      text(c, cd.cultAt, textStyle(10.5f), RectF{fx + 15, fy - 1, fr - fx - 15, 15}, k.textDim);
+    }
+  }
   // Уровни: римские цифры, построено
   float x = r.x + 14, y = r.y + 70;
   gfx::TextStyle lv = textStyle(10.5f, gfx::FontWeight::Semibold);
@@ -576,6 +694,9 @@ const IconChoice kIcons[] = {
     {"tech", "Наука"},           {"staff", "Посох"},          {"wand", "Магия"},           {"sparkles", "Чудо"},
     {"religion", "Храм"},        {"culture", "Культура"},     {"population", "Население"}, {"heart", "Лечебница"},
     {"b-military", "Военная"},   {"b-economic", "Экономическая"}, {"b-industrial", "Промышленная"}, {"b-residential", "Жилая"},
+    {"b-religious", "Религиозная"}, {"b-cult", "Культовая"},  {"sun", "Святилище"},       {"moon", "Обитель"},
+    {"convert", "Преобразование"}, {"essence", "Эссенция"},   {"special-unit", "Особые войска"}, {"flame", "Горнило"},
+    {"skull", "Склеп"},          {"eye", "Око"},              {"relic", "Сокровищница"},   {"star", "Чудо света"},
 };
 
 // «Даёт за ход» (ТЗ «Виды государств», п.4, 8): ресурсы, которые достроенный уровень даёт владельцу каждый ход, —
@@ -639,6 +760,253 @@ void levelProduce(App& a, const BN& b, int li, bool ro) {
   a.markUi("bt.level." + std::to_string(li) + ".addproduce");
 }
 
+// «Эссенция за ход» (постройка генерации эссенции, ТЗ «Ввод новых механик»): эссенции, которые достроенный уровень
+// даёт владельцу каждый ход (rules::setLevelEssence; 0 — убрать).
+void levelEssence(App& a, const BN& b, int li, bool ro) {
+  const World& w = a.world();
+  const std::map<Id, double> ess = b.levels[size_t(li)].essence;
+  const Id bid = b.id;
+  const int level = li + 1;
+  const std::string mark = "bt.level." + std::to_string(li);
+  ui::IdScope es("essence");
+  ui::caption("Эссенция за ход");
+  for (auto [e, amount] : ess) {
+    ui::IdScope rs{i64(e)};
+    ui::Row row({ui::fr(1), ui::px(96), ui::px(30)}, 30, 6);
+    Id ne = e;
+    if (w::essencePicker("ess", ne, {}, ro) && ne && ne != e) {
+      const Id old = e;
+      const double v = amount;
+      a.act("Эссенция уровня", [&](Tx& tx) {
+        if (tx.w().building(bid)->levels[size_t(li)].essence.count(ne)) fail("Эту эссенцию уровень уже даёт");
+        rules::setLevelEssence(tx, bid, level, old, 0);
+        rules::setLevelEssence(tx, bid, level, ne, v);
+      });
+    }
+    double v = amount;
+    if (ui::numberField("amount", v, {.min = 0.001, .max = 1e9, .step = 1, .digits = 3, .tooltip = "Эссенции за ход"}))
+      a.act("Эссенция за ход", [&](Tx& tx) { rules::setLevelEssence(tx, bid, level, e, v); },
+            {.coalesce = "bt-ess:" + std::to_string(bid) + ":" + std::to_string(li) + ":" + std::to_string(e)});
+    a.markUi(mark + ".ess." + std::to_string(e));
+    if (ui::iconButton("close", "Убрать эссенцию", {.disabled = ro})) {
+      const Id x = e;
+      a.act("Убрать эссенцию уровня", [&](Tx& tx) { rules::setLevelEssence(tx, bid, level, x, 0); });
+    }
+  }
+  if (ro) return;
+  // Добавить: эссенции справочника, которых у уровня ещё нет.
+  std::vector<const CatalogItem*> cand;
+  for (const CatalogItem& c : w.catalogs->essences)
+    if (!ess.count(c.id)) cand.push_back(&c);
+  if (cand.empty()) {
+    if (w.catalogs->essences.empty() && ui::link("Справочник эссенций", "essence")) a.openEditor("catalogs", 7);
+    return;
+  }
+  std::vector<ui::Option> opts;
+  for (const CatalogItem* c : cand)
+    opts.push_back(ui::Option{c->name.empty() ? std::string_view("Без названия") : std::string_view(c->name), "essence", c->color});
+  int idx = -1;
+  if (ui::combo("add", idx, opts, {.placeholder = "Эссенция за ход", .search = 1, .icon = "plus"}) && idx >= 0 && idx < int(cand.size())) {
+    const Id e = cand[size_t(idx)]->id;
+    a.act("Эссенция за ход", [&](Tx& tx) { rules::setLevelEssence(tx, bid, level, e, 1); });
+  }
+  a.markUi(mark + ".addess");
+}
+
+// ---------------------------------------------------------------- окно модификаторов уровня (ТЗ «Доработки», п.8)
+// Все модификаторы мира, которые может давать постройка: виды «Везде», «Для провинций», «Глобальный» (не для армий
+// и героев, не автоматические), по видам, с поиском. Отметка — модификатор в уровне: добавляется и убирается сразу
+// (Ctrl+Z отменяет). «Новый модификатор» создаёт запись вида «Для провинций» и сразу добавляет её в уровень.
+const char* modIconOf(const Modifier& m) { return m.icon.empty() || !gfx::hasIcon(m.icon) ? "sparkles" : m.icon.c_str(); }
+
+std::string effectsLine(const Modifier& m) {
+  std::vector<std::string> p;
+  for (int f = 0; f < kFxCount; f++)
+    if (m.has(Fx(f)) && m.fx[size_t(f)] != 0) p.push_back(w::effectText(Fx(f), m.fx[size_t(f)]));
+  return join(p, "; ");
+}
+
+struct LevelMods : Dialog {
+  Id bid = 0;
+  int li = 0;                  // уровень с 0
+  std::string query, name;
+  Id made = 0;                 // созданный в окне модификатор: подсветка и переход в редактор
+  bool scrollMade = false;     // показать его строку в списке (после создания)
+  std::optional<RectF> madeRow;   // строка созданного модификатора в этом кадре
+  const char* id() const override { return "bt.mods"; }
+  Style style(App& a) override {
+    const Building* b = a.world().building(bid);
+    return {"Модификаторы · " + (b ? bname(*b) : std::string("постройка")) + " · " + roman(li + 1), "sparkles", ui::Tone::Accent, 620};
+  }
+  bool draw(App& a) override;
+
+  // Копия модификатора на кадр (действие посреди кадра заменяет мир — указатели на записи не держим).
+  struct Item {
+    Id id = 0;
+    std::string name, icon, fx;
+    Color color;
+    ModKind kind = ModKind::Any;
+    bool in = false, fits = true;
+  };
+  bool row(App& a, const Item& it, bool ro);   // false — закрыть окно (переход в редактор)
+  void toggle(App& a, Id mid, bool on);
+};
+
+void LevelMods::toggle(App& a, Id mid, bool on) {
+  const Id b = bid;
+  const int l = li;
+  a.act(on ? "Модификатор в уровне постройки" : "Убрать модификатор из уровня", [&](Tx& tx) {
+    const Building* x = tx.w().building(b);
+    if (!x || l >= int(x->levels.size())) fail("Уровень постройки не найден");
+    auto& mods = tx.building(b).levels[size_t(l)].modifiers;
+    const bool has = std::find(mods.begin(), mods.end(), mid) != mods.end();
+    if (on && !has) mods.push_back(mid);
+    if (!on && has) mods.erase(std::remove(mods.begin(), mods.end(), mid), mods.end());
+  });
+}
+
+bool LevelMods::row(App& a, const Item& it, bool ro) {
+  const ui::Theme& th = ui::theme();
+  ui::IdScope s{i64(it.id)};
+  const RectF r = ui::next(42);
+  // Строка — цель для мыши (Enter в окне остаётся за «Готово»).
+  const ui::Interaction in = ui::interact(ui::id("row"), r, ui::IfAllowOverlap);
+  const bool fresh = made == it.id;
+  if (it.in || fresh) ui::draw::rect(r, th.accent.alpha(fresh ? 0.15f : 0.07f), 8);
+  if (in.hovered && !ro) {
+    ui::draw::rect(r, th.hover, 8);
+    ui::setCursor(platform::Cursor::Hand);
+  }
+  // Отметка «в уровне»
+  const RectF cb{r.x + 10, r.cy() - 9, 18, 18};
+  if (it.in) {
+    ui::draw::rect(cb, th.accent, 5);
+    ui::draw::icon("check", cb.inset(2), th.onAccent);
+  } else {
+    ui::draw::rectStroke(cb, in.hovered && !ro ? th.accent : th.borderStrong, 5, 1.4f);
+  }
+  // Значок, название, эффекты
+  ui::draw::icon(it.icon, RectF{r.x + 38, r.cy() - 9, 18, 18}, it.color);
+  const float tx = r.x + 66, right = r.right() - 46;
+  ui::draw::text(it.name.empty() ? std::string("Модификатор") : it.name, RectF{tx, r.y + 4, right - tx, 18}, ui::Font::Strong, th.text);
+  std::string sub = it.fits ? (it.fx.empty() ? std::string("Без эффектов") : it.fx) : std::string("Не для построек: ") + schema::modKind(it.kind).name;
+  ui::draw::text(sub, RectF{tx, r.y + 22, right - tx, 16}, ui::Font::Small, it.fits ? th.textMuted : th.warning);
+  a.markUi("bt.mods.row." + std::to_string(it.id), r);
+  // Переход в редактор модификаторов
+  ui::at(RectF{r.right() - 38, r.cy() - 15, 30, 30});
+  const bool open = ui::iconButton("edit", "Открыть в редакторе модификаторов");
+  a.markUi("bt.mods.open." + std::to_string(it.id));
+  if (fresh) madeRow = r;
+  if (open) {
+    a.openEditor("modifiers", it.id);
+    return false;
+  }
+  if (in.clicked && !ro) toggle(a, it.id, !it.in);
+  return true;
+}
+
+bool LevelMods::draw(App& a) {
+  const World& w = a.world();
+  const Building* b = w.building(bid);
+  if (!b || li < 0 || li >= int(b->levels.size())) return false;
+  const bool ro = a.readOnly();
+  const std::vector<Id> inLevel = b->levels[size_t(li)].modifiers;
+  int n = 0;
+  for (Id mid : inLevel) n += w.modifier(mid) != nullptr;
+  {
+    ui::Row r({ui::fr(1), ui::px(130)}, 30, 10);
+    ui::searchField("q", query, "Найти модификатор");
+    a.markUi("bt.mods.search");
+    ui::tag("В уровне: " + std::to_string(n), n ? ui::Tone::Accent : ui::Tone::Neutral, "check");
+  }
+  // Модификаторы по видам: «Везде», «Для провинций», «Глобальный»; модификатор другого вида — только если он уже в
+  // уровне (его можно убрать).
+  std::vector<Item> groups[int(ModKind::Count)];
+  w.modifiers.each([&](const Modifier& m) {
+    const bool in = std::find(inLevel.begin(), inLevel.end(), m.id) != inLevel.end();
+    const bool fits = w::modifierFits(m, w::ModScope::Any);
+    if (!fits && !in) return;
+    std::string fx = effectsLine(m);
+    if (!query.empty() && !utf8::matches(m.name, query) && !utf8::matches(m.desc, query) && !utf8::matches(fx, query)) return;
+    const int k = clamp(int(m.kind), 0, int(ModKind::Count) - 1);
+    groups[k].push_back(Item{m.id, m.name, modIconOf(m), std::move(fx), m.color, ModKind(k), in, fits});
+  });
+  bool keep = true;
+  {
+    const float h = std::min(440.f, std::max(220.f, ui::viewport().h - 360));
+    const RectF lr = ui::avail();
+    a.markUi("bt.mods.list", RectF{lr.x, lr.y, lr.w, h});
+    ui::Scroll sc("list", h);
+    madeRow.reset();
+    int shown = 0;
+    for (int k = 0; k < int(ModKind::Count); k++) {
+      auto& list = groups[k];
+      if (list.empty()) continue;
+      std::stable_sort(list.begin(), list.end(), [](const Item& x, const Item& y) { return compareRu(x.name, y.name) < 0; });
+      ui::IdScope ks(k);
+      {
+        ui::HStack hs(26, ui::Align::Left, 8);
+        ui::icon(schema::kModKinds[k].icon, ui::Ink::Muted, 16);
+        ui::label(schema::kModKinds[k].name, {.font = ui::Font::Strong});
+        ui::badge(std::to_string(list.size()), ui::Tone::Neutral);
+      }
+      a.markUi("bt.mods.kind." + std::to_string(k));
+      for (const Item& it : list) {
+        if (!keep) break;
+        keep = row(a, it, ro);
+        shown++;
+      }
+    }
+    if (shown == 0) ui::emptyState("search", w.modifiers.empty() ? "Модификаторов пока нет." : "Ничего не найдено.");
+    // Созданный модификатор — строкой целиком в видимой части списка.
+    if (scrollMade && madeRow) {
+      const float top = lr.y + 4, bottom = lr.y + h - 4;
+      if (madeRow->bottom() > bottom) sc.scrollTo(sc.offset() + madeRow->bottom() - bottom);
+      else if (madeRow->y < top) sc.scrollTo(std::max(0.f, sc.offset() - (top - madeRow->y)));
+      scrollMade = false;
+    }
+  }
+  if (!keep) return false;
+  // Новый модификатор: запись вида «Для провинций», сразу в уровне; рядом — переход в редактор модификаторов.
+  if (!ro) {
+    ui::Row r({ui::fr(1), ui::px(184), ui::px(34)}, 30, 8);
+    // Enter в поле названия — создать (а не «Готово»).
+    const bool enter = ui::keyboardFocus() == ui::id("newname") && ui::keyPressed(Key::Enter);
+    if (enter) ui::consumeKey(Key::Enter);
+    ui::textField("newname", name, {.placeholder = "Название нового модификатора", .live = true, .maxLength = 80});
+    a.markUi("bt.mods.name");
+    if (ui::button("Новый модификатор", {.icon = "plus", .fill = true}) || enter) {
+      const Id b0 = bid;
+      const int l = li;
+      const std::string nm = trim(name);
+      Id nid = 0;
+      if (a.act("Новый модификатор уровня", [&](Tx& tx) {
+            if (!tx.w().building(b0) || l >= int(tx.w().building(b0)->levels.size())) fail("Уровень постройки не найден");
+            nid = rules::createModifier(tx, nm);
+            tx.modifier(nid).kind = ModKind::Province;
+            tx.building(b0).levels[size_t(l)].modifiers.push_back(nid);
+          })) {
+        made = nid;
+        scrollMade = true;
+        name.clear();
+        query.clear();
+      }
+    }
+    a.markUi("bt.mods.create");
+    const Modifier* fresh = w.modifier(made);
+    if (ui::iconButton("sparkles", fresh ? "Открыть «" + (fresh->name.empty() ? std::string("Модификатор") : fresh->name) + "» в редакторе модификаторов"
+                                         : std::string("Открыть в редакторе модификаторов"))) {
+      a.openEditor("modifiers", fresh ? made : 0);
+      return false;
+    }
+    a.markUi("bt.mods.editor");
+  }
+  ui::ModalFooter f;
+  if (ui::button("Готово", {.variant = ui::Variant::Primary, .isDefault = true})) return false;
+  a.markUi("bt.mods.done");
+  return true;
+}
+
 void levelCard(App& a, const BN& b, int li, bool ro) {
   const World& w = a.world();
   const BuildingLevel& L = b.levels[size_t(li)];
@@ -697,10 +1065,16 @@ void levelCard(App& a, const BN& b, int li, bool ro) {
     a.markUi("bt.level." + std::to_string(li) + ".addcost");
   }
   levelProduce(a, b, li, ro);
+  if (b.essenceGen) levelEssence(a, b, li, ro);
+  // Модификаторы уровня: фишки (щелчок — редактор модификаторов, крестик — убрать) и окно выбора.
   ui::caption("Модификаторы уровня");
   std::vector<Id> mods = L.modifiers;
-  if (tree::modifierList("mods", mods, ro)) a.act("Модификаторы уровня", [&](Tx& tx) { tx.building(b.id).levels[size_t(li)].modifiers = mods; });
-  a.markUi("bt.level." + std::to_string(li) + ".mods");
+  if (tree::modifierList("mods", mods, ro, false)) a.act("Модификаторы уровня", [&](Tx& tx) { tx.building(b.id).levels[size_t(li)].modifiers = mods; });
+  if (!ro) {
+    if (ui::button("Выбрать модификаторы…", {.variant = ui::Variant::Ghost, .icon = "sparkles", .size = ui::Size::Small}))
+      a.openDialog(levelModsDialog(b.id, li + 1));
+    a.markUi("bt.level." + std::to_string(li) + ".mods");
+  }
   bld::levelEffects(w, L, true);
   std::string desc = L.desc;
   if (ui::textArea("desc", desc, 48, {.placeholder = "Что даёт уровень", .maxLength = 400}) && desc != L.desc)
@@ -731,10 +1105,314 @@ void levelCard(App& a, const BN& b, int li, bool ro) {
   }
 }
 
-void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
+// Культовая постройка (ТЗ «Доработки», п.2): одна на всю карту (общее дерево) или на государство (уникальная) и где
+// она уже стоит.
+void cultInfo(App& a, const BN& b) {
   const World& w = a.world();
-  const bool ro = a.readOnly();
+  ui::IdScope s("cult");
+  {
+    ui::HStack hs(24, ui::Align::Left, 6);
+    ui::iconColored("b-cult", bld::catColor(BuildingCat::Cult), 16,
+                    b.owner ? "Культовая постройка государства: в его провинциях — не больше одной" : "Культовая постройка общего дерева: на всей карте — не больше одной");
+    ui::label(b.owner ? "Одна на государство" : "Одна на всю карту", {.font = ui::Font::Strong});
+  }
+  a.markUi("bt.side.cult");
+  if (const Province* p = w.province(b.cultAt)) {
+    ui::HStack hs(26, ui::Align::Left, 6);
+    ui::icon("map-pin", ui::Ink::Accent, 16, "Уже стоит");
+    w::provinceChip(p->id);
+    if (!b.owner && p->owner) w::factionChip(p->owner);
+    a.markUi("bt.side.cultAt");
+  }
+}
+
+// Требования к постройкам (ТЗ «Доработки», п.4 и 7): общая постройка требует общие, уникальная — общие и своего
+// государства; без циклов (rules::canRequireBuilding — недоступные варианты с причиной).
+void reqSection(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b, bool ro) {
+  const World& w = a.world();
   const Color none(0, 0, 0, 0);
+  ui::Section s("Требует построек", "link", {.badge = b.reqs.empty() ? std::string() : std::to_string(b.reqs.size())});
+  if (!s) return;
+  if (b.reqs.empty()) ui::label("Можно строить без других построек.", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+  for (const BuildingReq& rq : b.reqs) {
+    const Building* rb = w.building(rq.building);
+    if (!rb) continue;
+    const Id rid = rq.building, rowner = rb->owner;
+    const std::string rname = bname(*rb);
+    const int maxL = std::max<int>(1, int(rb->levels.size()));
+    ui::IdScope s2{i64(rid)};
+    ui::Row row({ui::fr(1), ui::px(110), ui::px(30)}, 30, 6);
+    if (ui::chip(rname, {.icon = bld::iconOf(*rb), .color = bld::catColor(rb->cat), .clickable = true, .tooltip = "Показать"}) == ui::ChipAction::Click) {
+      if (find(bs, rid)) {
+        ed.sel = rid;
+        ed.revealSel = true;
+      } else {
+        openBuildingTree(a, rowner, rid);
+      }
+    }
+    int lvl = rq.level;
+    {
+      ui::Disabled dis(ro || maxL <= 1);
+      if (ui::numberField("lvl", lvl, {.min = 1, .max = double(maxL), .label = "ур.", .steppers = maxL > 1})) setReqLevel(a, b.id, rid, clamp(lvl, 1, maxL));
+      a.markUi("bt.req." + std::to_string(rid) + ".level");
+    }
+    if (ui::iconButton("close", "Убрать требование", {.disabled = ro})) removeReq(a, {rid, b.id});
+    a.markUi("bt.req." + std::to_string(rid) + ".remove");
+  }
+  if (ro) return;
+  // Добавить требование: общее дерево и уникальные этого государства; создающие цикл — недоступны.
+  struct Cand {
+    Id id = 0;
+    std::string label;
+    const char* icon = nullptr;
+    BuildingCat cat = BuildingCat::Economic;
+    bool ok = true;
+  };
+  std::vector<Cand> cand;
+  w.buildings.each([&](const Building& x) {
+    if (x.id == b.id || (x.owner != 0 && x.owner != b.owner)) return;
+    for (const BuildingReq& r : b.reqs)
+      if (r.building == x.id) return;
+    cand.push_back(Cand{x.id, bname(x), bld::iconOf(x), x.cat, rules::canRequireBuilding(w, b.id, x.id)});
+  });
+  if (cand.empty()) return;
+  std::stable_sort(cand.begin(), cand.end(), [](const Cand& x, const Cand& y) {
+    if (x.cat != y.cat) return x.cat < y.cat;
+    return compareRu(x.label, y.label) < 0;
+  });
+  std::vector<ui::Option> opts;
+  for (const Cand& c : cand) opts.push_back(ui::Option{c.label, c.icon, none, c.ok ? std::string_view(bld::catName(c.cat)) : std::string_view("цикл"), !c.ok});
+  int idx = -1;
+  if (ui::combo("addreq", idx, std::span<const ui::Option>(opts), {.placeholder = "Добавить требование", .search = 1, .icon = "plus"}) && idx >= 0 &&
+      idx < int(cand.size()))
+    addReq(a, b.id, cand[size_t(idx)].id);
+  a.markUi("bt.side.addreq");
+}
+
+// Требуемые технологии (ТЗ «Доработки», п.4 и 7): без них постройку не начать. Общей постройке — общие технологии,
+// уникальной — общие и своего государства (rules::canRequireTech).
+void techSection(App& a, const BN& b, bool ro) {
+  const World& w = a.world();
+  const Color none(0, 0, 0, 0);
+  bool any = false;
+  for (Id t : b.techs) any = any || w.tech(t) != nullptr;
+  ui::Section s("Требуемые технологии", "tech-tree", {.badge = any ? std::to_string(b.techs.size()) : std::string()});
+  a.markUi("bt.side.techs");
+  if (!s) return;
+  const Id bid = b.id;
+  if (any) {
+    ui::IdScope ts("techs");
+    tree::ChipFlow flow;
+    for (Id tid : b.techs) {
+      const Tech* t = w.tech(tid);
+      if (!t) continue;
+      const Id tf = t->faction;
+      ui::IdScope s2{i64(tid)};
+      ui::ChipOpt co;
+      co.icon = tf ? "crown" : "globe";
+      co.tone = ui::Tone::Info;
+      co.removable = !ro;
+      co.clickable = true;
+      const std::string tip = (tf ? w.factionName(tf) : std::string("Общее дерево")) + " — показать в дереве технологий";
+      co.tooltip = tip;
+      ui::ChipAction act = tree::chip(tname(*t), co);
+      a.markUi("bt.tech." + std::to_string(tid));
+      if (act == ui::ChipAction::Click) openTechTree(a, tf, tid, tf ? 0 : b.owner);
+      else if (act == ui::ChipAction::Remove) a.act("Убрать требуемую технологию", [&](Tx& tx) { rules::setBuildingTech(tx, bid, tid, false); });
+    }
+  }
+  if (ro) return;
+  struct Cand {
+    Id id = 0, faction = 0;
+    std::string label;
+  };
+  std::vector<Cand> cand;
+  w.techs.each([&](const Tech& t) {
+    if (std::find(b.techs.begin(), b.techs.end(), t.id) != b.techs.end()) return;
+    if (rules::canRequireTech(w, bid, t.id)) cand.push_back(Cand{t.id, t.faction, tname(t)});
+  });
+  if (cand.empty()) {
+    if (!any && ui::link(b.owner ? "Дерево технологий государства" : "Общее дерево технологий", "tech-tree")) openTechTree(a, b.owner, 0, 0);
+    a.markUi("bt.side.techtree");
+    return;
+  }
+  // Общие — первыми, затем своего государства.
+  std::stable_sort(cand.begin(), cand.end(), [](const Cand& x, const Cand& y) {
+    if ((x.faction == 0) != (y.faction == 0)) return x.faction == 0;
+    return compareRu(x.label, y.label) < 0;
+  });
+  std::vector<ui::Option> opts;
+  for (const Cand& c : cand) opts.push_back(ui::Option{c.label, c.faction ? "crown" : "globe", none, c.faction ? std::string_view("своя") : std::string_view("общая")});
+  int idx = -1;
+  if (ui::combo("addtech", idx, std::span<const ui::Option>(opts), {.placeholder = "Добавить технологию", .search = 1, .icon = "plus"}) && idx >= 0 &&
+      idx < int(cand.size())) {
+    const Id tid = cand[size_t(idx)].id;
+    a.act("Требуемая технология", [&](Tx& tx) { rules::setBuildingTech(tx, bid, tid, true); });
+  }
+  a.markUi("bt.side.addtech");
+}
+
+// Рецепт постройки преобразования (ТЗ «Доработки», п.3): до трёх разных ресурсов на входе (выбор через категорию),
+// ресурс на выходе, срок цикла. Проверки — rules::setRecipe.
+void recipeEditor(App& a, const BN& b, bool ro) {
+  const World& w = a.world();
+  const Recipe rc = b.recipe;
+  const Id bid = b.id;
+  ui::IdScope rs("recipe");
+  auto set = [&](std::string_view label, const Recipe& nr, std::string coalesce = {}) {
+    a.act(label, [&](Tx& tx) { rules::setRecipe(tx, bid, nr); }, {.coalesce = std::move(coalesce)});
+  };
+  ui::caption("На входе");
+  for (size_t i = 0; i < rc.in.size(); i++) {
+    ui::IdScope s{i64(rc.in[i].res) * 4 + i64(i)};
+    Id res = rc.in[i].res;
+    if (w::resourceByGroup("res", res, ro) && res && res != rc.in[i].res) {
+      Recipe nr = rc;
+      nr.in[i].res = res;
+      set("Ресурс на входе", nr);
+    }
+    a.markUi("bt.recipe.in." + std::to_string(i));
+    ui::Row row({ui::fr(1), ui::px(30)}, 30, 6);
+    double v = rc.in[i].amount;
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .label = "×", .disabled = ro, .tooltip = "Количество на входе за цикл"})) {
+      Recipe nr = rc;
+      nr.in[i].amount = v;
+      set("Количество на входе", nr, "bt-rin:" + std::to_string(bid) + ":" + std::to_string(i));
+    }
+    a.markUi("bt.recipe.inamount." + std::to_string(i));
+    if (ui::iconButton("close", "Убрать ресурс на входе", {.disabled = ro})) {
+      Recipe nr = rc;
+      nr.in.erase(nr.in.begin() + long(i));
+      set("Убрать ресурс на входе", nr);
+    }
+    a.markUi("bt.recipe.inremove." + std::to_string(i));
+  }
+  if (rc.in.size() < 3) {
+    // Следующий ресурс справочника, которого ещё нет в рецепте (не золото).
+    Id next = 0;
+    for (const CatalogItem& c : w.catalogs->resources) {
+      if (c.id == kGold || c.id == rc.out.res) continue;
+      if (std::none_of(rc.in.begin(), rc.in.end(), [&](const ResAmount& x) { return x.res == c.id; })) {
+        next = c.id;
+        break;
+      }
+    }
+    if (ui::button("Ресурс на входе", {.variant = ui::Variant::Ghost, .icon = "plus", .size = ui::Size::Small, .disabled = ro || !next,
+                                       .tooltip = "До трёх разных ресурсов на входе"})) {
+      Recipe nr = rc;
+      nr.in.push_back(ResAmount{next, 1});
+      set("Ресурс на входе", nr);
+    }
+    a.markUi("bt.recipe.addin");
+  }
+  ui::caption("На выходе");
+  {
+    ui::IdScope os("out");
+    Id res = rc.out.res;
+    if (w::resourceByGroup("res", res, ro) && res && res != rc.out.res) {
+      Recipe nr = rc;
+      nr.out.res = res;
+      if (!(nr.out.amount > 0)) nr.out.amount = 1;
+      set("Ресурс на выходе", nr);
+    }
+    a.markUi("bt.recipe.out");
+    double v = rc.out.amount;
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .label = "×", .disabled = ro || !rc.out.res, .tooltip = "Количество на выходе за цикл"})) {
+      Recipe nr = rc;
+      nr.out.amount = v;
+      set("Количество на выходе", nr, "bt-rout:" + std::to_string(bid));
+    }
+    a.markUi("bt.recipe.outamount");
+  }
+  ui::prop("Цикл", "hourglass", 0.4f);
+  int turns = std::max(1, rc.turns);
+  if (ui::numberField("turns", turns, {.min = 1, .max = 1000, .unit = "ход|хода|ходов", .steppers = true, .disabled = ro, .tooltip = "Ходов на один цикл преобразования"})) {
+    Recipe nr = rc;
+    nr.turns = turns;
+    set("Срок преобразования", nr, "bt-rturns:" + std::to_string(bid));
+  }
+  a.markUi("bt.recipe.turns");
+  if (!bld::recipeValid(w, rc)) ui::label("Рецепт не задан", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
+}
+
+// Особые отряды постройки доступа (ТЗ «Ввод новых механик», п.4–5): фишки (щелчок — справочник «Особые отряды»,
+// крестик — убрать) и выбор из справочника.
+void specialsEditor(App& a, const BN& b, bool ro) {
+  const World& w = a.world();
+  const Id bid = b.id;
+  ui::IdScope ss("specials");
+  bool any = false;
+  for (Id sid : b.specials) any = any || w.special(sid) != nullptr;
+  if (any) {
+    tree::ChipFlow flow;
+    for (Id sid : b.specials) {
+      const SpecialUnit* su = w.special(sid);
+      if (!su) continue;
+      ui::IdScope s2{i64(sid)};
+      std::string tip = std::string(schema::unitType(su->type).name) + (su->desc.empty() ? std::string() : "\n" + su->desc) + "\nОткрыть в справочнике";
+      ui::ChipAction act = tree::chip(su->name.empty() ? std::string("Без названия") : su->name,
+                                      {.icon = schema::unitType(su->type).icon, .tone = ui::Tone::Accent, .removable = !ro, .clickable = true, .tooltip = tip});
+      a.markUi("bt.special." + std::to_string(sid));
+      if (act == ui::ChipAction::Click) a.openEditor("catalogs", 9);
+      else if (act == ui::ChipAction::Remove) a.act("Убрать особый отряд", [&](Tx& tx) { rules::setBuildingSpecial(tx, bid, sid, false); });
+    }
+  }
+  if (ro) return;
+  std::vector<const SpecialUnit*> cand;
+  for (const SpecialUnit& su : w.catalogs->specials)
+    if (std::find(b.specials.begin(), b.specials.end(), su.id) == b.specials.end()) cand.push_back(&su);
+  if (cand.empty()) {
+    if (w.catalogs->specials.empty() && ui::link("Справочник особых отрядов", "special-unit")) a.openEditor("catalogs", 9);
+    return;
+  }
+  std::vector<ui::Option> opts;
+  for (const SpecialUnit* su : cand)
+    opts.push_back(ui::Option{su->name.empty() ? std::string_view("Без названия") : std::string_view(su->name), schema::unitType(su->type).icon, Color(0, 0, 0, 0),
+                              schema::unitType(su->type).name});
+  int idx = -1;
+  if (ui::combo("add", idx, std::span<const ui::Option>(opts), {.placeholder = "Особый отряд", .search = 1, .icon = "plus"}) && idx >= 0 && idx < int(cand.size())) {
+    const Id sid = cand[size_t(idx)]->id;
+    a.act("Особый отряд постройки", [&](Tx& tx) { rules::setBuildingSpecial(tx, bid, sid, true); });
+  }
+  a.markUi("bt.addspecial");
+}
+
+// Особые возможности постройки: преобразование ресурсов, генерация эссенции, доступ к особым отрядам
+// (rules::setBuildingRole; выключение снимает их данные — Ctrl+Z возвращает).
+void rolesSection(App& a, const BN& b, bool ro) {
+  const int on = int(b.convert) + int(b.essenceGen) + int(b.specialAccess);
+  ui::Section s("Особые возможности", "sparkles", {.badge = on ? std::to_string(on) : std::string()});
+  a.markUi("bt.side.roles");
+  if (!s) return;
+  const Id bid = b.id;
+  auto role = [&](rules::BuildingRole r, const char* icon, const char* label, bool cur, const char* mark, const char* tip) {
+    ui::IdScope rs(mark);
+    {
+      ui::Row row({ui::px(20), ui::fr(1)}, 30, 8);
+      ui::iconColored(icon, cur ? roleColor(r) : ui::theme().textMuted, 18, tip);
+      bool v = cur;
+      if (ui::toggle(label, v, ro) && v != cur)
+        a.act(std::string(v ? "Включить: " : "Выключить: ") + utf8::lower(label), [&](Tx& tx) { rules::setBuildingRole(tx, bid, r, v); });
+      a.markUi(mark);
+    }
+  };
+  role(rules::BuildingRole::Convert, "convert", "Преобразование ресурсов", b.convert, "bt.role.convert",
+       "До трёх ресурсов на входе превращаются в один на выходе за цикл; в провинции — «Работает» или «Простаивает»");
+  if (b.convert) {
+    ui::Indent in(28);
+    recipeEditor(a, b, ro);
+  }
+  role(rules::BuildingRole::Essence, "essence", "Генерация эссенции", b.essenceGen, "bt.role.essence", "Эссенция за ход — у каждого уровня");
+  role(rules::BuildingRole::Special, "special-unit", "Доступ к особым отрядам", b.specialAccess, "bt.role.special",
+       "Пока постройка достроена, государство может нанимать особые отряды");
+  if (b.specialAccess) {
+    ui::Indent in(28);
+    specialsEditor(a, b, ro);
+  }
+}
+
+void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
+  const bool ro = a.readOnly();
   ui::IdScope scope{i64(b.id)};
   {
     ui::HStack hs(28, ui::Align::Left, 6);
@@ -793,13 +1471,11 @@ void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
   {
     ui::Disabled dis(ro);
     ui::caption("Категория");
+    // Шесть категорий — значками (подпись — в подсказке и в метке над названием).
+    std::vector<ui::Segment> segs;
+    for (int c = 0; c < kCats; c++) segs.push_back(ui::Segment{bld::catIcon(BuildingCat(c)), {}, bld::catName(BuildingCat(c))});
     int cat = int(b.cat);
-    if (ui::segmented("cat", cat,
-                      {{bld::catIcon(BuildingCat(0)), {}, bld::catName(BuildingCat(0))},
-                       {bld::catIcon(BuildingCat(1)), {}, bld::catName(BuildingCat(1))},
-                       {bld::catIcon(BuildingCat(2)), {}, bld::catName(BuildingCat(2))},
-                       {bld::catIcon(BuildingCat(3)), {}, bld::catName(BuildingCat(3))}}) &&
-        cat != int(b.cat))
+    if (ui::segmented("cat", cat, std::span<const ui::Segment>(segs)) && cat != int(b.cat) && cat >= 0 && cat < kCats)
       a.act("Категория постройки", [&](Tx& tx) { tx.building(b.id).cat = BuildingCat(cat); });
     a.markUi("bt.side.cat");
     ui::caption("Описание");
@@ -807,77 +1483,16 @@ void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
     if (ui::textArea("desc", desc, 60, {.placeholder = "Назначение постройки", .maxLength = 600}) && desc != b.desc)
       a.act("Описание постройки", [&](Tx& tx) { tx.building(b.id).desc = desc; });
   }
+  if (b.cat == BuildingCat::Cult) cultInfo(a, b);
   // Использование
   if (b.built + b.building > 0) {
     std::string t = "Построена в " + std::to_string(b.built) + " " + plural(b.built, "провинции", "провинциях", "провинциях");
     if (b.building) t += ", строится в " + std::to_string(b.building);
     ui::label(t, {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "province"});
   }
-  // Требования
-  if (ui::Section s("Требует построек", "link", {.badge = b.reqs.empty() ? std::string() : std::to_string(b.reqs.size())}); s) {
-    if (b.reqs.empty()) ui::label("Можно строить без других построек.", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    for (const BuildingReq& rq : b.reqs) {
-      const Building* rb = w.building(rq.building);
-      if (!rb) continue;
-      ui::IdScope s2{i64(rq.building)};
-      ui::Row row({ui::fr(1), ui::px(110), ui::px(30)}, 30, 6);
-      if (ui::chip(rb->name, {.icon = bld::iconOf(*rb), .color = bld::catColor(rb->cat), .clickable = true, .tooltip = "Показать"}) == ui::ChipAction::Click) {
-        if (find(bs, rq.building)) {
-          ed.sel = rq.building;
-          ed.revealSel = true;
-        } else {
-          openBuildingTree(a, rb->owner, rb->id);
-        }
-      }
-      int lvl = rq.level;
-      int maxL = std::max<int>(1, int(rb->levels.size()));
-      {
-        ui::Disabled dis(ro || maxL <= 1);
-        if (ui::numberField("lvl", lvl, {.min = 1, .max = double(maxL), .label = "ур.", .steppers = maxL > 1})) {
-          Id rid = rq.building;
-          a.act("Уровень требуемой постройки", [&](Tx& tx) {
-            for (BuildingReq& x : tx.building(b.id).requires_)
-              if (x.building == rid) x.level = clamp(lvl, 1, maxL);
-          });
-        }
-        a.markUi("bt.req." + std::to_string(rq.building) + ".level");
-      }
-      if (ui::iconButton("close", "Убрать требование", {.disabled = ro})) removeReq(a, {rq.building, b.id});
-    }
-    // Добавить требование: общее дерево и уникальные этого государства, без циклов.
-    std::vector<std::string> labels;
-    std::vector<Id> ids;
-    std::vector<char> bad;
-    std::vector<const Building*> cand;
-    w.buildings.each([&](const Building& x) {
-      if (x.id == b.id) return;
-      if (x.owner != 0 && x.owner != b.owner) return;
-      for (const BuildingReq& r : b.reqs)
-        if (r.building == x.id) return;
-      cand.push_back(&x);
-    });
-    std::sort(cand.begin(), cand.end(), [](const Building* x, const Building* y) {
-      if (x->cat != y->cat) return x->cat < y->cat;
-      return compareRu(x->name, y->name) < 0;
-    });
-    for (const Building* x : cand) {
-      ids.push_back(x->id);
-      labels.push_back(x->name.empty() ? std::string("Без названия") : x->name);
-      bad.push_back(wouldCycle(w, b.id, x->id) ? 1 : 0);
-    }
-    if (!ids.empty()) {
-      std::vector<ui::Option> opts;
-      for (size_t i = 0; i < ids.size(); i++)
-        opts.push_back(ui::Option{labels[i], bld::iconOf(*cand[i]), none, bad[i] ? std::string_view("цикл") : std::string_view(bld::catName(cand[i]->cat)),
-                                  bad[i] != 0});
-      int idx = -1;
-      if (ui::combo("addreq", idx, std::span<const ui::Option>(opts), {.placeholder = "Добавить требование", .icon = "plus", .disabled = ro}) && idx >= 0) {
-        Id req = ids[size_t(idx)];
-        a.act("Требование постройки", [&](Tx& tx) { addReq(tx, b.id, req); });
-      }
-      a.markUi("bt.side.addreq");
-    }
-  }
+  reqSection(a, ed, bs, b, ro);
+  techSection(a, b, ro);
+  rolesSection(a, b, ro);
   // Уровни (ТЗ 1.f.ii: постройки имеют несколько уровней и улучшаются)
   {
     ui::Section s("Уровни", "slots", {.badge = std::to_string(b.levels.size()), .actionIcon = ro ? nullptr : "plus", .actionTooltip = "Добавить уровень"});
@@ -932,13 +1547,7 @@ void sideLink(App& a, Ed& ed, const std::vector<BN>& bs) {
   {
     ui::Disabled dis(ro || maxL <= 1);
     ui::prop("Нужный уровень", "slots");
-    if (ui::numberField("lvl", lvl, {.min = 1, .max = double(maxL), .steppers = true})) {
-      Id bid = b->id, rid = req->id;
-      a.act("Уровень требуемой постройки", [&](Tx& tx) {
-        for (BuildingReq& x : tx.building(bid).requires_)
-          if (x.building == rid) x.level = clamp(lvl, 1, maxL);
-      });
-    }
+    if (ui::numberField("lvl", lvl, {.min = 1, .max = double(maxL), .steppers = true})) setReqLevel(a, b->id, req->id, clamp(lvl, 1, maxL));
     a.markUi("bt.side.reqlevel");
   }
   if (ui::button("Удалить требование", {.variant = ui::Variant::Danger, .icon = "unlink", .fill = true, .disabled = ro, .tooltip = "Delete"})) {
@@ -1057,8 +1666,14 @@ void drawBuildingTree(App& a, Id owner) {
     n.icon = b.icon;
     n.cat = BuildingCat(clamp(int(b.cat), 0, kCats - 1));
     n.reqs = b.requires_;
+    n.techs = b.techs;
     n.levels = b.levels;
     n.pos = b.pos;
+    n.convert = b.convert;
+    n.essenceGen = b.essenceGen;
+    n.specialAccess = b.specialAccess;
+    n.recipe = b.recipe;
+    n.specials = b.specials;
     n.match = ed.query.empty() || utf8::matches(b.name, ed.query) || utf8::matches(b.desc, ed.query);
     idx[b.id] = bs.size();
     bs.push_back(std::move(n));
@@ -1066,8 +1681,11 @@ void drawBuildingTree(App& a, Id owner) {
   w.provinces.each([&](const Province& p) {
     for (const ProvBuilding& pb : p.buildings)
       if (auto it = idx.find(pb.building); it != idx.end()) {
-        if (pb.builtLevel() > 0) bs[it->second].built++;
-        else bs[it->second].building++;
+        BN& n = bs[it->second];
+        if (pb.builtLevel() > 0) n.built++;
+        else n.building++;
+        // Культовая: где уже стоит (как rules::cultBuiltIn — уникальная только в провинциях своего государства).
+        if (n.cat == BuildingCat::Cult && !n.cultAt && (!n.owner || p.owner == n.owner)) n.cultAt = p.id;
       }
   });
   if (Pending& p = pending(); p.set && p.owner == owner) {
@@ -1299,25 +1917,24 @@ void drawBuildingTree(App& a, Id owner) {
         break;
       }
     }
+    bool linked = false;
     if (dropTarget) {
       Id bid = ed.connOut ? dropTarget : ed.conn, req = ed.connOut ? ed.conn : dropTarget;
-      const BN* tb = find(bs, bid);
-      bool linked = false;
-      if (tb)
+      if (const BN* tb = find(bs, bid))
         for (const BuildingReq& r : tb->reqs) linked = linked || r.building == req;
       if (linked) {
         dropBad = true;
         dropWhy = "Уже связаны";
-      } else if (wouldCycle(w, bid, req)) {
-        dropBad = true;
-        dropWhy = "Связь создаст цикл";
+      } else if (!rules::canRequireBuilding(w, bid, req, &dropWhy)) {
+        dropBad = true;   // причина — от правил (цикл, чужое дерево)
       }
     }
     ui::setCursor(platform::Cursor::Crosshair);
     if (connReleased || !mouse.down[0]) {
-      if (dropTarget && dropWhy != "Уже связаны") {
+      if (dropTarget && !linked) {
+        // Недопустимую связь правило отклонит с той же причиной (уведомление).
         Id bid = ed.connOut ? dropTarget : ed.conn, req = ed.connOut ? ed.conn : dropTarget;
-        if (a.act("Требование постройки", [&](Tx& tx) { addReq(tx, bid, req); })) {
+        if (a.act("Требование постройки", [&](Tx& tx) { rules::setBuildingReq(tx, bid, req, 1); })) {
           ed.link = {req, bid};
           ed.sel = 0;
         }
@@ -1452,6 +2069,7 @@ void drawBuildingTree(App& a, Id owner) {
     Card cd;
     cd.b = b;
     cd.at = posOf(b);
+    if (b.cultAt) cd.cultAt = w.provinceName(b.cultAt);
     cd.sel = ed.sel == b.id;
     cd.hover = hoverNode == b.id || hoverOut == b.id || hoverIn == b.id;
     cd.ghost = ed.drag == b.id && ed.dragMoved;
@@ -1613,10 +2231,18 @@ void drawBuildingTree(App& a, Id owner) {
       tip.accent = bld::catColor(b->cat);
       tip.icon = !b->icon.empty() && gfx::hasIcon(b->icon) ? b->icon : bld::catIcon(b->cat);
       if (!trim(b->desc).empty()) tip.lines.push_back({"", b->desc, th.textDim, true});
+      if (b->cat == BuildingCat::Cult) {
+        tip.lines.push_back({"b-cult", b->owner ? "Одна на государство" : "Одна на всю карту", bld::catColor(BuildingCat::Cult), false, true});
+        if (b->cultAt) tip.lines.push_back({"map-pin", "Уже стоит: " + w.provinceName(b->cultAt), th.accent});
+      }
+      if (b->convert) tip.lines.push_back({"convert", "Преобразование: " + bld::recipeText(w, b->recipe), th.info, true});
+      if (b->specialAccess && !b->specials.empty())
+        tip.lines.push_back({"special-unit", "Особые отряды: " + bld::specialsText(w, b->specials), th.accent, true});
       for (size_t li = 0; li < b->levels.size() && li < 6; li++) {
         const BuildingLevel& lv = b->levels[li];
         tip.lines.push_back({"slots", roman(int(li) + 1) + " · " + nTurns(std::max(1, lv.turns)) + " · " + bld::costText(w, lv.cost), Color(0, 0, 0, 0), true});
         if (!lv.produce.empty()) tip.lines.push_back({"repeat", "За ход: " + bld::produceText(w, lv.produce), th.success});
+        if (b->essenceGen && !lv.essence.empty()) tip.lines.push_back({"essence", "Эссенция за ход: " + bld::essenceText(w, lv.essence), Color::hex(kEssenceInk)});
         for (Id mid : lv.modifiers)
           if (const Modifier* m = w.modifier(mid))
             for (int fx = 0; fx < kFxCount; fx++)
@@ -1627,6 +2253,12 @@ void drawBuildingTree(App& a, Id owner) {
       for (const BuildingReq& r : b->reqs)
         if (const Building* rb = w.building(r.building))
           tip.lines.push_back({"link", "Требует: " + rb->name + (r.level > 1 ? " (ур. " + roman(r.level) + ")" : ""), th.warning});
+      {
+        std::vector<std::string> tn;
+        for (Id t : b->techs)
+          if (const Tech* x = w.tech(t)) tn.push_back(tname(*x));
+        if (!tn.empty()) tip.lines.push_back({"tech-tree", "Нужны технологии: " + join(tn, ", "), th.warning, true});
+      }
       if (b->built + b->building > 0)
         tip.lines.push_back({"province", "В провинциях: " + std::to_string(b->built) + (b->building ? ", строится " + std::to_string(b->building) : ""), Color(0, 0, 0, 0)});
       Vec2 p = cardPos(L, *b);
@@ -1637,12 +2269,20 @@ void drawBuildingTree(App& a, Id owner) {
 }
 
 EditorReg regBuildings({"buildings", "Дерево построек", drawBuildingTree, "building", "economy", 20});
+DialogReg regLevelMods({"bt.mods", [](App&, Id building) { return levelModsDialog(building, 1); }});
 
 }  // namespace
 
 void openBuildingTree(App& a, Id owner, Id building) {
   pending() = Pending{owner, building, building != 0};
   a.openEditor("buildings", owner);
+}
+
+std::unique_ptr<Dialog> levelModsDialog(Id building, int level) {
+  auto d = std::make_unique<LevelMods>();
+  d->bid = building;
+  d->li = std::max(0, level - 1);
+  return d;
 }
 
 }  // namespace rg::app

@@ -79,4 +79,33 @@ void resourceAmount(Id res, double amount, ui::Ink ink = ui::Ink::Normal);
 // Цвет фракции (серый, если нет).
 Color factionColor(const World& w, Id faction);
 
+// ---------------------------------------------------------------- группы ресурсов (ТЗ «Добавления в справочники», п.3)
+// Группы в порядке дерева: (группа, глубина) — родитель, затем его подгруппы.
+std::vector<std::pair<Id, int>> groupOrder(const World& w);
+// Выбор группы ресурсов (подгруппы — с отступом, справа — число ресурсов с подгруппами). noneLabel непусто — пункт
+// «нет» (0): «Все ресурсы», «Без группы». true — значение изменилось.
+bool resGroupPicker(std::string_view id, Id& group, std::string_view noneLabel = "Все ресурсы", bool disabled = false);
+// Выбор ресурса из списка ids (подпись справа — группа ресурса; поиск по названию всегда). noneLabel непусто —
+// пункт «нет» (0) первым.
+bool resourceFrom(std::string_view id, Id& value, const std::vector<Id>& ids, std::string_view placeholder = "Ресурс",
+                  bool disabled = false, std::string_view tooltip = {}, std::string_view noneLabel = {});
+// Ресурс через категорию (ТЗ «Ввод новых механик», п.1): ряд «[Группа ▾] [Ресурс ▾]» — сначала группа (с подгруппами),
+// затем ресурс из неё. only — только эти ресурсы (nullptr — все). Группа запоминается у виджета. true — выбран ресурс.
+bool resourceByGroup(std::string_view id, Id& value, bool disabled = false, const std::vector<Id>* only = nullptr);
+
+// ---------------------------------------------------------------- эссенции и реликвии
+bool essencePicker(std::string_view id, Id& value, std::string_view noneLabel = {}, bool disabled = false);
+Color essenceColor(const World& w, Id essence);
+// Цвет подсветки редкости (обычная — белая, редкая — синяя, эпическая — фиолетовая, легендарная — оранжевая,
+// эпохальная — красная) и фишка реликвии с подсветкой этим цветом (в потоке фишек edkit::chipsBegin/chipsEnd или в ряду).
+Color rarityColor(Rarity r);
+ui::ChipAction relicChip(const Relic& r, bool removable = false, std::string_view tooltip = {});
+
+// ---------------------------------------------------------------- портреты в кругах (ТЗ «Исправления», п.2)
+// Портрет персонажа для круглого аватара: квадрат, смещённый к верху изображения (лицо в круге); nullptr — нет
+// портрета или он ещё декодируется (тогда — инициалы).
+const gfx::Image* faceImage(const Character& c);
+// initials — фон инициалов без портрета (a = 0 — по имени).
+void heroAvatar(const Character& c, float size, bool ring = false, std::string_view tooltip = {}, Color initials = Color(0, 0, 0, 0));
+
 }  // namespace rg::app::w

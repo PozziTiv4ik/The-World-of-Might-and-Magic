@@ -518,7 +518,7 @@ bool effectChips(const World& w, const std::vector<Id>& modifiers) {
   return true;
 }
 
-bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled) {
+bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, bool picker) {
   App& a = app();
   const World& w = a.world();
   ui::IdScope scope(id);
@@ -553,7 +553,7 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled) {
       if (act == ui::ChipAction::Click) a.openEditor("modifiers", m->id);
     }
   }
-  if (disabled) return changed;
+  if (disabled || !picker) return changed;
   std::vector<const Modifier*> cand;
   w.modifiers.each([&](const Modifier& m) {
     if (std::find(ids.begin(), ids.end(), m.id) == ids.end()) cand.push_back(&m);

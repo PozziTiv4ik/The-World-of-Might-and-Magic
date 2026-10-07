@@ -1,4 +1,6 @@
-// Regnum — строительство: варианты с ценой и причинами, начало, отмена с возвратом, снос (ТЗ 1.f; RULES.md §9).
+// Regnum — строительство: варианты с ценой и причинами, начало, отмена с возвратом, снос (ТЗ 1.f; RULES.md §9);
+// требования к постройкам и технологиям общего и уникального дерева, культовые постройки, мгновенное завершение и
+// изначальные постройки, постройки преобразования (ТЗ «Доработки», п.2–5, 7).
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -44,6 +46,36 @@ const Faction* ownerState(const World& w, const Province& p) {
 // Доступна ли постройка провинции вообще: общее дерево или уникальная постройка владельца.
 bool inTree(const Building& b, const Province& p) { return b.owner == 0 || b.owner == p.owner; }
 
+// Причины, по которым постройку нельзя поставить в провинции (кроме цены): место, владелец, слоты, требования к
+// постройкам и технологиям, культовая — одна на карту (общая) или на государство (уникальная).
+void placeChecks(const World& w, const Province& p, const Building& b, const ProvBuilding* pb, int slots, std::vector<std::string>& r) {
+  const Faction* owner = ownerState(w, p);
+  if (p.sea) r.push_back("В морской провинции нельзя строить");
+  else if (!owner) r.push_back("У провинции нет владельца");
+  // ТЗ «Виды государств», п.5 и 9: в пустоши нежити строит только государство нежити, в осквернённой — демонов.
+  if (owner && hasModKey(w, p.modifiers, schema::mod::UndeadWaste) && owner->stateKind != StateKind::Undead)
+    r.push_back("В пустоши нежити строит только государство нежити");
+  if (owner && hasModKey(w, p.modifiers, schema::mod::Desecrated) && owner->stateKind != StateKind::Demonic)
+    r.push_back("В осквернённой провинции строит только государство демонов");
+  if (b.levels.empty()) r.push_back("У постройки нет уровней");
+  if (!pb && int(p.buildings.size()) >= slots)
+    r.push_back("Нет свободных слотов: занято " + std::to_string(p.buildings.size()) + " из " + std::to_string(slots));
+  for (const BuildingReq& rq : b.requires_) {
+    const Building* rb = w.building(rq.building);
+    if (!rb || rq.building == b.id) continue;
+    const ProvBuilding* have = findPb(p, rq.building);
+    if (!have || have->builtLevel() < rq.level)
+      r.push_back("Нужна постройка " + buildingName(w, rq.building) + (rq.level > 1 ? " уровня " + std::to_string(rq.level) : ""));
+  }
+  for (Id t : b.techs)
+    if (w.tech(t) && (!owner || !techStudied(w, t, owner->id))) r.push_back("Нужна технология " + techName(w, t));
+  if (b.cat == BuildingCat::Cult && !pb)
+    if (Id other = cultBuiltIn(w, b.id, p.id))
+      r.push_back(std::string(b.owner ? "Культовая постройка — одна на государство: уже есть в провинции "
+                                      : "Культовая постройка — одна на всю карту: уже есть в провинции ") +
+                  provName(w, other));
+}
+
 BuildOption optionFor(const World& w, const Province& p, const Building& b, double factor, int slots) {
   BuildOption o;
   o.building = b.id;
@@ -60,6 +92,7 @@ BuildOption optionFor(const World& w, const Province& p, const Building& b, doub
   if (pb && pb->level >= maxLvl) {
     o.level = pb->level;
     o.reasons.push_back("Достигнут наибольший уровень");
+    o.placeReasons = o.reasons;
     return o;
   }
   o.level = pb ? pb->level + 1 : 1;
@@ -67,23 +100,9 @@ BuildOption optionFor(const World& w, const Province& p, const Building& b, doub
   o.turns = maxLvl ? std::max(1, b.levels[size_t(o.level - 1)].turns) : 1;
   o.cost = levelCost(b, o.level, factor);
   const Faction* owner = ownerState(w, p);
-  if (p.sea) o.reasons.push_back("В морской провинции нельзя строить");
-  else if (!owner) o.reasons.push_back("У провинции нет владельца");
-  // ТЗ «Виды государств», п.5 и 9: в пустоши нежити строит только государство нежити, в осквернённой — демонов.
-  if (owner && hasModKey(w, p.modifiers, schema::mod::UndeadWaste) && owner->stateKind != StateKind::Undead)
-    o.reasons.push_back("В пустоши нежити строит только государство нежити");
-  if (owner && hasModKey(w, p.modifiers, schema::mod::Desecrated) && owner->stateKind != StateKind::Demonic)
-    o.reasons.push_back("В осквернённой провинции строит только государство демонов");
-  if (maxLvl == 0) o.reasons.push_back("У постройки нет уровней");
-  if (!pb && int(p.buildings.size()) >= slots)
-    o.reasons.push_back("Нет свободных слотов: занято " + std::to_string(p.buildings.size()) + " из " + std::to_string(slots));
-  for (const BuildingReq& rq : b.requires_) {
-    const Building* rb = w.building(rq.building);
-    if (!rb || rq.building == b.id) continue;
-    const ProvBuilding* have = findPb(p, rq.building);
-    if (!have || have->builtLevel() < rq.level)
-      o.reasons.push_back("Нужна постройка " + buildingName(w, rq.building) + (rq.level > 1 ? " уровня " + std::to_string(rq.level) : ""));
-  }
+  placeChecks(w, p, b, pb, slots, o.reasons);
+  o.placeReasons = o.reasons;
+  o.canPlace = o.placeReasons.empty();
   if (owner)
     for (auto& [res, need] : o.cost) {
       double have = owner->stock(res);
@@ -249,6 +268,252 @@ void trimExcessBuildings(Tx& tx, const std::vector<SlotLoss>* only) {
                "): снесены " + join(names, ", "),
            LogRefs{l.province, 0, owner ? std::vector<Id>{owner} : std::vector<Id>{}});
   }
+}
+
+// ================================================================ мгновенно и изначально (ТЗ «Доработки», п.5)
+void completeBuilding(Tx& tx, Id province, Id building) {
+  const Province& p = needProvince(tx.w(), province);
+  needBuilding(tx.w(), building);
+  const ProvBuilding* pb = findPb(p, building);
+  if (!pb) fail("Постройки " + buildingName(tx.w(), building) + " нет в провинции");
+  if (!pb->constructing) fail(buildingName(tx.w(), building) + " не строится");
+  const int lvl = pb->level;
+  const Id owner = p.owner;
+  for (ProvBuilding& x : tx.province(province).buildings)
+    if (x.building == building) {
+      x.constructing = false;
+      x.left = 0;
+      x.paid.clear();
+      x.payer = 0;
+    }
+  addLog(tx, LogKind::Build,
+         "Достроено сразу: " + buildingName(tx.w(), building) + (lvl > 1 ? " (уровень " + std::to_string(lvl) + ")" : std::string()) +
+             " в провинции " + provName(tx.w(), province),
+         LogRefs{province, 0, owner ? std::vector<Id>{owner} : std::vector<Id>{}});
+}
+
+void placeBuilding(Tx& tx, Id province, Id building, int level) {
+  const Province& p = needProvince(tx.w(), province);
+  const Building& b = needBuilding(tx.w(), building);
+  if (!inTree(b, p)) fail(buildingName(tx.w(), building) + " — уникальная постройка другого государства");
+  if (level < 1 || level > int(b.levels.size())) fail("У постройки нет уровня " + std::to_string(level));
+  const ProvBuilding* pb = findPb(p, building);
+  if (pb && pb->constructing) fail(buildingName(tx.w(), building) + " строится — завершите или отмените строительство");
+  if (pb && pb->level == level) return;
+  ProvCtx c = ctxOf(tx.w(), p);
+  std::vector<std::string> why;
+  placeChecks(tx.w(), p, b, pb, c.slots, why);
+  if (!why.empty()) fail(why.front());
+  Province& m = tx.province(province);
+  if (pb) {
+    for (ProvBuilding& x : m.buildings)
+      if (x.building == building) x.level = level;
+  } else {
+    ProvBuilding nb;
+    nb.building = building;
+    nb.level = level;
+    m.buildings.push_back(nb);
+  }
+  addLog(tx, LogKind::Build,
+         "Поставлена постройка " + buildingName(tx.w(), building) + (level > 1 ? " (уровень " + std::to_string(level) + ")" : std::string()) +
+             " в провинции " + provName(tx.w(), province),
+         LogRefs{province, 0, p.owner ? std::vector<Id>{p.owner} : std::vector<Id>{}});
+}
+
+void setConvertIdle(Tx& tx, Id province, Id building, bool idle) {
+  const Province& p = needProvince(tx.w(), province);
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.convert) fail(buildingName(tx.w(), building) + " — не постройка преобразования");
+  const ProvBuilding* pb = findPb(p, building);
+  if (!pb) fail("Постройки " + buildingName(tx.w(), building) + " нет в провинции");
+  if (pb->idle == idle) return;
+  for (ProvBuilding& x : tx.province(province).buildings)
+    if (x.building == building) x.idle = idle;
+}
+
+// ================================================================ требования построек (ТЗ «Доработки», п.4 и 7)
+Id cultBuiltIn(const World& w, Id building, Id exceptProvince) {
+  const Building* b = w.building(building);
+  if (!b || b->cat != BuildingCat::Cult) return 0;
+  Id found = 0;
+  w.provinces.each([&](const Province& p) {
+    if (found || p.id == exceptProvince) return;
+    if (b->owner && p.owner != b->owner) return;   // уникальная — одна у своего государства
+    if (findPb(p, building)) found = p.id;
+  });
+  return found;
+}
+
+bool canRequireBuilding(const World& w, Id building, Id req, std::string* why) {
+  auto no = [&](std::string s) {
+    if (why) *why = std::move(s);
+    return false;
+  };
+  const Building* b = w.building(building);
+  const Building* r = w.building(req);
+  if (!b || !r) return no("Постройка не найдена");
+  if (building == req) return no("Постройка не может требовать саму себя");
+  if (r->owner && r->owner != b->owner)
+    return no(b->owner ? "Уникальная постройка может требовать общие постройки и постройки своего государства"
+                       : "Общая постройка не может зависеть от уникальной постройки государства");
+  // Цикл: req (через свои требования) уже зависит от building.
+  std::vector<Id> st{req};
+  std::vector<Id> seen{req};
+  while (!st.empty()) {
+    const Building* x = w.building(st.back());
+    st.pop_back();
+    if (!x) continue;
+    for (const BuildingReq& q : x->requires_) {
+      if (q.building == building) return no("Связь создаст цикл требований");
+      if (!contains(seen, q.building)) {
+        seen.push_back(q.building);
+        st.push_back(q.building);
+      }
+    }
+  }
+  return true;
+}
+
+bool canRequireTech(const World& w, Id building, Id tech, std::string* why) {
+  auto no = [&](std::string s) {
+    if (why) *why = std::move(s);
+    return false;
+  };
+  const Building* b = w.building(building);
+  const Tech* t = w.tech(tech);
+  if (!b || !t) return no("Постройка или технология не найдена");
+  if (t->faction && t->faction != b->owner)
+    return no(b->owner ? "Уникальная постройка может требовать общие технологии и технологии своего государства"
+                       : "Общая постройка может требовать только общие технологии");
+  return true;
+}
+
+void setBuildingReq(Tx& tx, Id building, Id req, int level) {
+  needBuilding(tx.w(), building);
+  const Building& r = needBuilding(tx.w(), req);
+  auto& list = tx.w().building(building)->requires_;
+  const bool has = std::any_of(list.begin(), list.end(), [&](const BuildingReq& q) { return q.building == req; });
+  if (level <= 0) {
+    if (!has) return;
+    auto& m = tx.building(building).requires_;
+    m.erase(std::remove_if(m.begin(), m.end(), [&](const BuildingReq& q) { return q.building == req; }), m.end());
+    return;
+  }
+  if (level > int(r.levels.size())) fail("У постройки " + buildingName(tx.w(), req) + " нет уровня " + std::to_string(level));
+  if (!has) {
+    std::string why;
+    if (!canRequireBuilding(tx.w(), building, req, &why)) fail(why);
+    tx.building(building).requires_.push_back(BuildingReq{req, level});
+    return;
+  }
+  for (BuildingReq& q : tx.building(building).requires_)
+    if (q.building == req) q.level = level;
+}
+
+void setBuildingTech(Tx& tx, Id building, Id tech, bool on) {
+  const Building& b = needBuilding(tx.w(), building);
+  needTech(tx.w(), tech);
+  const bool has = contains(b.techs, tech);
+  if (on == has) return;
+  if (on) {
+    std::string why;
+    if (!canRequireTech(tx.w(), building, tech, &why)) fail(why);
+    tx.building(building).techs.push_back(tech);
+  } else {
+    eraseValue(tx.building(building).techs, tech);
+  }
+}
+
+std::vector<Id> techUnlocks(const World& w, Id tech) {
+  std::vector<Id> out;
+  w.buildings.each([&](const Building& b) {
+    if (contains(b.techs, tech)) out.push_back(b.id);
+  });
+  return out;
+}
+
+void setRecipe(Tx& tx, Id building, const Recipe& r0) {
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.convert) fail(buildingName(tx.w(), building) + " — не постройка преобразования");
+  Recipe r = r0;
+  if (r.in.size() > 3) fail("На входе — не больше трёх разных ресурсов");
+  for (size_t i = 0; i < r.in.size(); i++) {
+    if (!tx.w().resource(r.in[i].res)) fail("Ресурс на входе не найден");
+    needFinite(r.in[i].amount, "Количество на входе");
+    if (r.in[i].amount < 0) fail("Количество на входе не может быть меньше нуля");
+    for (size_t k = 0; k < i; k++)
+      if (r.in[k].res == r.in[i].res) fail("Ресурсы на входе должны быть разными");
+  }
+  if (r.out.res && !tx.w().resource(r.out.res)) fail("Ресурс на выходе не найден");
+  needFinite(r.out.amount, "Количество на выходе");
+  if (r.out.amount < 0) fail("Количество на выходе не может быть меньше нуля");
+  if (r.turns < 1 || r.turns > 1000) fail("Срок преобразования — от 1 до 1000 ходов");
+  tx.building(building).recipe = r;
+  // Идущие циклы не длиннее нового срока.
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
+         return std::any_of(p.buildings.begin(), p.buildings.end(), [&](const ProvBuilding& x) { return x.building == building && x.cycle > r.turns; });
+       }))
+    for (ProvBuilding& x : tx.province(pid).buildings)
+      if (x.building == building && x.cycle > r.turns) x.cycle = r.turns;
+}
+
+void setBuildingRole(Tx& tx, Id building, BuildingRole role, bool on) {
+  const Building& b = needBuilding(tx.w(), building);
+  switch (role) {
+    case BuildingRole::Convert: {
+      if (b.convert == on) return;
+      Building& m = tx.building(building);
+      m.convert = on;
+      if (!on) {
+        m.recipe = Recipe{};
+        for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
+               return std::any_of(p.buildings.begin(), p.buildings.end(), [&](const ProvBuilding& x) { return x.building == building && (x.idle || x.cycle); });
+             }))
+          for (ProvBuilding& x : tx.province(pid).buildings)
+            if (x.building == building) {
+              x.idle = false;
+              x.cycle = 0;
+            }
+      }
+      return;
+    }
+    case BuildingRole::Essence: {
+      if (b.essenceGen == on) return;
+      Building& m = tx.building(building);
+      m.essenceGen = on;
+      if (!on)
+        for (BuildingLevel& l : m.levels) l.essence.clear();
+      return;
+    }
+    case BuildingRole::Special: {
+      if (b.specialAccess == on) return;
+      Building& m = tx.building(building);
+      m.specialAccess = on;
+      if (!on) m.specials.clear();
+      return;
+    }
+  }
+}
+
+void setLevelEssence(Tx& tx, Id building, int level, Id essence, double perTurn) {
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.essenceGen) fail(buildingName(tx.w(), building) + " — не постройка генерации эссенции");
+  if (level < 1 || level > int(b.levels.size())) fail("У постройки нет уровня " + std::to_string(level));
+  if (!tx.w().essence(essence)) fail("Эссенция не найдена");
+  needFinite(perTurn, "Эссенция за ход");
+  if (perTurn < 0) fail("Эссенция за ход не может быть меньше нуля");
+  auto& m = tx.building(building).levels[size_t(level - 1)].essence;
+  if (perTurn > 0) m[essence] = perTurn;
+  else m.erase(essence);
+}
+
+void setBuildingSpecial(Tx& tx, Id building, Id special, bool on) {
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.specialAccess) fail(buildingName(tx.w(), building) + " — не постройка доступа к особым отрядам");
+  if (!tx.w().special(special)) fail("Особый отряд не найден");
+  if (contains(b.specials, special) == on) return;
+  if (on) tx.building(building).specials.push_back(special);
+  else eraseValue(tx.building(building).specials, special);
 }
 
 void demolish(Tx& tx, Id province, Id building) {

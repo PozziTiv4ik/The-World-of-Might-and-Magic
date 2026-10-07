@@ -1,6 +1,7 @@
 // Regnum — чтение и запись полей ТЗ 2026-10 (виды государств, вассалитет, рабы, формирование, флот в торговле, сроки
 // модификаторов, оккупационный гарнизон, верность войск, производство построек, позиции сделок, константы) и миграции
-// при чтении: «Зерно» → «Провизия», природа героев государств.
+// при чтении: базовые записи справочников (core/content.h), природа героев государств.
+#include "core/content.h"
 #include "tests/test_core_io_util.h"
 
 using namespace rg;
@@ -192,21 +193,82 @@ TEST(io_tz_invalid_fields_fixed) {
   CHECK_EQ(w.settings->figureSize, schema::kFigureSizeMax);
 }
 
-TEST(io_tz_grain_renamed_to_provisions) {
-  World base = newWorld("Зерно");
+// Мир прежней версии (до групп ресурсов): прежние базовые справочники, встроенный ресурс «Провизия».
+World legacyWorld(bool provisionsUsed) {
+  World base = newWorld("Прежний мир");
   Tx tx(base);
-  for (CatalogItem& r : tx.catalogs().resources)
-    if (r.key == schema::kResProvisions) {
-      r.key.clear();
-      r.name = "Зерно";
-    }
-  World w = std::move(tx).finish();
+  Meta& m = tx.meta();
+  m.content = 0;
+  m.seq = {};
+  Catalogs& c = tx.catalogs();
+  c = Catalogs{};
+  auto item = [](Id id, const char* n, const char* key = "") {
+    CatalogItem it;
+    it.id = id;
+    it.name = n;
+    it.key = key;
+    it.builtin = id == kGold;
+    return it;
+  };
+  c.resources = {item(kGold, "Золото"), item(2, "Провизия", "provisions"), item(3, "Древесина"), item(4, "Железо")};
+  const char* pos[] = {"Канцлер", "Казначей", "Маршал", "Адмирал", "Тайный советник", "Придворный маг"};
+  for (int i = 0; i < 6; i++) c.positions.push_back(item(Id(i + 1), pos[i]));
+  tx.w().buildings.each([&](const Building& b) { tx.eraseBuilding(b.id); });
+  Faction f;
+  f.id = 1;
+  f.name = "Королевство";
+  f.council = {CouncilSeat{1, "Канцлер", 0}, CouncilSeat{2, "Своя должность", 0}};
+  if (provisionsUsed) f.res[2] = -30;
+  f.res[3] = 5;
+  tx.add(f);
+  return std::move(tx).finish();
+}
+
+TEST(io_tz_content_migration_once) {
+  World w = legacyWorld(true);
   io::Warnings warns;
   io::normalize(w, warns);
-  const Id id = w.catalogs->resourceId(schema::kResProvisions);
-  CHECK(id != 0);
-  CHECK_EQ(w.resource(id)->name, std::string("Провизия"));
-  CHECK(std::any_of(warns.begin(), warns.end(), [](const io::Warning& x) { return x.msg.find("переименован в «Провизия»") != std::string::npos; }));
+  CHECK_EQ(w.meta->content, content::kVersion);
+  // Должности: прежние названия переименованы вместе с местами совета, новые добавлены.
+  CHECK(Catalogs::find(w.catalogs->positions, 1) && Catalogs::find(w.catalogs->positions, 1)->name == "Десница");
+  CHECK_EQ(w.faction(1)->council[0].position, std::string("Десница"));
+  CHECK_EQ(w.faction(1)->council[1].position, std::string("Своя должность"));
+  CHECK_EQ(w.catalogs->positions.size(), size_t(10));
+  // «Провизия» использовалась (долг −30): ресурс — в группе «Провизия», отрицательный запас — недостача.
+  const Id prov = w.catalogs->groupId(schema::grp::Provisions);
+  CHECK(prov != 0);
+  CHECK(w.catalogs->resourceIn(2, prov));
+  CHECK(w.resource(2)->key.empty());
+  CHECK_NEAR(w.faction(1)->stock(2), 0, 1e-12);
+  CHECK_NEAR(w.faction(1)->provisionDebt, 30, 1e-12);
+  // Существующие ресурсы получили группы, а не задвоились.
+  int iron = 0;
+  for (const CatalogItem& r : w.catalogs->resources) iron += r.name == "Железо";
+  CHECK_EQ(iron, 1);
+  CHECK(w.catalogs->resourceIn(4, w.catalogs->groupId(schema::grp::OreCommon)));
+  CHECK_EQ(w.catalogs->essences.size(), size_t(18));
+  CHECK_EQ(w.catalogs->religions.size(), size_t(61));
+  CHECK(w.catalogs->resourceId(schema::kResCorpses) != 0 && w.catalogs->resourceId(schema::kResEnergy) != 0);
+  CHECK(w.catalogs->resourceId(schema::kResMechParts) != 0);
+  CHECK_EQ(w.catalogs->specials.size(), size_t(1));
+  CHECK(std::any_of(warns.begin(), warns.end(), [](const io::Warning& x) { return x.msg.find("мир дополнен") != std::string::npos; }));
+  // Второй раз — ничего не добавляется.
+  World again = w;
+  io::Warnings w2;
+  const u32 m2 = io::normalize(again, w2);
+  std::string all;
+  for (auto& x : w2) all += x.text() + "\n";
+  CHECK_MSG(w2.empty(), all);
+  CHECK_EQ(m2, u32(0));
+}
+
+TEST(io_tz_legacy_provisions_unused_removed) {
+  World w = legacyWorld(false);
+  io::Warnings warns;
+  io::normalize(w, warns);
+  CHECK(!w.resource(2));   // прежний ресурс «Провизия» нигде не использовался
+  CHECK(w.catalogs->groupId(schema::grp::Provisions) != 0);
+  CHECK(w.catalogs->resourceId(schema::kResLegacyProvisions) == 0);
 }
 
 TEST(io_tz_hero_nature_migration_once) {

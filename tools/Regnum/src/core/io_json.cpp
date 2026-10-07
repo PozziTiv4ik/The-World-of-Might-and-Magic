@@ -56,10 +56,12 @@ const EnumInfo kShapeKindE[] = {{"water", "", ""}, {"islet", "", ""}, {"wall", "
 const char* const kSeqNames[kSeqCount] = {
   "province", "faction", "character", "modifier", "building", "tech", "army", "route", "deal", "log", "row",
   "council", "node", "edge", "resource", "race", "culture", "religion", "government", "position", "symbol", "shape",
+  "essence", "relic", "special", "resGroup",
 };
 
-const char* const kCatalogKeys[6] = {"resources", "races", "cultures", "religions", "governments", "positions"};
-const Seq kCatalogSeq[6] = {Seq::Resource, Seq::Race, Seq::Culture, Seq::Religion, Seq::Government, Seq::Position};
+constexpr int kCatalogLists = 7;
+const char* const kCatalogKeys[kCatalogLists] = {"resources", "races", "cultures", "religions", "governments", "positions", "essences"};
+const Seq kCatalogSeq[kCatalogLists] = {Seq::Resource, Seq::Race, Seq::Culture, Seq::Religion, Seq::Government, Seq::Position, Seq::Essence};
 
 std::vector<CatalogItem>& catalogList(Catalogs& c, int i) {
   switch (i) {
@@ -68,9 +70,11 @@ std::vector<CatalogItem>& catalogList(Catalogs& c, int i) {
     case 2: return c.cultures;
     case 3: return c.religions;
     case 4: return c.governments;
-    default: return c.positions;
+    case 5: return c.positions;
+    default: return c.essences;
   }
 }
+const EnumInfo kRarityE[] = {{"common", "", ""}, {"rare", "", ""}, {"epic", "", ""}, {"legendary", "", ""}, {"epochal", "", ""}};
 const std::vector<CatalogItem>& catalogList(const Catalogs& c, int i) { return catalogList(const_cast<Catalogs&>(c), i); }
 
 std::string enumChoices(Enum e) {
@@ -159,11 +163,12 @@ Value ptsV(const std::vector<Vec2>& v) {
   }
   return Value(std::move(a));
 }
-Value resV(const std::map<Id, double>& m) {
+Value resV(const std::map<Id, double>& m, Seq s = Seq::Resource) {
   Value o = Value::object();
-  for (auto& [id, v] : m) o.set(refStr(Seq::Resource, id), fin(v));
+  for (auto& [id, v] : m) o.set(refStr(s, id), fin(v));
   return o;
 }
+Value essV(const std::map<Id, double>& m) { return resV(m, Seq::Essence); }
 Value enumV(Enum e, int v) { return Value(e.list[(v >= 0 && v < e.n) ? v : 0].id); }
 Value bytesV(const std::string& b) { return Value(codec::base64::encode(b)); }
 
@@ -178,6 +183,7 @@ Value encMeta(const Meta& m) {
   o.set("seq", std::move(seq));
   o.set("basemap", m.basemap);
   o.set("mapObjects", m.mapObjects);
+  o.set("content", m.content);
   o.set("notes", m.notes);
   return o;
 }
@@ -199,7 +205,7 @@ Value encSettings(const Settings& s) {
 
 Value encCatalogs(const Catalogs& c) {
   Value o = Value::object();
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < kCatalogLists; i++) {
     json::Array a;
     for (const CatalogItem& it : catalogList(c, i)) {
       Value e = Value::object();
@@ -208,7 +214,10 @@ Value encCatalogs(const Catalogs& c) {
       e.set("color", colorV(it.color));
       e.set("icon", it.icon);
       e.set("builtin", it.builtin);
-      if (i == 0) e.set("key", it.key);   // ресурсы: ключ встроенного ресурса
+      if (i == 0) {                       // ресурсы: ключ встроенного ресурса и группа
+        e.set("key", it.key);
+        e.set("group", ref(Seq::ResGroup, it.group));
+      }
       if (i == 5) {                       // должности: модификаторы занятой и пустующей должности
         e.set("modifiers", refs(Seq::Modifier, it.modifiers));
         e.set("vacantModifiers", refs(Seq::Modifier, it.vacantModifiers));
@@ -217,6 +226,43 @@ Value encCatalogs(const Catalogs& c) {
     }
     o.set(kCatalogKeys[i], Value(std::move(a)));
   }
+  json::Array groups;
+  for (const ResGroup& g : c.resGroups) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::ResGroup, g.id));
+    e.set("name", g.name);
+    e.set("parent", ref(Seq::ResGroup, g.parent));
+    e.set("key", g.key);
+    groups.push_back(std::move(e));
+  }
+  o.set("resGroups", Value(std::move(groups)));
+  json::Array relics;
+  for (const Relic& r : c.relics) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::Relic, r.id));
+    e.set("name", r.name);
+    e.set("rarity", enumV(en(kRarityE), int(r.rarity)));
+    e.set("desc", r.desc);
+    relics.push_back(std::move(e));
+  }
+  o.set("relics", Value(std::move(relics)));
+  json::Array specials;
+  for (const SpecialUnit& s : c.specials) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::Special, s.id));
+    e.set("name", s.name);
+    e.set("type", enumV(en(schema::kUnitTypes), int(s.type)));
+    e.set("race", s.race);
+    e.set("keyRes", ref(Seq::Resource, s.keyRes));
+    e.set("keyPer", fin(s.keyPer));
+    e.set("extra", resV(s.extra));
+    e.set("essence", essV(s.essence));
+    e.set("upkeep", fin(s.upkeep));
+    e.set("essUpkeep", essV(s.essUpkeep));
+    e.set("desc", s.desc);
+    specials.push_back(std::move(e));
+  }
+  o.set("specials", Value(std::move(specials)));
   return o;
 }
 
@@ -346,6 +392,8 @@ Value encProvince(const Province& p) {
   o.set("resource", ref(Seq::Resource, p.resource));
   o.set("resourceAmount", fin(p.resourceAmount));
   o.set("garrison", garrisonV(p.garrison));
+  o.set("garrisonHeroes", refs(Seq::Character, p.garrisonHeroes));
+  o.set("garrisonLoyalty", fin(p.garrisonLoyalty));
   o.set("contentment", fin(p.contentment));
   o.set("culture", ref(Seq::Culture, p.culture));
   o.set("religion", ref(Seq::Religion, p.religion));
@@ -379,6 +427,8 @@ Value encProvince(const Province& p) {
       x.set("paid", resV(e.paid));
       x.set("payer", ref(Seq::Faction, e.payer));
     }
+    if (e.idle) x.set("idle", true);      // постройка преобразования: простаивает
+    if (e.cycle) x.set("cycle", e.cycle);  // ходов до конца цикла преобразования
     b.push_back(std::move(x));
   }
   o.set("buildings", Value(std::move(b)));
@@ -441,6 +491,12 @@ Value encFaction(const Faction& f) {
     x.set("total", r.total);
     x.set("upkeep", fin(r.upkeep));
     x.set("race", r.race);
+    x.set("keyRes", ref(Seq::Resource, r.keyRes));
+    x.set("keyPer", fin(r.keyPer));
+    x.set("extra", resV(r.extra));
+    x.set("essence", essV(r.essence));
+    x.set("essUpkeep", essV(r.essUpkeep));
+    x.set("special", ref(Seq::Special, r.special));
     army.push_back(std::move(x));
   }
   o.set("army", Value(std::move(army)));
@@ -482,11 +538,23 @@ Value encFaction(const Faction& f) {
     x.set("left", q.left);
     x.set("people", q.people);
     x.set("paid", resV(q.paid));
+    x.set("paidEss", essV(q.paidEss));
     fm.push_back(std::move(x));
   }
   o.set("forming", Value(std::move(fm)));
   o.set("tradeFleet", garrisonV(f.tradeFleet));
   o.set("pirateRisk", fin(f.pirateRisk));
+  o.set("ess", essV(f.ess));
+  o.set("provisionDebt", fin(f.provisionDebt));
+  Value techs = Value::object();
+  for (auto& [t, s] : f.techs) {
+    Value x = Value::object();
+    x.set("studied", s.studied);
+    x.set("research", s.research);
+    x.set("progress", s.progress);
+    techs.set(refStr(Seq::Tech, t), std::move(x));
+  }
+  o.set("techs", std::move(techs));
   o.set("notes", f.notes);
   o.set("entity", f.entity);
   return o;
@@ -505,6 +573,7 @@ Value encCharacter(const Character& c) {
   o.set("modTurns", modTurnsV(c.modTurns));
   o.set("captor", ref(Seq::Faction, c.captor));
   o.set("burial", ref(Seq::Province, c.burial));
+  o.set("inventory", refs(Seq::Relic, c.inventory));
   o.set("notes", c.notes);
   o.set("entity", c.entity);
   return o;
@@ -544,6 +613,7 @@ Value encBuilding(const Building& b) {
     req.push_back(std::move(x));
   }
   o.set("requires", Value(std::move(req)));
+  o.set("techs", refs(Seq::Tech, b.techs));
   json::Array levels;
   for (auto& l : b.levels) {
     Value x = Value::object();
@@ -552,10 +622,32 @@ Value encBuilding(const Building& b) {
     x.set("modifiers", refs(Seq::Modifier, l.modifiers));
     x.set("desc", l.desc);
     x.set("produce", resV(l.produce));
+    x.set("essence", essV(l.essence));
     levels.push_back(std::move(x));
   }
   o.set("levels", Value(std::move(levels)));
   o.set("pos", posV(b.pos));
+  o.set("convert", b.convert);
+  if (b.convert) {
+    Value rc = Value::object();
+    json::Array in;
+    for (const ResAmount& x : b.recipe.in) {
+      Value e = Value::object();
+      e.set("res", ref(Seq::Resource, x.res));
+      e.set("amount", fin(x.amount));
+      in.push_back(std::move(e));
+    }
+    rc.set("in", Value(std::move(in)));
+    Value out = Value::object();
+    out.set("res", ref(Seq::Resource, b.recipe.out.res));
+    out.set("amount", fin(b.recipe.out.amount));
+    rc.set("out", std::move(out));
+    rc.set("turns", b.recipe.turns);
+    o.set("recipe", std::move(rc));
+  }
+  o.set("essenceGen", b.essenceGen);
+  o.set("specialAccess", b.specialAccess);
+  o.set("specials", refs(Seq::Special, b.specials));
   return o;
 }
 
@@ -1007,14 +1099,14 @@ class Rec {
     return out;
   }
 
-  std::map<Id, double> resMap(std::string_view key) {
+  std::map<Id, double> resMap(std::string_view key, Seq s = Seq::Resource) {
     std::map<Id, double> out;
     const Value* o = obj(key);
     if (!o) return out;
     for (auto& [k, v] : o->members()) {
-      auto r = parseRef(Value(k), Seq::Resource);
+      auto r = parseRef(Value(k), s);
       if (!r || !*r) {
-        warn(std::string(key) + "." + k, "неверный ключ ресурса (ожидалось вида «rs1») — пропущен");
+        warn(std::string(key) + "." + k, "неверный ключ (ожидалось вида «" + std::string(schema::idPrefix(s)) + "1») — пропущен");
         continue;
       }
       if (!v.isNum()) {
@@ -1104,6 +1196,7 @@ void decMeta(Rec& r, Meta& m) {
   });
   m.basemap = r.str("basemap", m.basemap);
   m.mapObjects = r.flag("mapObjects", false);
+  m.content = r.intv("content", 0);
   m.notes = r.str("notes");
 }
 
@@ -1121,7 +1214,7 @@ void decSettings(Rec& r, Settings& s) {
 }
 
 void decCatalogs(Rec& r, Catalogs& c) {
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < kCatalogLists; i++) {
     auto& list = catalogList(c, i);
     list.clear();
     Seq s = kCatalogSeq[i];
@@ -1133,7 +1226,10 @@ void decCatalogs(Rec& r, Catalogs& c) {
       it.color = e.color("color", it.color);
       it.icon = e.str("icon");
       it.builtin = e.flag("builtin", false);
-      if (i == 0) it.key = e.str("key");
+      if (i == 0) {
+        it.key = e.str("key");
+        it.group = e.ref("group", Seq::ResGroup);
+      }
       if (i == 5) {
         it.modifiers = e.refs("modifiers", Seq::Modifier);
         it.vacantModifiers = e.refs("vacantModifiers", Seq::Modifier);
@@ -1141,6 +1237,43 @@ void decCatalogs(Rec& r, Catalogs& c) {
       list.push_back(std::move(it));
     });
   }
+  c.resGroups.clear();
+  r.list("resGroups", [&](Rec& e) {
+    ResGroup g;
+    g.id = e.id(Seq::ResGroup);
+    if (g.id) e.setBase("resGroups." + refStr(Seq::ResGroup, g.id));
+    g.name = e.str("name");
+    g.parent = e.ref("parent", Seq::ResGroup);
+    g.key = e.str("key");
+    c.resGroups.push_back(std::move(g));
+  });
+  c.relics.clear();
+  r.list("relics", [&](Rec& e) {
+    Relic x;
+    x.id = e.id(Seq::Relic);
+    if (x.id) e.setBase("relics." + refStr(Seq::Relic, x.id));
+    x.name = e.str("name");
+    x.rarity = Rarity(e.enumv("rarity", en(kRarityE), 0));
+    x.desc = e.str("desc");
+    c.relics.push_back(std::move(x));
+  });
+  c.specials.clear();
+  r.list("specials", [&](Rec& e) {
+    SpecialUnit s;
+    s.id = e.id(Seq::Special);
+    if (s.id) e.setBase("specials." + refStr(Seq::Special, s.id));
+    s.name = e.str("name");
+    s.type = UnitType(e.enumv("type", en(schema::kUnitTypes), int(UnitType::Monsters)));
+    s.race = e.str("race");
+    s.keyRes = e.ref("keyRes", Seq::Resource);
+    s.keyPer = e.num("keyPer", 1);
+    s.extra = e.resMap("extra");
+    s.essence = e.resMap("essence", Seq::Essence);
+    s.upkeep = e.num("upkeep", 0);
+    s.essUpkeep = e.resMap("essUpkeep", Seq::Essence);
+    s.desc = e.str("desc");
+    c.specials.push_back(std::move(s));
+  });
 }
 
 ModTurns modTurnsOf(Rec& r, std::string_view key) {
@@ -1331,6 +1464,8 @@ void decProvince(Rec& r, Province& p) {
   p.resource = r.ref("resource", Seq::Resource);
   p.resourceAmount = r.num("resourceAmount", 0);
   p.garrison = garrisonOf(r, "garrison");
+  p.garrisonHeroes = r.refs("garrisonHeroes", Seq::Character);
+  p.garrisonLoyalty = r.num("garrisonLoyalty", 100);
   p.contentment = r.num("contentment", 0);
   p.culture = r.ref("culture", Seq::Culture);
   p.religion = r.ref("religion", Seq::Religion);
@@ -1363,6 +1498,8 @@ void decProvince(Rec& r, Province& p) {
       b.payer = p.owner;
       e.warnHere("уплаченная стоимость строительства не записана — при отмене стоимость не вернётся");
     }
+    b.idle = e.flag("idle", false);
+    b.cycle = e.intv("cycle", 0);
     p.buildings.push_back(b);
   });
   p.modifiers = r.refs("modifiers", Seq::Modifier);
@@ -1420,6 +1557,12 @@ void decFaction(Rec& r, Faction& f) {
     a.total = countOf(e, "total");
     a.upkeep = e.num("upkeep", 0);
     a.race = e.str("race");
+    a.keyRes = e.ref("keyRes", Seq::Resource);
+    a.keyPer = e.num("keyPer", 1);
+    a.extra = e.resMap("extra");
+    a.essence = e.resMap("essence", Seq::Essence);
+    a.essUpkeep = e.resMap("essUpkeep", Seq::Essence);
+    a.special = e.ref("special", Seq::Special);
     f.army.push_back(std::move(a));
   });
   r.list("fleet", [&](Rec& e) {
@@ -1455,10 +1598,27 @@ void decFaction(Rec& r, Faction& f) {
     q.left = e.intv("left", 1);
     q.people = e.integer("people", 0);
     q.paid = e.resMap("paid");
+    q.paidEss = e.resMap("paidEss", Seq::Essence);
     f.forming.push_back(std::move(q));
   });
   f.tradeFleet = garrisonOf(r, "tradeFleet");
   f.pirateRisk = r.num("pirateRisk", 0);
+  f.ess = r.resMap("ess", Seq::Essence);
+  f.provisionDebt = r.num("provisionDebt", 0);
+  if (const Value* o = r.obj("techs")) {
+    for (auto& [k, v] : o->members()) {
+      auto id = parseRef(Value(k), Seq::Tech);
+      if (!id || !*id || !v.isObj()) {
+        r.warn("techs." + k, "неверная запись изучения общей технологии — пропущена");
+        continue;
+      }
+      TechProgress s;
+      s.studied = v.get("studied").isBool() && v.get("studied").asBool();
+      s.research = v.get("research").isBool() && v.get("research").asBool();
+      s.progress = v.get("progress").isNum() ? int(std::clamp(std::nearbyint(v.get("progress").asNum()), 0.0, 1e6)) : 0;
+      f.techs[*id] = s;
+    }
+  }
   f.notes = r.str("notes");
   f.entity = r.str("entity");
 }
@@ -1474,6 +1634,7 @@ void decCharacter(Rec& r, Character& c) {
   c.modTurns = modTurnsOf(r, "modTurns");
   c.captor = r.ref("captor", Seq::Faction);
   c.burial = r.ref("burial", Seq::Province);
+  c.inventory = r.refs("inventory", Seq::Relic);
   c.notes = r.str("notes");
   c.entity = r.str("entity");
 }
@@ -1511,6 +1672,7 @@ void decBuilding(Rec& r, Building& b) {
     q.level = e.intv("level", 1);
     b.requires_.push_back(q);
   });
+  b.techs = r.refs("techs", Seq::Tech);
   if (r.has("levels")) {
     b.levels.clear();
     r.list("levels", [&](Rec& e) {
@@ -1520,10 +1682,28 @@ void decBuilding(Rec& r, Building& b) {
       l.modifiers = e.refs("modifiers", Seq::Modifier);
       l.desc = e.str("desc");
       l.produce = e.resMap("produce");
+      l.essence = e.resMap("essence", Seq::Essence);
       b.levels.push_back(std::move(l));
     });
   }
   b.pos = r.pos("pos");
+  b.convert = r.flag("convert", false);
+  r.sub("recipe", [&](Rec& q) {
+    q.list("in", [&](Rec& e) {
+      ResAmount x;
+      x.res = e.ref("res", Seq::Resource);
+      x.amount = e.num("amount", 0);
+      b.recipe.in.push_back(x);
+    });
+    q.sub("out", [&](Rec& e) {
+      b.recipe.out.res = e.ref("res", Seq::Resource);
+      b.recipe.out.amount = e.num("amount", 0);
+    });
+    b.recipe.turns = q.intv("turns", 1);
+  });
+  b.essenceGen = r.flag("essenceGen", false);
+  b.specialAccess = r.flag("specialAccess", false);
+  b.specials = r.refs("specials", Seq::Special);
 }
 
 void decTech(Rec& r, Tech& t) {

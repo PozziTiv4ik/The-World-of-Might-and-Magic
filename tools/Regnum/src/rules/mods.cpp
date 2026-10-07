@@ -107,6 +107,14 @@ SourceIndex::SourceIndex(const World& w) {
   w.techs.each([&](const Tech& t) {
     if (t.studied && t.faction && !t.modifiers.empty()) studied[t.faction].push_back(&t);
   });
+  // Общие технологии, изученные фракцией (каждая фракция изучает общее дерево отдельно).
+  w.factions.each([&](const Faction& f) {
+    for (auto& [tid, s] : f.techs) {
+      if (!s.studied) continue;
+      const Tech* t = w.tech(tid);
+      if (t && t->faction == 0 && !t->modifiers.empty()) studied[f.id].push_back(t);
+    }
+  });
   w.factions.each([&](const Faction& f) {
     if (!f.isState()) return;
     auto a = autoModifiers(w, f.id);

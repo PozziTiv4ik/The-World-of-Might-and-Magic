@@ -3,6 +3,9 @@
 //     вассала «T»?» Да/Нет (rules::suzerainDefends: война и +15 к отношениям с вассалом или −20).
 //  2. У зачинщика есть вассалы — призыв: каждому «согласился» или «отказался» (rules::vassalAnswers: ±10, согласные
 //     вступают в войну).
+//  3. У атакованного есть вассалы — их тоже можно призвать: «надо добавить возможность призывать вассалов не только
+//     когда сюзерен сам нападает на другое государство но и когда другое государство нападает на сюзерена» (то же
+//     окно призыва: сюзерен — атакованный, враг — зачинщик).
 // Закрытие окна без ответа ничего не меняет.
 #include "app/flows.h"
 #include "app/panels/faction_common.h"
@@ -77,9 +80,11 @@ struct DefendDlg final : Dialog {
   }
 };
 
-// Призыв вассалов зачинщика войны.
+// Призыв вассалов сюзерена против врага: зачинщика войны (defense — на сюзерена напали) или атакованного им
+// государства (сюзерен — зачинщик).
 struct CallDlg final : Dialog {
   Id suzerain = 0, enemy = 0;
+  bool defense = false;
   std::vector<Id> vassals;
   std::vector<int> answer;   // −1 — нет ответа, 0 — согласился, 1 — отказался
   std::function<void(App&)> done;   // после ответа или закрытия окна
@@ -104,8 +109,15 @@ struct CallDlg final : Dialog {
     {
       ui::Row r({ui::fr(1), ui::px(64), ui::fr(1)}, ui::kAuto, 12);
       factionBig(w, suzerain);
-      bigIcon("war", ui::Tone::Danger);
+      bigIcon(defense ? "shield" : "war", defense ? ui::Tone::Accent : ui::Tone::Danger);
       factionBig(w, enemy);
+    }
+    {
+      // Кто начал войну: сюзерен напал или на сюзерена напали.
+      ui::HStack hs(22, ui::Align::Left, 6);
+      ui::icon(defense ? "shield" : "war", defense ? ui::Ink::Accent : ui::Ink::Danger, 16);
+      ui::label((defense ? "Оборона от «" : "Нападение на «") + w.factionName(enemy) + "»", {.font = ui::Font::Small, .ink = ui::Ink::Dim});
+      a.markUi(defense ? "vassal.call.defense" : "vassal.call.attack");
     }
     const ui::Theme& t = ui::theme();
     int answered = 0;
@@ -137,7 +149,7 @@ struct CallDlg final : Dialog {
       std::vector<std::pair<Id, bool>> list;
       for (size_t i = 0; i < vassals.size(); i++)
         if (answer[i] >= 0) list.push_back({vassals[i], answer[i] == 0});
-      if (a.act("Призыв вассалов", [&](Tx& tx) {
+      if (a.act(defense ? "Призыв вассалов на защиту" : "Призыв вассалов", [&](Tx& tx) {
             for (auto [v, agree] : list) rules::vassalAnswers(tx, s, v, e, agree);
           })) {
         finish(a);
@@ -149,23 +161,26 @@ struct CallDlg final : Dialog {
   }
 };
 
-// Призыв: вассалы зачинщика, кроме самой цели и уже воюющих с целью или с зачинщиком.
-void openCall(App& a, Id declarer, Id target, std::function<void(App&)> done) {
+// Призыв вассалов suzerain против enemy. Не зовутся сам враг (вассал, напавший на сюзерена), уже воюющие с врагом и
+// воюющие со своим сюзереном. Никого — сразу done.
+void openCall(App& a, Id suzerain, Id enemy, bool defense, std::function<void(App&)> done) {
   auto finish = [&] {
     if (done) done(a);
   };
   const World& w = a.world();
-  if (!w.faction(declarer) || !w.faction(target)) return finish();
+  const Faction* s = w.faction(suzerain);
+  if (!s || !s->isState() || !w.faction(enemy)) return finish();
   std::vector<Id> list;
-  for (Id v : rules::vassalsOf(w, declarer)) {
-    if (v == target || w.relation(v, target).s == RelStatus::War || w.relation(v, declarer).s == RelStatus::War) continue;
+  for (Id v : rules::vassalsOf(w, suzerain)) {
+    if (v == enemy || w.relation(v, enemy).s == RelStatus::War || w.relation(v, suzerain).s == RelStatus::War) continue;
     list.push_back(v);
   }
   if (list.empty()) return finish();
   std::sort(list.begin(), list.end(), [&](Id x, Id y) { return compareRu(w.factionName(x), w.factionName(y)) < 0; });
   auto d = std::make_unique<CallDlg>();
-  d->suzerain = declarer;
-  d->enemy = target;
+  d->suzerain = suzerain;
+  d->enemy = enemy;
+  d->defense = defense;
   d->vassals = list;
   d->answer.assign(list.size(), -1);
   d->done = std::move(done);
@@ -183,7 +198,9 @@ void afterWarDeclared(App& a, Id declarer, Id target, std::function<void(App&)> 
     if (done) done(a);
     return;
   }
-  auto call = [declarer, target, done](App& x) { openCall(x, declarer, target, done); };
+  // По очереди: вассалы зачинщика (против атакованного), затем вассалы атакованного (против зачинщика).
+  auto defenders = [declarer, target, done](App& x) { openCall(x, target, declarer, true, done); };
+  auto attackers = [declarer, target, defenders](App& x) { openCall(x, declarer, target, false, defenders); };
   // Сюзерен атакованного вассала: не зачинщик и ещё не в войне с ним.
   const Id s = t->isState() ? t->suzerain : 0;
   if (s && s != declarer && w.faction(s) && w.relation(s, declarer).s != RelStatus::War) {
@@ -191,11 +208,11 @@ void afterWarDeclared(App& a, Id declarer, Id target, std::function<void(App&)> 
     d->suzerain = s;
     d->vassal = target;
     d->attacker = declarer;
-    d->next = call;
+    d->next = attackers;
     a.openDialog(std::move(d));
     return;
   }
-  call(a);
+  attackers(a);
 }
 
 }  // namespace flow

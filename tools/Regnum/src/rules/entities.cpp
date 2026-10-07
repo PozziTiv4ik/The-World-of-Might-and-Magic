@@ -81,6 +81,7 @@ const char* catalogNoun(CatalogList l) {
     case CatalogList::Religions: return "Религия";
     case CatalogList::Governments: return "Форма правления";
     case CatalogList::Positions: return "Должность";
+    case CatalogList::Essences: return "Эссенция";
   }
   return "Запись";
 }
@@ -92,6 +93,7 @@ const char* catalogDefault(CatalogList l) {
     case CatalogList::Religions: return "Новая религия";
     case CatalogList::Governments: return "Новая форма правления";
     case CatalogList::Positions: return "Новая должность";
+    case CatalogList::Essences: return "Новая эссенция";
   }
   return "Новая запись";
 }
@@ -103,6 +105,7 @@ Seq catalogSeq(CatalogList l) {
     case CatalogList::Religions: return Seq::Religion;
     case CatalogList::Governments: return Seq::Government;
     case CatalogList::Positions: return Seq::Position;
+    case CatalogList::Essences: return Seq::Essence;
   }
   return Seq::Resource;
 }
@@ -140,6 +143,8 @@ void removeFaction(Tx& tx, Id faction) {
     if (p.owner == faction) {
       p.owner = 0;
       p.garrison.clear();
+      p.garrisonHeroes.clear();
+      p.garrisonLoyalty = schema::kMaxLoyalty;
       p.slaves.clear();
     }
     if (p.occupier == faction) {
@@ -231,6 +236,8 @@ void clearAssignments(Tx& tx, Id character) {
     if (a.commander == character) a.commander = 0;
     for (ArmyGroup& g : a.groups) eraseValue(g.heroes, character);
   }
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return contains(p.garrisonHeroes, character); }))
+    eraseValue(tx.province(pid).garrisonHeroes, character);
 }
 
 namespace {
@@ -307,7 +314,9 @@ void removeCharacter(Tx& tx, Id character) {
     if (a.commander == character) a.commander = 0;
     for (ArmyGroup& g : a.groups) eraseValue(g.heroes, character);
   }
-  tx.eraseCharacter(character);
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return contains(p.garrisonHeroes, character); }))
+    eraseValue(tx.province(pid).garrisonHeroes, character);
+  tx.eraseCharacter(character);   // реликвии инвентаря освобождаются вместе с ним
 }
 
 Id createModifier(Tx& tx, const std::string& name) {
@@ -400,7 +409,7 @@ std::vector<Id> removeLastBuildingLevel(Tx& tx, Id building) {
 }
 
 Id createTech(Tx& tx, Id faction, const std::string& name) {
-  needFaction(tx.w(), faction);
+  if (faction) needFaction(tx.w(), faction);   // 0 — общее дерево
   Tech t;
   t.faction = faction;
   std::string n = trim(name);
@@ -412,6 +421,8 @@ Id createTech(Tx& tx, Id faction, const std::string& name) {
 void removeTech(Tx& tx, Id tech) {
   needTech(tx.w(), tech);
   for (Id tid : idsWhere(tx.w().techs, [&](const Tech& t) { return contains(t.prereqs, tech); })) eraseValue(tx.tech(tid).prereqs, tech);
+  for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) { return contains(b.techs, tech); })) eraseValue(tx.building(bid).techs, tech);
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.techs.count(tech) > 0; })) tx.faction(fid).techs.erase(tech);
   tx.eraseTech(tech);
 }
 
@@ -442,7 +453,11 @@ void copyTechTree(Tx& tx, Id from, Id to) {
     c.research = false;
     c.progress = 0;
     c.pos.y += dy;
-    for (Id& p : c.prereqs) p = remap.count(p) ? remap[p] : 0;
+    // Условия из своего дерева — копии; общие технологии остаются общими.
+    for (Id& p : c.prereqs) {
+      const Tech* pt = tx.w().tech(p);
+      p = remap.count(p) ? remap[p] : (pt && pt->faction == 0 ? p : 0);
+    }
     c.prereqs.erase(std::remove(c.prereqs.begin(), c.prereqs.end(), Id(0)), c.prereqs.end());
     tx.add(std::move(c));
   }
@@ -457,6 +472,7 @@ std::vector<CatalogItem>& catalogList(Catalogs& c, CatalogList list) {
     case CatalogList::Religions: return c.religions;
     case CatalogList::Governments: return c.governments;
     case CatalogList::Positions: return c.positions;
+    case CatalogList::Essences: return c.essences;
   }
   fail("Неизвестный справочник");
 }
@@ -514,6 +530,60 @@ void removeCatalogItem(Tx& tx, CatalogList list, Id item) {
         Deal& d = tx.deal(did);
         d.items.erase(std::remove_if(d.items.begin(), d.items.end(), [&](const DealItem& i) { return i.res == item; }), d.items.end());
         if (d.items.empty() && d.status == DealStatus::Active) d.status = DealStatus::Cancelled;
+      }
+      // Цены найма строк армии и особых отрядов, рецепты построек преобразования.
+      for (Id fid : idsWhere(w.factions, [&](const Faction& f) {
+             return std::any_of(f.army.begin(), f.army.end(), [&](const ArmyRow& r) { return r.keyRes == item || r.extra.count(item); });
+           }))
+        for (ArmyRow& r : tx.faction(fid).army) {
+          if (r.keyRes == item) r.keyRes = 0;
+          r.extra.erase(item);
+        }
+      {
+        const auto& sp = w.catalogs->specials;
+        if (std::any_of(sp.begin(), sp.end(), [&](const SpecialUnit& s) { return s.keyRes == item || s.extra.count(item); }))
+          for (SpecialUnit& s : tx.catalogs().specials) {
+            if (s.keyRes == item) s.keyRes = 0;
+            s.extra.erase(item);
+          }
+      }
+      for (Id bid : idsWhere(w.buildings, [&](const Building& b) {
+             return b.recipe.out.res == item || std::any_of(b.recipe.in.begin(), b.recipe.in.end(), [&](const ResAmount& x) { return x.res == item; });
+           })) {
+        Recipe& rc = tx.building(bid).recipe;
+        rc.in.erase(std::remove_if(rc.in.begin(), rc.in.end(), [&](const ResAmount& x) { return x.res == item; }), rc.in.end());
+        if (rc.out.res == item) rc.out = ResAmount{};
+      }
+      break;
+    }
+    case CatalogList::Essences: {
+      for (Id fid : idsWhere(w.factions, [&](const Faction& f) {
+             if (f.ess.count(item)) return true;
+             for (const ArmyRow& r : f.army)
+               if (r.essence.count(item) || r.essUpkeep.count(item)) return true;
+             for (const Formation& q : f.forming)
+               if (q.paidEss.count(item)) return true;
+             return false;
+           })) {
+        Faction& f = tx.faction(fid);
+        f.ess.erase(item);
+        for (ArmyRow& r : f.army) {
+          r.essence.erase(item);
+          r.essUpkeep.erase(item);
+        }
+        for (Formation& q : f.forming) q.paidEss.erase(item);
+      }
+      for (Id bid : idsWhere(w.buildings, [&](const Building& b) {
+             return std::any_of(b.levels.begin(), b.levels.end(), [&](const BuildingLevel& l) { return l.essence.count(item) > 0; });
+           }))
+        for (BuildingLevel& l : tx.building(bid).levels) l.essence.erase(item);
+      {
+        const auto& sp = w.catalogs->specials;
+        if (std::any_of(sp.begin(), sp.end(), [&](const SpecialUnit& s) { return s.essence.count(item) || s.essUpkeep.count(item); }))
+          for (SpecialUnit& s : tx.catalogs().specials) {
+            s.essence.erase(item);
+            s.essUpkeep.erase(item);
+          }
       }
       break;
     }
@@ -574,6 +644,8 @@ void setProvinceOwner(Tx& tx, Id province, Id faction) {
   Province& p = tx.province(province);
   p.owner = faction;
   p.garrison.clear();  // гарнизон распускается в резерв прежнего владельца
+  p.garrisonHeroes.clear();
+  p.garrisonLoyalty = schema::kMaxLoyalty;
   p.slaves.clear();    // рабы прежнего владельца снимаются с работ
   if (p.occupied && p.occupier == faction) {
     p.occupied = false;
@@ -680,6 +752,7 @@ void setProvinceSea(Tx& tx, Id province, bool sea) {
     // столица снимается; начатое строительство приостановлено до возвращения суши. Остальные данные (владелец,
     // население, постройки, влияние) сохраняются и снова действуют, когда провинция станет сухопутной.
     p.garrison.clear();
+    p.garrisonHeroes.clear();
     p.occupied = false;
     p.occupier = 0;
     for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.capital == province; })) tx.faction(fid).capital = 0;
@@ -710,12 +783,16 @@ void mergeProvinces(Tx& tx, Id target, Id source) {
     else t.races.push_back(r);
   }
   // Гарнизон того же владельца переходит, иначе распускается в резерв.
-  if (t.owner && src.owner == t.owner)
+  if (t.owner && src.owner == t.owner) {
     for (const GarrisonEntry& g : src.garrison) {
       auto it = std::find_if(t.garrison.begin(), t.garrison.end(), [&](const GarrisonEntry& x) { return x.row == g.row; });
       if (it != t.garrison.end()) it->count += g.count;
       else t.garrison.push_back(g);
     }
+    for (Id h : src.garrisonHeroes)
+      if (!contains(t.garrisonHeroes, h)) t.garrisonHeroes.push_back(h);
+    t.garrisonLoyalty = std::min(t.garrisonLoyalty, src.garrisonLoyalty);
+  }
   // Штабы — не больше пяти разных гильдий.
   std::vector<std::string> lostHq;
   for (Id g : src.hqs) {
@@ -817,9 +894,11 @@ Id addArmyRow(Tx& tx, Id faction, UnitType type, const std::string& name, i64 to
 
 void setRowRace(Tx& tx, Id faction, Id row, const std::string& race) {
   const Faction& f = needFaction(tx.w(), faction);
-  if (!f.armyRow(row)) fail("Строки нет в таблице войск " + facName(tx.w(), faction));
+  const ArmyRow* cur = f.armyRow(row);
+  if (!cur) fail("Строки нет в таблице войск " + facName(tx.w(), faction));
   std::string r = trim(race);
   if (r.empty()) fail("Не выбрана раса отряда");
+  if (schema::isElemental(cur->type) && r != schema::kRaceElemental) fail("Раса элементалей — только «Элементали»");
   for (ArmyRow& x : tx.faction(faction).army)
     if (x.id == row) x.race = r;
 }

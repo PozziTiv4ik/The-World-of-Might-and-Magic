@@ -250,3 +250,56 @@ TEST(app_war_mutiny_defect_before_battle) {
   h.settle();
   CHECK(!h->hasDialog("battle"));
 }
+
+// ТЗ «Доработки», п.1: мятежники штурмуют гарнизон прежнего государства с отрицательной верностью — до штурма
+// неверная часть гарнизона переходит к ним, у оставшихся верность 0 %; окно штурма — с оставшимся гарнизоном. Гарнизон
+// перешёл целиком — штурма нет, сразу выбор захвата.
+TEST(app_war_mutiny_garrison_defect) {
+  Harness h("war_mutiny_garrison_defect", 1440, 1000);
+  RealArmyTools tools;
+  h.demo();
+  const Id hel = factionByName(h->world(), "Хельдвиг");
+  const Id pid = quietProvince(h, hel);
+  CHECK(pid != 0);
+  if (!pid) return;
+  const Id row = h->world().faction(hel)->army[0].id;
+  Id rebel = 0, rebelArmy = 0;
+  CHECK(h->act("Гарнизон и мятежники", [&](Tx& tx) {
+    for (ArmyRow& r : tx.faction(hel).army)
+      if (r.id == row) r.total += 400;
+    rules::setGarrison(tx, pid, row, 400);
+    rules::setGarrisonLoyalty(tx, pid, -50);
+    rebel = rules::rebelStateFor(tx, hel);
+    const Id rrow = rules::addArmyRow(tx, rebel, UnitType::LightInf, "Мятежники", 500, 0);
+    auto fs = geo::faces(h->world());
+    auto spot = rules::findFreeSpot(tx.w(), ArmyKind::Army, fs->shape(pid)->label);
+    if (!spot) fail("нет места");
+    rebelArmy = rules::createArmy(tx, ArmyKind::Army, rebel, *spot);
+    rules::setUnits(tx, rebelArmy, rebel, rrow, 500);
+  }));
+  CHECK(rules::willGarrisonDefect(h->world(), rebelArmy, pid));
+  app::flow::openSiege(h.a(), rebelArmy, pid, h->world().army(rebelArmy)->pos);
+  h.settle();
+  i64 garrison = 0;
+  for (const GarrisonEntry& g : h->world().province(pid)->garrison) garrison += g.count;
+  CHECK_EQ(garrison, 200);
+  CHECK_EQ(unitsOf(h->world(), rebelArmy), 700);
+  CHECK_NEAR(h->world().province(pid)->garrisonLoyalty, 0, 1e-9);
+  CHECK(h->hasDialog("siege"));
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("war_mutiny_garrison_defect_siege"));
+  CHECK(h.clickUi("siege.retreat"));
+  h.settle();
+  CHECK(!h->hasDialog("siege"));
+  // −100 %: гарнизон переходит целиком — сразу выбор захвата.
+  CHECK(h->act("Верность гарнизона −100 %", [&](Tx& tx) { rules::setGarrisonLoyalty(tx, pid, -100); }));
+  app::flow::openSiege(h.a(), rebelArmy, pid, h->world().army(rebelArmy)->pos);
+  h.settle();
+  CHECK(h->world().province(pid)->garrison.empty());
+  CHECK_EQ(unitsOf(h->world(), rebelArmy), 900);
+  CHECK(!h->hasDialog("siege"));
+  CHECK(h->hasDialog("capture"));
+  CHECK(h.clickUi("capture.cancel"));
+  h.settle();
+}

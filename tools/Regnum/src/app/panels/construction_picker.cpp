@@ -1,5 +1,7 @@
 // Regnum — выбор строительства в провинции (ТЗ 1.f.ii, 1.h): постройки общего дерева и уникальные постройки
-// владельца по категориям, стоимость (нехватка — красным), срок, эффекты уровня, причины недоступности.
+// владельца по категориям, стоимость (нехватка — красным), срок, эффекты уровня, особые возможности, причины
+// недоступности (в том числе требуемые технологии и культовая — одна на карту или государство). «Поставить готовой» —
+// изначальная постройка без цены и срока, у многоуровневой — с выбором уровня (ТЗ «Доработки», п.5).
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
 #include "app/widgets.h"
@@ -13,13 +15,35 @@ struct BuildPicker : Dialog {
   std::string query;
   bool onlyAvail = false;
   int tab = 0;   // 0 — все, далее категории
+  std::map<Id, int> placeLevel;   // постройка → уровень для «Поставить готовой»
   const char* id() const override { return "build.picker"; }
   Style style(App& a) override {
     const Province* p = a.world().province(pid);
-    return {"Строительство · " + (p ? p->name : std::string("провинция")), "build", ui::Tone::Accent, 720};
+    return {"Строительство · " + (p ? p->name : std::string("провинция")), "build", ui::Tone::Accent, 740};
   }
   bool draw(App& a) override;
 };
+
+// Особые возможности постройки: рецепт преобразования, эссенции уровня, особые отряды; культовая — одна на карту.
+void roleLines(App& a, const Building& b, const BuildingLevel* L) {
+  const World& w = a.world();
+  if (const char* rule = bld::cultRule(b))
+    ui::label(rule, {.font = ui::Font::Small, .color = bld::catColor(BuildingCat::Cult), .icon = "b-cult", .tooltip = "Культовая постройка"});
+  if (b.convert) {
+    std::vector<bld::Token> tk = bld::recipeTokens(w, b.recipe);
+    tk.insert(tk.begin(), bld::Token{"convert", ui::theme().info, {}, ui::Ink::Normal, "Преобразование ресурсов"});
+    bld::tokens(tk);
+  }
+  if (b.essenceGen && L) {
+    std::vector<bld::Token> tk = bld::essenceTokens(w, L->essence);
+    if (!tk.empty()) {
+      tk.insert(tk.begin(), bld::Token{"repeat", ui::theme().textMuted, {}, ui::Ink::Muted, "Даёт за ход"});
+      bld::tokens(tk, 6);
+    }
+  }
+  if (b.specialAccess && !b.specials.empty())
+    ui::label(bld::specialsText(w, b.specials), {.font = ui::Font::Small, .ink = ui::Ink::Accent, .icon = "special-unit", .tooltip = "Доступ к особым отрядам"});
+}
 
 void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Faction* owner, bool& close) {
   const World& w = a.world();
@@ -28,10 +52,11 @@ void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Facti
   const bool ro = a.readOnly();
   ui::IdScope s{i64(o.building)};
   std::string name = b->name;
-  int lvl = clamp(o.level, 1, std::max(1, int(b->levels.size())));
+  const int maxL = std::max(1, int(b->levels.size()));
+  int lvl = clamp(o.level, 1, maxL);
   const BuildingLevel* L = b->levels.empty() ? nullptr : &b->levels[size_t(lvl - 1)];
   ui::Card card({.pad = 12, .tone = o.can ? ui::Tone::Accent : ui::Tone::Neutral});
-  ui::Row row({ui::px(44), ui::fr(1), ui::px(132)}, ui::kAuto, 12);
+  ui::Row row({ui::px(44), ui::fr(1), ui::px(140)}, ui::kAuto, 12);
   bld::iconTile(*b, 44, !o.can);
   {
     ui::Group g(0, 5);
@@ -49,6 +74,7 @@ void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Facti
       bld::levelEffects(w, *L);
       bld::produceChips(L->produce);
     }
+    roleLines(a, *b, L);
     for (size_t i = 0; i < o.reasons.size() && i < 3; i++) {
       ui::IdScope rs{int(i)};
       ui::label(o.reasons[i], {.font = ui::Font::Small, .ink = ui::Ink::Danger, .icon = "warning", .wrap = true});
@@ -67,6 +93,38 @@ void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Facti
     }
     a.markUi("build.option." + std::to_string(o.building));
     ui::label(nTurns(o.turns), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Center, .icon = "hourglass"});
+    // Поставить готовой: изначальная постройка провинции — без цены и срока (те же условия, кроме цены). Уровень —
+    // от следующего (у уже стоящей) до наибольшего.
+    const int from = clamp(o.level, 1, maxL);
+    int& place = d.placeLevel[o.building];
+    if (place < from || place > maxL) place = from;
+    if (o.canPlace && maxL > from) {
+      std::vector<std::string> romans;
+      for (int l = from; l <= maxL; l++) romans.push_back(tree::roman(l));
+      int idx = place - from;
+      if (romans.size() <= 5) {
+        std::vector<ui::Segment> segs;
+        for (const std::string& r : romans) segs.push_back(ui::Segment{nullptr, r, "Уровень готовой постройки"});
+        if (ui::segmented("placelvl", idx, std::span<const ui::Segment>(segs), {.size = ui::Size::Small, .disabled = ro})) place = from + idx;
+      } else {
+        std::vector<ui::Option> opts;
+        for (const std::string& r : romans) opts.push_back(ui::Option{r});
+        if (ui::combo("placelvl", idx, std::span<const ui::Option>(opts), {.placeholder = "Уровень", .disabled = ro, .tooltip = "Уровень готовой постройки"}) &&
+            idx >= 0)
+          place = from + idx;
+      }
+      a.markUi("build.placeLevel." + std::to_string(o.building));
+    }
+    const std::vector<std::string>& why = !o.placeReasons.empty() ? o.placeReasons : o.reasons;
+    const std::string placeTip = o.canPlace ? std::string("Сразу готова — без цены и срока (изначальная постройка провинции)") : join(why, "\n");
+    if (ui::button("Поставить готовой", {.variant = ui::Variant::Ghost, .icon = "bolt", .size = ui::Size::Small, .fill = true, .disabled = !o.canPlace || ro,
+                                         .tooltip = placeTip})) {
+      const Id pid = d.pid, bid = o.building;
+      const int level = place;
+      if (a.act("Поставить постройку готовой", [&](Tx& tx) { rules::placeBuilding(tx, pid, bid, level); }))
+        a.toast("Поставлена готовой: " + name + (maxL > 1 ? " " + tree::roman(level) : std::string()), ToastKind::Success, "bolt");
+    }
+    a.markUi("build.place." + std::to_string(o.building));
   }
 }
 

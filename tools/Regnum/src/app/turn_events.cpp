@@ -1,7 +1,7 @@
-// Regnum — события после завершения хода (ТЗ «Механика мятежа», п.1.2 и 4): мятеж войска с верностью −100 % и
-// восстание провинции. Окна идут по очереди: судьба верных героев, битва мятежников с войском прежнего
-// государства в провинции, штурм гарнизона или захват (flow::rebelAftermath); в конце — сюзерены атакованных
-// мятежниками вассалов (flow::afterWarDeclared).
+// Regnum — события после завершения хода (ТЗ «Механика мятежа», п.1.2 и 4; «Доработки», п.1): мятеж войска или
+// гарнизона с верностью −100 % и восстание провинции. Окна идут по очереди: судьба верных героев, битва мятежников с
+// войском прежнего государства в провинции, штурм гарнизона или захват (flow::rebelAftermath); в конце — сюзерены
+// атакованных мятежниками вассалов (flow::afterWarDeclared).
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -52,18 +52,29 @@ void step(App& a, std::shared_ptr<Queue> q) {
       q->wars.push_back({e.rebelState, e.origin});
     const Army* ar = w.army(e.army);
     if (e.kind == rules::TurnEvent::Mutiny) {
-      // Войско восстало целиком: верные герои — «Судьба героя» (пленившее — мятежники), затем штурм или захват.
-      const Id army = e.army;
-      auto after = [army, cont](App& x) {
-        if (x.world().army(army)) rebelAftermath(x, army, cont);
-        else cont(x);
+      // Войско или гарнизон (верность −100 %) восстали целиком: верные герои — «Судьба героя» (пленившее — мятежники);
+      // затем мятежники нападают на войско прежнего государства в провинции (ТЗ «Мятеж», п.1.1), а без него — штурм
+      // оставшегося гарнизона или захват.
+      const Id army = e.army, origin = e.origin, province = e.province;
+      auto after = [army, origin, province, cont](App& x) {
+        const Army* r = x.world().army(army);
+        if (!r) {
+          cont(x);
+          return;
+        }
+        const Id pid = province ? province : mil::provinceUnder(x.world(), r->pos);
+        if (Id target = origin ? originArmyIn(x.world(), origin, pid, r->pos) : 0) {
+          mil::openBattle(x, army, target, r->pos, {}, cont);
+          return;
+        }
+        rebelAftermath(x, army, cont);
       };
       if (!e.heroes.empty()) {
         openHeroFate(a, e.heroes, e.rebelState, e.province, after);
         return;
       }
       if (ar) {
-        rebelAftermath(a, army, cont);
+        after(a);
         return;
       }
       continue;

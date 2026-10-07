@@ -65,6 +65,72 @@ TEST(app_turn_events_full_mutiny) {
   CHECK(!h->world().province(pid)->occupied);
 }
 
+// Гарнизон с верностью −100 % восстаёт в конце хода целиком (ТЗ «Доработки», п.1): событие хода — мятежники в
+// провинции без войск и гарнизона, сразу выбор захвата.
+TEST(app_turn_events_garrison_mutiny) {
+  Harness h("turn_events_garrison", 1440, 1000);
+  h.demo();
+  const Id hel = factionByName(h->world(), "Хельдвиг");
+  const Id pid = calmProvince(h, hel);
+  CHECK(pid != 0);
+  if (!pid) return;
+  const Id row = h->world().faction(hel)->army[0].id;
+  CHECK(h->act("Гарнизон −100 %", [&](Tx& tx) {
+    for (ArmyRow& r : tx.faction(hel).army)
+      if (r.id == row) r.total += 500;
+    rules::setGarrison(tx, pid, row, 500);
+    rules::setGarrisonLoyalty(tx, pid, -100);
+  }));
+  CHECK(h->endTurnNow());
+  h.settle();
+  Id rebel = 0;
+  h->world().factions.each([&](const Faction& f) {
+    if (f.rebelOf == hel) rebel = f.id;
+  });
+  CHECK(rebel != 0);
+  CHECK(h->world().province(pid)->garrison.empty());
+  const Id rebelArmy = armyOf(h->world(), rebel, ArmyKind::Army);
+  CHECK(rebelArmy != 0);
+  CHECK_EQ(unitsOf(h->world(), rebelArmy), 500);
+  // Мятежники в провинции без войск и гарнизона — выбор захвата; «захватить» — оккупация мятежниками.
+  CHECK(h->hasDialog("capture"));
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("turn_events_garrison_capture"));
+  CHECK(h.clickUi("capture.option.0"));
+  CHECK(h.clickUi("capture.ok"));
+  h.settle();
+  const Province* p = h->world().province(pid);
+  CHECK(p->occupied && p->occupier == rebel);
+}
+
+// Войско с верностью −100 % восстаёт в конце хода, а в провинции стоит другое войско государства: мятежники
+// нападают на него (окно битвы), без войска — штурм или захват.
+TEST(app_turn_events_mutiny_attacks_loyal) {
+  Harness h("turn_events_mutiny_loyal", 1440, 1000);
+  h.demo();
+  const Id hel = factionByName(h->world(), "Хельдвиг");
+  const Id pid = calmProvince(h, hel);
+  CHECK(pid != 0);
+  if (!pid) return;
+  const Vec2 at = geo::faces(h->world())->shape(pid)->label;
+  const Id traitors = spawnArmy(h, hel, at, 300);
+  const Id loyal = spawnArmy(h, hel, at + Vec2(120, 0), 400);
+  CHECK(traitors && loyal);
+  CHECK_EQ(app::mil::provinceUnder(h->world(), h->world().army(loyal)->pos), pid);
+  CHECK(h->act("Верность −100 %", [&](Tx& tx) { rules::setArmyLoyalty(tx, traitors, -100); }));
+  CHECK(h->endTurnNow());
+  h.settle();
+  CHECK(!h->world().army(traitors));
+  CHECK(h->hasDialog("battle"));
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("turn_events_mutiny_battle"));
+  CHECK(h.clickUi("battle.retreat"));
+  h.settle();
+  CHECK(!h->hasDialog("battle"));
+}
+
 TEST(app_turn_events_province_uprising) {
   Harness h("turn_events_uprising", 1440, 1000);
   h.demo();

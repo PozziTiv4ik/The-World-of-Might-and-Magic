@@ -345,6 +345,11 @@ void cmdPatchStroke(size_t at, RectF r, Color c, float rad, float w);
 void cmdPatchShadow(size_t at, RectF r, float rad, float blur, Color c, float dy);
 // Текст в прямоугольнике: выравнивание по горизонтали, по вертикали — по центру; многоточие при нехватке ширины.
 void textIn(std::string_view s, RectF r, const gfx::TextStyle& st, Color c, Align a = Align::Left);
+// Подсказки обрезанного текста (ui/widgets.cpp): строка в ширине w обрезается многоточием (так её рисует textIn);
+// текст подсказки — полный текст и своя подсказка элемента; подсказка над r без захвата наведения и нажатий.
+bool textCut(std::string_view s, float w, const gfx::TextStyle& st);
+std::string fullTextWith(std::string_view full, std::string_view own);
+void fullTextTip(WidgetId tid, RectF r, std::string_view text);
 float alphaMul();                       // приглушение недоступных
 std::string unitFor(const char* unit, double v, int digits);   // единица с русским склонением («ход|хода|ходов»)
 

@@ -188,7 +188,7 @@ TEST(rules_tz_council_and_position_modifiers) {
     posMod = makeMod(tx, {{Fx::IncomePct, 10}});
     vacMod = makeMod(tx, {{Fx::IncomePct, -20}});
     for (CatalogItem& c : tx.catalogs().positions)
-      if (c.name == "Казначей") {
+      if (c.name == "Лорд-Мастер над экономикой") {
         c.modifiers = {posMod};
         c.vacantModifiers = {vacMod};
       }
@@ -199,7 +199,7 @@ TEST(rules_tz_council_and_position_modifiers) {
     Id ch = createCharacter(tx, f.A, "Казначей");
     CouncilSeat s;
     s.id = tx.nextId(Seq::Council);
-    s.position = "Казначей";
+    s.position = "Лорд-Мастер над экономикой";
     s.character = ch;
     tx.faction(f.A).council.push_back(s);
   });
@@ -218,18 +218,38 @@ TEST(rules_tz_provisions_and_famine) {
     setFx(tx, schema::mod::Famine, {{Fx::ContentmentPerTurn, -5}});
   });
   CHECK(!f.fc(f.A).famine);
+  // Провизии нет: расход 10 за ход становится недостачей — «Голод».
+  CHECK_NEAR(f.fc(f.A).provisionNeed, 10, 1e-9);
   f.tx([&](Tx& tx) { endTurn(tx); });
-  const Id prov = resourceId(f.w(), schema::kResProvisions);
-  CHECK(prov != 0);
-  CHECK_NEAR(f.w().faction(f.A)->stock(prov), -10, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->provisionDebt, 10, 1e-9);
   CHECK(f.fc(f.A).famine);
   f.tx([&](Tx& tx) { endTurn(tx); });
   CHECK_NEAR(f.w().province(f.p[0])->contentment, -5, 1e-9);   // «Голод» со следующего хода
+  CHECK_NEAR(f.w().faction(f.A)->provisionDebt, 20, 1e-9);
+  // Ресурсы группы «Провизия» (с подгруппами): расход и недостача — поровну, исчерпанный отдаёт всё.
+  const std::vector<Id> provs = provisionResources(f.w());
+  CHECK(provs.size() >= 17);
+  const Id grain = provs[1], fish = provs.back();
+  f.tx([&](Tx& tx) {
+    tx.faction(f.A).res[grain] = 100;
+    tx.faction(f.A).res[fish] = 4;
+  });
+  CHECK_NEAR(f.fc(f.A).resources.at(fish).consumption, 4, 1e-9);
+  CHECK_NEAR(f.fc(f.A).resources.at(grain).consumption, 26, 1e-9);   // 10 + 20 недостачи − 4
+  CHECK_NEAR(f.fc(f.A).provisionDebtNext, 0, 1e-9);
+  f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK_NEAR(f.w().faction(f.A)->stock(grain), 74, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->stock(fish), 0, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->provisionDebt, 0, 1e-9);
+  CHECK(!f.fc(f.A).famine);
+  f.tx([&](Tx& tx) { tx.faction(f.A).res[fish] = 74; });
+  CHECK_NEAR(f.fc(f.A).resources.at(fish).consumption, 5, 1e-9);   // поровну: 10 на два ресурса
+  CHECK_NEAR(f.fc(f.A).resources.at(grain).consumption, 5, 1e-9);
   // Государство нежити провизию не тратит.
   f.tx([&](Tx& tx) { setStateKind(tx, f.A, StateKind::Undead); });
-  const double before = f.w().faction(f.A)->stock(prov);
+  const double before = f.w().faction(f.A)->stock(grain);
   f.tx([&](Tx& tx) { endTurn(tx); });
-  CHECK_NEAR(f.w().faction(f.A)->stock(prov), before, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->stock(grain), before, 1e-9);
 }
 
 // ---------------------------------------------------------------- маршруты гильдии

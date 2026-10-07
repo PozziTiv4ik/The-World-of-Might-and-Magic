@@ -33,6 +33,7 @@ TEST(app_war_forces_recruit_disband) {
   h.settle();
   // Без «Правки резерва» общая численность не правится.
   CHECK(h->uiRect("mil.detail.total") == nullptr);
+  CHECK(reveal(h, "mil.army.editReserve"));   // карточка строки прокрутила панель вниз
   CHECK(h.clickUi("mil.army.editReserve"));
   h.settle();
   CHECK(h->uiRect("mil.detail.total") != nullptr);
@@ -42,6 +43,7 @@ TEST(app_war_forces_recruit_disband) {
   CHECK_EQ(h->world().faction(hel)->armyRow(row)->total, total0 + 50);
   h.key(Key::Z, ctrl());
   CHECK_EQ(h->world().faction(hel)->armyRow(row)->total, total0);
+  CHECK(reveal(h, "mil.army.editReserve"));
   CHECK(h.clickUi("mil.army.editReserve"));
   h.settle();
   CHECK(h->uiRect("mil.detail.total") == nullptr);
@@ -122,7 +124,8 @@ TEST(app_war_forces_recruit_disband) {
   CHECK_EQ(app::mil::reserveOf(h->world(), hel, row, false), res1 - 300);
 }
 
-// Удаление строки: подтверждение, воины строки — в население; раса отряда (нежить — из трупов, нехватка — отказ).
+// Удаление строки: подтверждение, воины строки — в население; раса отряда (нежить — из трупов, нехватка — отказ);
+// чудовища не требуют ни населения, ни трупов — только ключевой ресурс (ТЗ «Ввод новых механик», п.2–3).
 TEST(app_war_forces_remove_row_and_race) {
   Harness h("war_forces_race", 1440, 1000);
   RealArmyTools tools;
@@ -139,11 +142,13 @@ TEST(app_war_forces_remove_row_and_race) {
   h.settle();
   CHECK_EQ(h->world().faction(hel)->army.size(), rows0 + 1);
   const Id nrow = h->world().faction(hel)->army.back().id;
+  CHECK(reveal(h, "mil.army.editReserve"));   // карточка новой строки прокрутила панель вниз
   CHECK(h.clickUi("mil.army.editReserve"));
   h.settle();
   CHECK(reveal(h, "mil.detail.total"));
   CHECK(enterNumber(h, "mil.detail.total", 400));
   CHECK_EQ(h->world().faction(hel)->armyRow(nrow)->total, 400);
+  CHECK(reveal(h, "mil.army.editReserve"));
   CHECK(h.clickUi("mil.army.editReserve"));
   h.settle();
   // Раса по умолчанию — «Живой» (государство живых); тип «Военные механизмы» — «Механический» (раса следует за
@@ -173,9 +178,21 @@ TEST(app_war_forces_remove_row_and_race) {
   h.key(Key::Enter);
   h.settle();
   CHECK_EQ(h->world().faction(hel)->armyRow(nrow)->race, std::string(schema::kRaceUndead));
-  // Нежить формируется из трупов: трупов нет — «Сформировать» недоступно (причина в окне).
+  // Чудовища — без населения, трупов и энергии: в цене только ключевой ресурс (он не указан — отказ с причиной).
+  {
+    const rules::RecruitCost mc = rules::recruitCost(h->world(), hel, nrow, 100);
+    CHECK_EQ(mc.people, 0);
+    CHECK(mc.res.empty());
+    CHECK(std::find(mc.problems.begin(), mc.problems.end(), std::string("Не указан ключевой ресурс юнита")) != mc.problems.end());
+  }
+  // Пехота-нежить формируется из трупов: трупов нет — «Сформировать» недоступно (причина в окне). Тип меняется по
+  // правилам: раса «Нежить» (не по умолчанию) остаётся.
+  CHECK(h->act("Тип войск", [&](Tx& tx) { rules::setRowType(tx, hel, nrow, UnitType::HeavyInf); }));
+  h.settle();
+  CHECK_EQ(h->world().faction(hel)->armyRow(nrow)->race, std::string(schema::kRaceUndead));
   const rules::RecruitCost cost = rules::recruitCost(h->world(), hel, nrow, 100);
   CHECK(cost.people == 0);
+  CHECK(!cost.res.empty());   // трупы
   CHECK(!cost.problems.empty());
   const size_t forming0 = h->world().faction(hel)->forming.size();
   CHECK(reveal(h, "mil.detail.recruit"));
@@ -269,19 +286,33 @@ TEST(app_war_forces_trade_fleet) {
   CHECK_NEAR(h->world().faction(hel)->pirateRisk, 1, 1e-9);
 }
 
-// Полноэкранные таблицы: столбцы расы и формирования, действия у строки.
+// Полноэкранные таблицы: столбцы расы, ключевого ресурса и цены, формирование под резервом, действия у строки.
 TEST(app_war_forces_editor_columns) {
   Harness h("war_forces_editor", 1600, 1000);
   RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id row = h->world().faction(hel)->army[1].id;
+  const Id row = h->world().faction(hel)->army[1].id;   // кавалерия: нужен ключевой ресурс (ездовые наземные)
+  CHECK(schema::isCavalry(h->world().faction(hel)->armyRow(row)->type));
+  CHECK(!h->act("Без ключевого ресурса", [&](Tx& tx) { rules::recruit(tx, hel, row, 120); }));
+  h.dropToasts();
+  Id horses = 0;
+  for (const CatalogItem& c : h->world().catalogs->resources)
+    if (c.name == "Лошади") horses = c.id;
+  CHECK(horses != 0);
+  CHECK(h->act("Ключевой ресурс и запас", [&](Tx& tx) {
+    rules::setRowKey(tx, hel, row, horses);
+    tx.faction(hel).res[horses] = 1000;
+  }));
   CHECK(h->act("Формирование", [&](Tx& tx) { rules::recruit(tx, hel, row, 120); }));
+  CHECK_NEAR(h->world().faction(hel)->stock(horses), 880, 1e-9);   // 1 лошадь на всадника
   h->openEditor("military", hel);
   h.settle();
   h.dropToasts();
   h.settle();
   CHECK(h->uiRect("mil.row.0.race") != nullptr);
+  CHECK(h->uiRect("mil.row.0.key") != nullptr);
+  CHECK(h->uiRect("mil.row.0.cost") != nullptr);
   CHECK(h->uiRect("mil.row.1.recruit") != nullptr);
   CHECK(h.shot("war_forces_editor"));
   // «Сформировать» у строки в таблице.

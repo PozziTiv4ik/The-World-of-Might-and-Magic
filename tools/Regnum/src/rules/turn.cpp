@@ -39,9 +39,13 @@ TurnReport endTurn(Tx& tx) {
   // Расчёт по состоянию на начало процедуры.
   const std::shared_ptr<const Calc> c = calc(tx);
   const std::vector<Id> factionIds = tx.w().factions.ids();
-  std::vector<std::map<Id, double>> before;
+  std::vector<std::map<Id, double>> before, beforeEss;
   before.reserve(factionIds.size());
-  for (Id id : factionIds) before.push_back(tx.w().faction(id)->res);
+  beforeEss.reserve(factionIds.size());
+  for (Id id : factionIds) {
+    before.push_back(tx.w().faction(id)->res);
+    beforeEss.push_back(tx.w().faction(id)->ess);
+  }
 
   // 2. Казна — чистый доход; ресурсы — добыча провинций, производство построек, энергия осквернённых провинций.
   for (Id id : factionIds) {
@@ -61,19 +65,66 @@ TurnReport endTurn(Tx& tx) {
           LogRefs{0, 0, {id}});
   }
 
-  // 2а. Провизия государств живых: 0,001 на жителя (ТЗ «Общие доработки», п.7); запас может уйти в минус — «Голод».
+  // 2а. Провизия государств живых (ТЗ «Добавления в справочники», п.3): 0,001 на жителя и недостача прошлых ходов —
+  // поровну со всех ресурсов группы «Провизия»; чего не хватило — недостача («Голод», пока она не покрыта).
   for (Id id : factionIds) {
     const FactionCalc* fc = c->faction(id);
     const Faction* f0 = tx.w().faction(id);
-    if (!fc || !f0 || !f0->isState() || f0->stateKind != StateKind::Living || fc->population <= 0) continue;
-    const double use = double(fc->population) * schema::kProvisionsPerPerson;
-    if (!(use > 0)) continue;
-    const Id prov = ensureResource(tx, schema::kResProvisions);
-    const double was = tx.w().faction(id)->stock(prov);
-    addStock(tx.faction(id), prov, -use);
-    const double now = tx.w().faction(id)->stock(prov);
-    if (now < 0 && was >= 0)
-      log(LogKind::Economy, facName(tx.w(), id) + ": провизия закончилась (" + fmtNum(now, 2) + ") — голод", LogRefs{0, 0, {id}});
+    if (!fc || !f0 || !f0->isState()) continue;
+    if (f0->stateKind != StateKind::Living) {
+      if (f0->provisionDebt != 0) tx.faction(id).provisionDebt = 0;   // провизия нужна только живым
+      continue;
+    }
+    for (auto& [r, flow] : fc->resources)
+      if (flow.consumption > 0) addStock(tx.faction(id), r, -flow.consumption);
+    const double was = f0->provisionDebt, now = fc->provisionDebtNext;
+    if (now != was) tx.faction(id).provisionDebt = now;
+    if (now > 1e-9 && was <= 1e-9)
+      log(LogKind::Economy, facName(tx.w(), id) + ": провизия закончилась (недостача " + fmtNum(now, 2) + ") — голод", LogRefs{0, 0, {id}});
+    else if (now <= 1e-9 && was > 1e-9)
+      log(LogKind::Economy, facName(tx.w(), id) + ": недостача провизии покрыта — голод закончился", LogRefs{0, 0, {id}});
+  }
+
+  // 2б. Постройки преобразования (ТЗ «Доработки», п.3): начало цикла списывает ресурсы на входе, завершение даёт
+  // ресурс на выходе (план расчёта на начало хода).
+  for (Id id : factionIds) {
+    const FactionCalc* fc = c->faction(id);
+    if (!fc || fc->conversions.empty()) continue;
+    std::map<Id, double> gained;
+    for (const ConvertStep& s : fc->conversions) {
+      Faction& f = tx.faction(id);
+      for (auto& [r, v] : s.in) addStock(f, r, -v);
+      if (s.finish && s.out.res && s.out.amount > 0 && tx.w().resource(s.out.res)) {
+        addStock(tx.faction(id), s.out.res, s.out.amount);
+        gained[s.out.res] += s.out.amount;
+      }
+      for (ProvBuilding& pb : tx.province(s.province).buildings)
+        if (pb.building == s.building) pb.cycle = s.cycle;
+    }
+    if (!gained.empty()) {
+      std::vector<std::string> parts;
+      for (auto& [r, v] : gained) parts.push_back(resName(tx.w(), r) + " +" + amount(v));
+      log(LogKind::Economy, facName(tx.w(), id) + ": преобразование ресурсов — " + join(parts, ", "), LogRefs{0, 0, {id}});
+    }
+  }
+
+  // 2в. Эссенции элементов: генерация построек и содержание элементалей (запас может уйти в долг).
+  for (Id id : factionIds) {
+    const FactionCalc* fc = c->faction(id);
+    if (!fc) continue;
+    std::vector<std::string> debts;
+    for (auto& [e, flow] : fc->essences) {
+      if (flow.net == 0 || !tx.w().essence(e)) continue;
+      Faction& f = tx.faction(id);
+      const double was = f.essence(e);
+      double& v = f.ess[e];
+      v += flow.net;
+      if (std::fabs(v) < 1e-9) f.ess.erase(e);
+      const double now = tx.w().faction(id)->essence(e);
+      if (now < 0 && was >= 0) debts.push_back(tx.w().essence(e)->name + " " + fmtNum(now, 2));
+    }
+    if (!debts.empty())
+      log(LogKind::Economy, facName(tx.w(), id) + ": не хватает эссенций на содержание элементалей — " + join(debts, ", "), LogRefs{0, 0, {id}});
   }
 
   // 3. Сделки «каждый ход»: ресурсы кроме золота; оставшиеся ходы; завершение.
@@ -158,6 +209,37 @@ TurnReport endTurn(Tx& tx) {
       t.research = false;
       studied++;
       log(LogKind::Tech, facName(tx.w(), faction) + ": изучена технология " + techName(tx.w(), tid), LogRefs{0, 0, {faction}});
+    }
+  }
+  // 5а. Общие технологии: каждая фракция исследует общее дерево сама (ТЗ «Доработки», п.6).
+  for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) {
+         return std::any_of(f.techs.begin(), f.techs.end(), [](const auto& kv) { return kv.second.research && !kv.second.studied; });
+       })) {
+    const FactionCalc* fc = c->faction(fid);
+    const double k = fc ? fc->researchFactor : 1.0;
+    std::vector<Id> list;
+    for (auto& [tid, s] : tx.w().faction(fid)->techs)
+      if (s.research && !s.studied) list.push_back(tid);
+    for (Id tid : list) {
+      const Tech* t0 = tx.w().tech(tid);
+      if (!t0) continue;
+      if (!canResearch(tx.w(), tid, fid).missing.empty()) {
+        tx.faction(fid).techs[tid].research = false;
+        log(LogKind::Tech, facName(tx.w(), fid) + ": исследование " + techName(tx.w(), tid) + " остановлено — не изучены предшествующие технологии",
+            LogRefs{0, 0, {fid}});
+        continue;
+      }
+      const int need = std::max(1, int(std::ceil(double(std::max(1, t0->turns)) * k - 1e-9)));
+      const int turns = std::max(1, t0->turns);
+      TechProgress& s = tx.faction(fid).techs[tid];
+      s.progress = std::max(0, s.progress) + 1;
+      if (s.progress >= need) {
+        s.progress = turns;
+        s.studied = true;
+        s.research = false;
+        studied++;
+        log(LogKind::Tech, facName(tx.w(), fid) + ": изучена общая технология " + techName(tx.w(), tid), LogRefs{0, 0, {fid}});
+      }
     }
   }
 
@@ -258,6 +340,41 @@ TurnReport endTurn(Tx& tx) {
     e.province = m.rebelArmy ? provinceAtTx(tx, tx.w().army(m.rebelArmy)->pos) : 0;
     e.heroes = m.loyalHeroes;
     rep.events.push_back(std::move(e));
+  }
+  // 10а. Верность гарнизонов (ТЗ «Доработки», п.1): как у войск — эффекты государства и «Непреклонный лоялист»;
+  // у государства нежити — всегда 100 %. Гарнизон с верностью −100 % восстаёт целиком (событие хода).
+  {
+    std::vector<Id> risen;
+    for (Id pid : idsWhere(tx.w().provinces, [](const Province& p) { return !p.sea && p.owner && !p.garrison.empty(); })) {
+      const Province& p = *tx.w().province(pid);
+      const Faction* o = tx.w().faction(p.owner);
+      if (!o || !o->isState()) continue;
+      double v = schema::kMaxLoyalty;
+      if (o->stateKind != StateKind::Undead) {
+        const FactionCalc* oc = c->faction(p.owner);
+        double d = oc ? oc->fx[Fx::LoyaltyPerTurn] : 0.0;
+        int loyalists = 0;
+        for (Id h : p.garrisonHeroes)
+          if (characterHas(tx.w(), h, schema::mod::Loyalist)) loyalists++;
+        if (loyalists) d = std::max(0.0, d) + schema::kLoyalistBonus * loyalists;
+        v = clamp(p.garrisonLoyalty + d, schema::kMinLoyalty, schema::kMaxLoyalty);
+      }
+      if (v != p.garrisonLoyalty) tx.province(pid).garrisonLoyalty = v;
+      if (v <= schema::kMinLoyalty && !o->rebelOf) risen.push_back(pid);
+    }
+    for (Id pid : risen) {
+      std::string why;
+      if (!canGarrisonMutiny(tx.w(), pid, &why)) continue;
+      MutinyResult m = garrisonMutiny(tx, pid);
+      TurnEvent e;
+      e.kind = TurnEvent::Mutiny;
+      e.army = m.rebelArmy;
+      e.rebelState = m.rebelState;
+      e.origin = tx.w().faction(m.rebelState) ? tx.w().faction(m.rebelState)->rebelOf : 0;
+      e.province = pid;
+      e.heroes = m.loyalHeroes;
+      rep.events.push_back(std::move(e));
+    }
   }
 
   // 11. Восстания провинций (по настройке): бросок с зерном «ход + провинция»; восставшие — армия мятежников.
@@ -428,6 +545,14 @@ TurnReport endTurn(Tx& tx) {
       double d = f->stock(r) - (b == before[i].end() ? 0.0 : b->second);
       if (std::fabs(d) > 1e-9) line.resources[r] = d;
     }
+    std::map<Id, double> ekeys = beforeEss[i];
+    for (auto& [e, v] : f->ess) ekeys[e];
+    for (auto& [e, v] : ekeys) {
+      auto b = beforeEss[i].find(e);
+      double d = f->essence(e) - (b == beforeEss[i].end() ? 0.0 : b->second);
+      if (std::fabs(d) > 1e-9) line.essences[e] = d;
+    }
+    line.provisionDebt = f->provisionDebt;
     rep.factions.push_back(std::move(line));
   }
 

@@ -1,6 +1,7 @@
 // Regnum — отчёт о завершённом ходе (DialogReg «turn.report»): ход N → N+1, карточки фракций с изменением
-// казны, доходом и расходом, изменения запасов; записи хроники хода по видам (щелчок — показать на карте);
-// предупреждения: долги, недостачи по сделкам, восстания. Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16):
+// казны, доходом и расходом, изменения запасов ресурсов и эссенций элементов, голод (недостача провизии); записи
+// хроники хода по видам (щелчок — показать на карте); предупреждения: долги, голод, нехватка эссенций на содержание
+// элементалей, недостачи по сделкам, восстания. Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16):
 // основные игровые государства и остальные фракции.
 #include "app/app_internal.h"
 #include "app/dialogs/turn_ui.h"
@@ -65,19 +66,11 @@ struct ReportDlg : Dialog {
         RectF br = ui::next(30);
         flowBars(br, l.income, l.expenses, scale);
       }
-      if (!l.resources.empty()) {
-        ui::HStack hs(18, ui::Align::Left, 10);
-        int shown = 0;
-        for (auto& [rid, v] : l.resources) {
-          if (shown++ >= 3) {
-            ui::label("ещё " + std::to_string(l.resources.size() - 3), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-            break;
-          }
-          ui::IdScope rs{i64(rid)};
-          const CatalogItem* ci = w.resource(rid);
-          ui::iconColored(w::resourceIcon(w, rid), w::resourceColor(w, rid), 14, ci ? std::string_view(ci->name) : std::string_view("Ресурс"));
-          ui::label(fmtSigned(v, std::fabs(v - std::round(v)) > 1e-9 ? 1 : 0), {.font = ui::Font::Small, .ink = deltaInk(v)});
-        }
+      // Запасы: голод (недостача провизии), ресурсы, эссенции элементов — что не помещается, «ещё N».
+      if (hasStockChanges(l)) {
+        const float cw = ui::avail().w;
+        stockDeltas(w, l, cw, 22, ui::Font::Small);
+        a.markUi("turn.report.stock." + std::to_string(l.faction));
       }
     }
     RectF cr = ui::lastItem().rect;
@@ -124,27 +117,32 @@ struct ReportDlg : Dialog {
       std::vector<const rules::TurnFactionLine*> debtors;
       for (auto* l : lines)
         if (l->treasuryAfter < 0) debtors.push_back(l);
-      if (!debtors.empty() || !d.famine.empty() || !d.shortfalls.empty() || !d.rebellions.empty()) {
-        ui::Card c({.pad = 12, .icon = "warning", .title = "Требует внимания", .tone = ui::Tone::Danger});
-        if (!debtors.empty()) {
-          ui::label("Казна в долгу: " + std::to_string(debtors.size()) + " " + plural(i64(debtors.size()), "фракция", "фракции", "фракций"),
-                    {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "treasury"});
-          ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 26, 6);
-          for (auto* l : debtors) {
-            const Faction* f = w.faction(l->faction);
-            if (!f) continue;
-            ui::IdScope s{i64(l->faction)};
-            std::string text = (f->name.empty() ? std::string("Без названия") : f->name) + " · " + money(l->treasuryAfter);
-            if (ui::chip(text, {.color = f->color, .tone = ui::Tone::Danger, .clickable = true, .tooltip = "Открыть фракцию"}) == ui::ChipAction::Click)
-              pickFaction = l->faction;
+      if (!debtors.empty() || !d.famine.empty() || !d.essences.empty() || !d.shortfalls.empty() || !d.rebellions.empty()) {
+        {
+          ui::Card c({.pad = 12, .icon = "warning", .title = "Требует внимания", .tone = ui::Tone::Danger});
+          if (!debtors.empty()) {
+            ui::label("Казна в долгу: " + std::to_string(debtors.size()) + " " + plural(i64(debtors.size()), "фракция", "фракции", "фракций"),
+                      {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "treasury"});
+            ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 26, 6);
+            for (auto* l : debtors) {
+              const Faction* f = w.faction(l->faction);
+              if (!f) continue;
+              ui::IdScope s{i64(l->faction)};
+              std::string text = (f->name.empty() ? std::string("Без названия") : f->name) + " · " + money(l->treasuryAfter);
+              if (ui::chip(text, {.color = f->color, .tone = ui::Tone::Danger, .clickable = true, .tooltip = "Открыть фракцию"}) == ui::ChipAction::Click)
+                pickFaction = l->faction;
+            }
           }
+          for (const LogEntry* e : d.rebellions)
+            if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+          for (const LogEntry* e : d.famine)
+            if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+          for (const LogEntry* e : d.essences)
+            if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+          for (const LogEntry* e : d.shortfalls)
+            if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
         }
-        for (const LogEntry* e : d.rebellions)
-          if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
-        for (const LogEntry* e : d.famine)
-          if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
-        for (const LogEntry* e : d.shortfalls)
-          if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+        a.markUi("turn.report.warnings");
       }
       // Казна фракций
       if (lines.empty()) {

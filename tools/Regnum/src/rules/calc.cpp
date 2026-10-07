@@ -134,15 +134,72 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
   if (owner)
     for (const SlaveWork& s : p.slaves) pc.slavesAtWork += std::max<i64>(0, s.count);
   pc.slaveIncome = double(pc.slavesAtWork) * schema::kSlaveWorkIncome;
-  // Ресурсы от достроенных построек — владельцу.
+  // Ресурсы и эссенции от достроенных построек — владельцу.
   if (owner)
     for (const ProvBuilding& pb : p.buildings) {
       const Building* b = w.building(pb.building);
       int lvl = pb.builtLevel();
       if (!b || lvl < 1 || lvl > int(b->levels.size())) continue;
-      for (auto& [res, v] : b->levels[size_t(lvl - 1)].produce)
+      const BuildingLevel& L = b->levels[size_t(lvl - 1)];
+      for (auto& [res, v] : L.produce)
         if (std::isfinite(v) && v > 0 && w.resource(res)) pc.produce[res] += v;
+      if (b->essenceGen)
+        for (auto& [e, v] : L.essence)
+          if (std::isfinite(v) && v > 0 && w.essence(e)) pc.essence[e] += v;
     }
+}
+
+// Поровну между запасами (наполнение): каждый отдаёт need / k, исчерпанный — всё, остаток делится между остальными.
+std::map<Id, double> takeEvenly(double need, std::vector<std::pair<Id, double>> avail) {
+  std::map<Id, double> take;
+  std::stable_sort(avail.begin(), avail.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+  double left = std::max(0.0, need);
+  for (size_t i = 0; i < avail.size() && left > 1e-12; i++) {
+    const double share = left / double(avail.size() - i);
+    const double t = std::min(avail[i].second, share);
+    if (t > 0) take[avail[i].first] = t;
+    left -= t;
+  }
+  return take;
+}
+
+// План построек преобразования фракции на конец хода (порядок — провинции по ID, постройки по списку): идущий цикл
+// продвигается; новый начинается, если хватает ресурсов (avail — запасы после добычи и расхода провизии).
+void planConversion(const World& w, const std::vector<const Province*>& mine, std::map<Id, double>& avail, FactionCalc& fc) {
+  for (const Province* p : mine) {
+    if (p->sea) continue;
+    for (const ProvBuilding& pb : p->buildings) {
+      const Building* b = w.building(pb.building);
+      if (!b || !b->convert || pb.builtLevel() < 1 || pb.idle) continue;
+      const Recipe& rc = b->recipe;
+      ConvertStep s;
+      s.province = p->id;
+      s.building = b->id;
+      s.out = rc.out;
+      if (pb.cycle > 0) {
+        s.cycle = pb.cycle - 1;
+      } else {
+        bool any = false, ok = rc.out.res && w.resource(rc.out.res);
+        for (const ResAmount& x : rc.in) {
+          if (!(x.amount > 0) || !w.resource(x.res)) continue;
+          any = true;
+          if (avail[x.res] + 1e-9 < x.amount) ok = false;
+        }
+        if (!any || !ok) continue;   // нет рецепта или не хватает ресурсов — ждёт
+        s.start = true;
+        for (const ResAmount& x : rc.in)
+          if (x.amount > 0 && w.resource(x.res)) {
+            s.in[x.res] += x.amount;
+            avail[x.res] -= x.amount;
+          }
+        s.cycle = std::max(1, rc.turns) - 1;
+      }
+      s.finish = s.cycle == 0;
+      for (auto& [r, v] : s.in) fc.resources[r].conversionIn += v;
+      if (s.finish && s.out.res && s.out.amount > 0) fc.resources[s.out.res].conversionOut += s.out.amount;
+      fc.conversions.push_back(std::move(s));
+    }
+  }
 }
 
 RowCalc rowCalc(Id id, i64 total, double upkeep, i64 inArmies, i64 inGarrison, i64 other, double factor) {
@@ -306,7 +363,7 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     for (Id ch : paid) fc.expSpecialists += std::max(0.0, w.character(ch)->upkeep);
   });
 
-  const Id provisions = resourceId(w, schema::kResProvisions);
+  const std::vector<Id> provisionRes = provisionResources(w);
   static const std::vector<const Province*> kNone;
   w.factions.each([&](const Faction& f) {
     FactionCalc& fc = c.factions[f.id];
@@ -336,13 +393,18 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     double armyK = std::max(0.0, 1.0 + fc.fx[Fx::ArmyUpkeepPct] / 100.0);
     double fleetK = std::max(0.0, 1.0 + fc.fx[Fx::FleetUpkeepPct] / 100.0);
     for (const ArmyRow& r : f.army) {
-      RowCalc rc = rowCalc(r.id, r.total, std::max(0.0, r.upkeep), at(d.army, r.id), at(d.garrison, r.id), at(d.occupation, r.id), armyK);
+      // Элементали содержатся эссенциями, а не золотом (ТЗ «Ввод новых механик», п.3.2).
+      const bool elem = schema::isElemental(r.type);
+      RowCalc rc = rowCalc(r.id, r.total, elem ? 0.0 : std::max(0.0, r.upkeep), at(d.army, r.id), at(d.garrison, r.id), at(d.occupation, r.id), armyK);
       rc.occupation = at(d.occupation, r.id);
       rc.forming = at(forming, r.id);
       fc.expArmy += rc.upkeepTotal;
       fc.armyTotal += rc.total;
       fc.armyField += rc.field;
       fc.army.push_back(rc);
+      if (elem)
+        for (auto& [e, v] : r.essUpkeep)
+          if (v > 0 && w.essence(e)) fc.essences[e].upkeep += double(std::max<i64>(0, r.total)) * v * armyK;
     }
     i64 galleons = 0, frigates = 0, lines = 0;
     for (const FleetRow& r : f.fleet) {
@@ -389,20 +451,53 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     // Ресурсы: все позиции справочника и запасы фракции.
     for (const CatalogItem& ci : w.catalogs->resources) fc.resources[ci.id];
     for (auto& [r, v] : f.res) fc.resources[r];
-    // Провизия государства живых: 0,001 на жителя за ход (ТЗ «Общие доработки», п.7).
-    if (provisions && f.isState() && f.stateKind == StateKind::Living) fc.resources[provisions].consumption = double(fc.population) * schema::kProvisionsPerPerson;
+    // Провизия государства живых (ТЗ «Добавления в справочники», п.3): 0,001 на жителя за ход и недостача прошлых
+    // ходов — поровну со всех ресурсов группы «Провизия», что есть у государства после добычи этого хода.
+    const bool living = f.isState() && f.stateKind == StateKind::Living;
+    std::map<Id, double> avail;   // запасы после шага 2 хода: добыча и производство, казна — с чистым доходом
+    for (auto& [r, flow] : fc.resources)
+      avail[r] = r == kGold ? f.treasury() + fc.net : f.stock(r) + std::max(0.0, flow.production);
+    if (living) {
+      fc.provisionNeed = double(fc.population) * schema::kProvisionsPerPerson;
+      fc.provisionDebt = std::max(0.0, f.provisionDebt);
+      std::vector<std::pair<Id, double>> stocks;
+      for (Id r : provisionRes) {
+        fc.provisionStock += std::max(0.0, f.stock(r));
+        if (avail[r] > 1e-12) stocks.push_back({r, avail[r]});
+      }
+      const double need = fc.provisionNeed + fc.provisionDebt;
+      double taken = 0;
+      for (auto& [r, v] : takeEvenly(need, stocks)) {
+        fc.resources[r].consumption += v;
+        avail[r] -= v;
+        taken += v;
+      }
+      fc.provisionDebtNext = need - taken > 1e-9 ? need - taken : 0.0;
+    }
+    // Постройки преобразования.
+    if (f.isState()) planConversion(w, mine, avail, fc);
     for (auto& [r, flow] : fc.resources) {
       if (r == kGold) {
         flow.stock = f.treasury();
         flow.tradeIn = fc.incTrade + fc.incTribute;
         flow.tradeOut = fc.expTrade + fc.expTribute;
-        flow.net = fc.net;
+        flow.net = fc.net - flow.consumption - flow.conversionIn + flow.conversionOut;
       } else {
         flow.stock = f.stock(r);
-        flow.net = flow.production + flow.tradeIn - flow.tradeOut - flow.consumption;
+        flow.net = flow.production + flow.tradeIn - flow.tradeOut - flow.consumption - flow.conversionIn + flow.conversionOut;
       }
     }
-    fc.famine = provisions && f.stock(provisions) < -1e-9;
+    fc.famine = living && f.provisionDebt > 1e-9;
+    // Эссенции: генерация построек (владельцу) и содержание элементалей.
+    for (const CatalogItem& e : w.catalogs->essences) fc.essences[e.id];
+    for (auto& [e, v] : f.ess) fc.essences[e];
+    for (const Province* p : mine)
+      if (const ProvinceCalc* pc = c.province(p->id))
+        for (auto& [e, v] : pc->essence) fc.essences[e].generation += v;
+    for (auto& [e, flow] : fc.essences) {
+      flow.stock = f.essence(e);
+      flow.net = flow.generation - flow.upkeep;
+    }
   });
   return out;
 }

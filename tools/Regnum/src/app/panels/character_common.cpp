@@ -1,6 +1,7 @@
 // Regnum — персонажи: общие части панели и инспектора. Портреты (чтение файла PNG/JPEG, уменьшение больших,
-// фоновое декодирование и кеш по персонажу и содержимому), роли персонажа (правитель, лорд провинций, совет,
-// войска и флот — ТЗ 1.a.vi, 1.b.iv, 1.c.iii), состояние героя в подписи, удаление с подтверждением.
+// фоновое декодирование и кеш по персонажу и содержимому; в круге — квадрат по лицу), роли персонажа (правитель,
+// лорд провинций, совет, войска и флот — ТЗ 1.a.vi, 1.b.iv, 1.c.iii, гарнизон провинции), состояние героя в
+// подписи, удаление с подтверждением.
 #include <algorithm>
 #include <future>
 
@@ -20,7 +21,8 @@ struct Roles {
   std::vector<std::pair<Id, Id>> seats;      // место в совете: фракция, ID места
   std::vector<Id> armies;                    // войска и флоты, где он герой
   std::vector<Id> commands;                  // из них — главный полководец
-  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size(); }
+  Id garrison = 0;                           // провинция, в гарнизоне которой он герой
+  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size() + (garrison ? 1 : 0); }
 };
 Roles rolesOf(const World& w, Id character);
 std::string rolesText(const World& w, const Roles& r);
@@ -52,6 +54,7 @@ Roles rolesOf(const World& w, Id cid) {
     if (a.commander == cid) r.commands.push_back(a.id);
   });
   std::sort(r.lordOf.begin(), r.lordOf.end(), [&](Id x, Id y) { return compareRu(w.provinceName(x), w.provinceName(y)) < 0; });
+  r.garrison = rules::heroGarrison(w, cid);
   return r;
 }
 
@@ -72,6 +75,7 @@ std::string rolesText(const World& w, const Roles& r) {
   if (!r.armies.empty())
     parts.push_back(r.commands.empty() ? "герой " + fmtInt(i64(r.armies.size())) + " " + plural(i64(r.armies.size()), "войска", "войск", "войск")
                                        : "полководец");
+  if (r.garrison) parts.push_back("в гарнизоне провинции «" + w.provinceName(r.garrison) + "»");
   return join(parts, ", ");
 }
 
@@ -87,6 +91,7 @@ std::string roleLine(const World& w, const Character& c, const Roles& r) {
   }
   if (!r.lordOf.empty()) parts.push_back("лорд: " + w.provinceName(r.lordOf[0]) + (r.lordOf.size() > 1 ? " +" + std::to_string(r.lordOf.size() - 1) : ""));
   if (!r.commands.empty()) parts.push_back("командует войском");
+  if (r.garrison) parts.push_back("гарнизон: " + w.provinceName(r.garrison));
   if (parts.empty()) return c.hero ? "Герой" : "Без ролей";
   return join(parts, " · ");
 }
@@ -126,12 +131,29 @@ gfx::Image cropAspect(const gfx::Image& img, double aspect) {
   return img.cropped(r);
 }
 
-// Декодирование и подгонка (фоновая задача): aspect 1 — аватар, 0,75 — карточка.
+// Квадрат для портрета в круге (ТЗ «Исправления», п.2: «центрировался чуть выше… что бы точно было в кружочке
+// видно лицо»). У портрета по пояс или в полный рост (2:3, 3:4) лицо — в верхней трети по середине ширины: квадрат
+// уже ширины (тем уже, чем выше портрет), лицо в нём чуть выше центра; квадратный портрет — почти целиком.
+gfx::RectI faceSquare(int w, int h) {
+  if (w <= 0 || h <= 0) return {0, 0, std::max(0, w), std::max(0, h)};
+  const double a = double(h) / w;
+  if (a < 1) {   // альбомный: по высоте, по середине
+    const int s = h;
+    return {(w - s) / 2, 0, s, s};
+  }
+  const double k = clamp(1.0 - 0.75 * (a - 1.0), 0.62, 1.0);   // 1:1 → 1; 3:4 → 0,75; 2:3 → 0,62
+  const int s = std::max(1, int(std::lround(w * k)));
+  const double faceY = h * (a >= 1.15 ? 0.245 : 0.42);           // ожидаемая середина лица
+  const int y0 = int(std::lround(clamp(faceY - s * 0.42, 0.0, double(h - s))));
+  return {(w - s) / 2, y0, s, s};
+}
+
+// Декодирование и подгонка (фоновая задача): aspect 1 — аватар (квадрат по лицу), 0,75 — карточка.
 std::shared_ptr<gfx::Image> decode(const std::string& bytes, double aspect, int maxW) {
   auto rgba = codec::decodeImage(bytes);
   if (!rgba || rgba->empty()) return nullptr;
   gfx::Image full = gfx::Image::fromRgba(rgba->rgba.data(), rgba->w, rgba->h);
-  gfx::Image cut = cropAspect(full, aspect);
+  gfx::Image cut = aspect == 1.0 ? full.cropped(faceSquare(full.w, full.h)) : cropAspect(full, aspect);
   int w = std::max(1, std::min(maxW, cut.w));
   return std::make_shared<gfx::Image>(cut.scaled(w, std::max(1, int(std::lround(w / aspect)))));
 }

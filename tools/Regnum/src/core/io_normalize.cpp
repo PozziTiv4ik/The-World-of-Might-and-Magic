@@ -5,6 +5,7 @@
 #include <tuple>
 #include <unordered_set>
 
+#include "core/content.h"
 #include "core/io_internal.h"
 
 namespace rg::io {
@@ -44,6 +45,10 @@ const char* genitive(Seq s) {
     case Seq::Position: return "должности";
     case Seq::Symbol: return "знака карты";
     case Seq::Shape: return "фигуры карты";
+    case Seq::Essence: return "эссенции";
+    case Seq::Relic: return "реликвии";
+    case Seq::Special: return "особого отряда";
+    case Seq::ResGroup: return "группы ресурсов";
     default: return "объекта";
   }
 }
@@ -62,7 +67,9 @@ struct Norm {
   Tx& tx;
   Warnings& out;
   std::array<u32, kSeqCount> seq{};
-  std::unordered_set<Id> cat[6];  // ресурсы, расы, культуры, религии, формы правления, должности
+  std::unordered_set<Id> cat[7];  // ресурсы, расы, культуры, религии, формы правления, должности, эссенции
+  std::unordered_set<Id> relicIds, specialIds, groupIds;
+  std::unordered_set<Id> heroUsed;  // герои в гарнизонах и войсках (каждый — не больше чем в одном месте)
   std::map<std::tuple<Id, bool, Id>, Id> rowRemap;  // (фракция, флот, прежний ID) -> новый ID строки
 
   explicit Norm(Tx& t, Warnings& o) : tx(t), out(o) { seq = t.w().meta->seq; }
@@ -85,6 +92,10 @@ struct Norm {
       case Seq::Religion: return cat[3].count(id) > 0;
       case Seq::Government: return cat[4].count(id) > 0;
       case Seq::Position: return cat[5].count(id) > 0;
+      case Seq::Essence: return cat[6].count(id) > 0;
+      case Seq::Relic: return relicIds.count(id) > 0;
+      case Seq::Special: return specialIds.count(id) > 0;
+      case Seq::ResGroup: return groupIds.count(id) > 0;
       default: return false;
     }
   }
@@ -290,12 +301,12 @@ struct Norm {
   }
 
   void catalogs() {
-    static const char* const keys[6] = {"resources", "races", "cultures", "religions", "governments", "positions"};
-    static const Seq seqs[6] = {Seq::Resource, Seq::Race, Seq::Culture, Seq::Religion, Seq::Government, Seq::Position};
+    static const char* const keys[7] = {"resources", "races", "cultures", "religions", "governments", "positions", "essences"};
+    static const Seq seqs[7] = {Seq::Resource, Seq::Race, Seq::Culture, Seq::Religion, Seq::Government, Seq::Position, Seq::Essence};
     Catalogs c = *w().catalogs;
-    std::vector<CatalogItem>* lists[6] = {&c.resources, &c.races, &c.cultures, &c.religions, &c.governments, &c.positions};
+    std::vector<CatalogItem>* lists[7] = {&c.resources, &c.races, &c.cultures, &c.religions, &c.governments, &c.positions, &c.essences};
     bool ch = false;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
       auto& list = *lists[i];
       u32 maxId = 0;
       for (auto& it : list) maxId = std::max(maxId, it.id);
@@ -328,13 +339,14 @@ struct Norm {
       warn(F_CATALOGS, "resources.rs1", "rs1 — встроенный ресурс «Золото» (казна): отмечен как встроенный");
       ch = true;
     }
-    // Ключи встроенных ресурсов (провизия, трупы, демоническая энергия): известные, без повторов; «gold» — только у rs1.
+    // Ключи встроенных ресурсов (трупы, демоническая энергия, запчасти механизмов): известные, без повторов; «gold» —
+    // только у rs1. Прежний ключ «provisions» остаётся до переноса в группу «Провизия» (core/content.cpp).
     {
       std::unordered_set<std::string> seenKey;
       for (auto& it : c.resources) {
         if (it.key.empty()) continue;
         const std::string where = "resources." + refStr(Seq::Resource, it.id) + ".key";
-        bool known = false;
+        bool known = it.key == schema::kResLegacyProvisions && w().meta->content < content::kVersion;
         for (const auto& b : schema::kBuiltinResources) known = known || it.key == b.key;
         if (!known || (it.key == schema::kResGold && it.id != kGold)) {
           warn(F_CATALOGS, where, "неизвестный ключ встроенного ресурса «" + it.key + "» — снят");
@@ -346,22 +358,16 @@ struct Norm {
           ch = true;
         }
       }
-      // Ресурс прежнего названия («Зерно») или с названием встроенного без ключа становится встроенным:
-      // ТЗ «Общие доработки», п.7 — «Зерно» переименовано в «Провизию» (запасы и производство сохраняются).
+      // Ресурс с названием встроенного без ключа становится встроенным (запасы и производство сохраняются).
       for (const auto& b : schema::kBuiltinResources) {
         if (b.key == std::string_view(schema::kResGold) || seenKey.count(b.key)) continue;
         auto hit = std::find_if(c.resources.begin(), c.resources.end(), [&](const CatalogItem& it) {
-          return it.key.empty() && it.id != kGold && (utf8::searchKey(it.name) == utf8::searchKey(b.name) || (b.legacy && utf8::searchKey(it.name) == utf8::searchKey(b.legacy)));
+          return it.key.empty() && it.id != kGold && utf8::searchKey(it.name) == utf8::searchKey(b.name);
         });
         if (hit == c.resources.end()) continue;
-        const std::string where = "resources." + refStr(Seq::Resource, hit->id);
-        if (utf8::searchKey(hit->name) != utf8::searchKey(b.name)) {
-          warn(F_CATALOGS, where, "ресурс «" + hit->name + "» переименован в «" + b.name + "»");
-          hit->name = b.name;
-        } else {
-          warn(F_CATALOGS, where, "ресурс «" + hit->name + "» отмечен как встроенный");
-        }
+        warn(F_CATALOGS, "resources." + refStr(Seq::Resource, hit->id), "ресурс «" + hit->name + "» отмечен как встроенный");
         hit->key = b.key;
+        hit->builtin = true;
         seenKey.insert(b.key);
         ch = true;
       }
@@ -378,9 +384,225 @@ struct Norm {
       ch |= fixRefList(it.modifiers, Seq::Modifier, F_CATALOGS, where, "modifiers");
       ch |= fixRefList(it.vacantModifiers, Seq::Modifier, F_CATALOGS, where, "vacantModifiers");
     }
-    for (int i = 0; i < 6; i++)
-      for (auto& it : *lists[i]) cat[i].insert(it.id);
+    // Группа бывает только у ресурса.
+    for (int i = 1; i < 7; i++)
+      for (auto& it : *lists[i])
+        if (it.group) {
+          it.group = 0;
+          ch = true;
+        }
+    ch |= resGroups(c);
+    ch |= relics(c);
+    ch |= specials(c);
     if (ch) tx.catalogs() = std::move(c);
+    catalogSets();
+  }
+
+  // Наборы ID справочников для проверки ссылок (после правки справочников и после базовых записей).
+  void catalogSets() {
+    const Catalogs& c = *w().catalogs;
+    const std::vector<CatalogItem>* lists[7] = {&c.resources, &c.races, &c.cultures, &c.religions, &c.governments, &c.positions, &c.essences};
+    for (int i = 0; i < 7; i++) {
+      cat[i].clear();
+      for (auto& it : *lists[i]) cat[i].insert(it.id);
+    }
+    relicIds.clear();
+    specialIds.clear();
+    groupIds.clear();
+    for (auto& r : c.relics) relicIds.insert(r.id);
+    for (auto& s : c.specials) specialIds.insert(s.id);
+    for (auto& g : c.resGroups) groupIds.insert(g.id);
+  }
+
+  // Группы ресурсов: ID без повторов, родитель — существующая группа без циклов, ключи базовых групп — известные и
+  // без повторов; группа ресурса — существующая.
+  bool resGroups(Catalogs& c) {
+    bool ch = false;
+    u32 maxId = 0;
+    for (auto& g : c.resGroups) maxId = std::max(maxId, g.id);
+    std::unordered_set<Id> seen;
+    for (auto& g : c.resGroups) {
+      if (g.id == 0 || seen.count(g.id)) {
+        Id old = g.id;
+        g.id = fresh(Seq::ResGroup, maxId);
+        warn(F_CATALOGS, "resGroups." + refStr(Seq::ResGroup, g.id), old ? "повторный ID " + refStr(Seq::ResGroup, old) + " — назначен новый"
+                                                                          : std::string("группа без ID — назначен новый"));
+        ch = true;
+      }
+      seen.insert(g.id);
+    }
+    std::unordered_set<std::string> keys;
+    for (auto& g : c.resGroups) {
+      const std::string where = "resGroups." + refStr(Seq::ResGroup, g.id);
+      if (g.parent && (!seen.count(g.parent) || g.parent == g.id)) {
+        warn(F_CATALOGS, where + ".parent", "нет группы " + refStr(Seq::ResGroup, g.parent) + " — группа стала группой верхнего уровня");
+        g.parent = 0;
+        ch = true;
+      }
+      if (!g.key.empty()) {
+        bool known = false;
+        for (const content::BaseGroup& b : content::baseGroups()) known = known || g.key == b.key;
+        if (!known || !keys.insert(g.key).second) {
+          warn(F_CATALOGS, where + ".key", (known ? "ключ «" + g.key + "» уже у другой группы" : "неизвестный ключ группы «" + g.key + "»") + std::string(" — снят"));
+          g.key.clear();
+          ch = true;
+        }
+      }
+    }
+    // Циклы родителей: разрываются у первой группы цикла.
+    for (auto& g : c.resGroups) {
+      Id p = g.parent;
+      for (int guard = 0; p && guard < 256; guard++) {
+        if (p == g.id) {
+          warn(F_CATALOGS, "resGroups." + refStr(Seq::ResGroup, g.id) + ".parent", "группы замыкаются в цикл — группа стала группой верхнего уровня");
+          g.parent = 0;
+          ch = true;
+          break;
+        }
+        const ResGroup* x = c.group(p);
+        p = x ? x->parent : 0;
+      }
+    }
+    for (auto& r : c.resources)
+      if (r.group && !seen.count(r.group)) {
+        warn(F_CATALOGS, "resources." + refStr(Seq::Resource, r.id) + ".group", "нет группы " + refStr(Seq::ResGroup, r.group) + " — ресурс без группы");
+        r.group = 0;
+        ch = true;
+      }
+    return ch;
+  }
+
+  bool relics(Catalogs& c) {
+    bool ch = false;
+    u32 maxId = 0;
+    for (auto& r : c.relics) maxId = std::max(maxId, r.id);
+    std::unordered_set<Id> seen;
+    for (auto& r : c.relics) {
+      if (r.id == 0 || seen.count(r.id)) {
+        Id old = r.id;
+        r.id = fresh(Seq::Relic, maxId);
+        warn(F_CATALOGS, "relics." + refStr(Seq::Relic, r.id), old ? "повторный ID " + refStr(Seq::Relic, old) + " — назначен новый"
+                                                                    : std::string("реликвия без ID — назначен новый"));
+        ch = true;
+      }
+      seen.insert(r.id);
+      ch |= fixEnum(r.rarity, int(Rarity::Count), Rarity::Common, F_CATALOGS, "relics." + refStr(Seq::Relic, r.id), "rarity");
+    }
+    return ch;
+  }
+
+  // Карта «ссылка → количество ≥ 0»: только существующие записи справочника s.
+  bool fixAmounts(std::map<Id, double>& m, Seq s, const std::unordered_set<Id>& ids, FileId f, const std::string& base, const char* field) {
+    bool ch = false;
+    for (auto it = m.begin(); it != m.end();) {
+      if (!ids.count(it->first)) {
+        warn(f, base + "." + field, std::string("нет ") + genitive(s) + " " + refStr(s, it->first) + " — позиция удалена");
+        it = m.erase(it);
+        ch = true;
+        continue;
+      }
+      ch |= fixNum(it->second, 0.0, 1e12, 0.0, f, base + "." + field, refStr(s, it->first).c_str());
+      ++it;
+    }
+    return ch;
+  }
+
+  // Ключевой ресурс отряда (ТЗ «Ввод новых механик», п.2): ресурс из группы типа (или «Запчасти механизмов»).
+  static bool keyAllowed(const Catalogs& c, UnitType t, Id res) {
+    const schema::KeyRule k = schema::keyRule(t);
+    if (!res || !Catalogs::find(c.resources, res)) return false;
+    if (k.resKey) return c.resourceId(k.resKey) == res;
+    if (!k.group) return false;
+    const Id g = c.groupId(k.group);
+    if (!g || !c.resourceIn(res, g)) return false;
+    if (k.exclude)
+      if (Id x = c.groupId(k.exclude); x && c.resourceIn(res, x)) return false;
+    return true;
+  }
+
+  // Цена юнита: ключевой ресурс по типу, дополнительные ресурсы и эссенции ≥ 0, содержание эссенциями — у элементалей.
+  template <class Row>
+  bool fixUnitCost(Row& r, const Catalogs& c, const std::unordered_set<Id>& resIds, FileId f, const std::string& at) {
+    bool ch = false;
+    const schema::KeyRule k = schema::keyRule(r.type);
+    if (r.keyRes && !keyAllowed(c, r.type, r.keyRes)) {
+      warn(f, at + ".keyRes", refStr(Seq::Resource, r.keyRes) + " не подходит ключевым ресурсом для типа «" + schema::unitType(r.type).name + "» — снят");
+      r.keyRes = 0;
+      ch = true;
+    }
+    if (!std::isfinite(r.keyPer) || r.keyPer < 1 || r.keyPer > 1e12 || (k.fixedOne && r.keyPer != 1)) {
+      r.keyPer = k.fixedOne || !std::isfinite(r.keyPer) ? 1.0 : clamp(r.keyPer, 1.0, 1e12);
+      ch = true;
+    }
+    ch |= fixAmounts(r.extra, Seq::Resource, resIds, f, at, "extra");
+    ch |= fixAmounts(r.essence, Seq::Essence, cat[6], f, at, "essence");
+    ch |= fixAmounts(r.essUpkeep, Seq::Essence, cat[6], f, at, "essUpkeep");
+    if (schema::isElemental(r.type)) {
+      if (!r.extra.empty()) {   // элементали нанимаются только за эссенции
+        warn(f, at + ".extra", "элементали нанимаются только за эссенции — ресурсы сняты");
+        r.extra.clear();
+        ch = true;
+      }
+      if (!r.race.empty() && r.race != schema::kRaceElemental) {
+        warn(f, at + ".race", "раса элементалей — только «Элементали»");
+        r.race = schema::kRaceElemental;
+        ch = true;
+      }
+    } else if (!r.essUpkeep.empty()) {
+      r.essUpkeep.clear();
+      ch = true;
+    }
+    return ch;
+  }
+
+  bool specials(Catalogs& c) {
+    bool ch = false;
+    u32 maxId = 0;
+    for (auto& s : c.specials) maxId = std::max(maxId, s.id);
+    std::unordered_set<Id> seen, resIds, essIds;
+    for (auto& r : c.resources) resIds.insert(r.id);
+    for (auto& e : c.essences) essIds.insert(e.id);
+    cat[6] = essIds;
+    for (auto& s : c.specials) {
+      if (s.id == 0 || seen.count(s.id)) {
+        Id old = s.id;
+        s.id = fresh(Seq::Special, maxId);
+        warn(F_CATALOGS, "specials." + refStr(Seq::Special, s.id), old ? "повторный ID " + refStr(Seq::Special, old) + " — назначен новый"
+                                                                        : std::string("особый отряд без ID — назначен новый"));
+        ch = true;
+      }
+      seen.insert(s.id);
+      const std::string where = "specials." + refStr(Seq::Special, s.id);
+      ch |= fixEnum(s.type, int(UnitType::Count), UnitType::Monsters, F_CATALOGS, where, "type");
+      ch |= fixNum(s.upkeep, 0.0, 1e12, 0.0, F_CATALOGS, where, "upkeep");
+      ch |= fixUnitCost(s, c, resIds, F_CATALOGS, where);
+    }
+    return ch;
+  }
+
+  // Запасы «ссылка → количество» любого знака: только существующие записи, конечные числа.
+  bool fixAmountsSigned(std::map<Id, double>& m, Seq s, const std::unordered_set<Id>& ids, FileId f, const std::string& base, const char* field) {
+    bool ch = false;
+    for (auto it = m.begin(); it != m.end();) {
+      if (!ids.count(it->first)) {
+        warn(f, base + "." + field, std::string("нет ") + genitive(s) + " " + refStr(s, it->first) + " — запас удалён");
+        it = m.erase(it);
+        ch = true;
+        continue;
+      }
+      ch |= fixFinite(it->second, f, base + "." + field, refStr(s, it->first).c_str());
+      ++it;
+    }
+    return ch;
+  }
+
+  // Базовые записи справочников (core/content.h): мир прежней версии дополняется один раз.
+  void content() {
+    std::vector<std::string> notes = content::seed(tx);
+    for (int i = 0; i < kSeqCount; i++) seq[size_t(i)] = std::max(seq[size_t(i)], w().meta->seq[size_t(i)]);
+    if (notes.empty()) return;
+    warn(F_CATALOGS, "", "мир дополнен: " + join(notes, "; "));
+    catalogSets();
   }
 
   // Глобальные константы: ключи непусты и уникальны; встроенные — своего типа; числа конечны; ресурсы — из справочника.
@@ -592,6 +814,57 @@ struct Norm {
       };
       rows(f.army, false, "army", int(UnitType::Count));
       rows(f.fleet, true, "fleet", int(ShipType::Count));
+      // Цена найма строк армии; строка особого отряда повторяет запись справочника.
+      for (size_t i = 0; i < f.army.size(); i++) {
+        ArmyRow& r = f.army[i];
+        const std::string at = where + ".army[" + std::to_string(i) + "]";
+        if (r.special && !specialIds.count(r.special)) {
+          warn(F_FACTIONS, at + ".special", "нет особого отряда " + refStr(Seq::Special, r.special) + " — строка стала обычной");
+          r.special = 0;
+          ch = true;
+        }
+        if (const SpecialUnit* s = r.special ? w().catalogs->special(r.special) : nullptr) {
+          if (r.type != s->type || r.race != s->race || r.keyRes != s->keyRes || r.keyPer != s->keyPer || r.extra != s->extra ||
+              r.essence != s->essence || r.upkeep != s->upkeep || r.essUpkeep != s->essUpkeep) {
+            r.type = s->type;
+            r.race = s->race;
+            r.keyRes = s->keyRes;
+            r.keyPer = s->keyPer;
+            r.extra = s->extra;
+            r.essence = s->essence;
+            r.upkeep = s->upkeep;
+            r.essUpkeep = s->essUpkeep;
+            ch = true;
+          }
+          continue;
+        }
+        ch |= fixUnitCost(r, *w().catalogs, cat[0], F_FACTIONS, at);
+      }
+      // Эссенции, недостача провизии, изучение общих технологий.
+      ch |= fixAmountsSigned(f.ess, Seq::Essence, cat[6], F_FACTIONS, where, "ess");
+      ch |= fixNum(f.provisionDebt, 0.0, 1e15, 0.0, F_FACTIONS, where, "provisionDebt");
+      for (auto it = f.techs.begin(); it != f.techs.end();) {
+        const Tech* t = base.tech(it->first);
+        if (!t || t->faction != 0) {
+          warn(F_FACTIONS, where + ".techs", (t ? refStr(Seq::Tech, it->first) + " — не общая технология" : "нет технологии " + refStr(Seq::Tech, it->first)) +
+                                                std::string(" — запись удалена"));
+          it = f.techs.erase(it);
+          ch = true;
+          continue;
+        }
+        TechProgress& s = it->second;
+        ch |= fixNum(s.progress, 0, kMaxTurns, 0, F_FACTIONS, where + ".techs." + refStr(Seq::Tech, it->first), "progress");
+        if (s.studied && s.research) {
+          s.research = false;
+          ch = true;
+        }
+        if (s == TechProgress{}) {
+          it = f.techs.erase(it);
+          ch = true;
+          continue;
+        }
+        ++it;
+      }
 
       for (size_t i = 0; i < f.council.size(); i++) {
         auto& s = f.council[i];
@@ -694,6 +967,7 @@ struct Norm {
           fch |= fixNum(q.count, i64(1), kMaxCount, i64(1), F_FACTIONS, at, "count");
           fch |= fixNum(q.left, 1, kMaxTurns, 1, F_FACTIONS, at, "left");
           fch |= fixNum(q.people, i64(0), kMaxCount, i64(0), F_FACTIONS, at, "people");
+          fch |= fixAmounts(q.paidEss, Seq::Essence, cat[6], F_FACTIONS, at, "paidEss");
           for (auto it = q.paid.begin(); it != q.paid.end();) {
             if (!hasCat(Seq::Resource, it->first)) {
               warn(F_FACTIONS, at + ".paid", "нет ресурса " + refStr(Seq::Resource, it->first) + " — позиция удалена");
@@ -792,9 +1066,14 @@ struct Norm {
         ch = true;
       }
       ch |= fixRef(c.burial, Seq::Province, F_CHARACTERS, where, "burial");
+      // Инвентарь: реликвии справочника; каждая реликвия — только у одного персонажа (первого по ID).
+      ch |= fixRefList(c.inventory, Seq::Relic, F_CHARACTERS, where, "inventory", [&](Id id) { return relicIds.count(id) && !relicOwner.count(id); },
+                       "реликвия уже у другого персонажа");
+      for (Id r : c.inventory) relicOwner[r] = c.id;
       if (ch) tx.character(c.id) = std::move(c);
     });
   }
+  std::unordered_map<Id, Id> relicOwner;
 
   void modifiers() {
     const World base = w();
@@ -920,8 +1199,59 @@ struct Norm {
               ++it;
             }
           }
+          // Эссенции уровня — только у постройки генерации эссенции.
+          if (!b.essenceGen && !l.essence.empty()) {
+            warn(F_BUILDINGS, at + ".essence", "постройка не генерирует эссенцию — эссенции уровня сняты");
+            l.essence.clear();
+            ch = true;
+          }
+          ch |= fixAmounts(l.essence, Seq::Essence, cat[6], F_BUILDINGS, at, "essence");
         }
         ch |= fixPoint(b.pos, false, F_BUILDINGS, where, "pos");
+        // Постройка преобразования: до трёх разных ресурсов на входе, ресурс на выходе, срок цикла 1…kMaxTurns.
+        if (!b.convert) {
+          if (!(b.recipe == Recipe{})) {
+            b.recipe = Recipe{};
+            ch = true;
+          }
+        } else {
+          std::vector<ResAmount> in;
+          for (const ResAmount& x : b.recipe.in) {
+            if (!hasCat(Seq::Resource, x.res) || std::any_of(in.begin(), in.end(), [&](const ResAmount& y) { return y.res == x.res; })) {
+              warn(F_BUILDINGS, where + ".recipe.in", (hasCat(Seq::Resource, x.res) ? "повтор ресурса " : "нет ресурса ") + ref(Seq::Resource, x.res) +
+                                                         " — позиция удалена");
+              ch = true;
+              continue;
+            }
+            ResAmount y = x;
+            ch |= fixNum(y.amount, 0.0, 1e12, 0.0, F_BUILDINGS, where + ".recipe.in", refStr(Seq::Resource, x.res).c_str());
+            in.push_back(y);
+          }
+          if (in.size() > 3) {
+            warn(F_BUILDINGS, where + ".recipe.in", "на входе больше трёх ресурсов — лишние удалены");
+            in.resize(3);
+            ch = true;
+          }
+          if (in != b.recipe.in) {
+            b.recipe.in = std::move(in);
+            ch = true;
+          }
+          ch |= fixRef(b.recipe.out.res, Seq::Resource, F_BUILDINGS, where + ".recipe", "out");
+          ch |= fixNum(b.recipe.out.amount, 0.0, 1e12, 0.0, F_BUILDINGS, where + ".recipe.out", "amount");
+          ch |= fixNum(b.recipe.turns, 1, kMaxTurns, 1, F_BUILDINGS, where + ".recipe", "turns");
+        }
+        // Доступ к особым отрядам.
+        if (!b.specialAccess && !b.specials.empty()) {
+          warn(F_BUILDINGS, where + ".specials", "постройка не даёт доступ к особым отрядам — список снят");
+          b.specials.clear();
+          ch = true;
+        }
+        ch |= fixRefList(b.specials, Seq::Special, F_BUILDINGS, where, "specials");
+        // Технологии: общая постройка зависит только от общих технологий, уникальная — ещё и от технологий своего
+        // государства (ТЗ «Доработки», п.4 и 7).
+        ch |= fixRefList(b.techs, Seq::Tech, F_BUILDINGS, where, "techs",
+                         [&](Id id) { const Tech* t = base.tech(id); return t && (t->faction == 0 || (b.owner && t->faction == b.owner)); },
+                         "технология другого государства (общей постройке — только общие)");
         if (ch) tx.building(b.id) = std::move(b);
       });
     }
@@ -942,6 +1272,13 @@ struct Norm {
           }
           if (r.building == b.id) {
             warn(F_BUILDINGS, where + ".requires", "постройка требует саму себя — требование удалено");
+            ch = true;
+            continue;
+          }
+          // Общая постройка не зависит от уникальных; уникальная — от общих и своего государства (ТЗ «Доработки», п.7).
+          if (t->owner && t->owner != b.owner) {
+            warn(F_BUILDINGS, where + ".requires", b.owner ? "требование " + refStr(Seq::Building, r.building) + " — уникальная постройка другого государства: удалено"
+                                                           : "общая постройка не может зависеть от уникальной " + refStr(Seq::Building, r.building) + " — требование удалено");
             ch = true;
             continue;
           }
@@ -980,9 +1317,8 @@ struct Norm {
     {
       const World base = w();
       base.techs.each([&](const Tech& t) {
-        if (!exists(Seq::Faction, t.faction)) {
-          warn(F_TECHS, refStr(Seq::Tech, t.id), t.faction ? "нет фракции " + refStr(Seq::Faction, t.faction) + " — технология удалена"
-                                                            : std::string("технология без фракции — удалена"));
+        if (t.faction && !exists(Seq::Faction, t.faction)) {   // фракция 0 — общее дерево
+          warn(F_TECHS, refStr(Seq::Tech, t.id), "нет фракции " + refStr(Seq::Faction, t.faction) + " — технология удалена");
           tx.eraseTech(t.id);
         }
       });
@@ -1000,9 +1336,17 @@ struct Norm {
           t.research = false;
           ch = true;
         }
+        // Общая технология изучается каждой фракцией отдельно (Faction::techs): своих отметок у неё нет.
+        if (t.faction == 0 && (t.studied || t.research || t.progress)) {
+          warn(F_TECHS, where, "общая технология изучается каждым государством отдельно — отметки изучения сняты");
+          t.studied = t.research = false;
+          t.progress = 0;
+          ch = true;
+        }
+        // Уникальная технология зависит от своих и общих, общая — только от общих (ТЗ «Доработки», п.7).
         ch |= fixRefList(t.prereqs, Seq::Tech, F_TECHS, where, "prereqs",
-                         [&](Id id) { const Tech* p = base.tech(id); return p && id != t.id && p->faction == t.faction; },
-                         "технология другой фракции или она сама");
+                         [&](Id id) { const Tech* p = base.tech(id); return p && id != t.id && (p->faction == t.faction || (t.faction && p->faction == 0)); },
+                         "технология другой фракции, уникальная у общей или она сама");
         ch |= fixRefList(t.modifiers, Seq::Modifier, F_TECHS, where, "modifiers");
         ch |= fixPoint(t.pos, false, F_TECHS, where, "pos");
         if (ch) tx.tech(t.id) = std::move(t);
@@ -1021,11 +1365,17 @@ struct Norm {
     for (bool again = true; again;) {
       again = false;
       const World cur = w();
+      auto studiedBy = [&](const Tech* pt, Id faction) {
+        if (!pt) return true;
+        if (pt->faction) return pt->studied;
+        const Faction* f = cur.faction(faction);
+        auto it = f ? f->techs.find(pt->id) : decltype(f->techs.end()){};
+        return f && it != f->techs.end() && it->second.studied;
+      };
       cur.techs.each([&](const Tech& t) {
-        if (!t.studied) return;
+        if (!t.studied || !t.faction) return;
         for (Id pid : t.prereqs) {
-          const Tech* pt = cur.tech(pid);
-          if (!pt || pt->studied) continue;
+          if (studiedBy(cur.tech(pid), t.faction)) continue;
           warn(F_TECHS, refStr(Seq::Tech, t.id) + ".studied",
                "не изучено условие " + refStr(Seq::Tech, pid) + " — изученность снята");
           Tech& m = tx.tech(t.id);
@@ -1034,6 +1384,25 @@ struct Norm {
           m.progress = std::min(m.progress, std::max(0, m.turns - 1));
           again = true;
           return;
+        }
+      });
+      // Общие технологии, изученные фракцией: их условия изучены этой же фракцией.
+      cur.factions.each([&](const Faction& f) {
+        for (auto& [tid, s] : f.techs) {
+          if (!s.studied) continue;
+          const Tech* t = cur.tech(tid);
+          if (!t) continue;
+          for (Id pid : t->prereqs) {
+            if (studiedBy(cur.tech(pid), f.id)) continue;
+            warn(F_FACTIONS, refStr(Seq::Faction, f.id) + ".techs." + refStr(Seq::Tech, tid),
+                 "не изучено условие " + refStr(Seq::Tech, pid) + " — изученность снята");
+            TechProgress& m = tx.faction(f.id).techs[tid];
+            m.studied = false;
+            m.research = false;
+            m.progress = std::min(m.progress, std::max(0, t->turns - 1));
+            again = true;
+            return;
+          }
         }
       });
     }
@@ -1094,6 +1463,18 @@ struct Norm {
         }
         if (gch) { p.garrison = std::move(res); ch = true; }
       }
+      // Герои в гарнизоне: доступные герои владельца, не больше чем в одном гарнизоне или войске.
+      ch |= fixRefList(p.garrisonHeroes, Seq::Character, F_PROVINCES, where, "garrisonHeroes",
+                       [&](Id id) {
+                         const Character* c = base.character(id);
+                         if (!c || !p.owner || c->faction != p.owner || heroUsed.count(id)) return false;
+                         for (Id m : c->modifiers)
+                           if (const Modifier* x = base.modifier(m); x && (x->key == schema::mod::Dead || x->key == schema::mod::Captive)) return false;
+                         return true;
+                       },
+                       "не доступный герой владельца или уже в другом гарнизоне");
+      for (Id h : p.garrisonHeroes) heroUsed.insert(h);
+      ch |= fixNum(p.garrisonLoyalty, schema::kMinLoyalty, schema::kMaxLoyalty, schema::kMaxLoyalty, F_PROVINCES, where, "garrisonLoyalty");
 
       ch |= fixNum(p.contentment, -100.0, 100.0, 0.0, F_PROVINCES, where, "contentment");
       ch |= fixRef(p.culture, Seq::Culture, F_PROVINCES, where, "culture");
@@ -1188,6 +1569,16 @@ struct Norm {
           }
           bch |= fixNum(b.level, 1, int(def->levels.size()), 1, F_PROVINCES, at, "level");
           bch |= fixNum(b.left, 0, kMaxTurns, 0, F_PROVINCES, at, "left");
+          // Состояние преобразования — только у постройки преобразования; цикл не длиннее срока рецепта.
+          if (!def->convert) {
+            if (b.idle || b.cycle) {
+              b.idle = false;
+              b.cycle = 0;
+              bch = true;
+            }
+          } else {
+            bch |= fixNum(b.cycle, 0, std::max(1, def->recipe.turns), 0, F_PROVINCES, at, "cycle");
+          }
           if (!b.constructing && b.left != 0) {
             b.left = 0;
             bch = true;
@@ -1290,7 +1681,7 @@ struct Norm {
 
   void armies() {
     const World base = w();
-    std::unordered_set<Id> usedHeroes;
+    std::unordered_set<Id>& usedHeroes = heroUsed;   // герои гарнизонов уже учтены (provinces)
     base.armies.each([&](const Army& a0) {
       Army a = a0;
       const std::string where = refStr(Seq::Army, a.id);
@@ -1339,7 +1730,7 @@ struct Norm {
             continue;
           }
           if (usedHeroes.count(h)) {
-            warn(F_ARMIES, at + ".heroes", "персонаж " + refStr(Seq::Character, h) + " уже в другом войске или группе — удалён");
+            warn(F_ARMIES, at + ".heroes", "персонаж " + refStr(Seq::Character, h) + " уже в другом войске, группе или гарнизоне — удалён");
             ch = true;
             continue;
           }
@@ -1531,9 +1922,14 @@ struct Norm {
     for (auto& i : c.religions) upd(Seq::Religion, i.id);
     for (auto& i : c.governments) upd(Seq::Government, i.id);
     for (auto& i : c.positions) upd(Seq::Position, i.id);
+    for (auto& i : c.essences) upd(Seq::Essence, i.id);
+    for (auto& i : c.relics) upd(Seq::Relic, i.id);
+    for (auto& i : c.specials) upd(Seq::Special, i.id);
+    for (auto& i : c.resGroups) upd(Seq::ResGroup, i.id);
     static const char* const names[kSeqCount] = {"province", "faction", "character", "modifier", "building", "tech", "army",
                                                  "route", "deal", "log", "row", "council", "node", "edge", "resource", "race",
-                                                 "culture", "religion", "government", "position", "symbol", "shape"};
+                                                 "culture", "religion", "government", "position", "symbol", "shape",
+                                                 "essence", "relic", "special", "resGroup"};
     for (int i = 0; i < kSeqCount; i++) {
       if (seq[size_t(i)] < maxId[size_t(i)]) {
         warn(F_WORLD, std::string("meta.seq.") + names[i], "счётчик " + std::to_string(seq[size_t(i)]) + " меньше наибольшего ID " +
@@ -1576,6 +1972,8 @@ struct Norm {
   void run() {
     meta();
     catalogs();
+    counters();   // базовые записи получают ID после наибольших занятых
+    content();
     constants();
     nodes();
     edges();

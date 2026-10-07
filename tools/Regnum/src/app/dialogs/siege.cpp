@@ -2,7 +2,8 @@
 // которым его фракция в войне, сражается с гарнизоном — окно как у битвы (отряды сторон, потери, победитель).
 // Победа — окно захвата (dialogs/capture.cpp), уничтожение войска — «Судьба героев», без гарнизона — сразу захват.
 // Мятежники после битвы, мятежа или восстания в провинции прежнего государства без его войск — штурм или захват
-// (ТЗ «Механика мятежа», п.2 и 4).
+// (ТЗ «Механика мятежа», п.2 и 4); перед штурмом гарнизона с отрицательной верностью его неверная часть переходит к
+// мятежникам (ТЗ «Доработки», п.1). Герои гарнизона — в карточке гарнизона и в «Судьбе героев», если он уничтожен.
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -176,7 +177,9 @@ struct SiegeDialog final : Dialog {
       ui::Card card({.pad = 12, .tone = winner == 0 ? ui::Tone::Accent : ui::Tone::Neutral});
       {
         ui::Row hr({ui::px(46), ui::fr(1)}, ui::kAuto, 10);
-        figure(w, ar, 46, winner == 0);
+        const RectF fig = ui::next(46, 46);
+        objectBadgeIn(w, ar, fig, winner == 0);   // портрет главного полководца или фигурка
+        a.markUi("siege.figure", fig);
         ui::Group g(0, 2);
         ui::caption(objectCaption(ar));
         ui::label(objectName(ar), {.font = ui::Font::Title});
@@ -223,6 +226,18 @@ struct SiegeDialog final : Dialog {
         ui::HStack hs(18, ui::Align::Left, 5);
         factionFlag(w, p.owner, 22, 15);
         ui::label(w.factionName(p.owner), {.font = ui::Font::Small, .ink = ui::Ink::Dim});
+      }
+      // Герои гарнизона (ТЗ «Доработки», п.1): гарнизон уничтожен — «Судьба героев».
+      if (!p.garrisonHeroes.empty()) {
+        ui::HStack hs(26, ui::Align::Left, 6);
+        ui::icon("hero", ui::Ink::Accent, 16, "Герои гарнизона");
+        int shown = 0;
+        for (Id h : p.garrisonHeroes) {
+          if (!w.character(h)) continue;
+          if (shown < 2) w::characterChip(h);
+          shown++;
+        }
+        if (shown > 2) ui::badge("+" + std::to_string(shown - 2), ui::Tone::Neutral);
       }
       std::vector<LossLine> lines;
       for (const GarrisonEntry& g : p.garrison)
@@ -345,8 +360,19 @@ void flow::openSiege(App& a, Id army, Id province, Vec2 origin, std::function<vo
     detail::later(a, [fin](App& x) { fin(x, false); });
     return;
   }
-  // Гарнизона нет — битвы нет, сразу выбор захвата (п.4).
-  if (garrisonCount(*w.province(province)) <= 0) {
+  // ТЗ «Доработки», п.1 (как «Мятеж», п.3 у войск): мятежники штурмуют гарнизон прежнего государства с отрицательной
+  // верностью — неверная часть гарнизона переходит к ним до боя, у оставшихся верность 0 %.
+  if (rules::willGarrisonDefect(w, army, province)) {
+    const i64 g0 = garrisonCount(*w.province(province));
+    const std::string pn = w.provinceName(province);
+    if (a.act("Переход к мятежникам: гарнизон " + pn, [&](Tx& tx) { rules::garrisonDefect(tx, army, province); })) {
+      const Province* after = a.world().province(province);
+      const i64 moved = g0 - (after ? garrisonCount(*after) : 0);
+      a.toast("К мятежникам перешло " + fmtCount(moved) + " · гарнизон " + pn, ToastKind::Warning, "rebellion");
+    }
+  }
+  // Гарнизона нет (или перешёл к мятежникам целиком) — битвы нет, сразу выбор захвата (п.4).
+  if (garrisonCount(*a.world().province(province)) <= 0) {
     openCapture(a, army, province, [fin](App& x) { fin(x, true); });
     return;
   }

@@ -13,7 +13,8 @@ struct Roles {
   std::vector<std::pair<Id, Id>> seats;
   std::vector<Id> armies;
   std::vector<Id> commands;
-  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size(); }
+  Id garrison = 0;
+  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size() + (garrison ? 1 : 0); }
 };
 Roles rolesOf(const World& w, Id character);
 std::string rolesText(const World& w, const Roles& r);

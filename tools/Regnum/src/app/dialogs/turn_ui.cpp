@@ -66,6 +66,44 @@ void focusEntry(App& a, const LogEntry& e) {
 }
 
 namespace {
+// Запись хроники экономики по смыслу (тексты — rules/turn.cpp, шаги 2, 2а–2в): долг казны, голод начался, голод
+// закончился (недостача провизии покрыта), не хватает эссенций на содержание элементалей, преобразование ресурсов.
+enum class Eco : u8 { Debt, Famine, FamineEnd, Essence, Convert, Other };
+Eco economyOf(const LogEntry& e) {
+  const std::string k = utf8::searchKey(e.text);
+  auto has = [&](const char* s) { return k.find(s) != std::string::npos; };
+  if (has("провизия закончилась")) return Eco::Famine;
+  if (has("голод закончился")) return Eco::FamineEnd;
+  if (has("эссенц")) return Eco::Essence;
+  if (has("преобразование")) return Eco::Convert;
+  if (has("долг")) return Eco::Debt;
+  return Eco::Other;
+}
+
+// Значок и тон записи: у экономики — по смыслу (голод, эссенции, преобразование), у прочих — по виду.
+const char* entryIcon(const LogEntry& e) {
+  if (e.kind == LogKind::Economy) switch (economyOf(e)) {
+      case Eco::Famine:
+      case Eco::FamineEnd: return "grain";
+      case Eco::Essence: return "essence";
+      case Eco::Convert: return "convert";
+      case Eco::Debt: return "treasury";
+      case Eco::Other: break;
+    }
+  return logIcon(e.kind);
+}
+ui::Tone entryTone(const LogEntry& e) {
+  if (e.kind == LogKind::Economy) switch (economyOf(e)) {
+      case Eco::Famine:
+      case Eco::Essence:
+      case Eco::Debt: return ui::Tone::Danger;
+      case Eco::FamineEnd:
+      case Eco::Convert: return ui::Tone::Success;
+      case Eco::Other: break;
+    }
+  return logTone(e.kind);
+}
+
 // Высота текста записи при ширине (кеш: хроника перерисовывает сотни строк за кадр).
 float textHeight(std::string_view text, float width, int maxLines) {
   static std::unordered_map<u64, float> cache;
@@ -101,7 +139,7 @@ bool logRow(const World& w, const LogEntry& e, const LogRowOpt& o) {
   if (focusable && hv > 0.01f) ui::draw::rect(r, th.hover.alpha(std::min(1.f, hv * 1.4f)), th.radiusField + 1);
   // Фокус с клавиатуры — тонкая золотая полоска слева (щелчок мышью тоже даёт фокус: без яркого кольца).
   if (it.focused) ui::draw::rect(RectF{r.x, r.y + 6, 2, r.h - 12}, th.accent, 1);
-  iconTile(RectF{r.x + pad, r.y + pad, tile, tile}, logIcon(e.kind), logTone(e.kind));
+  iconTile(RectF{r.x + pad, r.y + pad, tile, tile}, entryIcon(e), entryTone(e));
   float tx = r.x + pad + tile + gx;
   {
     ui::Area ta(RectF{tx, r.y + pad - 1, textW, textH + 2}, 0);
@@ -271,6 +309,81 @@ std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rul
   return v;
 }
 
+bool hasStockChanges(const rules::TurnFactionLine& l) { return !l.resources.empty() || !l.essences.empty() || l.provisionDebt > 1e-9; }
+
+namespace {
+
+// Изменение запаса: до тысячных у малых нецелых, иначе целое.
+std::string deltaText(double v) {
+  const double a = std::fabs(v);
+  return fmtSigned(v, std::fabs(v - std::round(v)) < 1e-9 ? 0 : a < 10 ? 3 : a < 1000 ? 1 : 0);
+}
+
+}  // namespace
+
+void stockDeltas(const World& w, const rules::TurnFactionLine& l, float width, float height, ui::Font font) {
+  const ui::Theme& th = ui::theme();
+  struct Item {
+    const char* icon;
+    Color color;
+    std::string name, text;
+    ui::Ink ink;
+    bool famine = false;
+  };
+  std::vector<Item> items;
+  if (l.provisionDebt > 1e-9)
+    items.push_back({"grain", th.danger, "Голод: недостача провизии после хода " + fmtNum(l.provisionDebt, 3), "Голод", ui::Ink::Danger, true});
+  // Эссенции — раньше ресурсов: их меньше, и долг эссенции важнее (содержание элементалей).
+  for (auto& [eid, v] : l.essences) {
+    const CatalogItem* e = w.essence(eid);
+    items.push_back({"essence", w::essenceColor(w, eid), e ? e->name : std::string("Эссенция"), deltaText(v),
+                     v < -1e-9 ? ui::Ink::Danger : deltaInk(v)});
+  }
+  for (auto& [rid, v] : l.resources) {
+    const CatalogItem* c = w.resource(rid);
+    items.push_back({w::resourceIcon(w, rid), w::resourceColor(w, rid), c ? c->name : std::string("Ресурс"), deltaText(v), deltaInk(v)});
+  }
+  if (items.empty()) return;
+  const float gap = 12, iconW = 16, iconGap = 4;
+  auto itemW = [&](const Item& it) {
+    const float tw = std::ceil(ui::measure(it.text, it.famine ? ui::Font::Small : font)) + 2;
+    return it.famine ? tw + iconW + iconGap + 14 : iconW + iconGap + tw;
+  };
+  // Сколько помещается (с «ещё N» в конце, если не все).
+  size_t fit = 0;
+  float used = 0;
+  for (size_t i = 0; i < items.size(); i++) {
+    const float iw = itemW(items[i]) + (i ? gap : 0);
+    const bool last = i + 1 == items.size();
+    const float more = last ? 0 : gap + ui::measure("ещё " + std::to_string(items.size() - i - 1), ui::Font::Small) + 4;
+    if (used + iw + more > width && i > 0) break;
+    used += iw;
+    fit = i + 1;
+  }
+  ui::HStack hs(height, ui::Align::Left, gap);
+  for (size_t i = 0; i < fit; i++) {
+    const Item& it = items[i];
+    ui::IdScope s{i64(i)};
+    const RectF r = ui::next(itemW(it), height);
+    if (it.famine) {
+      const RectF pill{r.x, r.cy() - 10, r.w, 20};
+      ui::draw::rect(pill, th.danger.alpha(0.16f), 10);
+      ui::draw::icon(it.icon, RectF{pill.x + 7, pill.cy() - 7, 14, 14}, th.danger);
+      ui::draw::text(it.text, RectF{pill.x + 7 + iconW + iconGap - 2, pill.y, pill.w - 7 - iconW - iconGap, pill.h}, ui::Font::Small, th.danger);
+    } else {
+      ui::draw::icon(it.icon, RectF{r.x, r.cy() - iconW * 0.5f, iconW, iconW}, it.color);
+      ui::draw::text(it.text, RectF{r.x + iconW + iconGap, r.y, r.w - iconW - iconGap, r.h}, font, ui::inkColor(it.ink));
+    }
+    ui::at(r);
+    ui::label("##delta", {.font = ui::Font::Display, .tooltip = it.famine ? std::string_view(it.name) : std::string_view(it.name + ": " + it.text)});
+  }
+  if (fit < items.size()) {
+    std::vector<std::string> rest;
+    for (size_t i = fit; i < items.size(); i++) rest.push_back(items[i].name + ": " + items[i].text);
+    ui::label("ещё " + std::to_string(items.size() - fit), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .tooltip = join(rest, "\n")});
+  }
+}
+
 TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
   TurnDigest d;
   for (Id lid : rep.logIds) {
@@ -281,7 +394,16 @@ TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
       case LogKind::Turn: d.summary = e; continue;
       case LogKind::Build: d.builds.push_back(e); break;
       case LogKind::Tech: d.techs.push_back(e); break;
-      case LogKind::Economy: (e->text.find("провизия") != std::string::npos ? d.famine : d.debts).push_back(e); break;
+      case LogKind::Economy:
+        switch (economyOf(*e)) {
+          case Eco::Famine: d.famine.push_back(e); break;
+          case Eco::Essence: d.essences.push_back(e); break;
+          case Eco::Debt: d.debts.push_back(e); break;
+          case Eco::FamineEnd:
+          case Eco::Convert:
+          case Eco::Other: d.economy.push_back(e); break;
+        }
+        break;
       case LogKind::Province: d.rebellions.push_back(e); break;
       case LogKind::Trade:
         if (startsWith(e->text, "Недостача")) d.shortfalls.push_back(e);

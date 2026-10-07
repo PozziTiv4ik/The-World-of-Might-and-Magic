@@ -106,15 +106,19 @@ struct MapView::Impl {
   // свободная часть области просмотра между панелями (пустая — вся область)
   RectF safe;
 
-  // отметки войск и флота: раскладка пересчитывается при смене мира, масштаба, выделения и скрытых объектов
+  // отметки войск и флота: дерево слияния — при смене мира, выделения, скрытых объектов и размера фигурки;
+  // раскладка (срез дерева) — при смене масштаба
   Id lastSel = 0;
   std::vector<Id> lastHidden;   // по возрастанию
+  mutable MarkTree markTree;
+  mutable bool treeValid = false;
+  mutable u64 treeGen = 0;
+  mutable Id treeSel = 0;
+  mutable std::vector<Id> treeHidden;
+  mutable float treeFigure = 0;
   mutable MarkLayout marks;
   mutable bool marksValid = false;
-  mutable u64 marksGen = 0;
   mutable double marksZoom = 0;
-  mutable Id marksSel = 0;
-  mutable std::vector<Id> marksHidden;
 
   // мини-карта
   gfx::Image miniTint;
@@ -176,21 +180,34 @@ struct MapView::Impl {
     cy = axis(cy, mapH(), vp.cy(), vp.y, vp.bottom(), a.y, a.bottom());
   }
 
+  // Объекты с отметками: «Скрыть войска» (ТЗ «Фиксы», п.2) — ни фигурок, ни попадания мышью; перетаскиваемые
+  // объекты рисует инструмент.
+  std::vector<const Army*> markedArmies() const {
+    std::vector<const Army*> list;
+    list.reserve(world.armies.size());
+    if (world.settings->showArmies)
+      world.armies.each([&](const Army& a) {
+        if (!std::binary_search(lastHidden.begin(), lastHidden.end(), a.id)) list.push_back(&a);
+      });
+    return list;
+  }
   const MarkLayout& markLayout() const {
-    if (!marksValid || marksGen != gen || marksZoom != v.zoom || marksSel != lastSel || marksHidden != lastHidden) {
-      std::vector<const Army*> list;
-      list.reserve(world.armies.size());
-      // «Скрыть войска» (ТЗ «Фиксы», п.2): ни фигурок, ни попадания мышью.
-      if (world.settings->showArmies)
-        world.armies.each([&](const Army& a) {
-          if (!std::binary_search(lastHidden.begin(), lastHidden.end(), a.id)) list.push_back(&a);
-        });
-      marks = layoutMarks(list, v.zoom, lastSel, figureSizeOf(*world.settings));
+    const float fig = figureSizeOf(*world.settings);
+    const double z = v.zoom;
+    // Слияния ниже floor не считаются (масштаб недостижим): отдалили дальше — дерево строится заново.
+    if (!treeValid || treeGen != gen || treeSel != lastSel || treeHidden != lastHidden || treeFigure != fig || !(z > markTree.floor)) {
+      markTree = buildMarkTree(markedArmies(), lastSel, fig, std::min(minZoom(), z) * 0.5);
+      treeValid = true;
+      treeGen = gen;
+      treeSel = lastSel;
+      treeHidden = lastHidden;
+      treeFigure = fig;
+      marksValid = false;
+    }
+    if (!marksValid || marksZoom != z) {
+      marks = cutMarks(markTree, z);
       marksValid = true;
-      marksGen = gen;
-      marksZoom = v.zoom;
-      marksSel = lastSel;
-      marksHidden = lastHidden;
+      marksZoom = z;
     }
     return marks;
   }
@@ -1048,12 +1065,12 @@ double MapView::separateZoom(const ArmyMark& m) const {
   if (list.size() < 2) return 0;
   const double cur = d_->anim ? d_->tz : d_->v.zoom, zmax = d_->maxZoom();
   if (cur >= zmax * (1 - 1e-9)) return 0;
-  double z = cur;
-  while (z < zmax) {
-    z = std::min(z * 1.2, zmax);
-    if (layoutMarks(list, z, d_->lastSel, figureSizeOf(*d_->world.settings)).marks.size() == list.size()) return z;
-  }
-  return zmax;
+  // Объекты расходятся выше наибольшего порога слияний внутри стопки; с запасом — чтобы между фигурками был зазор.
+  const double split = splitZoom(list, d_->lastSel, figureSizeOf(*d_->world.settings));
+  if (!std::isfinite(split)) return zmax;
+  double z = split * 1.1;
+  if (z <= cur) z = cur * 1.2;
+  return std::min(z, zmax);
 }
 
 Id MapView::routeAt(float sx, float sy, float tolPx) const {

@@ -224,6 +224,9 @@ std::vector<Seed> makeSeeds(const Basemap& bm) {
 }
 
 Id catalogAdd(Tx& tx, rules::CatalogList list, const char* name, u32 color, const char* icon) {
+  // Запись базового набора (core/content.h) уже есть — берётся она.
+  for (const CatalogItem& c : rules::catalogList(*tx.w().catalogs, list))
+    if (c.name == name) return c.id;
   const Id id = rules::addCatalogItem(tx, list, name);
   for (CatalogItem& c : rules::catalogList(tx.catalogs(), list))
     if (c.id == id) {
@@ -293,6 +296,11 @@ World build(const Basemap& bm) {
   const Id relOld = catalogAdd(tx, CatalogList::Religions, "Старые боги", 0x6f8f5a, "religion");
   const Id relMoon = catalogAdd(tx, CatalogList::Religions, "Лунный круг", 0x7f86c9, "religion");
   const Id relForge = catalogAdd(tx, CatalogList::Religions, "Пламя Горна", 0xc9643a, "religion");
+  const Id resGrain = catalogAdd(tx, CatalogList::Resources, "Зерно", 0xd9c36b, "grain");
+  const Id resWood = catalogAdd(tx, CatalogList::Resources, "Древесина", 0x8a6a43, "wood");
+  const Id resStone = catalogAdd(tx, CatalogList::Resources, "Камень", 0x9aa0a8, "stone");
+  const Id resIron = catalogAdd(tx, CatalogList::Resources, "Железо", 0x6d7c8f, "iron");
+  const Id resHorse = catalogAdd(tx, CatalogList::Resources, "Лошади", 0xa0714f, "horse");
   const Id resGem = catalogAdd(tx, CatalogList::Resources, "Самоцветы", 0xa35fc9, "gem");
   const Id resSalt = catalogAdd(tx, CatalogList::Resources, "Соль", 0xcfc9bb, "resource");
   const Id resSpice = catalogAdd(tx, CatalogList::Resources, "Пряности", 0xc96a3a, "resource");
@@ -318,9 +326,9 @@ World build(const Basemap& bm) {
     f.religion = stateReligion[i];
     f.tax = 8 + double(i % 4) * 3;
     f.res[kGold] = 1500 + 450 * double(i);
-    f.res[2] = 300 + 40 * double(i);
-    f.res[3] = 200 + 25 * double(i);
-    f.res[5] = 80 + 15 * double(i);
+    f.res[resGrain] = 300 + 40 * double(i);
+    f.res[resWood] = 200 + 25 * double(i);
+    f.res[resIron] = 80 + 15 * double(i);
     f.notes = "Демонстрационное государство (не канон).";
     const Id ruler = rules::createCharacter(tx, id, d.ruler);
     tx.character(ruler).title = d.title;
@@ -360,7 +368,7 @@ World build(const Basemap& bm) {
   }
 
   // ---------------------------------------------------------------- владения и сведения провинций
-  const Id resources[] = {2, 3, 4, 5, 6, resGem, resSalt, resSpice, resMithril};
+  const Id resources[] = {resGrain, resWood, resStone, resIron, resHorse, resGem, resSalt, resSpice, resMithril};
   auto fs = geo::faces(w);
   auto areaOf = [&](Id p) { const geo::ProvinceShape* s = fs->shape(p); return s ? s->area : 0.0; };
   auto fillProvince = [&](Id pid, const std::string& name, Id owner, size_t si, bool capital) {
@@ -405,6 +413,16 @@ World build(const Basemap& bm) {
     for (size_t k = 1; k < list.size() && k <= heroIds[i].size(); k++) tx.province(list[k]).lord = heroIds[i][k - 1];
     if (!list.empty()) tx.province(list[0]).lord = tx.w().faction(st[i])->ruler;
   }
+  // Провизия (группа «Провизия»): запас на 12 ходов расхода населения (0,001 на жителя) — зерно и рыба.
+  const Id resFish = catalogAdd(tx, CatalogList::Resources, "Рыба", 0x5a8ab0, "grain");
+  for (size_t i = 0; i < st.size(); i++) {
+    i64 pop = 0;
+    for (Id pid : stateProv[i])
+      for (const RacePop& r : tx.w().province(pid)->races) pop += r.pop;
+    const double need = double(pop) * schema::kProvisionsPerPerson;
+    tx.faction(st[i]).res[resGrain] = std::round(need * 9);
+    tx.faction(st[i]).res[resFish] = std::round(need * 3);
+  }
 
   // ---------------------------------------------------------------- модификаторы
   auto modifier = [&](const char* name, const char* icon, u32 color, std::initializer_list<std::pair<Fx, double>> fx) {
@@ -443,7 +461,7 @@ World build(const Basemap& bm) {
       BuildingLevel lv;
       lv.turns = 2 + l;
       lv.cost[kGold] = 150.0 * (l + 1);
-      lv.cost[4] = 40.0 * (l + 1);
+      lv.cost[resStone] = 40.0 * (l + 1);
       if (mod) lv.modifiers.push_back(mod);
       b.levels.push_back(lv);
     }
@@ -685,7 +703,7 @@ World build(const Basemap& bm) {
     g.kind = DealKind::Trade;
     g.a = st[0];
     g.b = st[1];
-    g.items.push_back(DealItem{DealSide::A, 2, 120, DealMode::Once, 1, 0});
+    g.items.push_back(DealItem{DealSide::A, resGrain, 120, DealMode::Once, 1, 0});
     rules::concludeDeal(tx, g);
   }
   rules::imposeTribute(tx, DealKind::Tribute, st[6], st[4], 45, 8);

@@ -145,14 +145,27 @@ bool canMutiny(const World& w, Id army, std::string* why) {
 }
 
 namespace detail {
-MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked) {
+MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id garrison) {
   MutinyResult res;
-  const Army& c0 = needArmy(tx.w(), clicked);
-  const Id origin = c0.leader();
-  const ArmyKind kind = c0.kind;
+  Id origin = 0, province = 0;
+  ArmyKind kind = ArmyKind::Army;
+  Vec2 at;
+  if (clicked) {
+    const Army& c0 = needArmy(tx.w(), clicked);
+    origin = c0.leader();
+    kind = c0.kind;
+    at = c0.pos;
+    province = provinceAtTx(tx, at);
+  } else {
+    const Province& gp = needProvince(tx.w(), garrison);
+    origin = gp.owner;
+    province = garrison;
+    auto lab = provinceLabel(tx, garrison);
+    if (!lab) fail("У провинции нет области на карте");
+    at = *lab;
+  }
   const bool fleet = kind == ArmyKind::Fleet;
-  const Vec2 at = c0.pos;
-  const Id province = provinceAtTx(tx, at);
+  res.province = province;
   res.rebelState = rebelStateFor(tx, origin);
   const Id R = res.rebelState;
 
@@ -204,6 +217,40 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked) {
       loyalKeep.push_back(aid);
     }
   }
+  // Гарнизон провинции (ТЗ «Доработки», п.1): отделяется |верность| % каждого отряда (нежить и механизмы верны),
+  // герои с «Недовольством правителем» уходят к мятежникам; оставшиеся — с верностью 0 %.
+  if (!fleet && garrison) {
+    const Province P = *tx.w().province(garrison);
+    if (P.owner == origin && P.garrisonLoyalty < 0) {
+      const double p = std::min(100.0, -P.garrisonLoyalty);
+      std::map<Id, i64> take;
+      for (const GarrisonEntry& g : P.garrison) {
+        const ArmyRow* ar = tx.w().faction(origin)->armyRow(g.row);
+        if (g.count <= 0 || !ar || alwaysLoyal(tx.w(), origin, ar)) continue;
+        i64 n = p >= 100 ? g.count : clamp<i64>(std::llround(double(g.count) * p / 100.0), 0, g.count);
+        if (n > 0) take[g.row] += n;
+      }
+      for (auto& [row, n] : take) {
+        for (GarrisonEntry& g : tx.province(garrison).garrison)
+          if (g.row == row) g.count -= n;
+        moveUnits(tx, origin, R, false, row, n, rebels);
+        moved += n;
+      }
+      Province& m = tx.province(garrison);
+      m.garrison.erase(std::remove_if(m.garrison.begin(), m.garrison.end(), [](const GarrisonEntry& g) { return g.count <= 0; }), m.garrison.end());
+      std::vector<Id> gone;
+      for (Id h : P.garrisonHeroes)
+        if (characterHas(tx.w(), h, schema::mod::Discontent)) gone.push_back(h);
+      for (Id h : gone) {
+        eraseValue(tx.province(garrison).garrisonHeroes, h);
+        tx.character(h).faction = R;
+        rebels.heroes.push_back(h);
+        if (!rebelCommander) rebelCommander = h;
+      }
+      res.garrisonLoyal = !tx.w().province(garrison)->garrison.empty();
+      tx.province(garrison).garrisonLoyalty = res.garrisonLoyal ? 0.0 : schema::kMaxLoyalty;
+    }
+  }
   // Восставшие рабы провинции (с довольством ниже нуля) присоединяются к мятежникам (ТЗ «Мятеж», п.6).
   if (!fleet && province) addSlaveRebels(tx, R, province, rebels);
 
@@ -233,7 +280,7 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked) {
   for (Id aid : emptied)
     if (aid != target) tx.eraseArmy(aid);
   res.loyalArmy = target;
-  res.full = target == 0;
+  res.full = target == 0 && !res.garrisonLoyal;
   res.loyalHeroes = orphanHeroes;
 
   // Войско мятежников рядом с местом мятежа.
@@ -266,14 +313,87 @@ MutinyResult mutiny(Tx& tx, Id army) {
   const Army& a = *tx.w().army(army);
   const Id origin = a.leader();
   const Id province = provinceAtTx(tx, a.pos);
-  // Все войска государства в провинции восстают разом (ТЗ «Мятеж», п.1.3).
+  // Все войска государства в провинции восстают разом (ТЗ «Мятеж», п.1.3), и её гарнизон — по своей верности.
   std::vector<Id> list{army};
   if (province)
     tx.w().armies.each([&](const Army& x) {
       if (x.id == army || x.allied() || x.leader() != origin || x.kind != a.kind) return;
       if (provinceAtTx(tx, x.pos) == province) list.push_back(x.id);
     });
-  return mutinyArmies(tx, list, army);
+  const Province* p = province ? tx.w().province(province) : nullptr;
+  const Id garrison = p && !a.isFleet() && p->owner == origin && p->garrisonLoyalty < 0 && !p->garrison.empty() ? province : 0;
+  return mutinyArmies(tx, list, army, garrison);
+}
+
+// ================================================================ мятеж гарнизона (ТЗ «Доработки», п.1)
+bool canGarrisonMutiny(const World& w, Id province, std::string* why) {
+  auto no = [&](std::string s) {
+    if (why) *why = std::move(s);
+    return false;
+  };
+  const Province* p = w.province(province);
+  if (!p) return no("Провинция не найдена");
+  if (p->sea || !p->owner) return no("У провинции нет гарнизона владельца");
+  const Faction* f = w.faction(p->owner);
+  if (!f || !f->isState()) return no("Мятеж бывает только в гарнизоне государства");
+  if (f->rebelOf) return no("Гарнизон сам мятежный");
+  if (p->garrison.empty()) return no("В гарнизоне нет отрядов");
+  if (p->garrisonLoyalty >= 0) return no("Верность гарнизона не ниже 0 %");
+  return true;
+}
+
+MutinyResult garrisonMutiny(Tx& tx, Id province) {
+  std::string why;
+  if (!canGarrisonMutiny(tx.w(), province, &why)) fail(why);
+  const Id origin = tx.w().province(province)->owner;
+  // Войска владельца в провинции восстают вместе с гарнизоном (каждое — по своей верности).
+  std::vector<Id> list;
+  tx.w().armies.each([&](const Army& x) {
+    if (x.isFleet() || x.allied() || x.leader() != origin) return;
+    if (provinceAtTx(tx, x.pos) == province) list.push_back(x.id);
+  });
+  return mutinyArmies(tx, list, 0, province);
+}
+
+bool willGarrisonDefect(const World& w, Id rebelArmy, Id province) {
+  const Army* r = w.army(rebelArmy);
+  const Province* p = w.province(province);
+  if (!r || !p || r->isFleet() || p->garrison.empty()) return false;
+  const Faction* rf = w.faction(r->leader());
+  return rf && rf->rebelOf && rf->rebelOf == p->owner && p->garrisonLoyalty < 0;
+}
+
+void garrisonDefect(Tx& tx, Id rebelArmy, Id province) {
+  if (!willGarrisonDefect(tx.w(), rebelArmy, province)) fail("Гарнизон не переходит к мятежникам");
+  const Province P = *tx.w().province(province);
+  const Id origin = P.owner, R = tx.w().army(rebelArmy)->leader();
+  const double p = std::min(100.0, -P.garrisonLoyalty);
+  ArmyGroup add{R, {}, {}};
+  i64 moved = 0;
+  std::map<Id, i64> take;
+  for (const GarrisonEntry& g : P.garrison) {
+    const ArmyRow* ar = tx.w().faction(origin)->armyRow(g.row);
+    if (g.count <= 0 || !ar || alwaysLoyal(tx.w(), origin, ar)) continue;
+    i64 n = p >= 100 ? g.count : clamp<i64>(std::llround(double(g.count) * p / 100.0), 0, g.count);
+    if (n > 0) take[g.row] = n;
+  }
+  for (auto& [row, n] : take) {
+    for (GarrisonEntry& g : tx.province(province).garrison)
+      if (g.row == row) g.count -= n;
+    moveUnits(tx, origin, R, false, row, n, add);
+    moved += n;
+  }
+  Province& m = tx.province(province);
+  m.garrison.erase(std::remove_if(m.garrison.begin(), m.garrison.end(), [](const GarrisonEntry& g) { return g.count <= 0; }), m.garrison.end());
+  m.garrisonLoyalty = m.garrison.empty() ? schema::kMaxLoyalty : 0.0;
+  Army& r = tx.army(rebelArmy);
+  for (const ArmyUnit& u : add.units) {
+    auto it = std::find_if(r.groups[0].units.begin(), r.groups[0].units.end(), [&](const ArmyUnit& x) { return x.row == u.row; });
+    if (it != r.groups[0].units.end()) it->count += u.count;
+    else r.groups[0].units.push_back(u);
+  }
+  addLog(tx, LogKind::War, "К " + facName(tx.w(), R) + " перед штурмом перешло " + fmtInt(moved) + " из гарнизона провинции " + provName(tx.w(), province),
+         LogRefs{province, rebelArmy, {origin, R}});
 }
 
 // ================================================================ переход перед боем

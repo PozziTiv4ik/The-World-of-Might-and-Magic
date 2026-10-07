@@ -68,6 +68,13 @@ inline const Base& base() {
         m.fxMask = 0;
         tx.add(std::move(m));
       }
+      // Постройки базового набора (общая «Цитадель Бездны») убираются: тесты строят свои деревья с нуля.
+      for (Id b : tx.w().buildings.ids()) tx.eraseBuilding(b);
+      // Тесты называют ресурс rs5 «Железо» (как в мире до базовых групп ресурсов): названия rs4 и rs5 меняются местами.
+      for (CatalogItem& c : tx.catalogs().resources) {
+        if (c.id == 4) c.name = "Титан";
+        if (c.id == 5) c.name = "Железо";
+      }
     });
     r.w = s.world();
     return r;

@@ -1,9 +1,18 @@
 // Regnum — вкладка «Экономика» (ТЗ 1.e.i, 1.e.ii, 1.d.iv, 1.b.iv): казна и чистый доход, структура доходов и
 // расходов с формулами в подсказках (рабы на работах, торговый флот, маршруты гильдии, содержание рабов), налог
-// государства (≥ 0), таблица ресурсов (запас, добыча, торговля, расход провизии, итог; «Голод»), рабы по расам
-// («Механика войн», п.1: численность, довольство −100…100, содержание 0,001 за раба), дань и репарации и вход в
-// диалог «Навязать дань / репарации». Золото — до тысячных («Фиксы», п.13).
+// государства (≥ 0), провизия государства живых (группа «Провизия» с подгруппами: запас, расход населения поровну с
+// её ресурсов, недостача — «Голод», что будет после хода), таблица ресурсов по группам справочника (сворачиваемые
+// группы с суммами, поиск, «скрыть пустые»; запас правится в строке; приход — добыча, постройки и преобразование,
+// расход — провизия и преобразование; «Золото», «Трупы» и «Демоническая энергия» — всегда первыми), эссенции
+// элементов (запас, генерация построек, содержание элементалей, долг — красным), рабы по расам («Механика войн»,
+// п.1), дань и репарации и вход в диалог «Навязать дань / репарации». Золото и ресурсы — до тысячных.
 #include "app/panels/faction_common.h"
+
+namespace rg::app::edkit {   // editors/modifiers.cpp — фишки с переносом
+void chipsBegin();
+ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
+void chipsEnd();
+}  // namespace rg::app::edkit
 
 namespace rg::app {
 namespace {
@@ -98,96 +107,469 @@ void taxSection(App& a, const Faction& f, Id id, bool ro) {
   }
 }
 
-// Количество за ход в узких столбцах: золото — до тысячных у малых сумм, прочие ресурсы — дробная часть только у малых
-// нецелых значений.
-int flowDigits(Id r, double v) {
-  const double a = std::fabs(v);
-  if (r == kGold) return a < 100 ? 3 : a < 10000 ? 1 : 0;
-  return a < 10 && std::fabs(a - std::round(a)) > 0.05 ? 1 : 0;
+// ---------------------------------------------------------------- ресурсы, провизия, эссенции
+constexpr double kEps = 5e-4;   // меньше половины тысячной — ноль
+
+// Предпочтения вкладки на время работы программы (раскрытие групп, «скрыть пустые», поиск); другой мир или папка
+// данных (сценарий теста) — начинаются заново. Ресурсов ~150: по умолчанию пустые (запас 0 и нет потоков) скрыты —
+// видно, что у государства есть; значок в заголовке показывает все, поиск находит и пустые.
+struct EcoPrefs {
+  u64 session = 0;
+  std::map<Id, bool> open;   // группа ресурсов раскрыта (нет записи — раскрыта, если в ней что-то есть)
+  bool hideEmpty = true, hideEmptyEss = false;
+  std::string query;
+};
+EcoPrefs& prefs(App& a) {
+  static EcoPrefs p;
+  const Meta& m = *a.store.world().meta;
+  const u64 tag = hashMix(hash64(a.dataDir()), hash64(m.createdAt + "|" + m.basemap));
+  if (p.session != tag) p = EcoPrefs{tag};
+  return p;
 }
-std::string flowNum(Id r, double v) { return fmtNum(v, flowDigits(r, v)); }
-std::string flowSigned(Id r, double v) { return fmtSigned(v, flowDigits(r, v)); }
+
+// Приход (добыча и постройки, выход преобразования) и расход (провизия населения, вход преобразования) ресурса.
+double inflow(const rules::ResourceFlow& f) { return f.production + f.conversionOut; }
+double outflow(const rules::ResourceFlow& f) { return f.consumption + f.conversionIn; }
+bool flowEmpty(const rules::ResourceFlow& f) {
+  return std::fabs(f.stock) < kEps && std::fabs(f.production) < kEps && f.tradeIn < kEps && f.tradeOut < kEps && f.consumption < kEps &&
+         f.conversionIn < kEps && f.conversionOut < kEps;
+}
+
+// Ресурсы, которые видны всегда и первыми (ТЗ «Исправления», п.5: «я хочу сразу видеть наличие… "Трупы" и
+// "Демоническая энергия"… что бы я мог сразу начислять изначальные значения»): золото, трупы, демоническая энергия.
+bool pinned(const World& w, Id r) {
+  if (r == kGold) return true;
+  const CatalogItem* c = w.resource(r);
+  return c && (c->key == schema::kResCorpses || c->key == schema::kResEnergy);
+}
+
+// Числа таблицы: до тысячных, лишние нули не пишутся.
+std::string amount(double v) { return std::fabs(v) < kEps ? std::string("0") : money(v); }
+std::string amountSigned(double v) { return std::fabs(v) < kEps ? std::string("0") : moneySigned(v); }
+ui::Ink netInk(double v) { return v > kEps ? ui::Ink::Success : v < -kEps ? ui::Ink::Danger : ui::Ink::Muted; }
+
+// Сумма по группе (с подгруппами): запас, приход, торговля, расход, итог; ресурсов и непустых.
+struct Sums {
+  double stock = 0, in = 0, trade = 0, out = 0, net = 0;
+  int count = 0, filled = 0;
+};
+
+// Строка таблицы: ресурс или заголовок группы (depth — вложенность).
+struct DispRow {
+  bool group = false;
+  Id id = 0;
+  int depth = 0;
+};
+
+struct ResourceView {
+  std::vector<DispRow> rows;
+  std::map<Id, Sums> sums;
+  int filled = 0;               // непустых ресурсов
+  int hidden = 0;               // скрыто пустых («скрыть пустые»)
+  bool anyClosed = false;       // есть свёрнутые группы (для «Развернуть все»)
+};
+
+ResourceView buildRows(App& a, const World& w, const rules::FactionCalc& fc) {
+  EcoPrefs& pf = prefs(a);
+  ResourceView v;
+  const Catalogs& cat = *w.catalogs;
+  auto flowOf = [&](Id r) -> const rules::ResourceFlow* {
+    auto it = fc.resources.find(r);
+    return it == fc.resources.end() ? nullptr : &it->second;
+  };
+  auto empty = [&](Id r) {
+    const rules::ResourceFlow* f = flowOf(r);
+    return !f || flowEmpty(*f);
+  };
+  const std::string q = trim(pf.query);
+  auto matches = [&](Id r) {
+    if (q.empty()) return true;
+    const CatalogItem* c = w.resource(r);
+    const std::string name = r == kGold ? std::string("Золото") : c ? c->name : std::string();
+    return utf8::matches(name, q) || (c && c->group && utf8::matches(rules::groupPath(w, c->group), q));
+  };
+  auto shown = [&](Id r) { return matches(r) && (pinned(w, r) || !q.empty() || !pf.hideEmpty || !empty(r)); };
+  // Суммы групп: ресурс — во всех группах-предках.
+  for (const CatalogItem& c : cat.resources) {
+    const rules::ResourceFlow* f = flowOf(c.id);
+    if (!empty(c.id)) v.filled++;
+    else if (matches(c.id) && !shown(c.id)) v.hidden++;
+    if (pinned(w, c.id) || !c.group) continue;
+    Id g = c.group;
+    for (int guard = 0; g && guard < 64; guard++) {
+      Sums& s = v.sums[g];
+      s.count++;
+      if (f) {
+        s.stock += f->stock;
+        s.in += inflow(*f);
+        s.trade += f->tradeIn - f->tradeOut;
+        s.out += outflow(*f);
+        s.net += f->net;
+        if (!flowEmpty(*f)) s.filled++;
+      }
+      const ResGroup* x = cat.group(g);
+      g = x ? x->parent : 0;
+    }
+  }
+  if (!w.resource(kGold) || shown(kGold)) v.rows.push_back({false, kGold, 0});
+  for (const CatalogItem& c : cat.resources)
+    if (c.id != kGold && pinned(w, c.id) && shown(c.id)) v.rows.push_back({false, c.id, 0});
+  for (const CatalogItem& c : cat.resources)
+    if (!pinned(w, c.id) && (!c.group || !cat.group(c.group)) && shown(c.id)) v.rows.push_back({false, c.id, 0});
+  // Группы деревом: заголовок, подгруппы, затем свои ресурсы группы.
+  std::function<bool(Id, int, std::vector<DispRow>&)> walk = [&](Id g, int depth, std::vector<DispRow>& out) {
+    std::vector<DispRow> inner;
+    bool any = false;
+    for (Id c : rules::childGroups(w, g))
+      if (depth < 16) any = walk(c, depth + 1, inner) || any;
+    for (const CatalogItem& c : cat.resources)
+      if (c.group == g && !pinned(w, c.id) && shown(c.id)) {
+        inner.push_back({false, c.id, depth + 1});
+        any = true;
+      }
+    // Пустая для фильтра группа (поиск, «скрыть пустые») не показывается.
+    if ((!q.empty() || pf.hideEmpty) && !any) return false;
+    out.push_back({true, g, depth});
+    auto it = pf.open.find(g);
+    const bool open = !q.empty() || (it != pf.open.end() ? it->second : v.sums[g].filled > 0);
+    if (!open) v.anyClosed = true;
+    if (open) out.insert(out.end(), inner.begin(), inner.end());
+    return true;
+  };
+  for (Id g : rules::childGroups(w, 0)) walk(g, 0, v.rows);
+  return v;
+}
+
+void resourceTable(App& a, const World& w, const Faction& f, const rules::FactionCalc& fc, Id id, bool ro, ResourceView& v,
+                   std::span<const ui::Column> cols, bool wide);
 
 void resourcesSection(App& a, const World& w, const Faction& f, const rules::FactionCalc& fc, Id id, bool ro) {
-  std::vector<Id> res;
-  for (auto& [r, flow] : fc.resources) {
-    if (!w.resource(r) && r != kGold) continue;
-    res.push_back(r);
+  EcoPrefs& pf = prefs(a);
+  const ui::Theme& th = ui::theme();
+  ResourceView v = buildRows(a, w, fc);
+  ui::Section s("Ресурсы", "resource",
+                {.badge = std::to_string(v.filled), .actionIcon = pf.hideEmpty ? "eye-off" : "eye",
+                 .actionTooltip = pf.hideEmpty ? "Показать все ресурсы" : "Скрыть пустые ресурсы"});
+  {
+    const RectF hr = ui::lastItem().rect;   // заголовок раздела; кнопка — у правого края
+    a.markUi("economy.resources", hr);
+    a.markUi("economy.hideEmpty", RectF{hr.right() - (th.padCard - 4) - 26, hr.cy() - 13, 26, 26});
   }
-  // Золото первым, дальше — по справочнику.
-  auto order = [&](Id r) {
-    const auto& cat = w.catalogs->resources;
-    for (size_t i = 0; i < cat.size(); i++)
-      if (cat[i].id == r) return int(i);
-    return 1 << 20;
-  };
-  std::stable_sort(res.begin(), res.end(), [&](Id x, Id y) {
-    if ((x == kGold) != (y == kGold)) return x == kGold;
-    return order(x) < order(y);
-  });
-  ui::Section s("Ресурсы", "resource", {.badge = std::to_string(res.size())});
+  if (s.action()) pf.hideEmpty = !pf.hideEmpty;
   if (!s) return;
-  {   // таблица заканчивается (и занимает место в потоке) до строк расхода под ней
-    ui::Column cols[] = {{"Ресурс", nullptr, ui::fr(1, 92), ui::Align::Left, true},
-                         {"Запас", nullptr, ui::px(72), ui::Align::Left, true, "Запас ресурса (казна — для золота)"},
-                         {{}, "factory", ui::px(42), ui::Align::Right, true, "Добыча и постройки за ход"},
-                         {{}, "trade", ui::px(46), ui::Align::Right, false, "Торговля за ход: приход / расход"},
-                         {{}, "trend-up", ui::px(64), ui::Align::Right, true, "Итого за ход (с расходом)"}};
-    ui::Table t("resources", cols, int(res.size()), {.rowHeight = 36, .selectable = false, .emptyIcon = "resource", .emptyText = "Ресурсов нет"});
-    auto flowOf = [&](int i) -> const rules::ResourceFlow& { return fc.resources.at(res[size_t(i)]); };
-    t.sort([&](int x, int y, int col) {
-      auto num = [](double u, double v) { return u < v ? -1 : u > v ? 1 : 0; };
-      switch (col) {
-        case 1: return num(flowOf(x).stock, flowOf(y).stock);
-        case 2: return num(flowOf(x).production, flowOf(y).production);
-        case 4: return num(flowOf(x).net, flowOf(y).net);
-        default: return compareRu(resourceName(w, res[size_t(x)]), resourceName(w, res[size_t(y)]));
-      }
-    });
-    for (int i : t) {
-      const Id r = res[size_t(i)];
-      const rules::ResourceFlow& fl = flowOf(i);
-      ui::IdScope sc{i64(r)};
-      t.cell();
-      {
-        ui::Row rr({ui::px(16), ui::fr(1)}, 22, 5);
-        ui::iconColored(w::resourceIcon(w, r), w::resourceColor(w, r), 16);
-        ui::label(resourceName(w, r), {.font = r == kGold ? ui::Font::Strong : ui::Font::Body});
-      }
-      t.cell();
-      double stock = r == kGold ? f.treasury() : f.stock(r);
-      ui::NumberOpt no;
-      no.min = r == kGold ? -1e12 : 0;   // казна может уйти в долг, прочие ресурсы — нет
-      no.max = 1e12;
-      no.step = r == kGold ? 10 : 1;
-      no.digits = 3;                      // золото — до тысячных
-      no.disabled = ro;
-      no.tooltip = r == kGold ? "Казна" : "Запас ресурса";
-      if (ui::numberField("stock", stock, no))
-        a.act(r == kGold ? "Казна" : "Запас ресурса", [&](Tx& tx) { tx.faction(id).res[r] = r == kGold ? stock : std::max(0.0, stock); },
-              {.coalesce = "faction.res:" + std::to_string(id) + ":" + std::to_string(r)});
-      a.markUi("economy.stock." + std::to_string(r));
-      t.text(fl.production > 0 ? flowNum(r, fl.production) : std::string("—"), fl.production > 0 ? ui::Ink::Normal : ui::Ink::Muted, ui::Font::Small);
-      std::string tr;
-      if (fl.tradeIn > 0) tr += "+" + flowNum(r, fl.tradeIn);
-      if (fl.tradeOut > 0) tr += (tr.empty() ? "" : " ") + flowSigned(r, -fl.tradeOut);
-      t.text(tr.empty() ? std::string("—") : tr, tr.empty() ? ui::Ink::Muted : ui::Ink::Dim, ui::Font::Small);
-      ui::Ink ni = fl.net > 5e-4 ? ui::Ink::Success : fl.net < -5e-4 ? ui::Ink::Danger : ui::Ink::Muted;
-      t.text(std::fabs(fl.net) < 5e-4 ? std::string("0") : flowSigned(r, fl.net), ni, ui::Font::Small);
+  {
+    ui::Row r({ui::fr(1), ui::px(30)}, 30, 6);
+    ui::searchField("resq", pf.query, "Найти ресурс");
+    a.markUi("economy.search");
+    // Все группы — раскрыть или свернуть.
+    if (ui::iconButton(v.anyClosed ? "expand" : "collapse", v.anyClosed ? "Развернуть все группы" : "Свернуть все группы")) {
+      const bool open = v.anyClosed;
+      for (const ResGroup& g : w.catalogs->resGroups) pf.open[g.id] = open;
     }
+    a.markUi("economy.groupsAll");
   }
-  // Расход ресурсов (провизия государства живых: 0,001 на жителя за ход) — строкой под таблицей.
-  for (Id r : res) {
-    const rules::ResourceFlow& fl = fc.resources.at(r);
-    if (!(fl.consumption > 0)) continue;
-    ui::IdScope sc{i64(r)};
-    {
-      ui::Row row({ui::px(18), ui::fr(1), ui::px(108)}, 26, 8);
-      ui::iconColored(w::resourceIcon(w, r), w::resourceColor(w, r), 16);
-      ui::label("Расход: " + resourceName(w, r), {.ink = ui::Ink::Dim, .tooltip = "За ход: 0,001 на жителя государства живых"});
-      ui::label(fmtSigned(-fl.consumption, 3), {.font = ui::Font::Strong, .ink = ui::Ink::Danger, .align = ui::Align::Right});
+  // Сколько пустых скрыто — ссылка показывает все (то же, что значок в заголовке).
+  auto hiddenLink = [&] {
+    if (!v.hidden) return;
+    if (ui::link("Пустые ресурсы: " + std::to_string(v.hidden), "eye")) pf.hideEmpty = false;
+    a.markUi("economy.showEmpty");
+  };
+  if (v.rows.empty()) {
+    ui::label("Ничего не найдено", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    hiddenLink();
+    return;
+  }
+  const bool wide = ui::avail().w >= 620;
+  ui::Column wideCols[] = {{"Ресурс", nullptr, ui::fr(1, 140)},
+                           {"Запас", nullptr, ui::px(110), ui::Align::Left, false, "Запас ресурса (у золота — казна)"},
+                           {{}, "factory", ui::px(84), ui::Align::Right, false, "Приход за ход: добыча, постройки, преобразование"},
+                           {{}, "trade", ui::px(92), ui::Align::Right, false, "Торговля за ход: приход и расход"},
+                           {{}, "expense", ui::px(84), ui::Align::Right, false, "Расход за ход: провизия населения, преобразование"},
+                           {{}, "trend-up", ui::px(92), ui::Align::Right, false, "Итого за ход"}};
+  // Узкая панель справа от карты: название, запас, итог (приход, торговля и расход — в подсказке итога).
+  ui::Column narrowCols[] = {{"Ресурс", nullptr, ui::fr(1, 100)},
+                             {"Запас", nullptr, ui::px(88), ui::Align::Left, false, "Запас ресурса (у золота — казна)"},
+                             {{}, "trend-up", ui::px(76), ui::Align::Right, false, "Итого за ход"}};
+  const std::span<const ui::Column> cols = wide ? std::span<const ui::Column>(wideCols) : std::span<const ui::Column>(narrowCols);
+  resourceTable(a, w, f, fc, id, ro, v, cols, wide);
+  hiddenLink();
+}
+
+// Таблица ресурсов раздела: строки групп (свернуть, суммы) и ресурсов (запас — правка в строке).
+void resourceTable(App& a, const World& w, const Faction& f, const rules::FactionCalc& fc, Id id, bool ro, ResourceView& v,
+                   std::span<const ui::Column> cols, bool wide) {
+  EcoPrefs& pf = prefs(a);
+  const ui::Theme& th = ui::theme();
+  ui::Table t("resources", cols, int(v.rows.size()), {.rowHeight = 36, .selectable = false, .emptyIcon = "resource", .emptyText = "Ресурсов нет"});
+  for (int i : t) {
+    const DispRow& row = v.rows[size_t(i)];
+    const float indent = float(row.depth) * (wide ? 16 : 10);
+    if (row.group) {
+      // Заголовок группы: щелчок по строке — свернуть или раскрыть; суммы по группе с подгруппами.
+      const Id g = row.id;
+      const ResGroup* gr = w.catalogs->group(g);
+      const Sums& sm = v.sums[g];
+      auto it = pf.open.find(g);
+      const bool open = !trim(pf.query).empty() || (it != pf.open.end() ? it->second : sm.filled > 0);
+      a.markUi("economy.group." + std::to_string(g), t.rowRect());
+      bool toggle = t.clicked() == i, hover = t.hovered() == i;
+      ui::draw::rect(t.rowRect(), th.text.alpha(row.depth == 0 ? 0.05f : 0.025f), 6);
+      const RectF cr = t.cell();
+      float x = cr.x + indent;
+      ui::draw::icon(open ? "chevron-down" : "chevron-right", RectF{x, cr.cy() - 7, 14, 14}, th.textMuted);
+      x += 18;
+      if (wide) {   // в узкой панели место — названию
+        ui::draw::icon(open ? "folder-open" : "folder", RectF{x, cr.cy() - 8, 16, 16}, row.depth == 0 ? th.accent : th.textDim);
+        x += 22;
+      }
+      const std::string name = gr && !gr->name.empty() ? gr->name : std::string("Без названия");
+      const ui::Font nf = row.depth == 0 ? ui::Font::Strong : ui::Font::Body;
+      // Число непустых ресурсов группы из всех — если хватает места после названия.
+      const std::string cnt = std::to_string(sm.filled) + "/" + std::to_string(sm.count);
+      const float room = std::max(0.f, cr.right() - x), nw = ui::measure(name, nf) + 2, cw = ui::measure(cnt, ui::Font::Caption) + 4;
+      ui::draw::text(name, RectF{x, cr.y, std::min(nw, room), cr.h}, nf, th.text);
+      if (nw + 8 + cw <= room) ui::draw::text(cnt, RectF{x + nw + 8, cr.y + 1, cw, cr.h}, ui::Font::Caption, th.textMuted);
+      ui::at(RectF{cr.x, cr.y, cr.w, cr.h});
+      ui::label("##group", {.font = ui::Font::Display, .tooltip = rules::groupPath(w, g) + ": " + cnt + " с запасом или потоком"});
+      // Щелчок по строке (и по названию под подсказкой) — свернуть или раскрыть.
+      toggle = toggle || ui::lastItem().clicked;
+      hover = hover || ui::lastItem().hovered;
+      if (toggle) pf.open[g] = !open;
+      if (hover) ui::setCursor(platform::Cursor::Hand);
+      t.text(amount(sm.stock), ui::Ink::Dim, ui::Font::Strong);
+      if (wide) {
+        t.text(sm.in > kEps ? amount(sm.in) : std::string("—"), sm.in > kEps ? ui::Ink::Dim : ui::Ink::Muted, ui::Font::Small);
+        t.text(std::fabs(sm.trade) > kEps ? amountSigned(sm.trade) : std::string("—"), ui::Ink::Muted, ui::Font::Small);
+        t.text(sm.out > kEps ? amountSigned(-sm.out) : std::string("—"), sm.out > kEps ? ui::Ink::Danger : ui::Ink::Muted, ui::Font::Small);
+      }
+      t.text(amountSigned(sm.net), netInk(sm.net), ui::Font::Small);
+      continue;
     }
-    a.markUi("economy.use." + std::to_string(r));
+    // Ресурс: значок цвета ресурса, название (с отступом группы), запас — правка в строке.
+    const Id r = row.id;
+    const CatalogItem* ci = w.resource(r);
+    auto fit = fc.resources.find(r);
+    const rules::ResourceFlow fl = fit == fc.resources.end() ? rules::ResourceFlow{} : fit->second;
+    ui::IdScope sc{i64(r)};
+    a.markUi("economy.res." + std::to_string(r), t.rowRect());
+    {
+      const RectF cr = t.cell();
+      const float x = cr.x + indent;
+      ui::draw::icon(w::resourceIcon(w, r), RectF{x, cr.cy() - 8, 16, 16}, w::resourceColor(w, r));
+      const std::string name = r == kGold ? std::string("Золото") : resourceName(w, r);
+      ui::draw::text(name, RectF{x + 22, cr.y, std::max(0.f, cr.right() - x - 22), cr.h}, pinned(w, r) ? ui::Font::Strong : ui::Font::Body, th.text);
+      // Подсказка — название (в узкой панели обрезается) и группа ресурса (видно в поиске).
+      ui::at(RectF{x, cr.y, std::max(0.f, cr.right() - x), cr.h});
+      ui::label("##name", {.font = ui::Font::Display, .tooltip = ci && ci->group ? name + "\n" + rules::groupPath(w, ci->group) : name});
+    }
+    t.cell();
+    double stock = r == kGold ? f.treasury() : f.stock(r);
+    ui::NumberOpt no;
+    no.min = r == kGold ? -1e12 : 0;   // казна может уйти в долг, прочие ресурсы — нет
+    no.max = 1e12;
+    no.step = r == kGold ? 10 : 1;
+    no.digits = 3;                      // золото и ресурсы — до тысячных
+    no.disabled = ro;
+    no.tooltip = r == kGold ? "Казна" : "Запас ресурса";
+    if (ui::numberField("stock", stock, no))
+      a.act(r == kGold ? "Казна" : "Запас ресурса", [&](Tx& tx) { tx.faction(id).res[r] = r == kGold ? stock : std::max(0.0, stock); },
+            {.coalesce = "faction.res:" + std::to_string(id) + ":" + std::to_string(r)});
+    a.markUi("economy.stock." + std::to_string(r));
+    const double in = inflow(fl), out = outflow(fl);
+    std::string inTip = "Добыча и постройки: " + amount(fl.production);
+    if (fl.conversionOut > kEps) inTip += "\nПреобразование: +" + amount(fl.conversionOut);
+    std::string outTip;
+    if (fl.consumption > kEps) outTip = "Провизия населения: " + amount(fl.consumption);
+    if (fl.conversionIn > kEps) outTip += (outTip.empty() ? "" : "\n") + std::string("Преобразование: ") + amount(fl.conversionIn);
+    std::string tr;
+    if (fl.tradeIn > kEps) tr += "+" + amount(fl.tradeIn);
+    if (fl.tradeOut > kEps) tr += (tr.empty() ? "" : " ") + amountSigned(-fl.tradeOut);
+    if (wide) {
+      t.cell();
+      ui::label(in > kEps ? amount(in) : std::string("—"),
+                {.font = ui::Font::Small, .ink = in > kEps ? ui::Ink::Normal : ui::Ink::Muted, .align = ui::Align::Right, .tooltip = in > kEps ? inTip : std::string()});
+      a.markUi("economy.in." + std::to_string(r));
+      t.text(tr.empty() ? std::string("—") : tr, tr.empty() ? ui::Ink::Muted : ui::Ink::Dim, ui::Font::Small);
+      t.cell();
+      ui::label(out > kEps ? amountSigned(-out) : std::string("—"),
+                {.font = ui::Font::Small, .ink = out > kEps ? ui::Ink::Danger : ui::Ink::Muted, .align = ui::Align::Right, .tooltip = outTip});
+      a.markUi("economy.use." + std::to_string(r));
+    }
+    t.cell();
+    std::string netTip;
+    if (!wide) {   // узкая панель: приход, торговля и расход — в подсказке итога
+      netTip = inTip;
+      if (!tr.empty()) netTip += "\nТорговля: " + tr;
+      if (!outTip.empty()) netTip += "\n" + outTip;
+    }
+    ui::label(amountSigned(fl.net), {.font = ui::Font::Small, .ink = netInk(fl.net), .align = ui::Align::Right, .tooltip = netTip});
+    a.markUi("economy.net." + std::to_string(r));
+  }
+}
+
+// Провизия государства живых (ТЗ «Добавления в справочники», п.3): все ресурсы группы «Провизия» с подгруппами;
+// расход населения — поровну с тех, что есть у государства; недостача держит «Голод».
+void provisionSection(App& a, const World& w, const Faction& f, const rules::FactionCalc& fc) {
+  if (!f.isState() || f.stateKind != StateKind::Living) return;
+  const std::vector<Id> provs = rules::provisionResources(w);
+  double after = 0;
+  std::vector<std::pair<Id, double>> use;
+  for (Id r : provs) {
+    auto it = fc.resources.find(r);
+    if (it == fc.resources.end()) continue;
+    after += std::max(0.0, it->second.stock + it->second.net);
+    if (it->second.consumption > kEps) use.push_back({r, it->second.consumption});
+  }
+  const bool famineNow = fc.provisionDebt > kEps, famineNext = fc.provisionDebtNext > kEps;
+  ui::Section s("Провизия", "grain", {.badge = famineNow || famineNext ? "Голод" : std::string()});
+  a.markUi("economy.provision");
+  if (!s) return;
+  const std::string stockTip = "Запас ресурсов группы «Провизия» с подгруппами: " + std::to_string(provs.size()) + " " +
+                               plural(i64(provs.size()), "ресурс", "ресурса", "ресурсов");
+  const std::string needTip = "0,001 на жителя: " + fmtNum(double(fc.population)) + " " + plural(fc.population, "житель", "жителя", "жителей");
+  const char* debtTip = "Недостача прошлых ходов: пока она больше нуля — «Голод»";
+  if (ui::avail().w >= 420) {
+    ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
+    ui::stat(amount(fc.provisionStock), "Запас", {.icon = "grain", .tone = ui::Tone::Accent, .tooltip = stockTip});
+    a.markUi("economy.provision.stock");
+    ui::stat(amountSigned(-fc.provisionNeed), "Расход за ход", {.icon = "population", .tone = ui::Tone::Warning, .tooltip = needTip});
+    a.markUi("economy.provision.need");
+    ui::stat(amount(fc.provisionDebt), "Недостача", {.icon = "warning", .tone = famineNow ? ui::Tone::Danger : ui::Tone::Neutral, .tooltip = debtTip});
+    a.markUi("economy.provision.debt");
+  } else {
+    // Узкая панель: строки «значок — подпись — число».
+    const ui::Theme& th = ui::theme();
+    auto line = [&](const char* icon, Color ic, std::string_view label, const std::string& value, ui::Ink ink, std::string_view tip, const char* mark) {
+      ui::IdScope sc(label);
+      ui::Row row({ui::px(18), ui::fr(1), ui::px(110)}, 26, 8);
+      ui::iconColored(icon, ic, 16);
+      ui::label(label, {.ink = ui::Ink::Dim, .tooltip = tip});
+      ui::label(value, {.font = ui::Font::Strong, .ink = ink, .align = ui::Align::Right});
+      a.markUi(mark);
+    };
+    line("grain", th.accent, "Запас", amount(fc.provisionStock), ui::Ink::Normal, stockTip, "economy.provision.stock");
+    line("population", th.warning, "Расход за ход", amountSigned(-fc.provisionNeed), ui::Ink::Normal, needTip, "economy.provision.need");
+    line("warning", famineNow ? th.danger : th.textMuted, "Недостача", amount(fc.provisionDebt), famineNow ? ui::Ink::Danger : ui::Ink::Muted, debtTip,
+         "economy.provision.debt");
+  }
+  {
+    // После хода: запас и недостача (расход берётся из запаса и добычи этого хода).
+    ui::HStack hs(26, ui::Align::Left, 6);
+    ui::icon("next-turn", ui::Ink::Muted, 16, "После хода");
+    ui::tag("Запас " + amount(after), ui::Tone::Neutral, "grain");
+    a.markUi("economy.provision.after");
+    if (famineNext) ui::tag("Недостача " + amount(fc.provisionDebtNext), ui::Tone::Danger, "warning");
+    else ui::tag("Без недостачи", ui::Tone::Success, "check");
+    a.markUi("economy.provision.debtNext");
+  }
+  // Расход по ресурсам: поровну со всех ресурсов провизии, что есть у государства.
+  if (!use.empty()) {
+    const std::string tip = use.size() > 1 ? "Расход провизии поровну: " + std::to_string(use.size()) + " " +
+                                                 plural(i64(use.size()), "ресурс", "ресурса", "ресурсов")
+                                           : std::string("Весь расход провизии — с этого ресурса");
+    edkit::chipsBegin();
+    for (auto [r, v] : use) {
+      ui::IdScope sc{i64(r)};
+      ui::ChipOpt co;
+      co.icon = w::resourceIcon(w, r);
+      co.tone = ui::Tone::Danger;
+      co.tooltip = tip;
+      edkit::chip(resourceName(w, r) + " " + amountSigned(-v), co);
+      a.markUi("economy.provision.use." + std::to_string(r));
+    }
+    edkit::chipsEnd();
+  }
+}
+
+// Эссенции элементов (ТЗ «Добавления в справочники», п.2; «Ввод новых механик», п.3.2): запас — правка числа
+// (rules::setEssence), генерация построек, содержание элементалей, итог; долг (отрицательный запас) — красным.
+void essenceSection(App& a, const World& w, const Faction& f, const rules::FactionCalc& fc, Id id, bool ro) {
+  EcoPrefs& pf = prefs(a);
+  const ui::Theme& th = ui::theme();
+  struct Row {
+    Id e;
+    rules::EssenceFlow fl;
+  };
+  std::vector<Row> rows;
+  int filled = 0, debts = 0;
+  for (const CatalogItem& e : w.catalogs->essences) {
+    auto it = fc.essences.find(e.id);
+    const rules::EssenceFlow fl = it == fc.essences.end() ? rules::EssenceFlow{f.essence(e.id)} : it->second;
+    const bool empty = std::fabs(fl.stock) < kEps && fl.generation < kEps && fl.upkeep < kEps;
+    if (!empty) filled++;
+    if (fl.stock < -kEps || fl.stock + fl.net < -kEps) debts++;
+    if (pf.hideEmptyEss && empty) continue;
+    rows.push_back({e.id, fl});
+  }
+  ui::Section s("Эссенции элементов", "essence",
+                {.defaultOpen = filled > 0, .badge = std::to_string(filled), .actionIcon = pf.hideEmptyEss ? "eye-off" : "eye",
+                 .actionTooltip = pf.hideEmptyEss ? "Показать все эссенции" : "Скрыть пустые эссенции"});
+  {
+    const RectF hr = ui::lastItem().rect;
+    a.markUi("economy.ess", hr);
+    a.markUi("economy.essHide", RectF{hr.right() - (th.padCard - 4) - 26, hr.cy() - 13, 26, 26});
+  }
+  if (s.action()) pf.hideEmptyEss = !pf.hideEmptyEss;
+  if (!s) return;
+  if (w.catalogs->essences.empty()) {
+    ui::label("Справочник эссенций пуст", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    return;
+  }
+  if (debts) ui::tag("Долг: " + std::to_string(debts), ui::Tone::Danger, "warning");
+  if (rows.empty()) {
+    ui::label("Эссенций нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    return;
+  }
+  const bool wide = ui::avail().w >= 520;
+  ui::Column wideCols[] = {{"Эссенция", nullptr, ui::fr(1, 140)},
+                           {"Запас", nullptr, ui::px(110), ui::Align::Left, false, "Запас эссенции; содержание элементалей может увести его в долг"},
+                           {{}, "building", ui::px(84), ui::Align::Right, false, "Генерация построек за ход"},
+                           {{}, "u-elementals", ui::px(84), ui::Align::Right, false, "Содержание элементалей за ход"},
+                           {{}, "trend-up", ui::px(92), ui::Align::Right, false, "Итого за ход"}};
+  ui::Column narrowCols[] = {{"Эссенция", nullptr, ui::fr(1, 90)},
+                             {"Запас", nullptr, ui::px(88), ui::Align::Left, false, "Запас эссенции; содержание элементалей может увести его в долг"},
+                             {{}, "trend-up", ui::px(76), ui::Align::Right, false, "Итого за ход"}};
+  const std::span<const ui::Column> cols = wide ? std::span<const ui::Column>(wideCols) : std::span<const ui::Column>(narrowCols);
+  ui::Table t("essences", cols, int(rows.size()), {.rowHeight = 36, .selectable = false});
+  for (int i : t) {
+    const Row& row = rows[size_t(i)];
+    const CatalogItem* e = w.essence(row.e);
+    const bool debt = row.fl.stock < -kEps, debtNext = row.fl.stock + row.fl.net < -kEps;
+    ui::IdScope sc{i64(row.e)};
+    {
+      const RectF cr = t.cell();
+      ui::draw::icon("essence", RectF{cr.x, cr.cy() - 8, 16, 16}, w::essenceColor(w, row.e));
+      const std::string name = e && !e->name.empty() ? e->name : std::string("Без названия");
+      ui::draw::text(name, RectF{cr.x + 22, cr.y, std::max(0.f, cr.w - 22 - (debt || debtNext ? 20 : 0)), cr.h}, ui::Font::Body,
+                     debt ? th.danger : th.text);
+      if (debt || debtNext) {
+        const RectF ir{cr.right() - 16, cr.cy() - 8, 16, 16};
+        ui::draw::icon("warning", ir, debt ? th.danger : th.warning);
+        ui::at(ir);
+        ui::label("##debt", {.font = ui::Font::Display,
+                             .tooltip = debt ? "Долг эссенции: содержание элементалей больше запаса" : "После хода запас уйдёт в долг"});
+      }
+    }
+    t.cell();
+    double v = row.fl.stock;
+    if (ui::numberField("ess", v, {.min = -1e15, .max = 1e15, .step = 1, .digits = 3, .disabled = ro, .tooltip = "Запас эссенции"})) {
+      const Id ess = row.e;
+      a.act("Запас эссенции", [&](Tx& tx) { rules::setEssence(tx, id, ess, v); },
+            {.coalesce = "faction.ess:" + std::to_string(id) + ":" + std::to_string(ess)});
+    }
+    if (debt) ui::draw::rectStroke(ui::lastItem().rect, th.danger, th.radiusField, 1.5f);   // долг — красным
+    a.markUi("economy.ess." + std::to_string(row.e));
+    if (wide) {
+      t.text(row.fl.generation > kEps ? "+" + amount(row.fl.generation) : std::string("—"), row.fl.generation > kEps ? ui::Ink::Success : ui::Ink::Muted,
+             ui::Font::Small);
+      t.text(row.fl.upkeep > kEps ? amountSigned(-row.fl.upkeep) : std::string("—"), row.fl.upkeep > kEps ? ui::Ink::Danger : ui::Ink::Muted,
+             ui::Font::Small);
+    }
+    t.cell();
+    std::string tip;
+    if (!wide) tip = "Генерация: +" + amount(row.fl.generation) + "\nСодержание элементалей: " + amountSigned(-row.fl.upkeep);
+    ui::label(amountSigned(row.fl.net), {.font = ui::Font::Small, .ink = netInk(row.fl.net), .align = ui::Align::Right, .tooltip = tip});
+    a.markUi("economy.essNet." + std::to_string(row.e));
   }
 }
 
@@ -376,26 +758,39 @@ void drawEconomy(App& a, Id id) {
                                                     .tone = fc->net >= 0 ? ui::Tone::Success : ui::Tone::Danger,
                                                     .tooltip = "Доходы − расходы за ход; прибавляется к казне при завершении хода"});
   }
-  // Голод (ТЗ «Общие доработки», п.7): запас провизии меньше нуля.
-  if (fc->famine) {
+  // Голод (ТЗ «Добавления в справочники», п.3): недостача провизии — сейчас или после хода.
+  if (fc->famine || fc->provisionDebtNext > kEps) {
     ui::HStack hs(26, ui::Align::Left, 6);
-    const Modifier* m = rules::builtinMod(w, schema::mod::Famine);
-    ui::tag(m && !m->name.empty() ? m->name : std::string("Голод"), ui::Tone::Danger, "warning");
-    ui::tooltip("Запас провизии меньше нуля: действует модификатор «Голод»");
-    a.markUi("economy.famine");
+    if (fc->famine) {
+      const Modifier* m = rules::builtinMod(w, schema::mod::Famine);
+      ui::tag(m && !m->name.empty() ? m->name : std::string("Голод"), ui::Tone::Danger, "warning");
+      ui::tooltip("Недостача провизии " + amount(fc->provisionDebt) + ": действует модификатор «Голод»");
+      a.markUi("economy.famine");
+    } else {
+      ui::tag("Голод после хода", ui::Tone::Warning, "warning");
+      ui::tooltip("Провизии не хватит на расход населения: недостача " + amount(fc->provisionDebtNext));
+      a.markUi("economy.famineNext");
+    }
   }
   ui::spacer(2);
   moneyCards(*f, *fc);
   taxSection(a, *f, id, ro);
+  provisionSection(a, w, *f, *fc);
   resourcesSection(a, w, *f, *fc, id, ro);
+  essenceSection(a, w, *f, *fc, id, ro);
   slavesSection(a, w, *f, *fc, id, ro);
   tributeSection(a, w, id, ro);
 }
 
+// Точка на значке вкладки: казна убывает, голод (сейчас или после хода), эссенция в долгу (сейчас или после хода).
 int economyBadge(App& a, Id id) {
   auto calc = rules::calc(a.world());
   const rules::FactionCalc* fc = calc->faction(id);
-  return fc && (fc->net < -0.5 || fc->famine) ? -1 : 0;
+  if (!fc) return 0;
+  if (fc->net < -0.5 || fc->famine || fc->provisionDebtNext > kEps) return -1;
+  for (auto& [e, fl] : fc->essences)
+    if (fl.stock + fl.net < -kEps) return -1;
+  return 0;
 }
 
 TabReg tab({kTabEconomy, "treasury", "Экономика", 30, SelType::Faction, nullptr, drawEconomy, economyBadge});

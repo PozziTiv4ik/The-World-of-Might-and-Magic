@@ -1,5 +1,5 @@
 // Сценарии ресурсов построек (ТЗ «Виды государств», п.4, 8): у уровня в дереве построек — «Даёт за ход» (любые
-// ресурсы, в том числе трупы и демоническая энергия — встроенный ресурс создаётся при выборе), количество до
+// ресурсы, в том числе трупы и демоническая энергия — они есть в справочнике с создания мира), количество до
 // тысячных; достроенный уровень даёт ресурсы владельцу каждый ход (золото — в доход), видно во вкладке «Постройки»
 // провинции, в выборе строительства и во вкладке «Экономика» провинции.
 #include "app/editors/buildings.h"
@@ -64,14 +64,15 @@ TEST(app_economy_building_produce) {
         }
   });
   CHECK(bid && pid && owner && lvl > 0);
-  CHECK_EQ(rules::resourceId(h->world(), schema::kResCorpses), Id(0));
+  // Трупы — встроенный ресурс справочника с создания мира (сразу видно наличие у государства).
+  const Id corpses = rules::resourceId(h->world(), schema::kResCorpses);
+  CHECK(corpses != 0);
+  CHECK(!h->world().building(bid)->levels[size_t(lvl - 1)].produce.count(corpses));
   const std::string L = "bt.level." + std::to_string(lvl - 1);
   app::openBuildingTree(h.a(), 0, bid);
   h.settle();
-  // Трупы: встроенного ресурса ещё нет — создаётся при выборе.
   CHECK(pickResource(h, L + ".addproduce", "Трупы"));
-  const Id corpses = rules::resourceId(h->world(), schema::kResCorpses);
-  CHECK(corpses != 0);
+  CHECK_EQ(rules::resourceId(h->world(), schema::kResCorpses), corpses);
   CHECK_NEAR(h->world().building(bid)->levels[size_t(lvl - 1)].produce.at(corpses), 1, 1e-12);
   CHECK(typeSide(h, L + ".produce." + std::to_string(corpses), "2,5"));
   CHECK_NEAR(h->world().building(bid)->levels[size_t(lvl - 1)].produce.at(corpses), 2.5, 1e-12);

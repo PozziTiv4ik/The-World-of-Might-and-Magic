@@ -102,10 +102,14 @@ struct HeroFateDialog final : Dialog {
         const Character& c = *w.character(h);
         ui::IdScope s{i64(h)};
         ui::Row r({ui::px(38), ui::fr(1, 120), ui::px(300)}, rowH, 10);
-        ui::avatar(c.name.empty() ? std::string("?") : c.name, {.color = w::factionColor(w, c.faction), .size = 38});
+        // Портрет в круге (лицо — ближе к верху); без портрета — инициалы на цвете фракции.
+        w::heroAvatar(c, 38, false, {}, w::factionColor(w, c.faction));
+        a.markUi("fate.avatar." + std::to_string(h));
         {
           ui::Group g(0, 2);
-          ui::label(c.name.empty() ? std::string("Без имени") : c.name, {.font = ui::Font::Strong});
+          const std::string name = c.name.empty() ? std::string("Без имени") : c.name;
+          const float room = ui::avail().w;
+          ui::label(name, {.font = ui::Font::Strong, .tooltip = ui::measure(name, ui::Font::Strong) > room ? std::string_view(name) : std::string_view()});
           ui::HStack hs(18, ui::Align::Left, 6);
           mil::factionFlag(w, c.faction, 22, 15);
           ui::label(w.factionName(c.faction), {.font = ui::Font::Small, .ink = ui::Ink::Dim});

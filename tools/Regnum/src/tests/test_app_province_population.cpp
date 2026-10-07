@@ -173,11 +173,11 @@ TEST(app_province_culture_religion) {
     h.key(Key::Z, ctrl());
     CHECK_EQ(prov(h, pid)->culture, was);
   }
-  // Религия «не указана».
+  // Религия «не указана» (базовых религий больше 60: к началу списка — несколько страниц вверх).
   const RectF* re = h->uiRect("province.religion");
   CHECK(re != nullptr);
   h.click(re->cx(), re->cy());
-  h.key(Key::PageUp);
+  for (int i = 0; i < 10; i++) h.key(Key::PageUp);
   h.key(Key::Enter);
   h.settle();
   CHECK_EQ(prov(h, pid)->religion, Id(0));

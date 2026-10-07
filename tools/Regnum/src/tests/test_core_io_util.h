@@ -66,12 +66,12 @@ inline World richWorld() {
     it.icon = icon;
     return it;
   };
-  c.resources.push_back(item(7, "Мифрил ✨", 0x9fd3ff, "gem"));
+  c.resources.push_back(item(900, "Мифрил ✨", 0x9fd3ff, "gem"));
   c.races = {item(1, "Люди", 0xd9b38c, "person"), item(2, "Эльфы 🧝", 0x7fbf7f, "leaf")};
   c.cultures = {item(1, "Северная", 0x6688aa, "snow"), item(3, "Южная", 0xaa8866, "sun")};
   c.religions = {item(2, "Культ Солнца", 0xffcc33, "sun")};
   c.governments[1].color = Color(10, 20, 30, 128);  // полупрозрачный цвет
-  m.seq[int(Seq::Resource)] = 7;
+  m.seq[int(Seq::Resource)] = 900;
   m.seq[int(Seq::Race)] = 2;
   m.seq[int(Seq::Culture)] = 3;
   m.seq[int(Seq::Religion)] = 2;
@@ -102,7 +102,7 @@ inline World richWorld() {
   f1.capital = 1;
   f1.army = {{1, "Гвардия", UnitType::HeavyInf, 1200, 1.5}, {2, "Конные лучники", UnitType::LightCav, 300, 2.25}};
   f1.fleet = {{3, "Северная эскадра", ShipType::ShipOfLine, 12, 40}};
-  f1.res = {{kGold, 15000.5}, {2, 320}, {7, 3}};
+  f1.res = {{kGold, 15000.5}, {2, 320}, {900, 3}};
   f1.modifiers = {1};
   f1.tax = 15;
   f1.notes = "Заметки фракции";
@@ -354,7 +354,7 @@ inline World richWorld() {
   d1.kind = DealKind::Trade;
   d1.a = 1;
   d1.b = 3;
-  d1.items = {DealItem{DealSide::A, kGold, 500, DealMode::Once, 1, 0}, DealItem{DealSide::B, 7, 2.5, DealMode::PerTurn, 5, 3}};
+  d1.items = {DealItem{DealSide::A, kGold, 500, DealMode::Once, 1, 0}, DealItem{DealSide::B, 900, 2.5, DealMode::PerTurn, 5, 3}};
   d1.turn = 4;
   d1.status = DealStatus::Done;
   d1.note = "Сделка";

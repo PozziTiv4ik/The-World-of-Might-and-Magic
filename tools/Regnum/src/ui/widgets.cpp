@@ -92,6 +92,7 @@ void label(std::string_view txt, const LabelOpt& o) {
   float is = o.font >= Font::Title ? 22.f : 16.f;
   float iconW = o.icon ? is + 6 : 0;
   RectF r;
+  bool cut = false;   // обрезано многоточием — полный текст в подсказке
   if (o.wrap) {
     RectF a = c.oneShot ? *c.oneShot : avail();
     float w = std::max(1.f, a.w - iconW);
@@ -99,6 +100,7 @@ void label(std::string_view txt, const LabelOpt& o) {
     r = place(0, std::max(lh, te->layout.height));
     if (o.icon) cmdIcon(o.icon, RectF{r.x, r.y + (lh - is) * 0.5f, is, is}, iconCol);
     cmdText(te, r.x + iconW, r.y, col);
+    cut = te->layout.truncated;
   } else {
     float tw = textWidth(s, st);
     r = place(o.align == Align::Left ? std::ceil(tw + iconW) : 0, lh);
@@ -111,6 +113,7 @@ void label(std::string_view txt, const LabelOpt& o) {
       x += iconW;
     }
     textIn(s, RectF{x, r.y, std::max(0.f, r.right() - x), r.h}, st, col);
+    cut = textCut(s, std::max(0.f, r.right() - x), st);
   }
   if (!o.tooltip.empty()) {
     // ID — текст вместе с подсказкой: одинаковые числа рядом («10 %» налога государства и общего) с разными
@@ -118,10 +121,12 @@ void label(std::string_view txt, const LabelOpt& o) {
     WidgetId wid = hashMix(id(txt), hash64(o.tooltip, 0x1abe1ull));
     Interaction it = interact(wid, r);
     setLast(wid, r, it);
-    tooltip(o.tooltip);
+    if (cut) tooltip(fullTextWith(s, o.tooltip));
+    else tooltip(o.tooltip);
   } else {
     c.last = Item{};
     c.last.rect = r;
+    if (cut) fullTextTip(id(txt) ^ 0x1abe1c07ull, r, s);
   }
 }
 
@@ -336,21 +341,27 @@ bool button(std::string_view lbl, const ButtonOpt& o) {
     cmdRect(r, bg, rad);
     if (border.a) cmdStroke(r, border, rad, 1);
   }
-  float cw = tw + (o.icon ? is + (s.empty() ? 0 : 5) : 0) + (o.iconRight ? is + 6 : 0);
-  float x = r.x + std::round((r.w - cw) * 0.5f);
+  const float rightW = o.iconRight ? is + 6 : 0;
+  float cw = tw + (o.icon ? is + (s.empty() ? 0 : 5) : 0) + rightW;
+  // Содержимое по центру; не помещается — от левого края, подпись обрезается справа (значок справа остаётся в кнопке).
+  float x = std::max(r.x + std::round((r.w - cw) * 0.5f), r.x + std::round(pad * 0.5f));
   if (o.icon) {
     cmdIcon(o.icon, RectF{x, r.cy() - is * 0.5f, is, is}, fg);
     x += is + (s.empty() ? 0 : 5);
   }
+  bool cut = false;   // подпись обрезана многоточием — полный текст в подсказке
   if (!s.empty()) {
-    textIn(s, RectF{x, r.y, std::min(tw + 1, r.right() - pad * 0.5f - x), r.h}, st, fg);
-    x += tw + 6;
+    const float room = std::max(0.f, std::min(tw + 1, r.right() - pad * 0.5f - rightW - x));
+    textIn(s, RectF{x, r.y, room, r.h}, st, fg);
+    cut = textCut(s, room, st);
+    x += (cut ? room : tw) + 6;
   }
   if (o.iconRight) cmdIcon(o.iconRight, RectF{x, r.cy() - is * 0.5f, is, is}, o.variant == Variant::Secondary ? t.textDim : fg);
   setLast(wid, r, it);
   c.last.clicked = clicked;
   focusRing(r, rad);
-  if (!o.tooltip.empty() || o.shortcut) tooltip(o.tooltip.empty() ? s : o.tooltip, o.shortcut);
+  if (cut) tooltip(fullTextWith(s, o.tooltip), o.shortcut);
+  else if (!o.tooltip.empty() || o.shortcut) tooltip(o.tooltip.empty() ? s : o.tooltip, o.shortcut);
   return clicked;
 }
 
@@ -892,7 +903,12 @@ ChipAction chip(std::string_view lbl, const ChipOpt& o) {
     bg = tint(t.accent, 0.14f);
     bc = t.accent.alpha(0.6f);
   }
-  if (o.clickable) bc = mixc(bc, t.borderStrong, hv);
+  if (o.glow.a > 0) {   // подсветка (редкость реликвии): тон фона, цветная рамка и мягкий ореол
+    bg = mixc(t.surface3, o.glow.withA(255), 0.16f);
+    bc = o.glow.alpha(0.8f);
+    cmdStroke(r.expand(1.5f), o.glow.alpha(0.22f), 14.5f, 2);
+  }
+  if (o.clickable) bc = mixc(bc, t.borderStrong, hv * (o.glow.a > 0 ? 0.35f : 1.f));
   cmdRect(r, bg, 13);
   cmdStroke(r, bc, 13, 1);
   float x = r.x + 10;
@@ -901,7 +917,7 @@ ChipAction chip(std::string_view lbl, const ChipOpt& o) {
     draw::ring(x + 4, r.cy(), 4.5f, 1, Color(0, 0, 0, t.dark ? 70 : 30));
     x += 14;
   } else if (o.icon) {
-    cmdIcon(o.icon, RectF{x - 1, r.cy() - 7, 14, 14}, o.tone == Tone::Neutral ? t.textDim : tc);
+    cmdIcon(o.icon, RectF{x - 1, r.cy() - 7, 14, 14}, o.glow.a > 0 ? o.glow.withA(255) : o.tone == Tone::Neutral ? t.textDim : tc);
     x += 16;
   }
   float right = r.right() - 10 - (o.removable ? 16 : 0);
@@ -1363,5 +1379,44 @@ void spinner(float size, Tone tone) {
   draw::pathStroke(p, toneColor(tone), w);
   c.animating = true;
 }
+
+// ================================================================ обрезанный текст
+// Подсказки с полным текстом у подписей, обрезанных многоточием: подпись, кнопка, поле ввода, выпадающий список и его
+// пункты, ячейка таблицы (объявления — ui_internal.h).
+namespace in {
+
+// Строка s в ширине w обрезается многоточием (так её рисует textIn).
+bool textCut(std::string_view s, float w, const gfx::TextStyle& st) {
+  if (s.empty() || w <= 0) return false;
+  return cachedText(s, st, w + 0.5f, 1, true)->layout.truncated;
+}
+
+// Текст подсказки обрезанной подписи: полный текст, ниже — своя подсказка элемента (если она его не повторяет).
+std::string fullTextWith(std::string_view full, std::string_view own) {
+  if (own.empty()) return std::string(full);
+  if (own.find(full) != std::string_view::npos) return std::string(own);
+  return std::string(full) + "\n" + std::string(own);
+}
+
+// Подсказка над r без захвата наведения и нажатий: указатель над r в окне под указателем и в отсечении (у
+// недоступного поля и поверх строки таблицы — тоже). tid — устойчивый ID подсказки; последний элемент не меняется.
+void fullTextTip(WidgetId tid, RectF r, std::string_view text) {
+  Ctx& c = C();
+  if (text.empty() || !c.win || c.win->hidden || c.win != c.hoveredWin) return;
+  if (!r.contains(c.m.x, c.m.y) || !currentClip().contains(c.m.x, c.m.y)) return;
+  const Item keep = c.last;
+  c.last = Item{};
+  c.last.id = tid;
+  c.last.rect = r;
+  c.last.hovered = true;
+  tooltip(text);
+  c.last = keep;
+}
+
+}  // namespace in
+
+// Подсказка над прямоугольником r без захвата наведения и нажатий: подпись своей отрисовки поверх строки таблицы
+// (щелчок по строке по-прежнему выделяет её). key — ключ в текущей области ID.
+void hoverTip(std::string_view key, RectF r, std::string_view text) { in::fullTextTip(id(key) ^ 0x407e7ull, r, text); }
 
 }  // namespace rg::ui

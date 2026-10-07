@@ -340,10 +340,21 @@ TEST(app_catalogs_lists_add_remove) {
   h.key(Key::Z, ctrl());
   quick(h);
   CHECK(Catalogs::find(h->world().catalogs->races, rid) != nullptr);
-  // «Золото» закреплено: Delete не удаляет.
+  // «Золото» закреплено: Delete не удаляет (золото — в «Без группы», в конце дерева ресурсов).
   h->openEditor("catalogs", 1);   // ресурсы
   quick(h);
   CHECK(h->world().resource(kGold) != nullptr);
+  CHECK(h->uiRect("catalogs.nogroup") != nullptr);
+  CHECK(h->uiRect("catalogs.res.1") == nullptr);   // «Без группы» свёрнута
+  CHECK(clickRevealed(h, "catalogs.nogroup.toggle", "catalogs.table"));
+  CHECK(reveal(h, "catalogs.res.1", "catalogs.table", 40));
+  {
+    const RectF* r = h->uiRect("catalogs.res.1");   // строка золота: щелчок по числам — выделение строки
+    CHECK(r != nullptr);
+    if (r) h.click(r->right() - 120, r->cy());
+  }
+  quick(h);
+  CHECK(h->uiRect("catalogs.selected.name") != nullptr);
   h.key(Key::Delete);
   quick(h);
   CHECK(!h->hasDialog("confirm"));

@@ -1,8 +1,10 @@
 // Regnum — войска и флот: общие помощники панелей, диалогов и инструментов (ТЗ 1.c, гарнизоны — 1.a.vi).
 //
-// Панели: вкладки фракции «Войска» и «Флот» и полноэкранные таблицы «Войска и флот» (military_faction.cpp),
-// вкладка провинции «Гарнизон» (military_garrison.cpp), выдвижная панель «Войска и флот» (military_drawer.cpp),
-// инспектор войска и флота с верностью, модификаторами и мятежом (army_inspector.cpp). Диалоги: битва
+// Панели: вкладки фракции «Войска» и «Флот» и полноэкранные таблицы «Войска и флот» с ценой найма, ключевым ресурсом,
+// эссенциями и особыми отрядами (military_faction.cpp), вкладка провинции «Гарнизон» с героями, верностью и мятежом
+// гарнизона (military_garrison.cpp), выдвижная панель «Войска и флот» (military_drawer.cpp), инспектор войска и
+// флота с верностью, модификаторами и мятежом (army_inspector.cpp). Значок объекта — портрет главного полководца в
+// круге или фигурка (objectBadgeIn). Диалоги: битва
 // (dialogs/battle.cpp), встреча войск (dialogs/encounter.cpp), разделение (dialogs/split.cpp), штурм и захват
 // (dialogs/siege.cpp, dialogs/capture.cpp), судьба героев (dialogs/hero_fate.cpp). Инструменты: новое войско и флот
 // (tools_army.cpp), перетаскивание и штурм в инструменте выбора (tools.cpp).
@@ -26,7 +28,10 @@ struct UnitRow {
   const char* typeName = "";      // подпись типа
   int type = 0;                   // UnitType или ShipType
   i64 total = 0;
-  double upkeep = 0;              // содержание одного
+  double upkeep = 0;              // содержание одного (у элементалей — эссенциями, золото не учитывается)
+  Id special = 0;                 // особый отряд справочника (строка армии)
+  bool keyMissing = false;        // ключевой ресурс обязателен, но не задан или не подходит типу
+  bool elemental = false;         // элементали: содержание эссенциями
 };
 std::vector<UnitRow> unitRows(const World& w, Id faction, bool fleet);
 std::optional<UnitRow> unitRow(const World& w, Id faction, Id row, bool fleet);
@@ -43,6 +48,11 @@ const char* objectIcon(const Army& a);             // army / fleet
 std::string objectName(const Army& a);             // название или «Без названия»
 Id provinceUnder(const World& w, Vec2 p);          // провинция под точкой карты (0 — нет)
 Id heroLocation(const World& w, Id character, Id skip = 0);   // объект, который сопровождает персонаж
+// Где занят герой (подсказка в выборе героя): «в «Войско»», «гарнизон «Провинция»»; пусто — свободен. skipArmy и
+// skipProvince — объект и гарнизон, для которых выбирают (там он не «занят»).
+std::string heroBusy(const World& w, Id character, Id skipArmy = 0, Id skipProvince = 0);
+// Содержание эссенциями строки армии элементалей за ход: эссенция → всего (с модификатором содержания войск).
+std::map<Id, double> essenceUpkeep(const World& w, Id faction, const ArmyRow& r);
 std::string fmtCount(i64 n);                       // численность: «12 400»
 std::string fmtMoney(double v);                    // золото до тысячных: «1 840», «12,5», «0,125»
 // Цвета фигурки объекта: лидер и второй союзник.
@@ -52,7 +62,14 @@ Color allyColor(const World& w, const Army& a);
 // ---------------------------------------------------------------- виджеты
 // Фигурка как на карте (жетон с силуэтом) в прямоугольнике r (точки интерфейса).
 void figureIn(RectF r, ArmyKind kind, Color c1, bool allied = false, Color c2 = Color(0, 0, 0, 0), bool selected = false);
-void figure(const World& w, const Army& a, float size, bool selected = false);   // в потоке: слот size × size
+// Портрет главного полководца (флотоводца) для кружка: задан и уже готов; иначе nullptr.
+const gfx::Image* commanderFace(const World& w, const Army& a);
+// Значок объекта в r: портрет главного полководца в круге с кольцом цвета фракции (у союзного — половина кольца цветом
+// второго союзника), без портрета — фигурка как на карте.
+void objectBadgeIn(const World& w, const Army& a, RectF r, bool selected = false);
+void figure(const World& w, const Army& a, float size, bool selected = false);   // в потоке: слот size × size (значок объекта)
+// Подсказка над прямоугольником без перехвата наведения и щелчка (подпись в ячейке строки таблицы).
+void cellTip(std::string_view key, RectF r, std::string_view text);
 // Флаг фракции в потоке (с подсказкой-названием).
 void factionFlag(const World& w, Id faction, float width, float height = 0);
 // Флаг и название фракции (щелчок — инспектор фракции).
@@ -61,12 +78,15 @@ void factionLabel(const World& w, Id faction, float flagW = 22);
 void typeTile(RectF r, const char* icon, Color tint);
 // Строка списка объекта: фигурка, название, подзаголовок, численность. true — щелчок.
 bool objectItem(const World& w, const Army& a, bool selected, std::string_view subtitle);
-// Две строки текста в ячейке таблицы (основная и приглушённая подпись).
-void cellLines(RectF r, std::string_view top, std::string_view bottom, ui::Align align, ui::Ink topInk = ui::Ink::Normal);
-// Название в ячейке: в одну строку с подписью или, если не помещается, в две строки по пробелу.
+// Две строки текста в ячейке таблицы (основная и мелкая подпись).
+void cellLines(RectF r, std::string_view top, std::string_view bottom, ui::Align align, ui::Ink topInk = ui::Ink::Normal,
+               ui::Ink bottomInk = ui::Ink::Muted);
+// Название в ячейке: в одну строку с подписью или, если не помещается, в две строки по пробелу; обрезанное
+// многоточием — подсказка с полным названием (без перехвата щелчка по строке).
 void nameCell(RectF r, std::string_view name, std::string_view caption = {});
-// Ячейка «отряд»: плитка типа (подсказка — тип) и название.
-void unitCell(RectF r, const UnitRow& row, bool accent = false, std::string_view caption = {});
+// Ячейка «отряд»: плитка типа (подсказка — тип; особый отряд — отметка на плитке) и название. hire — таблица найма:
+// незаданный ключевой ресурс — красная обводка плитки и «!».
+void unitCell(RectF r, const UnitRow& row, bool accent = false, std::string_view caption = {}, bool hire = false);
 
 // ---------------------------------------------------------------- действия и диалоги
 // Битва (ТЗ 1.c.iv): attacker пришёл из origin на позицию defender. Мятежники, нападающие на войско прежнего

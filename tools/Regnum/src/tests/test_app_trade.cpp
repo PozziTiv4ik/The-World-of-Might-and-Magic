@@ -60,9 +60,9 @@ Pair twoStates(const World& w) {
   p.b = st[1]->id;
   p.na = st[0]->name;
   p.nb = st[1]->name;
-  const Id prov = rules::resourceId(w, schema::kResProvisions);
+  const std::vector<Id> provs = rules::provisionResources(w);   // провизию расходует население — не для сделок теста
   for (auto& [r, v] : st[0]->res)
-    if (r != kGold && r != prov && v >= 60 && st[1]->stock(r) >= 60 && !p.res) p.res = r;
+    if (r != kGold && std::find(provs.begin(), provs.end(), r) == provs.end() && v >= 60 && st[1]->stock(r) >= 60 && !p.res) p.res = r;
   if (const CatalogItem* c = w.resource(p.res)) p.rn = c->name;
   return p;
 }

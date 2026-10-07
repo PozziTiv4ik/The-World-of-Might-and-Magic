@@ -135,33 +135,34 @@ TEST(app_trees_buildings_edit) {
   h.key(Key::Enter);
   h.settle();
   CHECK_EQ(h->world().building(b)->name, std::string("Мастерская"));
-  // Категория — сегментами (третий — промышленные).
+  // Категория — шесть сегментов-значков (третий — промышленные).
   RectF cat = rectOf(h.a(), "bt.side.cat");
-  h.click(cat.x + cat.w * 0.625f, cat.cy());
+  constexpr float kSegs = float(int(BuildingCat::Count));
+  CHECK_EQ(int(BuildingCat::Count), 6);
+  h.click(cat.x + cat.w * (2.5f / kSegs), cat.cy());
   h.settle();
   CHECK(h->world().building(b)->cat == BuildingCat::Industrial);
   // Уровни: добавить второй (копия первого), срок первого «+», стоимость — новый ресурс.
   CHECK_EQ(h->world().building(b)->levels.size(), size_t(1));
+  CHECK(revealSide(h, "bt.side.addlevel"));
   RectF lv = rectOf(h.a(), "bt.side.addlevel");
   h.click(lv.right() - 21, lv.cy());
   h.settle();
   CHECK_EQ(h->world().building(b)->levels.size(), size_t(2));
   int t0 = h->world().building(b)->levels[0].turns;
+  CHECK(revealSide(h, "bt.level.0.turns"));
   RectF tr = rectOf(h.a(), "bt.level.0.turns");
   h.click(tr.right() - 10, tr.cy());
   h.settle();
   CHECK_EQ(h->world().building(b)->levels[0].turns, t0 + 1);
-  clickRect(h, "bt.level.0.addcost");
+  CHECK(clickSide(h, "bt.level.0.addcost"));
   CHECK(h->world().building(b)->levels[0].cost.count(kGold) == 1);
   CHECK_NEAR(h->world().building(b)->levels[0].cost.at(kGold), 100, 1e-9);
   h.dropToasts();
   h.settle();
   CHECK(h.shot("trees_buildings_levels"));
   // Удалить последний уровень — с подтверждением (панель свойств прокручена вниз).
-  RectF sideAt = rectOf(h.a(), "bt.side.addlevel");
-  h.wheel(sideAt.cx(), sideAt.cy(), -12);
-  h.settle();
-  clickRect(h, "bt.level.1.delete");
+  CHECK(clickSide(h, "bt.level.1.delete"));
   CHECK(h->hasDialog("confirm"));
   CHECK(h.clickUi("dialog.ok"));
   h.settle();

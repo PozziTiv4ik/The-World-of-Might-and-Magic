@@ -125,7 +125,8 @@ std::vector<Id> neighborsOf(const Tx& tx, Id province);
 // Трупы победителю битвы (государство нежити, некроманты среди героев); livingDead — погибшие живые воины побеждённых.
 double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHeroes, i64 livingDead);
 // Мятеж перечисленных войск одного государства (каждое — по своей верности); clicked — войско, к которому
-// присоединяются верные части остальных.
-MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked);
+// присоединяются верные части остальных (0 — мятеж начался в гарнизоне); garrison — провинция, гарнизон которой
+// восстаёт вместе с ними по своей верности (0 — нет).
+MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id garrison = 0);
 
 }  // namespace rg::rules::detail

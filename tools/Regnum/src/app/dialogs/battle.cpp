@@ -158,7 +158,8 @@ struct BattleDialog final : Dialog {
     }
   }
 
-  // Колонка стороны: фигурка, название, флаги, полководец, герои, отряды с потерями, итог.
+  // Колонка стороны: значок (портрет главного полководца или фигурка), название, флаги, полководец, герои, отряды с
+  // потерями, итог.
   void sideCard(App& a, const World& w, const Army& ar, int role) {
     bool fleet = ar.isFleet();
     bool ro = a.readOnly();
@@ -167,7 +168,9 @@ struct BattleDialog final : Dialog {
       ui::Card card({.pad = 12, .tone = winner == role ? ui::Tone::Accent : ui::Tone::Neutral});
       {
         ui::Row hr({ui::px(46), ui::fr(1)}, ui::kAuto, 10);
-        figure(w, ar, 46, winner == role);
+        const RectF fig = ui::next(46, 46);
+        objectBadgeIn(w, ar, fig, winner == role);   // портрет главного полководца или фигурка
+        a.markUi(role == 0 ? "battle.figure.attacker" : "battle.figure.defender", fig);
         ui::Group g(0, 2);
         ui::caption(objectCaption(ar));
         ui::label(objectName(ar), {.font = ui::Font::Title});

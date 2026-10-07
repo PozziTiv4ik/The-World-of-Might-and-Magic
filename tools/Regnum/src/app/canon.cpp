@@ -1,5 +1,6 @@
-// Regnum — связь сущностей мира с каноном кампании (ТЗ «Фиксы», п.5–8): поиск карточек, подтверждение или выбор
-// одноимённых, заметки из «Кратко», портрет героя из карточки.
+// Regnum — связь сущностей мира с каноном кампании (ТЗ «Фиксы», п.5–8; «Исправления», п.1): поиск карточек по части
+// имени, подтверждение одной найденной или выбор из нескольких (с уточняющим поиском), заметки из «Кратко», портрет
+// героя из карточки.
 #include "app/canon.h"
 
 #include "app/app_internal.h"
@@ -145,27 +146,89 @@ std::string portraitBytes(const std::string& root, const std::string& rel) {
   return std::string(png.begin(), png.end());
 }
 
-// Выбор карточки среди одноимённых (ТЗ «Фиксы», п.5: «уточнять, с каким именно героем связать»).
+// Насколько карточка подходит запросу key (searchKey): 0 — поле совпадает целиком, 1 — начинается с запроса,
+// 2 — содержит его, 3 — содержит все слова запроса; −1 — не подходит. Поля: заголовок, имя файла, псевдонимы, ID.
+int matchRank(const Card& c, const std::string& key) {
+  int best = -1;
+  auto field = [&](std::string_view text) {
+    const std::string f = utf8::searchKey(replaceAll(std::string(text), "_", " "));
+    if (f.empty()) return;
+    const int r = f == key ? 0 : startsWith(f, key) ? 1 : f.find(key) != std::string::npos ? 2 : utf8::matches(f, key) ? 3 : -1;
+    if (r >= 0 && (best < 0 || r < best)) best = r;
+  };
+  field(c.title);
+  field(replaceAll(fs::stem(c.path), "_", " "));
+  for (const auto& al : c.aliases) field(al);
+  field(c.id);
+  return best;
+}
+
+// Выбор карточки среди найденных (ТЗ «Фиксы», п.5: «уточнять, с каким именно героем связать»; «Исправления», п.1:
+// «если будет несколько персонажей… показывать списком… где можно будет выбрать кого привязать»). Поиск сверху
+// заполнен именем сущности — его можно уточнить или изменить.
 struct PickDialog final : Dialog {
-  SelType type;
+  SelType type = SelType::Character;
   Id target = 0;
+  std::string query, shown;   // запрос и запрос, по которому найдены found
   std::vector<Card> found;
   int sel = 0;
+  bool focus = true;
   const char* id() const override { return "canon.pick"; }
-  Style style(App&) override { return {"Связать с каноном", "book", ui::Tone::Accent, 520}; }
+  Style style(App&) override { return {"Связать с каноном", "book", ui::Tone::Accent, 560}; }
   bool draw(App& a) override {
-    ui::label(nameOf(a.world(), type, target), {.font = ui::Font::Strong});
-    for (size_t i = 0; i < found.size(); i++) {
-      ui::IdScope s{i64(i)};
-      const Card& c = found[i];
-      std::string sub = c.id + (c.aliases.empty() ? std::string() : " · " + join(c.aliases, ", "));
-      if (ui::listItem(c.title, {.icon = type == SelType::Character ? "user" : "province", .subtitle = sub, .selected = sel == int(i)})) sel = int(i);
-      a.markUi("canon.pick." + std::to_string(i));
+    const char* icon = type == SelType::Character ? "user" : "province";
+    ui::label(nameOf(a.world(), type, target), {.font = ui::Font::Strong, .icon = icon});
+    if (focus) {
+      ui::setKeyboardFocus(ui::id("q"));
+      focus = false;
+    }
+    ui::searchField("q", query, "Имя, ID или псевдоним");
+    a.markUi("canon.pick.search");
+    if (query != shown) {
+      // Пустой запрос — все карточки (выбор вручную).
+      shown = query;
+      found = trim(query).empty() ? cards(a, kindOf(type)) : find(a, kindOf(type), query);
+      sel = found.empty() ? -1 : 0;
+    }
+    // Стрелки — выбор в списке (поле поиска в фокусе).
+    bool moved = false;
+    if (!found.empty()) {
+      if (ui::keyPressed(platform::Key::Down)) {
+        ui::consumeKey(platform::Key::Down);
+        sel = std::min(int(found.size()) - 1, sel + 1);
+        moved = true;
+      }
+      if (ui::keyPressed(platform::Key::Up)) {
+        ui::consumeKey(platform::Key::Up);
+        sel = std::max(0, sel - 1);
+        moved = true;
+      }
+    }
+    bool pick = false;
+    if (found.empty()) {
+      ui::label("Карточек не найдено", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    } else {
+      ui::label(fmtInt(i64(found.size())) + " " + plural(i64(found.size()), "карточка", "карточки", "карточек"),
+                {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+      a.markUi("canon.pick.count");
+      ui::VirtualList vl("list", int(found.size()), 44, std::min(396.f, float(found.size()) * 44.f));
+      if (moved && sel >= 0) vl.scrollToRow(sel);
+      for (int i : vl) {
+        const Card& c = found[size_t(i)];
+        std::string sub = c.id + (c.aliases.empty() ? std::string() : " · " + join(c.aliases, ", "));
+        if (ui::listItem(c.title, {.icon = icon, .subtitle = sub, .selected = sel == i})) sel = i;
+        if (ui::lastItem().doubleClicked) {
+          sel = i;
+          pick = true;
+        }
+        a.markUi("canon.pick." + std::to_string(i));
+      }
     }
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
-    if (ui::button("Связать", {.variant = ui::Variant::Primary, .icon = "link", .isDefault = true})) {
-      if (sel >= 0 && sel < int(found.size())) link(a, type, target, found[size_t(sel)]);
+    const bool ok = sel >= 0 && sel < int(found.size());
+    if (ui::button("Связать", {.variant = ui::Variant::Primary, .icon = "link", .disabled = !ok, .isDefault = true}) || (pick && ok)) {
+      link(a, type, target, found[size_t(sel)]);
       return false;
     }
     a.markUi("canon.pick.ok");
@@ -191,6 +254,7 @@ void findAndLink(App& a, SelType type, Id id) {
   auto d = std::make_unique<PickDialog>();
   d->type = type;
   d->target = id;
+  d->query = d->shown = name;
   d->found = std::move(found);
   a.openDialog(std::move(d));
 }
@@ -213,21 +277,17 @@ std::string projectRoot(App& a) {
 }
 
 std::vector<Card> find(App& a, Kind kind, std::string_view name) {
-  std::vector<Card> exact, part;
-  const std::string key = utf8::searchKey(trim(name));
-  if (key.empty()) return exact;
-  for (const Card& c : cards(a, kind)) {
-    bool hit = utf8::searchKey(c.title) == key || utf8::searchKey(replaceAll(fs::stem(c.path), "_", " ")) == key;
-    for (const auto& al : c.aliases) hit = hit || utf8::searchKey(al) == key;
-    if (hit) {
-      exact.push_back(c);
-      continue;
-    }
-    // Частичное совпадение — только по целым словам в начале (Штормград ↔ «Штормград (регион)»).
-    const std::string t = utf8::searchKey(c.title);
-    if (key.size() >= 4 && (startsWith(t, key + " ") || startsWith(key, t + " "))) part.push_back(c);
-  }
-  return exact.empty() ? part : exact;
+  const std::string key = utf8::searchKey(replaceAll(trim(name), "_", " "));   // «Капитан_Эйганн» — как имя файла
+  if (key.empty()) return {};
+  // Карточки уже по заголовку: устойчивая сортировка по рангу оставляет этот порядок внутри ранга.
+  std::vector<std::pair<int, const Card*>> hits;
+  for (const Card& c : cards(a, kind))
+    if (const int r = matchRank(c, key); r >= 0) hits.push_back({r, &c});
+  std::stable_sort(hits.begin(), hits.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+  std::vector<Card> out;
+  out.reserve(hits.size());
+  for (const auto& h : hits) out.push_back(*h.second);
+  return out;
 }
 
 std::optional<Card> byId(App& a, Kind kind, std::string_view id) {

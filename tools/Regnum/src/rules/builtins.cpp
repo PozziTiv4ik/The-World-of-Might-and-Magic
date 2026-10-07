@@ -50,6 +50,8 @@ Id ensureResource(Tx& tx, std::string_view key) {
     it.color = Color::hex(b.color);
     it.icon = b.icon;
     it.key = b.key;
+    it.builtin = true;
+    if (b.group) it.group = tx.w().catalogs->groupId(b.group);
     tx.catalogs().resources.push_back(it);
     return it.id;
   }
@@ -126,6 +128,7 @@ std::vector<std::string> unitRaces(const World& w) {
 
 std::string defaultUnitRace(StateKind kind, UnitType type) {
   if (type == UnitType::Machines) return schema::kRaceMechanical;
+  if (type == UnitType::Elementals) return schema::kRaceElemental;   // элементали — только «Элементали»
   switch (kind) {
     case StateKind::Undead: return schema::kRaceUndead;
     case StateKind::Demonic: return schema::kRaceDemonic;
@@ -342,9 +345,8 @@ std::vector<AutoMod> autoModifiers(const World& w, Id faction) {
   if (n == 0) addKey(schema::mod::Decentralization, "В совете нет назначений");
   else if (n <= 3) addKey(schema::mod::WeakControl, seats);
   else addKey(schema::mod::Centralized, seats);
-  // Голод (п.7): запас провизии меньше нуля.
-  if (Id prov = resourceId(w, schema::kResProvisions); prov && f->stock(prov) < -1e-9)
-    addKey(schema::mod::Famine, "Запас провизии " + fmtNum(f->stock(prov), 2));
+  // Голод (п.7): недостача провизии (ресурсов группы «Провизия» не хватило на расход населения).
+  if (f->provisionDebt > 1e-9) addKey(schema::mod::Famine, "Недостача провизии " + fmtNum(f->provisionDebt, 2));
   // Должности (п.4–5): модификатор занятой или пустующей должности.
   for (const CatalogItem& pos : w.catalogs->positions) {
     if (pos.modifiers.empty() && pos.vacantModifiers.empty()) continue;

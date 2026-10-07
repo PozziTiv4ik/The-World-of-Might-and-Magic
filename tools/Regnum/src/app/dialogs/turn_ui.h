@@ -53,15 +53,24 @@ std::string pageLabel(int page, size_t count);
 
 // Строки итога хода страницы: государства, затем гильдии, по названию.
 std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep, int page = kPageAll);
+// Есть ли у строки изменения запасов: ресурсы, эссенции элементов или недостача провизии после хода.
+bool hasStockChanges(const rules::TurnFactionLine& l);
+// Изменения запасов строкой шириной width (w — мир, в котором есть ресурсы и эссенции строки): «Голод» с недостачей
+// провизии, эссенции (значок цвета эссенции), ресурсы (значок цвета ресурса и изменение); что не поместилось —
+// «ещё N» с подсказкой. Наведение на значение — название и изменение.
+void stockDeltas(const World& w, const rules::TurnFactionLine& l, float width, float height = 24, ui::Font font = ui::Font::Body);
 
 // Записи хроники хода по смыслу (w — мир после хода, где есть записи rep.logIds), только записи страницы page.
+// Экономика: «провизия закончилась… — голод» — голод; «недостача провизии покрыта — голод закончился» и
+// преобразование ресурсов — события экономики; «не хватает эссенций на содержание элементалей» — эссенции; долг
+// казны — долги.
 struct TurnDigest {
-  std::vector<const LogEntry*> all;                          // все записи хода, кроме итога
-  std::vector<const LogEntry*> builds, techs, deals, other;  // события
-  std::vector<const LogEntry*> debts, famine, shortfalls, rebellions;  // предупреждения (famine — кончилась провизия)
-  const LogEntry* summary = nullptr;                         // итог хода (LogKind::Turn)
-  int warnings() const { return int(debts.size() + famine.size() + shortfalls.size() + rebellions.size()); }
-  int events() const { return int(builds.size() + techs.size() + deals.size() + other.size()); }
+  std::vector<const LogEntry*> all;                                   // все записи хода, кроме итога
+  std::vector<const LogEntry*> builds, techs, deals, economy, other;  // события
+  std::vector<const LogEntry*> debts, famine, essences, shortfalls, rebellions;  // предупреждения
+  const LogEntry* summary = nullptr;                                  // итог хода (LogKind::Turn)
+  int warnings() const { return int(debts.size() + famine.size() + essences.size() + shortfalls.size() + rebellions.size()); }
+  int events() const { return int(builds.size() + techs.size() + deals.size() + economy.size() + other.size()); }
 };
 TurnDigest digest(const World& w, const rules::TurnReport& rep, int page = kPageAll);
 
