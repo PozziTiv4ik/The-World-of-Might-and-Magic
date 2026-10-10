@@ -1,4 +1,5 @@
 // Regnum — источники модификаторов и общие помощники правил (тексты, проверки, запасы).
+#include "core/arch.h"
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -7,6 +8,7 @@ namespace detail {
 
 // ---------------------------------------------------------------- тексты
 std::string amount(double v) { return fmtNum(v, 3); }
+std::string amountOf(Id res, double v) { return res == kGold ? fmtGold(v) : amount(v); }
 
 std::string resName(const World& w, Id res) {
   const CatalogItem* c = w.resource(res);
@@ -133,9 +135,10 @@ const std::vector<AutoMod>* SourceIndex::autosOf(Id faction) const {
 namespace {
 
 // Сумматор эффектов. Level::Province — только локальные эффекты; Faction — глобальные (и эффекты войск: у
-// государства они действуют на все его войска); Army — только эффекты войск.
+// государства они действуют на все его войска; и эффекты археологических групп); Army — только эффекты войск;
+// Arch — только эффекты археологических групп.
 struct FxSum {
-  enum class Level : u8 { Province, Faction, Army };
+  enum class Level : u8 { Province, Faction, Army, Arch };
   const World& w;
   Level level;
   Id self;
@@ -147,16 +150,17 @@ struct FxSum {
       case Level::Province: return info.local;
       case Level::Faction: return !info.local;
       case Level::Army: return info.army;
+      case Level::Arch: return info.arch;
     }
     return false;
   }
 
-  void addMod(EffectSource::Kind kind, Id id, Id modId, const Modifier* m, std::string key = {}) {
+  void addMod(EffectSource::Kind kind, Id id, Id modId, const Modifier* m, std::string key = {}, double scale = 1) {
     if (!m) return;
     bool any = false;
     for (int i = 0; i < kFxCount; i++) {
       if (!m->has(Fx(i)) || !counts(i)) continue;
-      double v = m->fx[size_t(i)];
+      double v = m->fx[size_t(i)] * scale;
       if (!std::isfinite(v)) continue;
       e.v[size_t(i)] += v;
       any = true;
@@ -180,7 +184,7 @@ struct FxSum {
       for (const Tech* t : *ts)
         for (Id m : t->modifiers) add(EffectSource::Tech, t->id, m);
     if (auto* as = si.autosOf(f.id))
-      for (const AutoMod& a : *as) addMod(EffectSource::Auto, f.id, a.modifier, a.m, a.key);
+      for (const AutoMod& a : *as) addMod(EffectSource::Auto, f.id, a.modifier, a.m, a.key, a.scale);
   }
 
   // Постройки провинции: набор модификаторов текущего достроенного уровня.
@@ -199,7 +203,19 @@ struct FxSum {
 Effects provinceFx(const World& w, const SourceIndex& si, const Province& p) {
   FxSum s{w, FxSum::Level::Province, 0, {}};
   if (p.sea) return s.e;  // морские провинции не участвуют в расчётах
-  for (Id m : p.modifiers) s.add(EffectSource::Province, p.id, m);
+  // «Здание чумы» в провинции меняет действие «Чумы»: прирост населения +2,5 % (ТЗ «Доработки №3», п.5).
+  const bool plagueBld = hasBuildingRole(w, p.id, BuildingFlag::Plague);
+  for (Id m : p.modifiers) {
+    const Modifier* x = w.modifier(m);
+    if (x && plagueBld && x->key == schema::mod::Plague) {
+      Modifier alt = *x;
+      alt.fx[size_t(Fx::PopGrowthPct)] = schema::kPlagueBuildingGrowth;
+      alt.fxMask |= 1u << int(Fx::PopGrowthPct);
+      s.addMod(EffectSource::Province, p.id, m, &alt);
+      continue;
+    }
+    s.add(EffectSource::Province, p.id, m);
+  }
   for (const AutoMod& a : autoProvinceModifiers(w, p.id)) s.addMod(EffectSource::Auto, p.id, a.modifier, a.m, a.key);
   if (const Faction* o = w.faction(p.owner); o && o->isState()) s.faction(si, *o, EffectSource::Faction);
   s.buildings(p);
@@ -220,6 +236,13 @@ Effects factionFx(const World& w, const SourceIndex& si, const Faction& f, const
 Effects armyFx(const World& w, const Army& a, const Effects* leaderFx) {
   FxSum s{w, FxSum::Level::Army, a.leader(), {}};
   for (Id m : a.modifiers) s.add(EffectSource::Army, a.id, m);
+  // Эффекты войск у модификаторов героев войска (и изученных ими талантов).
+  for (const ArmyGroup& g : a.groups)
+    for (Id h : g.heroes)
+      if (const Character* c = w.character(h)) {
+        for (Id m : c->modifiers) s.add(EffectSource::Army, a.id, m);
+        for (Id m : talentModifiers(w, h)) s.add(EffectSource::Army, a.id, m);
+      }
   // Эффекты войск государства-лидера (его модификаторы, технологии, совет, голод).
   Effects lf = leaderFx ? *leaderFx : factionEffects(w, a.leader());
   for (int i = 0; i < kFxCount; i++)
@@ -242,6 +265,26 @@ int slotsOf(const Province& p, const Effects& fx) {
 }
 
 double costFactorOf(const Effects& fx) { return std::max(0.0, 1.0 + fx[Fx::BuildCostPct] / 100.0); }
+
+ArchStats archStatsWith(const World& w, const ArchGroup& g, const Effects& factionFx) {
+  ArchStats st;
+  FxSum s{w, FxSum::Level::Arch, 0, {}};
+  for (Id m : g.modifiers) s.add(EffectSource::Faction, 0, m);
+  st.fx = s.e;
+  for (int i = 0; i < kFxCount; i++)
+    if (!schema::kEffects[i].local) st.fx.v[size_t(i)] += factionFx.v[size_t(i)];
+  st.level = arch::levelOf(g.exp);
+  const arch::LevelInfo& L = arch::kLevels[st.level - 1];
+  st.success = clamp(L.success + st.fx[Fx::ArchSuccessPct], 0.0, arch::kMaxBonus);
+  st.vitality = clamp(L.vitality + st.fx[Fx::ArchVitalityPct], 0.0, arch::kMaxBonus);
+  st.upkeep = L.upkeep * std::max(0.0, 1.0 + st.fx[Fx::ArchUpkeepPct] / 100.0);
+  st.expPct = st.fx[Fx::ArchExpPct];
+  st.treasurePct = st.fx[Fx::ArchTreasurePct];
+  st.discoveryPct = st.fx[Fx::ArchDiscoveryPct];
+  st.wounded = hasModKey(w, g.modifiers, schema::mod::ArchWounded);
+  st.plague = hasModKey(w, g.modifiers, schema::mod::ArchPlague);
+  return st;
+}
 
 }  // namespace detail
 
@@ -266,6 +309,17 @@ Effects armyEffects(const World& w, Id army) {
   const Army* a = w.army(army);
   if (!a) return {};
   return detail::armyFx(w, *a, nullptr);
+}
+
+ArchStats archStats(const World& w, Id state, Id group) {
+  const Faction* f = w.faction(state);
+  const ArchGroup* g = f ? f->archGroup(group) : nullptr;
+  if (!g) return {};
+  return detail::archStatsWith(w, *g, factionEffects(w, state));
+}
+
+int archStartLevel(const World& w, Id state) {
+  return std::clamp(1 + int(std::lround(factionEffects(w, state)[Fx::ArchStartLevel])), 1, arch::kMaxLevel);
 }
 
 namespace detail {

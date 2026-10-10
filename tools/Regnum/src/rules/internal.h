@@ -10,6 +10,7 @@ namespace rg::rules::detail {
 // ---------------------------------------------------------------- тексты
 inline std::string q(const std::string& s) { return "«" + s + "»"; }  // «…»
 std::string amount(double v);                          // число для сообщений (до тысячных)
+std::string amountOf(Id res, double v);                // количество ресурса (золото — «… тыс.»)
 std::string resName(const World& w, Id res);           // название ресурса
 std::string facName(const World& w, Id f);             // «Название» фракции
 std::string provName(const World& w, Id p);            // «Название» провинции
@@ -68,6 +69,8 @@ Effects factionFx(const World& w, const SourceIndex& si, const Faction& f, const
 // Эффекты войска; leaderFx — готовые эффекты государства-лидера (nullptr — посчитать).
 Effects armyFx(const World& w, const Army& a, const Effects* leaderFx);
 double loyaltyDeltaOf(const World& w, const Army& a, const Effects& armyFx);
+// Показатели археологической группы с готовыми глобальными эффектами государства.
+ArchStats archStatsWith(const World& w, const ArchGroup& g, const Effects& factionFx);
 int slotsOf(const Province& p, const Effects& fx);
 double costFactorOf(const Effects& fx);
 
@@ -77,8 +80,12 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs);
 // ---------------------------------------------------------------- строительство
 // Стоимость уровня (1…) с множителем провинции; только положительные позиции.
 std::map<Id, double> levelCost(const Building& b, int level, double factor);
+// Цена уровня в эссенциях с множителем провинции.
+std::map<Id, double> levelEssCost(const Building& b, int level, double factor);
 // Вернуть плательщику уплаченное за строящийся уровень (pb — копия записи). Возвращает получателя (0 — никому).
 Id refundPaid(Tx& tx, const ProvBuilding& pb);
+// Снесённая постройка-хранилище: её реликвии переходят государству state (нет государства — становятся свободными).
+void releaseBuildingRelics(Tx& tx, Id state, const ProvBuilding& pb);
 
 // ---------------------------------------------------------------- размещение войск
 class Placement {
@@ -128,5 +135,23 @@ double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHero
 // присоединяются верные части остальных (0 — мятеж начался в гарнизоне); garrison — провинция, гарнизон которой
 // восстаёт вместе с ними по своей верности (0 — нет).
 MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id garrison = 0);
+// Название нового объекта: «Войско №N» / «Флот №N» — наименьший свободный номер среди объектов фракции.
+std::string defaultArmyName(const World& w, ArmyKind kind, Id faction);
+
+// ---------------------------------------------------------------- флот (rules/naval.cpp)
+// Войско на борту существующего флота (не стоит на карте: размещение и попадание мышью его не учитывают).
+bool aboard(const World& w, const Army& a);
+// Войско на борту флота — в точку флота (после перемещения флота).
+void syncCargo(Tx& tx, Id fleet);
+// Удалить объект с учётом войска на борту: флот — его войско высаживается на ближайшую сушу (места нет — гибнет);
+// войско на борту — флот освобождается.
+void eraseObject(Tx& tx, Id army);
+// Флот source объединяется с target: войско на борту source переходит на target (на обоих — войска объединяются).
+// Вызывать до удаления source.
+void combineCargo(Tx& tx, Id target, Id source);
+// Флот уничтожен в битве: войско на борту гибнет вместе с ним (численность строк уменьшается, герои — в heroes).
+void sinkCargo(Tx& tx, Id fleet, std::vector<Id>& heroes);
+// Вместимость флота стала меньше войска на борту, хотя раньше вмещала его (before — вместимость до правки): отказ.
+void needCapacity(const World& w, Id fleet, i64 before);
 
 }  // namespace rg::rules::detail

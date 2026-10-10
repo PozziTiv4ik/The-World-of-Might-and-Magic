@@ -248,7 +248,7 @@ void flowBars(RectF r, double income, double expense, double scale) {
 std::string flowText(const rules::FactionCalc& fc, bool income) {
   std::vector<std::string> lines;
   auto line = [&](const char* name, double v) {
-    if (std::fabs(v) >= 0.005) lines.push_back(std::string(name) + ": " + money(v));
+    if (std::fabs(v) >= 0.005) lines.push_back(std::string(name) + ": " + fmtGold(v));
   };
   if (income) {
     line("Провинции", fc.incProvinces);
@@ -297,8 +297,11 @@ std::string pageLabel(int page, size_t count) {
 
 std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep, int page) {
   std::vector<const rules::TurnFactionLine*> v;
-  for (auto& l : rep.factions)
+  for (auto& l : rep.factions) {
+    const Faction* f = w.faction(l.faction);
+    if (f && f->isWild()) continue;   // «Без государства» — не в итогах хода
     if (page == kPageAll || isMainState(w, l.faction) == (page == kPageMain)) v.push_back(&l);
+  }
   std::stable_sort(v.begin(), v.end(), [&](auto* x, auto* y) {
     const Faction* fx = w.faction(x->faction);
     const Faction* fy = w.faction(y->faction);

@@ -152,7 +152,8 @@ std::string resName(const World& w, Id res) {
   return c ? (c->name.empty() ? std::string("Ресурс") : c->name) : std::string(res == kGold ? "Золото" : "Ресурс");
 }
 
-std::string amountText(Id res, double v) { return fmtNum(v, res == kGold ? 3 : 1); }
+// Золото — до тысячных и с подписью «тыс.» (1 единица = 1 тыс. золотых).
+std::string amountText(Id res, double v) { return res == kGold ? fmtNum(v, 3) + " тыс." : fmtNum(v, 1); }
 
 std::vector<const Deal*> dealsOf(const World& w, Id faction) {
   std::vector<const Deal*> v;
@@ -330,33 +331,38 @@ ListState& listState() {
   return s;
 }
 
-// Выбор ресурса: точка цвета, запас плательщика справа, поиск.
-bool resourceCombo(std::string_view id, Id& res, Id payer) {
+// Выбор ресурса через группы и подгруппы (ТЗ «Доработки №1», п.3): группа (0 — все ресурсы), затем ресурс из неё —
+// точка цвета, запас плательщика справа, поиск. Выбранный ресурс вне группы остаётся в списке первым.
+bool resourceCombo(std::string_view id, Id& res, Id payer, Id group) {
   const World& w = app().world();
-  const auto& list = w.catalogs->resources;
+  std::vector<const CatalogItem*> list;
+  for (Id r : rules::resourcesIn(w, group))
+    if (const CatalogItem* c = w.resource(r)) list.push_back(c);
+  if (const CatalogItem* cur = w.resource(res); cur && std::find(list.begin(), list.end(), cur) == list.end()) list.insert(list.begin(), cur);
   const Faction* f = w.faction(payer);
   std::vector<std::string> hints;
   hints.reserve(list.size());
-  for (auto& c : list) hints.push_back(f ? "есть " + turnui::money(f->stock(c.id)) : std::string());
+  for (const CatalogItem* c : list)
+    hints.push_back(f ? "есть " + (c->id == kGold ? fmtGold(f->stock(c->id)) : turnui::money(f->stock(c->id))) : std::string());
   std::vector<ui::Option> opts;
   opts.reserve(list.size());
   int idx = -1;
   for (size_t i = 0; i < list.size(); i++) {
     ui::Option o;
-    o.label = list[i].name;
-    o.color = list[i].color;
+    o.label = list[i]->name;
+    o.color = list[i]->color;
     o.hint = hints[i];
     opts.push_back(o);
-    if (list[i].id == res) idx = int(i);
+    if (list[i]->id == res) idx = int(i);
   }
   ui::ComboOpt co;
   co.search = 1;
   co.icon = "resource";
   co.placeholder = "Ресурс";
-  co.popupWidth = 240;
+  co.popupWidth = 260;
   if (!ui::combo(id, idx, std::span<const ui::Option>(opts), co)) return false;
-  if (idx < 0 || idx >= int(list.size()) || list[size_t(idx)].id == res) return false;
-  res = list[size_t(idx)].id;
+  if (idx < 0 || idx >= int(list.size()) || list[size_t(idx)]->id == res) return false;
+  res = list[size_t(idx)]->id;
   return true;
 }
 
@@ -375,7 +381,7 @@ void stocks(const World& w, Id fid) {
     ui::IdScope s{i64(rs[i].first)};
     if (i) ui::spacer(8);
     ui::iconColored(w::resourceIcon(w, rs[i].first), w::resourceColor(w, rs[i].first), 16, resName(w, rs[i].first));
-    ui::label(turnui::money(rs[i].second), {.font = ui::Font::Small, .ink = rs[i].second < 0 ? ui::Ink::Danger : ui::Ink::Dim});
+    ui::label(turnui::money(rs[i].second) + (rs[i].first == kGold ? " тыс." : ""), {.font = ui::Font::Small, .ink = rs[i].second < 0 ? ui::Ink::Danger : ui::Ink::Dim});
   }
 }
 
@@ -424,20 +430,25 @@ bool itemEditor(App& a, const World& w, DraftItem& it, Id payer) {
   bool remove = false;
   ui::Card c({.pad = 8});
   {
-    ui::Row r({ui::fr(1), ui::px(112), ui::px(28)}, 30, 6);
-    resourceCombo("res", it.res, payer);
+    // Группа ресурсов (подгруппы — с отступом) и ресурс из неё.
+    ui::Row r({ui::fr(1, 110), ui::fr(1.3f, 130), ui::px(28)}, 30, 6);
+    w::resGroupPicker("group", it.group, "Все ресурсы");
+    a.markUi(key + ".group");
+    resourceCombo("res", it.res, payer, it.group);
     a.markUi(key + ".res");
-    ui::numberField("amount", it.amount, {.min = 0, .max = 1e12, .step = 10, .digits = it.res == kGold ? 3 : 1, .tooltip = "Количество"});
-    a.markUi(key + ".amount");
     if (ui::iconButton("close", "Убрать позицию", {.size = ui::Size::Small})) remove = true;
     a.markUi(key + ".remove");
   }
   const Faction* f = w.faction(payer);
   double have = f ? f->stock(it.res) : 0;
   {
-    ui::Row r({ui::fr(1), ui::px(112)}, 28, 6);
+    // Количество, режим (значки: разово / каждый ход), срок или запас плательщика.
+    ui::Row r({ui::fr(1, 90), ui::px(64), ui::px(100)}, 28, 6);
+    ui::numberField("amount", it.amount, {.min = 0, .max = 1e12, .step = 10, .digits = it.res == kGold ? 3 : 1, .unit = it.res == kGold ? "тыс." : nullptr,
+                                          .tooltip = "Количество"});
+    a.markUi(key + ".amount");
     int mode = int(it.mode);
-    if (ui::segmented("mode", mode, {{"bolt", "Разово", "Передать сразу при заключении"}, {"repeat", "Каждый ход", "Передавать каждый ход указанный срок"}},
+    if (ui::segmented("mode", mode, {{"bolt", {}, "Разово: передать сразу при заключении"}, {"repeat", {}, "Каждый ход: передавать указанный срок"}},
                       {.size = ui::Size::Small}))
       it.mode = DealMode(mode);
     a.markUi(key + ".mode");
@@ -446,12 +457,12 @@ bool itemEditor(App& a, const World& w, DraftItem& it, Id payer) {
       a.markUi(key + ".turns");
     } else {
       bool short_ = f && have + 1e-9 < it.amount;
-      ui::label(f ? (short_ ? "есть " + turnui::money(std::max(0.0, have)) : "есть " + turnui::money(have)) : std::string("—"),
+      ui::label(f ? "есть " + amountText(it.res, std::max(0.0, have)) : std::string("—"),
                 {.font = ui::Font::Small, .ink = short_ ? ui::Ink::Danger : ui::Ink::Muted, .align = ui::Align::Right});
     }
   }
   if (it.mode == DealMode::PerTurn)
-    ui::label("Всего " + amountText(it.res, it.amount * it.turns) + " за " + nTurns(it.turns) + (f ? " · есть " + turnui::money(have) : std::string()),
+    ui::label("Всего " + amountText(it.res, it.amount * it.turns) + " за " + nTurns(it.turns) + (f ? " · есть " + amountText(it.res, have) : std::string()),
               {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "repeat"});
   return remove;
 }
@@ -630,7 +641,7 @@ void dealsList(App& a, const World& w) {
     ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
     ui::stat(std::to_string(active), "Активных", {.icon = "handshake", .tone = ui::Tone::Accent});
     ui::stat(std::to_string(tributes), "Дань и репарации", {.icon = "tribute", .tone = ui::Tone::Warning});
-    ui::stat(fmtNum(goldPerTurn, 3), "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success, .tooltip = "Сумма выплат золотом по активным сделкам"});
+    ui::stat(fmtNum(goldPerTurn, 3) + " тыс.", "Золота за ход", {.icon = "coins", .tone = ui::Tone::Success, .tooltip = "Сумма выплат золотом по активным сделкам"});
   }
   {
     ui::HStack hs(30, ui::Align::Left, 8);

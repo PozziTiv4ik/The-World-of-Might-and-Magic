@@ -204,9 +204,13 @@ TEST(rules_military_encounter_types) {
   e = encounter(f.w(), a1, kSeaNorth);
   CHECK(e.type == EncounterType::Blocked);
   CHECK(has(e.reason, "только на суше"));
-  e = encounter(f.w(), fl, {500, 112});  // флот на войско у берега
+  e = encounter(f.w(), fl, {500, 112});  // флот на своё войско у берега — посадка, здесь невозможная (причина)
   CHECK(e.type == EncounterType::Blocked);
   CHECK_EQ(e.target, a4);
+  CHECK(!e.reason.empty());
+  e = encounter(f.w(), fl, center(2));   // флот на чужое войско
+  CHECK(e.type == EncounterType::Blocked);
+  CHECK_EQ(e.target, b1);
   CHECK(has(e.reason, "не взаимодействует"));
   e = encounter(f.w(), 9999, center(5));
   CHECK(e.type == EncounterType::Blocked);

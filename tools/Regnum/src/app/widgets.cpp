@@ -1,10 +1,14 @@
 // Regnum — общие виджеты предметной области (см. widgets.h).
 #include "app/widgets.h"
 
+#include "base/jobs.h"
+#include "codec/jpeg.h"
 #include "gfx/icons.h"
 
 #include <algorithm>
+#include <future>
 #include <map>
+#include <unordered_map>
 
 namespace rg::app {
 namespace edkit {   // поток фишек с переносом строк (editors/modifiers.cpp)
@@ -68,6 +72,7 @@ bool factionPicker(std::string_view id, Id& value, FactionFilter filter, std::st
   std::vector<const Faction*> list;
   w.factions.each([&](const Faction& f) {
     if (f.id == exclude) return;
+    if (f.isWild() && f.id != value) return;   // «Без государства» не выбирается
     if (filter == FactionFilter::States && !f.isState()) return;
     if (filter == FactionFilter::Guilds && !f.isGuild()) return;
     list.push_back(&f);
@@ -221,12 +226,14 @@ bool modifierInert(const Modifier& m, ModScope where) {
     any = true;
     if (where == ModScope::Local && schema::kEffects[f].local) used = true;
     if (where == ModScope::Army && schema::kEffects[f].army) used = true;
+    if (where == ModScope::ArchGroup && schema::kEffects[f].arch) used = true;
   }
   return any && !used;   // у героя эффекты не действуют вовсе
 }
 
 bool modifierFits(const Modifier& m, ModScope where) {
   if (!m.key.empty() && schema::isAutoKey(m.key)) return false;   // ставятся и снимаются сами
+  if (where == ModScope::ArchGroup) return m.kind == ModKind::ArchGroup;   // группам — только модификаторы групп
   if (m.kind == ModKind::Any) return true;
   switch (where) {
     case ModScope::Any: return m.kind == ModKind::Province || m.kind == ModKind::Faction;
@@ -234,6 +241,7 @@ bool modifierFits(const Modifier& m, ModScope where) {
     case ModScope::Faction: return m.kind == ModKind::Faction;
     case ModScope::Army: return m.kind == ModKind::Army;
     case ModScope::Hero: return m.kind == ModKind::Hero;
+    case ModScope::ArchGroup: return false;
   }
   return false;
 }
@@ -248,6 +256,7 @@ const char* inertTip(ModScope where) {
              "Добавьте его государству (вкладка «Модификаторы»).";
     case ModScope::Army: return "Не действует на войско: у модификатора нет эффектов войск.";
     case ModScope::Hero: return "Эффекты модификатора на героя не действуют.";
+    case ModScope::ArchGroup: return "Не действует на группу: у модификатора нет эффектов археологических групп.";
     default: return "";
   }
 }
@@ -404,9 +413,10 @@ void factionChip(Id faction, bool showKind) {
   }
   ui::ChipOpt co;
   co.color = f->color;
-  co.clickable = true;
-  co.icon = showKind ? (f->isGuild() ? "guild" : "crown") : nullptr;
-  co.tooltip = f->isGuild() ? "Торговая гильдия — открыть" : "Государство — открыть";
+  co.clickable = !f->isWild();   // у войск без государства нет страницы
+  co.icon = showKind ? (f->isGuild() ? "guild" : f->isWild() ? "skull" : "crown") : nullptr;
+  co.tooltip = f->isWild() ? "Войска без государства: враждебны всем государствам"
+               : f->isGuild() ? "Торговая гильдия — открыть" : "Государство — открыть";
   if (ui::chip(orUnnamed(f->name, "Без названия"), co) == ui::ChipAction::Click) a.select(SelType::Faction, faction);
 }
 
@@ -464,12 +474,20 @@ std::string effectText(Fx f, double v) {
     case Fx::FleetUpkeepPct: return num + " содержания флота";
     case Fx::ResearchTimePct: return num + " времени исследования технологий";
     case Fx::LoyaltyPerTurn: return num + " верности войск за ход";
+    case Fx::ArchSuccessPct: return num + " к шансу успеха археологических групп";
+    case Fx::ArchVitalityPct: return num + " к живучести археологических групп";
+    case Fx::ArchExpPct: return num + " опыта археологических групп";
+    case Fx::ArchUpkeepPct: return num + " содержания археологических групп";
+    case Fx::ArchTreasurePct: return num + " археологических сокровищ";
+    case Fx::ArchDiscoveryPct: return num + " к шансу обнаружения археологического места";
+    case Fx::ArchStartLevel: return num + " к начальному уровню археологических групп";
     default: return num;
   }
 }
 
 bool effectGood(Fx f, double v) {
-  bool bad = f == Fx::BuildCostPct || f == Fx::RebellionPct || f == Fx::ArmyUpkeepPct || f == Fx::FleetUpkeepPct || f == Fx::ResearchTimePct;
+  bool bad = f == Fx::BuildCostPct || f == Fx::RebellionPct || f == Fx::ArmyUpkeepPct || f == Fx::FleetUpkeepPct || f == Fx::ResearchTimePct ||
+             f == Fx::ArchUpkeepPct;
   return bad ? v < 0 : v > 0;
 }
 
@@ -638,6 +656,115 @@ ui::ChipAction relicChip(const Relic& r, bool removable, std::string_view toolti
   return edkit::chip(orUnnamed(r.name, "Без названия"), co);
 }
 
+// ---------------------------------------------------------------- значок реликвии с изображением
+namespace {
+
+struct RelicPic {
+  const char* data = nullptr;   // тождество строки изображения (быстрая проверка без хеша)
+  size_t size = 0;
+  u64 hash = 0;
+  std::future<std::shared_ptr<gfx::Image>> job;
+  std::shared_ptr<gfx::Image> img;
+  bool failed = false;
+};
+std::unordered_map<Id, RelicPic>& relicPics() {
+  static std::unordered_map<Id, RelicPic> m;
+  return m;
+}
+
+// Квадрат по середине изображения, 128 × 128.
+std::shared_ptr<gfx::Image> decodeRelic(const std::string& bytes) {
+  auto rgba = codec::decodeImage(bytes);
+  if (!rgba || rgba->empty()) return nullptr;
+  gfx::Image full = gfx::Image::fromRgba(rgba->rgba.data(), rgba->w, rgba->h);
+  const int s = std::min(full.w, full.h);
+  gfx::Image sq = full.cropped(gfx::RectI{(full.w - s) / 2, (full.h - s) / 2, s, s});
+  const int side = std::min(128, s);
+  return std::make_shared<gfx::Image>(sq.scaled(side, side));
+}
+
+std::string relicTip(const Relic& r) {
+  std::string tip = orUnnamed(r.name, "Без названия") + "\n" + schema::rarity(r.rarity).name + " реликвия";
+  if (!r.desc.empty()) tip += "\n" + r.desc;
+  return tip;
+}
+
+}  // namespace
+
+const gfx::Image* relicImage(const Relic& r) {
+  auto& m = relicPics();
+  if (r.image.empty()) {
+    m.erase(r.id);
+    return nullptr;
+  }
+  RelicPic& e = m[r.id];
+  if (e.data != r.image.data() || e.size != r.image.size()) {
+    const u64 h = hash64(r.image);
+    if (h != e.hash || (!e.job.valid() && !e.img && !e.failed)) {
+      e = RelicPic{};
+      e.hash = h;
+      e.job = jobs::submit([bytes = r.image] { return decodeRelic(bytes); });
+    }
+    e.data = r.image.data();
+    e.size = r.image.size();
+  }
+  if (e.job.valid()) {
+    if (e.job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+      e.img = e.job.get();
+      e.failed = !e.img;
+    } else {
+      ui::requestRedraw();   // ещё декодируется — следующий кадр покажет изображение
+    }
+  }
+  return e.img ? e.img.get() : nullptr;
+}
+
+void drawRelicIcon(const Relic& r, RectF rect, float radius) {
+  const ui::Theme& th = ui::theme();
+  const Color rc = rarityColor(r.rarity);
+  if (radius <= 0) radius = std::max(5.f, std::round(rect.w * 0.22f));
+  ui::draw::shadow(rect, radius, std::max(6.f, rect.w * 0.22f), rc.alpha(0.5f), 0, 1);
+  if (const gfx::Image* img = relicImage(r)) {
+    ui::draw::rect(rect, th.surface1, radius);
+    ui::draw::image(*img, rect.inset(2), std::max(2.f, radius - 2));
+    ui::draw::rectStroke(rect, rc, radius, rect.w >= 48 ? 2.f : 1.5f);
+  } else {
+    ui::draw::gradient(rect, rc.alpha(0.34f), rc.alpha(0.12f), radius);
+    ui::draw::rectStroke(rect, rc.alpha(0.8f), radius, 1);
+    const float pad = std::round(rect.w * 0.24f);
+    ui::draw::icon("relic", rect.inset(pad), rc);
+  }
+}
+
+bool relicIcon(const Relic& r, float size, std::string_view tooltip) {
+  ui::IdScope s{i64(r.id) + 0x7e100000LL};
+  const RectF rect = ui::next(size, size);
+  drawRelicIcon(r, rect);
+  const ui::Interaction it = ui::interact(ui::id("##relicicon"), rect);
+  if (it.hovered) ui::setCursor(platform::Cursor::Hand);
+  ui::hoverTip("##relictip", rect, tooltip.empty() ? relicTip(r) : std::string(tooltip));
+  return it.clicked;
+}
+
+bool relicRow(const Relic& r, std::string_view sub, float right, RectF* rowOut) {
+  const ui::Theme& th = ui::theme();
+  ui::IdScope s{i64(r.id) + 0x7e200000LL};
+  const RectF row = ui::next(0, 40);
+  if (rowOut) *rowOut = row;
+  const ui::Interaction it = ui::interact(ui::id("##relicrow"), row, ui::IfAllowOverlap);
+  if (it.hovered) ui::draw::rect(row, th.hover, 8);
+  const RectF ic{row.x + 4, row.cy() - 16, 32, 32};
+  drawRelicIcon(r, ic, 8);
+  const float x = ic.right() + 10, w = std::max(20.f, row.right() - right - x - 4);
+  const float lh = ui::lineHeight(ui::Font::Strong), sh = ui::lineHeight(ui::Font::Small);
+  const float y0 = std::round(row.cy() - (lh + sh) * 0.5f);
+  const RectF nameR{x, y0, w, lh};
+  ui::draw::text(orUnnamed(r.name, "Без названия"), nameR, ui::Font::Strong, rarityColor(r.rarity));
+  ui::draw::text(sub.empty() ? std::string_view(schema::rarity(r.rarity).name) : sub, RectF{x, y0 + lh, w, sh}, ui::Font::Small, th.textMuted);
+  ui::hoverTip("##relicrowtip", RectF{row.x, row.y, row.w - right, row.h}, relicTip(r));
+  return it.clicked;
+}
+
 }  // namespace rg::app::w
 
 namespace rg::app::chars {
@@ -658,7 +785,8 @@ void resourceAmount(Id res, double amount, ui::Ink ink) {
   const CatalogItem* c = w.resource(res);
   ui::HStack row(0, ui::Align::Left, ui::sp::xs);
   ui::iconColored(resourceIcon(w, res), resourceColor(w, res), 16, c ? std::string_view(c->name) : std::string_view("Ресурс"));
-  ui::label(fmtNum(amount, 3), {.ink = ink});   // золото и ресурсы — до тысячных (лишние нули не пишутся)
+  // Золото и ресурсы — до тысячных (лишние нули не пишутся); золото — в тысячах (ТЗ «Доработки №1», п.12).
+  ui::label(res == kGold ? fmtGold(amount) : fmtNum(amount, 3), {.ink = ink});
 }
 
 }  // namespace rg::app::w

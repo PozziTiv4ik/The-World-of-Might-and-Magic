@@ -173,6 +173,8 @@ TEST(app_military_hire_key_resource_and_cost) {
   CHECK(reveal(h, "mil.detail.extra." + std::to_string(iron)));
   CHECK(enterValue(h, "mil.detail.extra." + std::to_string(iron), "2,5"));
   CHECK_NEAR(at(h->world().faction(hel)->armyRow(cav)->extra, iron), 2.5, 1e-9);
+  // Пауза пользователя между вводами: правки одного поля чаще 1,5 с (реального времени) сливаются в одну запись отмены.
+  h->store.endCoalesce();
   CHECK(enterValue(h, "mil.detail.extra." + std::to_string(iron), "-4"));
   CHECK(h->world().faction(hel)->armyRow(cav)->extra.count(iron) == 0);   // 0 — убрать
   h.key(Key::Z, ctrl());

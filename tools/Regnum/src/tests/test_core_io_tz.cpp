@@ -110,6 +110,7 @@ World tzWorld() {
   Modifier& m4 = tx.modifier(4);
   m4.duration = 7;
   m4.kind = ModKind::Province;
+  rollArch(tx);
   return std::move(tx).finish();
 }
 
@@ -247,10 +248,24 @@ TEST(io_tz_content_migration_once) {
   CHECK_EQ(iron, 1);
   CHECK(w.catalogs->resourceIn(4, w.catalogs->groupId(schema::grp::OreCommon)));
   CHECK_EQ(w.catalogs->essences.size(), size_t(18));
-  CHECK_EQ(w.catalogs->religions.size(), size_t(61));
+  CHECK_EQ(w.catalogs->religions.size(), size_t(70));
   CHECK(w.catalogs->resourceId(schema::kResCorpses) != 0 && w.catalogs->resourceId(schema::kResEnergy) != 0);
   CHECK(w.catalogs->resourceId(schema::kResMechParts) != 0);
-  CHECK_EQ(w.catalogs->specials.size(), size_t(1));
+  CHECK_EQ(w.catalogs->specials.size(), size_t(10));
+  // Версия 2: валюты, сундуки, археологические места, классы героев, «Гильдия Археологов» у государства.
+  const Id cur = w.catalogs->groupId(schema::grp::Currencies);
+  CHECK(cur != 0);
+  CHECK(w.catalogs->resourceIn(kGold, cur));
+  CHECK(w.catalogs->resourceIn(w.catalogs->resourceId(schema::kResCorpses), cur));
+  CHECK(w.catalogs->resourceIn(w.catalogs->resourceId(schema::kResArchTreasure), cur));
+  CHECK(w.catalogs->resourceIn(w.catalogs->resourceId(schema::kResShantiriScrolls), cur));
+  CHECK_EQ(w.catalogs->chests.size(), size_t(16));
+  CHECK_EQ(w.catalogs->archSites.size(), size_t(10));
+  CHECK_EQ(w.catalogs->classes.size(), size_t(20));
+  CHECK(w.catalogs->relicGroupId(schema::kRelicArchFinds) != 0);
+  int guilds = 0;
+  w.buildings.each([&](const Building& b) { guilds += b.owner == 1 && b.key == schema::bld::ArchGuild; });
+  CHECK_EQ(guilds, 1);
   CHECK(std::any_of(warns.begin(), warns.end(), [](const io::Warning& x) { return x.msg.find("мир дополнен") != std::string::npos; }));
   // Второй раз — ничего не добавляется.
   World again = w;

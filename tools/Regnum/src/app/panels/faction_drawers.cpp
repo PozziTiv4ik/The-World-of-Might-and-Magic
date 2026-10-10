@@ -125,10 +125,10 @@ void drawList(App& a, FactionKind kind) {
     const rules::FactionCalc* fc = calc->faction(f.id);
     t.text(fmtInt(i64(num(&f, CLands))));
     if (states && !narrow) t.text(fmtShort(double(fc ? fc->population : 0)));
-    t.text(money(f.treasury()), f.treasury() < 0 ? ui::Ink::Danger : ui::Ink::Normal);
+    t.text(fmtGoldShort(f.treasury()), f.treasury() < 0 ? ui::Ink::Danger : ui::Ink::Normal);
     if (!narrow) {
       double net = fc ? fc->net : 0;
-      t.text(std::fabs(net) < 0.0005 ? std::string("—") : moneySigned(net), net > 0.0005 ? ui::Ink::Success : net < -0.0005 ? ui::Ink::Danger : ui::Ink::Muted);
+      t.text(std::fabs(net) < 0.0005 ? std::string("—") : (net > 0 ? "+" : "") + fmtGoldShort(net), net > 0.0005 ? ui::Ink::Success : net < -0.0005 ? ui::Ink::Danger : ui::Ink::Muted);
       t.text(fmtShort(num(&f, CForces)), ui::Ink::Dim);
     }
     a.markUi(pre + ".row." + std::to_string(f.id), t.rowRect());

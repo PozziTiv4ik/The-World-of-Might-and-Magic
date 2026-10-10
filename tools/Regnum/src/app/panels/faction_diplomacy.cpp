@@ -40,12 +40,31 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
     if (ui::lastItem().hovered) ui::setCursor(platform::Cursor::Hand);
     if (ui::lastItem().clicked) a.select(SelType::Faction, other);
   };
+  // Одна религия (ТЗ «Доработки №4», п.3): отношения всегда смещены на +10. Поле и шкала — действующее значение
+  // (rules::relationValue); правка меняет хранимое значение на ту же разницу.
+  const double bonus = r.bonus;
+  const double shown = rules::relationValue(w, id, other);
   auto valueField = [&] {
-    double v = r.value;
-    if (ui::numberField("value", v, {.min = -100, .max = 100, .step = 1, .sign = true, .disabled = ro, .tooltip = "Отношения −100…100"}))
-      a.act("Отношения", [&](Tx& tx) { rules::setRelation(tx, id, other, v, r.status); },
+    double v = shown;
+    if (ui::numberField("value", v, {.min = -100, .max = 100, .step = 1, .sign = true, .disabled = ro,
+                                     .tooltip = bonus != 0 ? "Отношения −100…100 с учётом одной веры" : "Отношения −100…100"})) {
+      const double stored = clamp(v - bonus, -100.0, 100.0);
+      a.act("Отношения", [&](Tx& tx) { rules::setRelation(tx, id, other, stored, r.status); },
             {.coalesce = "relation:" + std::to_string(std::min(id, other)) + ":" + std::to_string(std::max(id, other))});
+    }
     a.markUi("dip.value." + std::to_string(other));
+  };
+  auto faithMark = [&] {
+    if (bonus == 0) {
+      ui::next(0, 20);
+      return;
+    }
+    const Faction* self2 = w.faction(id);
+    const CatalogItem* rel = self2 ? Catalogs::find(w.catalogs->religions, self2->religion) : nullptr;
+    ui::label(fmtSigned(bonus), {.font = ui::Font::Small, .ink = ui::Ink::Success, .icon = "religion",
+                                 .tooltip = "Одна вера" + (rel && !rel->name.empty() ? " («" + rel->name + "»)" : std::string()) + ": " + fmtSigned(bonus) +
+                                            " к отношениям\nБез неё — " + fmtSigned(r.value)});
+    a.markUi("dip.faith." + std::to_string(other));
   };
   auto statusCell = [&] {
     RelStatus s = r.status;
@@ -70,10 +89,11 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
     a.markUi("dip.status." + std::to_string(other));
   };
   if (wide) {
-    ui::Row row({ui::px(30), ui::fr(1.3f), ui::fr(1), ui::px(72), ui::px(132)}, 30, 10);
+    ui::Row row({ui::px(30), ui::fr(1.3f), ui::fr(1), ui::px(44), ui::px(72), ui::px(132)}, 30, 10);
     ui::flag(o->flag, 30, 20, 2.5f);
     nameCell();
-    ui::meter(r.value, {.label = false});
+    ui::meter(shown, {.label = false});
+    faithMark();
     valueField();
     statusCell();
   } else {
@@ -84,10 +104,11 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
       statusCell();
     }
     {
-      ui::Row row({ui::px(30), ui::fr(1), ui::px(76)}, 28, 10);
+      ui::Row row({ui::px(30), ui::fr(1), ui::px(44), ui::px(76)}, 28, 10);
       RectF k = ui::next(30, 28);
       ui::draw::icon(o->isState() ? "crown" : "guild", RectF{k.cx() - 7, k.cy() - 7, 14, 14}, t.textMuted);
-      ui::meter(r.value, {.label = false});
+      ui::meter(shown, {.label = false});
+      faithMark();
       valueField();
     }
   }

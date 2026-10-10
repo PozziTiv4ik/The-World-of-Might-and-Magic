@@ -31,7 +31,7 @@ void drawGuilds(App& a, Id id) {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
     ui::stat(fmtInt(i64(list.size())), plural(i64(list.size()), "гильдия", "гильдии", "гильдий"),
              {.icon = "guild", .tone = ui::Tone::Info, .tooltip = "Государственных: " + std::to_string(stateGuilds)});
-    ui::stat(money(hqIncome), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Сумма чистого дохода штабов этих гильдий"});
+    ui::stat(fmtGold(hqIncome), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Сумма чистого дохода штабов этих гильдий"});
   }
   ui::spacer(2);
   if (ui::Section s("Гильдии государства", "guild", {.badge = list.empty() ? std::string() : std::to_string(list.size())}); s) {
@@ -41,7 +41,7 @@ void drawGuilds(App& a, Id id) {
       const rules::FactionCalc* gc = calc->faction(g->id);
       std::string sub = g->stateGuild ? std::string("Государственная") : std::string("Торговая");
       if (gc) sub += " · " + std::to_string(gc->provinces.size()) + " " + plural(i64(gc->provinces.size()), "штаб", "штаба", "штабов");
-      RowEvents ev = factionRow(*g, sub, fmtShort(g->treasury()), "coins", false, 50);
+      RowEvents ev = factionRow(*g, sub, fmtGoldShort(g->treasury()), "coins", false, 50);
       a.markUi("guilds.row." + std::to_string(g->id), ev.rect);
       if (g->stateGuild) {
         const ui::Theme& t = ui::theme();

@@ -364,6 +364,22 @@ std::string fmtShort(double v) {
   return fmtNum(v, (a < 10 && std::fmod(a, 1.0) != 0) ? 1 : 0);
 }
 
+namespace {
+constexpr const char* kThousand = " тыс.";
+}  // namespace
+
+std::string fmtGold(double v, int digits) { return fmtNum(std::fabs(v) < 5e-4 ? 0.0 : v, digits) + kThousand; }
+std::string fmtGoldSigned(double v, int digits) { return fmtSigned(std::fabs(v) < 5e-4 ? 0.0 : v, digits) + kThousand; }
+
+std::string fmtGoldShort(double v) {
+  if (!std::isfinite(v)) return "—";
+  const double a = std::fabs(v);
+  if (a >= 1e9) return fmtNum(v / 1e9, 1) + " трлн";
+  if (a >= 1e6) return fmtNum(v / 1e6, 1) + " млрд";
+  if (a >= 1e3) return fmtNum(v / 1e3, 1) + " млн";
+  return fmtNum(a < 5e-4 ? 0.0 : v, a < 10 ? 2 : a < 100 ? 1 : 0) + kThousand;
+}
+
 const char* plural(i64 n, const char* one, const char* few, const char* many) {
   i64 a = (n < 0 ? -n : n) % 100, b = a % 10;
   if (a > 10 && a < 20) return many;

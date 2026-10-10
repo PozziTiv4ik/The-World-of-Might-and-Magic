@@ -483,7 +483,7 @@ void resRow(Ctx& c, ui::Table& t, int i) {
   }
   numCell(t, double(u.provinces.size()));
   numCell(t, std::round(u.production * 1000) / 1000, 3);
-  if (id == kGold) t.text(fmtNum(u.stock, 3), ui::Ink::Accent);
+  if (id == kGold) t.text(fmtGold(u.stock), ui::Ink::Accent);
   else numCell(t, u.stock, 3);
   t.cell();
   if (locked(CatalogList::Resources, r)) ui::icon("lock", ui::Ink::Muted, 16, "Встроенная запись — удалить нельзя");
@@ -571,7 +571,7 @@ void resourceCard(App& a, State& st, const World& w, const CatalogItem& r, const
   {
     ui::Row tiles({ui::fr(1), ui::fr(1)}, 60, 8);
     if (id == kGold) {   // золото — казна: добычи провинций нет
-      ui::stat(fmtShort(u.stock), "Казна всех фракций", {.icon = "treasury", .tone = ui::Tone::Accent});
+      ui::stat(fmtGoldShort(u.stock), "Казна всех фракций", {.icon = "treasury", .tone = ui::Tone::Accent});
       ui::stat(fmtInt(i64(u.factions.size())), "Фракции с казной", {.icon = "crown", .tone = ui::Tone::Info});
     } else {
       ui::stat(fmtNum(u.production, 3), "Добыча за ход", {.icon = "pickaxe", .tone = ui::Tone::Success});

@@ -49,6 +49,7 @@ void drawDrawer(App& a) {
     std::vector<std::string> names;
     for (Id f : fs) names.push_back(w.factionName(f));
     std::string prov = w.provinceName(provinceUnder(w, ar.pos));
+    if (const Id fl = rules::carrierOf(w, ar.id)) prov = "на борту «" + objectName(*w.army(fl)) + "»";   // войско на борту флота
     std::string sub = join(names, " + ") + " · " + prov;
     if (!st.query.empty() && !utf8::matches(ar.name + " " + sub, st.query)) return;
     (ar.isFleet() ? fleets : armies)++;

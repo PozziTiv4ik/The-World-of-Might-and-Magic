@@ -29,12 +29,15 @@ enum class Terrain : u8 { None = 0, Land = 1, Sea = 2 };
 enum class EdgeKind : u8 { Border = 0, Coast = 1, Frame = 2 };
 enum class ProvSize : u8 { Small = 0, Medium = 1, Large = 2 };
 enum class CityType : u8 { Outpost = 0, Village = 1, Town = 2, City = 3 };
-enum class FactionKind : u8 { State = 0, Guild = 1 };
+// Wild — войска без государства (пробуждённые стражи, вторжения из археологических мест): враждебны всем государствам,
+// фракция одна на мир и не показывается в списках государств и гильдий.
+enum class FactionKind : u8 { State = 0, Guild = 1, Wild = 2 };
 // Типы войск. В файлах хранятся строковые ID (schema::kUnitTypes), поэтому порядок можно менять.
 enum class UnitType : u8 {
   LightInf, MediumInf, HeavyInf, LightCav, MediumCav, HeavyCav, AirCav, Flying, Casters, Ranged, Beasts, Monsters, Machines, Elementals, Count
 };
-enum class ShipType : u8 { ShipOfLine, Frigate, Galleon, Count };
+// Морское чудовище — «судно» за эссенцию воды и ресурс подгруппы «Морские чудовища» (ключевой ресурс строки флота).
+enum class ShipType : u8 { ShipOfLine, Frigate, Galleon, SeaMonster, Count };
 enum class RelStatus : u8 { War = 0, Alliance = 1, Neutral = 2, Unknown = 3 };
 enum class BuildingCat : u8 { Military = 0, Economic = 1, Industrial = 2, Residential = 3, Religious = 4, Cult = 5, Count };
 // Редкость реликвии: обычная (белая подсветка), редкая (синяя), эпическая (фиолетовая), легендарная (оранжевая),
@@ -46,14 +49,15 @@ enum class DealSide : u8 { A = 0, B = 1 };
 enum class DealMode : u8 { Once = 0, PerTurn = 1 };
 enum class DealStatus : u8 { Active = 0, Done = 1, Cancelled = 2 };
 enum class OccupiedIncome : u8 { Owner = 0, Occupier = 1, None = 2 };
-enum class LogKind : u8 { Turn, Economy, Build, Tech, War, Battle, Army, Fleet, Diplomacy, Trade, Province, Guild, Population, Note, Count };
+enum class LogKind : u8 { Turn, Economy, Build, Tech, War, Battle, Army, Fleet, Diplomacy, Trade, Province, Guild, Population, Note, Archaeology, Count };
 // Объекты карты, нарисованные кодом: знаки и фигуры (суша и берег — граф провинций, см. Edge).
 enum class SymbolKind : u8 { Mountain = 0, Peak = 1, Castle = 2, Tower = 3, Count };   // гора, крупная гора, замок, башня
 enum class ShapeKind : u8 { Water = 0, Islet = 1, Wall = 2, River = 3, Count };      // вода, островок, стена, река линией
 // Вид государства: государство живых (по умолчанию), нежити, демонов.
 enum class StateKind : u8 { Living = 0, Undead = 1, Demonic = 2, Count };
-// Где применяется модификатор: везде, провинция, государство (глобальный), войско, герой.
-enum class ModKind : u8 { Any = 0, Province = 1, Faction = 2, Army = 3, Hero = 4, Count };
+// Где применяется модификатор: везде, провинция, государство (глобальный), войско, герой, археологическая группа
+// (модификаторы археологических групп назначаются только группам, и группам — только они).
+enum class ModKind : u8 { Any = 0, Province = 1, Faction = 2, Army = 3, Hero = 4, ArchGroup = 5, Count };
 // Позиция сделки: ресурс, провинция (переходит к другой стороне), пленный герой.
 enum class DealItemKind : u8 { Resource = 0, Province = 1, Hero = 2, Count };
 // Тип глобальной константы: число, список ресурсов с количествами, список значений.
@@ -64,6 +68,11 @@ enum class Fx : u8 {
   PopGrowthPct, TradePct, TradeFlat, BuildCostPct, ContentmentPerTurn, RebellionPct, ResourcePct, ResourceFlat, Slots,  // локальные
   IncomePct, DiplomacyPerTurn, ArmyUpkeepPct, FleetUpkeepPct, ResearchTimePct,                                      // глобальные
   LoyaltyPerTurn,                                                                                                     // войско
+  // Археологические группы (у модификатора группы — эта группа, у глобального — все группы государства).
+  ArchSuccessPct, ArchVitalityPct, ArchExpPct, ArchUpkeepPct,
+  // Глобальные (ветка технологий «Археология»): сокровища от всех действий групп, шанс обнаружения места,
+  // начальный уровень новых групп.
+  ArchTreasurePct, ArchDiscoveryPct, ArchStartLevel,
   Count
 };
 constexpr int kFxCount = int(Fx::Count);
@@ -72,7 +81,7 @@ constexpr int kFxCount = int(Fx::Count);
 enum class Seq : u8 {
   Province, Faction, Character, Modifier, Building, Tech, Army, Route, Deal, Log, Row, Council,
   Node, Edge, Resource, Race, Culture, Religion, Government, Position, Symbol, Shape,
-  Essence, Relic, Special, ResGroup, Count
+  Essence, Relic, Special, ResGroup, HeroClass, Talent, RelicGroup, ArchSite, Chest, ArchGroup, Count
 };
 constexpr int kSeqCount = int(Seq::Count);
 
@@ -125,8 +134,23 @@ struct ProvBuilding {
   // преобразования (0 — цикл не идёт: при «Работает» новый начнётся в конце хода, если хватит ресурсов).
   bool idle = false;
   int cycle = 0;
+  std::map<Id, double> paidEss;       // эссенции, уплаченные за строящийся уровень (возврат при отмене — тому же плательщику)
+  std::vector<Id> relics;             // хранилище реликвий: реликвии в инвентаре постройки
   int builtLevel() const { return constructing ? level - 1 : level; }  // действующий уровень (0 — ещё нет)
 };
+
+// Археологический слот провинции (ТЗ «Доработки №2»): четыре слота — «Обычное», «Редкое», «Эпическое» и «Легендарное
+// место». Место (site) и сокровище (chest — финальная награда исследования) назначаются при создании провинции;
+// open — слот исследован (место обнаружено), stage — пройдено этапов исследования места (все этапы — место
+// исследовано полностью, финальная награда получена).
+struct ArchSlot {
+  Id site = 0;
+  bool open = false;
+  int stage = 0;
+  Id chest = 0;
+  bool operator==(const ArchSlot&) const = default;
+};
+constexpr int kArchSlots = 4;
 
 struct Province {
   Id id = 0;
@@ -157,6 +181,9 @@ struct Province {
   std::vector<GarrisonEntry> occGarrison;   // оккупационный гарнизон: строки армии оккупанта
   int occIdle = 0;          // ходов подряд оккупант без гарнизона и войск в провинции (5 — оккупация снимается)
   std::vector<SlaveWork> slaves;            // рабы владельца на работах (не больше 10 % населения)
+  std::array<ArchSlot, kArchSlots> arch{};  // археологические места
+  Id hiddenRelic = 0;       // спрятанная реликвия (видна только в режиме правки археологии)
+  Id hiddenBy = 0;          // государство, которое её спрятало (только оно может откопать)
   std::string notes;
   std::string entity;       // ID карточки кампании (необязательно)
 };
@@ -190,14 +217,31 @@ struct ArmyRow {
   std::map<Id, double> essence;    // эссенции элементов на юнит при найме (≥ 0)
   std::map<Id, double> essUpkeep;  // элементали: эссенции на юнит в ход (содержание)
   Id special = 0;                  // особый отряд справочника (0 — обычный отряд)
+  // Наёмники (ТЗ «Доработки №3», п.13): найм и содержание — только золотом (hire — золота за юнит при найме),
+  // без населения и ресурсов при любом виде государства; раса «Наемники»; при мятеже всегда верны.
+  bool merc = false;
+  double hire = 0;
 };
-struct FleetRow { Id id = 0; std::string name; ShipType type = ShipType::Frigate; i64 total = 0; double upkeep = 0; };
+// keyRes — морское чудовище: ресурс подгруппы «Морские чудовища» (1 на судно).
+struct FleetRow { Id id = 0; std::string name; ShipType type = ShipType::Frigate; i64 total = 0; double upkeep = 0; Id keyRes = 0; };
 struct CouncilSeat { Id id = 0; std::string position; Id character = 0; };
 // Изучение общей технологии фракцией (каждое государство изучает общее дерево отдельно).
 struct TechProgress {
   bool studied = false, research = false;
   int progress = 0;                // пройдено ходов исследования
+  std::map<Id, double> paid;       // уплачено за идущее исследование (стоимость технологии; возврат при остановке)
   bool operator==(const TechProgress&) const = default;
+};
+// Археологическая группа государства (ТЗ «Доработки №2», п.1–2): опыт 0…1000 задаёт уровень 1…5, а уровень — базовые
+// содержание, шанс успеха и живучесть. busy — ход, в который группа уже участвовала в исследовании (одно за ход).
+struct ArchGroup {
+  Id id = 0;
+  std::string name;
+  int exp = 0;
+  std::vector<Id> modifiers;       // модификаторы археологических групп (ModKind::ArchGroup)
+  ModTurns modTurns;
+  int busy = 0;
+  bool danger = false;             // смертельная опасность: ждёт решения о «божественном вмешательстве» (resolveArchDanger)
 };
 
 struct Faction {
@@ -230,11 +274,15 @@ struct Faction {
   std::map<Id, double> ess;      // запасы эссенций элементов (содержание элементалей может увести в долг)
   double provisionDebt = 0;      // недостача провизии: «Голод», пока больше нуля
   std::map<Id, TechProgress> techs;   // общие технологии (дерево без фракции): изучение этой фракцией
+  std::vector<ArchGroup> archGroups;  // археологические группы
+  std::vector<Id> relics;             // реликвии государства вне инвентарей (находки археологов)
   std::string notes;
   std::string entity;
 
   bool isState() const { return kind == FactionKind::State; }
   bool isGuild() const { return kind == FactionKind::Guild; }
+  bool isWild() const { return kind == FactionKind::Wild; }
+  const ArchGroup* archGroup(Id g) const { for (auto& a : archGroups) if (a.id == g) return &a; return nullptr; }
   double treasury() const { auto it = res.find(kGold); return it == res.end() ? 0 : it->second; }
   double stock(Id r) const { auto it = res.find(r); return it == res.end() ? 0 : it->second; }
   double essence(Id e) const { auto it = ess.find(e); return it == ess.end() ? 0 : it->second; }
@@ -254,6 +302,9 @@ struct Character {
   Id captor = 0;                 // взят в плен: пленившее государство
   Id burial = 0;                 // погиб: место захоронения (провинция)
   std::vector<Id> inventory;     // инвентарь героя: реликвии (каждая реликвия — не больше чем у одного персонажа)
+  int level = 1;                 // уровень героя 1…60: очков талантов — по одному за уровень
+  Id heroClass = 0;              // класс героя (справочник классов); 0 — без класса
+  std::vector<Id> talents;       // изученные таланты дерева своего класса (у каждого героя — своё)
   std::string notes, entity;
 };
 
@@ -269,6 +320,11 @@ struct Modifier {
   std::string key;                    // встроенный модификатор (schema::kMod*); пусто — свой
   ModKind kind = ModKind::Any;        // где применяется
   int duration = 0;                   // ходов действия при установке (0 — бессрочно)
+  // Генерация за ход (ТЗ «Доработки №1», п.5): эссенции и ресурсы, которые модификатор даёт каждый ход — владельцу
+  // провинции (модификатор провинции и её построек), государству (его модификаторы, технологии, автоматические),
+  // фракции героя (модификатор героя).
+  std::map<Id, double> essGen;
+  std::map<Id, double> resGen;
   bool has(Fx f) const { return (fxMask >> int(f)) & 1u; }
   double get(Fx f) const { return has(f) ? fx[int(f)] : 0.0; }
 };
@@ -280,8 +336,17 @@ struct BuildingLevel {
   std::string desc;
   std::map<Id, double> produce;       // ресурсы, которые достроенный уровень даёт владельцу каждый ход
   std::map<Id, double> essence;       // постройка генерации эссенции: эссенции владельцу каждый ход
+  std::map<Id, double> essCost;       // цена уровня в эссенциях (вместе с cost)
+  u32 ships = 0;                      // верфь: типы кораблей, которые открывает уровень (бит = ShipType)
 };
 struct BuildingReq { Id building = 0; int level = 1; };
+// Требование «на государство» (соборы): чтобы построить в государстве (n + 1)-ю такую постройку, в его провинциях должно
+// быть достроено не меньше per × (n + 1) построек building.
+struct StateReq {
+  Id building = 0;
+  int per = 4;
+  bool operator==(const StateReq&) const = default;
+};
 struct ResAmount {
   Id res = 0;
   double amount = 0;
@@ -311,6 +376,14 @@ struct Building {
   bool essenceGen = false;            // постройка генерации эссенции (BuildingLevel::essence)
   bool specialAccess = false;         // постройка доступа к особым отрядам (specials)
   std::vector<Id> specials;           // особые отряды, которые государство может нанимать, пока постройка достроена
+  bool relicStore = false;            // хранилище реликвий (ProvBuilding::relics)
+  bool healing = false;               // здание целительства: «Вылечить провинцию»
+  bool plague = false;                // здание чумы: чума в провинции даёт прирост, «Заразить чумой»
+  bool shipyard = false;              // верфь: уровни открывают типы кораблей (BuildingLevel::ships)
+  bool mercenary = false;             // гильдия наёмников: лимит наёмников государства
+  bool coastal = false;               // только в приморской провинции (граничит с морем)
+  std::vector<StateReq> stateReqs;    // требования «на государство»
+  std::string key;                    // встроенная постройка (schema::bld): правила узнают её по ключу
 };
 
 struct Tech {
@@ -324,6 +397,10 @@ struct Tech {
   bool research = false;              // исследуется сейчас
   int progress = 0;                   // пройдено ходов
   Vec2 pos;                           // положение на схеме дерева
+  std::map<Id, double> cost;          // стоимость исследования: ресурсы при начале (возврат при остановке)
+  std::map<Id, double> paid;          // уплачено за идущее исследование (технология фракции; у общей — Faction::techs)
+  std::vector<std::string> needKeys;  // постройки (ключ schema::bld), которые должны быть достроены в государстве
+  std::string key;                    // технология, на которую опираются правила (schema::tech)
   bool common() const { return faction == 0; }
 };
 
@@ -341,6 +418,8 @@ struct Army {
   std::vector<ArmyGroup> groups;
   Id commander = 0;                   // главный полководец/флотоводец
   double loyalty = 100;               // верность войска, −100…100 %
+  Id carrier = 0;                     // войско на борту флота (не стоит на карте; положение — у флота)
+  Id cargo = 0;                       // флот: войско на борту (одно)
   std::vector<Id> modifiers;          // модификаторы войска («Армия нежити», «Патриотизм»…)
   ModTurns modTurns;
   bool isFleet() const { return kind == ArmyKind::Fleet; }
@@ -437,12 +516,80 @@ struct ResGroup {
   Id parent = 0;
   std::string key;
 };
-// Реликвия: уникальна (без количества), хранится в инвентаре не больше чем у одного героя.
+// Реликвия: уникальна (без количества), лежит не больше чем в одном месте: инвентарь героя, хранилище постройки,
+// реликвии государства или спрятана в провинции. Главенство редкости: эпохальная > легендарная > эпическая > редкая >
+// обычная (больше Rarity — выше). image — своё изображение (PNG/JPEG), entity — карточка проекта (портрет канона).
 struct Relic {
   Id id = 0;
   std::string name;
   Rarity rarity = Rarity::Common;
   std::string desc;
+  Id group = 0;                       // группа реликвий (RelicGroup)
+  std::string entity;
+  std::string image;
+};
+// Группа реликвий (дерево по parent, как группы ресурсов); key — группа правил («Археологические находки»).
+struct RelicGroup {
+  Id id = 0;
+  std::string name;
+  Id parent = 0;
+  std::string key;
+};
+// Талант дерева класса героя (как дерево талантов World of Warcraft): ярус row (сверху вниз) и столбец col, стоимость
+// 1…5 очков; prereq — талант, который нужно изучить раньше; modifiers — модификаторы героя, пока талант изучен.
+struct Talent {
+  Id id = 0;
+  std::string name, desc;
+  std::string icon = "star";
+  int row = 0, col = 0;
+  int cost = 1;
+  Id prereq = 0;
+  std::vector<Id> modifiers;
+};
+// Класс героя: дерево талантов общее для класса, изучение — у каждого героя своё (Character::talents). Талант яруса r
+// доступен, когда в дереве уже вложено не меньше r × tierPoints очков.
+struct HeroClass {
+  Id id = 0;
+  std::string name, desc;
+  std::string icon = "hero";
+  Color color = Color::hex(0x8c7ae6);
+  int tierPoints = 5;
+  std::vector<Talent> talents;
+  const Talent* talent(Id t) const { for (auto& x : talents) if (x.id == t) return &x; return nullptr; }
+};
+// Археологическое место (ТЗ «Доработки №2», п.4): постоянный список из десяти мест (новые не добавляются). rewards —
+// «Финальная награда исследования» по слотам (0 — «Обычное место» … 3 — «Легендарное место»): сундуки, из которых
+// случайно выбирается сокровище провинции.
+struct ArchSite {
+  Id id = 0;
+  std::string key;
+  std::string name;
+  std::string icon = "pickaxe";
+  std::array<std::vector<Id>, kArchSlots> rewards;
+};
+// Сундук сокровищ (ТЗ «Доработки №2», п.10): поля — археологическая награда, золото, ресурс (конкретный или случайный
+// из группы «Руда» или «Материалы», с исключениями), артефакт (случайная свободная реликвия группы с одной из редкостей),
+// эссенция (конкретная или случайная), сундук (случайный из списка).
+enum class ChestItemKind : u8 { Treasure = 0, Gold = 1, Resource = 2, Relic = 3, Essence = 4, Chest = 5, Count };
+struct ChestItem {
+  ChestItemKind kind = ChestItemKind::Treasure;
+  double amount = 0;
+  Id res = 0;                         // ресурс: конкретный (0 — случайный из group)
+  Id group = 0;                       // ресурс: группа для случайного выбора
+  std::vector<Id> exclude;            // ресурс: не выбирать
+  Id essence = 0;                     // эссенция: конкретная (0 — случайная из справочника)
+  Id relicGroup = 0;                  // артефакт: группа реликвий
+  u32 rarities = 0;                   // артефакт: допустимые редкости (бит = Rarity)
+  std::vector<Id> chests;             // сундук: случайный из списка
+  bool operator==(const ChestItem&) const = default;
+};
+struct Chest {
+  Id id = 0;
+  std::string key;                    // базовый сундук (сопоставление при дополнении мира)
+  std::string name;
+  std::string icon = "chest";
+  std::string desc;
+  std::vector<ChestItem> items;
 };
 // Особый отряд мира (справочник «Особые отряды»): нанимается государством, у которого достроена постройка
 // доступа (Building::specials). Поля — как у строки армии (ArmyRow).
@@ -463,6 +610,10 @@ struct Catalogs {
   std::vector<ResGroup> resGroups;    // группы ресурсов (порядок — как в справочнике)
   std::vector<Relic> relics;
   std::vector<SpecialUnit> specials;
+  std::vector<RelicGroup> relicGroups;
+  std::vector<HeroClass> classes;     // классы героев с деревьями талантов
+  std::vector<ArchSite> archSites;    // археологические места (постоянный список)
+  std::vector<Chest> chests;          // сундуки сокровищ
   static const CatalogItem* find(const std::vector<CatalogItem>& list, Id id) {
     for (auto& c : list) if (c.id == id) return &c;
     return nullptr;
@@ -504,6 +655,48 @@ struct Catalogs {
     for (auto& s : specials) if (s.id == id) return &s;
     return nullptr;
   }
+  const RelicGroup* relicGroup(Id id) const {
+    for (auto& g : relicGroups) if (g.id == id) return &g;
+    return nullptr;
+  }
+  Id relicGroupId(std::string_view key) const {
+    for (auto& g : relicGroups) if (g.key == key) return g.id;
+    return 0;
+  }
+  // Группа реликвий g — сама root или её потомок.
+  bool inRelicGroup(Id g, Id root) const {
+    for (int guard = 0; g && guard < 64; guard++) {
+      if (g == root) return true;
+      const RelicGroup* x = relicGroup(g);
+      g = x ? x->parent : 0;
+    }
+    return false;
+  }
+  const HeroClass* heroClass(Id id) const {
+    for (auto& c : classes) if (c.id == id) return &c;
+    return nullptr;
+  }
+  // Класс, в дереве которого талант (nullptr — нет).
+  const HeroClass* classOfTalent(Id t) const {
+    for (auto& c : classes) if (c.talent(t)) return &c;
+    return nullptr;
+  }
+  const ArchSite* archSite(Id id) const {
+    for (auto& s : archSites) if (s.id == id) return &s;
+    return nullptr;
+  }
+  const ArchSite* archSiteByKey(std::string_view key) const {
+    for (auto& s : archSites) if (s.key == key) return &s;
+    return nullptr;
+  }
+  const Chest* chest(Id id) const {
+    for (auto& c : chests) if (c.id == id) return &c;
+    return nullptr;
+  }
+  const Chest* chestByKey(std::string_view key) const {
+    for (auto& c : chests) if (c.key == key) return &c;
+    return nullptr;
+  }
 };
 
 // Глобальная константа (ТЗ «Общие доработки», п.1): число, список ресурсов или список значений.
@@ -516,6 +709,10 @@ struct Constant {
   std::vector<std::string> values;
   bool builtin = false;               // встроенная: не удаляется, тип не меняется
   std::string desc;
+  std::map<Id, double> ess;           // список ресурсов: ещё и эссенции (стоимость морского чудовища)
+  // Наименьшие значения базовой стоимости (ТЗ «Доработки №3», п.7–8): цену можно увеличивать и дополнять, но нельзя
+  // уменьшить ниже базовой и убрать базовый ресурс или эссенцию.
+  std::map<Id, double> minRes, minEss;
 };
 struct Constants {
   std::vector<Constant> list;         // порядок — как в интерфейсе
@@ -535,6 +732,9 @@ struct Settings {
   bool rebellionRoll = false;
   bool autosaveFolder = true;
   int autosaveSec = 60;
+  // «Свободное редактирование флотов»: новый флот ставится в любое место карты; иначе — из вкладки «Флот» государства
+  // у верфи приморской провинции (ТЗ «Доработки №3», п.3).
+  bool freeFleets = false;
 };
 
 struct Meta {
@@ -548,6 +748,9 @@ struct Meta {
   bool mapObjects = false;
   // Версия базовых записей справочников (core/content.h): мир прежней версии дополняется при чтении один раз.
   int content = 0;
+  // Счётчик случайных событий мира (археология): зерно броска — счётчик и ID участников; событие увеличивает счётчик,
+  // поэтому отмена возвращает и его.
+  u32 rng = 0;
   std::string notes;
 };
 
@@ -719,6 +922,7 @@ struct World {
   const CatalogItem* resource(Id id) const { return Catalogs::find(catalogs->resources, id); }
   const CatalogItem* essence(Id id) const { return Catalogs::find(catalogs->essences, id); }
   const Relic* relic(Id id) const { return catalogs->relic(id); }
+  const HeroClass* heroClass(Id id) const { return catalogs->heroClass(id); }
   const SpecialUnit* special(Id id) const { return catalogs->special(id); }
   std::string factionName(Id id) const;                // «—» если нет
   std::string provinceName(Id id) const;

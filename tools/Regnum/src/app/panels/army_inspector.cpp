@@ -3,6 +3,9 @@
 // доработки», п.12; «Модификаторы»), кнопка «Мятеж» при отрицательной верности («Механика мятежа», п.1); состав по
 // фракциям (союзное войско — отдельные плитки), отряды из резерва своей фракции, герои (портреты в кругах) и главный
 // полководец (флотоводец), кнопки «Разделить», «Распустить союз», «Расформировать»; провинция под объектом; события.
+// Флот (ТЗ «Доработки №3», п.6): вместимость и вкладка «Войско на борту» с «Высадкой войска»; войско на борту — флот
+// вместо провинции. Союзный объект (ТЗ «Доработки №4», п.9): плитки фракций, у лидера — корона, у остальных —
+// «Вернуть войско».
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -39,6 +42,7 @@ void drawHeader(App& a, Id id) {
     Id pid = provinceUnder(w, ar->pos);
     cap = pid ? w.provinceName(pid) : std::string(ar->isFleet() ? "Открытое море" : "Вне провинций");
   }
+  if (const Id fl = rules::carrierOf(w, id)) cap = "На борту «" + objectName(*w.army(fl)) + "»";
   ui::caption(cap);
   {
     float aw = ui::avail().w;
@@ -128,8 +132,8 @@ void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
   // Добавить строку из резерва своей фракции (ТЗ 1.c.iii: только из списка государства и не больше резерва).
   std::vector<UnitRow> all = unitRows(w, g.faction, fleet);
   std::vector<UnitRow> avail;
-  for (const UnitRow& r : all)
-    if (rowCount(g, r.id) == 0) avail.push_back(r);
+  for (const UnitRow& r : all)   // торговые галеоны к флотам на карте не присоединяются (ТЗ «Доработки №3», п.6)
+    if (rowCount(g, r.id) == 0 && !(fleet && r.type == int(ShipType::Galleon))) avail.push_back(r);
   ui::Disabled dis(ro);
   if (all.empty()) {
     ui::HStack hs(0, ui::Align::Left, 6);
@@ -293,12 +297,35 @@ void groupTile(App& a, const Army& ar, const ArmyGroup& g) {
       i64 n = groupCount(g);
       std::string cnt = fmtCount(n);
       float cw = ui::measure(cnt, ui::Font::Strong) + 4;
-      ui::Row head({ui::px(30), ui::fr(1), ui::px(cw)}, 26, 10);
+      // Союзный объект (ТЗ «Доработки №4», п.9): лидер — корона (управление), остальные — «Вернуть войско».
+      const bool leader = ar.allied() && g.faction == ar.leader();
+      const bool back = ar.allied() && !leader;
+      const ui::Len cols[] = {ui::px(30), ui::fr(1), ui::px(cw), ui::px(26)};
+      ui::Row head(std::span<const ui::Len>(cols, ar.allied() ? 4 : 3), 26, 10);
       factionFlag(w, g.faction, 30, 20);
       const Faction* f = w.faction(g.faction);
-      if (ui::link(f ? (f->name.empty() ? std::string("Без названия") : f->name) : std::string("—"))) a.select(SelType::Faction, g.faction);
+      if (f && f->isWild()) ui::label(f->name, {.font = ui::Font::Strong, .tooltip = "Войска без государства: враждебны всем государствам"});
+      else if (ui::link(f ? (f->name.empty() ? std::string("Без названия") : f->name) : std::string("—"))) a.select(SelType::Faction, g.faction);
       ui::label(cnt, {.font = ui::Font::Strong, .align = ui::Align::Right,
                       .tooltip = ar.isFleet() ? "Кораблей этой фракции" : "Воинов этой фракции"});
+      if (leader) {
+        RectF ic = ui::next(26, 26);
+        ui::at(RectF{ic.x + 4, ic.y + 4, 18, 18});
+        ui::icon("crown", ui::Ink::Accent, 18, ar.isFleet() ? "Управляет союзным флотом" : "Управляет союзным войском");
+      } else if (back) {
+        std::string why;
+        const bool can = rules::canReturnGroup(w, ar.id, g.faction, &why);
+        const char* tip = ar.isFleet() ? "Вернуть флот" : "Вернуть войско";
+        ui::Disabled dis(a.readOnly() || !can);
+        if (ui::iconButton("group-leave", can ? std::string(tip) : std::string(tip) + "\n" + why, {.size = ui::Size::Small})) {
+          const Id army = ar.id, fac = g.faction;
+          Id nid = 0;
+          if (a.act(tip, [&](Tx& tx) { nid = rules::returnGroup(tx, army, fac); })) {
+            a.toast(std::string(ar.isFleet() ? "Флот возвращён: «" : "Войско возвращено: «") + objectName(*a.world().army(nid)) + "»", ToastKind::Success, "group-leave");
+          }
+        }
+        a.markUi("army.return." + std::to_string(g.faction));
+      }
     }
     unitsTable(a, ar, g);
     ui::spacer(2);
@@ -569,33 +596,49 @@ void drawUnits(App& a, Id id) {
              {.icon = "commander", .tone = ui::Tone::Info,
               .tooltip = ar->commander ? std::string(leaderWord(*ar)) + ": " + cmd : std::string(ar->isFleet() ? "Флотоводец не назначен" : "Полководец не назначен")});
   }
-  {
+  const Id carrier = rules::carrierOf(w, id);   // войско на борту флота (ТЗ «Доработки №3», п.6)
+  if (carrier) {
+    ui::prop("На борту", "embark");
+    if (ui::link(objectName(*w.army(carrier)), "fleet")) a.select(SelType::Army, carrier);
+    a.markUi("army.carrier");
+  } else {
     ui::prop(fleet ? "Воды" : "Провинция", "map-pin");
     Id pid = provinceUnder(w, ar->pos);
     if (pid) w::provinceChip(pid);
     else ui::label(fleet ? "открытое море" : "вне провинций", {.ink = ui::Ink::Muted});
   }
+  if (fleet && (rules::fleetCapacity(w, id) > 0 || rules::cargoOf(w, id))) capacityRow(a, id);
   loyaltyCard(a, *ar);
-  // Действия
+  // Действия: войско на борту вместо «Разделить» — «Высадка войска»; флот с войском на борту не расформировывается.
+  const bool loaded = fleet && rules::cargoOf(w, id);
+  auto splitOrLand = [&] {
+    if (carrier) {
+      if (ui::button("Высадка", {.icon = "disembark", .fill = true, .tooltip = "Высадить войско на сушу у флота"})) startLanding(a, carrier);
+      a.markUi("army.land");
+      return;
+    }
+    if (ui::button("Разделить", {.icon = "split", .fill = true, .tooltip = "Выделить часть в отдельный объект"})) openSplit(a, id);
+    a.markUi("army.split");
+  };
+  const char* disbandTip = loaded ? "На борту войско — сначала высадите его" : nullptr;
   {
     ui::Disabled dis(ro);
     if (ar->allied()) {
       ui::Row r({ui::fr(1), ui::fr(1.25f), ui::px(36)}, 30, 8);
-      if (ui::button("Разделить", {.icon = "split", .fill = true, .tooltip = "Выделить часть в отдельный объект"})) openSplit(a, id);
-      a.markUi("army.split");
+      splitOrLand();
       if (ui::button("Распустить союз", {.icon = "dissolve", .fill = true,
                                          .tooltip = fleet ? "Флоты фракций станут отдельными объектами рядом" : "Войска фракций станут отдельными объектами рядом"}))
         dissolveAllied(a, id);
       a.markUi("army.dissolve");
-      if (ui::iconButton("disband", fleet ? "Расформировать флот" : "Расформировать войско", {.shortcut = {platform::Key::Delete, 0}, .tone = ui::Tone::Danger}))
+      if (ui::iconButton("disband", disbandTip ? disbandTip : fleet ? "Расформировать флот" : "Расформировать войско",
+                         {.disabled = loaded, .shortcut = {platform::Key::Delete, 0}, .tone = ui::Tone::Danger}))
         askDisband(a, id);
       a.markUi("army.disband");
     } else {
       ui::Row r({ui::fr(1), ui::fr(1)}, 30, 8);
-      if (ui::button("Разделить", {.icon = "split", .fill = true, .tooltip = "Выделить часть в отдельный объект"})) openSplit(a, id);
-      a.markUi("army.split");
-      if (ui::button("Расформировать", {.variant = ui::Variant::Danger, .icon = "disband", .fill = true,
-                                        .tooltip = fleet ? "Убрать флот с карты, корабли — в резерв" : "Убрать войско с карты, отряды — в резерв",
+      splitOrLand();
+      if (ui::button("Расформировать", {.variant = ui::Variant::Danger, .icon = "disband", .fill = true, .disabled = loaded,
+                                        .tooltip = disbandTip ? disbandTip : fleet ? "Убрать флот с карты, корабли — в резерв" : "Убрать войско с карты, отряды — в резерв",
                                         .shortcut = {platform::Key::Delete, 0}}))
         askDisband(a, id);
       a.markUi("army.disband");
@@ -604,6 +647,51 @@ void drawUnits(App& a, Id id) {
   ui::spacer(2);
   for (const ArmyGroup& g : ar->groups) groupTile(a, *ar, g);
 }
+
+// ---------------------------------------------------------------- вкладка флота «Войско на борту»
+// ТЗ «Доработки №3», п.6: вместимость (занято / всего), войско на борту — значок, название, численность, его отряды и
+// герои по фракциям (правятся как у войска), «Высадка войска».
+void drawCargo(App& a, Id id) {
+  const World& w = frameWorld(a);
+  const Army* fl = w.army(id);
+  if (!fl || !fl->isFleet()) return;
+  capacityRow(a, id);
+  const Army* c = w.army(rules::cargoOf(w, id));
+  if (!c) {
+    ui::emptyState("embark", "Войска на борту нет.");
+    a.markUi("army.cargo.empty");
+    return;
+  }
+  const i64 n = unitCount(*c);
+  // Флот потерял корабли (бой) и войско больше вместимости: высадка остаётся возможной.
+  if (n > rules::fleetCapacity(w, id)) ui::label("Перегруз: войско больше вместимости флота", {.font = ui::Font::Small, .ink = ui::Ink::Danger, .icon = "warning"});
+  {
+    ui::Card card({.pad = 12});
+    ui::Row r({ui::px(44), ui::fr(1)}, ui::kAuto, 10);
+    figure(w, *c, 44);
+    ui::Group g(0, 1);
+    ui::caption(objectCaption(*c));
+    if (ui::link(objectName(*c), "army")) a.select(SelType::Army, c->id);
+    a.markUi("army.cargo.army");
+    ui::label(fmtCount(n) + " " + plural(n, "воин", "воина", "воинов"), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+  }
+  {
+    ui::Disabled dis(a.readOnly());
+    if (ui::button("Высадка войска", {.variant = ui::Variant::Primary, .icon = "disembark", .fill = true,
+                                      .tooltip = "Высадить войско на сушу у флота (Esc — отмена)"}))
+      startLanding(a, id);
+    a.markUi("army.cargo.land");
+  }
+  ui::spacer(2);
+  for (const ArmyGroup& g : c->groups) groupTile(a, *c, g);
+}
+
+bool cargoVisible(App& a, Id id) {
+  const Army* ar = frameWorld(a).army(id);
+  return ar && ar->isFleet();
+}
+
+int cargoBadge(App& a, Id id) { return rules::cargoOf(frameWorld(a), id) ? -1 : 0; }
 
 // ---------------------------------------------------------------- вкладка «События»
 void drawLog(App& a, Id id) {
@@ -633,6 +721,7 @@ void drawLog(App& a, Id id) {
 
 HeaderReg header({"army.header", SelType::Army, 0, drawHeader});
 TabReg unitsTab({"army.units", "army", "Состав", 10, SelType::Army, nullptr, drawUnits});
+TabReg cargoTab({"army.cargo", "embark", "Войско на борту", 15, SelType::Army, cargoVisible, drawCargo, cargoBadge});
 TabReg logTab({"army.log", "chronicle", "События", 20, SelType::Army, nullptr, drawLog});
 
 }  // namespace

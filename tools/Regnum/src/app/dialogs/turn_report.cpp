@@ -61,8 +61,8 @@ struct ReportDlg : Dialog {
       }
       {
         ui::Row r({ui::fr(1), ui::px(96)}, 30, 10);
-        ui::label(money(l.treasuryAfter), {.font = ui::Font::Number, .ink = l.treasuryAfter < 0 ? ui::Ink::Danger : ui::Ink::Normal,
-                                           .tooltip = "Казна после хода; была " + money(l.treasuryBefore)});
+        ui::label(fmtGold(l.treasuryAfter), {.font = ui::Font::Number, .ink = l.treasuryAfter < 0 ? ui::Ink::Danger : ui::Ink::Normal,
+                                             .tooltip = "Казна после хода; была " + fmtGold(l.treasuryBefore)});
         RectF br = ui::next(30);
         flowBars(br, l.income, l.expenses, scale);
       }
@@ -128,7 +128,7 @@ struct ReportDlg : Dialog {
               const Faction* f = w.faction(l->faction);
               if (!f) continue;
               ui::IdScope s{i64(l->faction)};
-              std::string text = (f->name.empty() ? std::string("Без названия") : f->name) + " · " + money(l->treasuryAfter);
+              std::string text = (f->name.empty() ? std::string("Без названия") : f->name) + " · " + fmtGold(l->treasuryAfter);
               if (ui::chip(text, {.color = f->color, .tone = ui::Tone::Danger, .clickable = true, .tooltip = "Открыть фракцию"}) == ui::ChipAction::Click)
                 pickFaction = l->faction;
             }

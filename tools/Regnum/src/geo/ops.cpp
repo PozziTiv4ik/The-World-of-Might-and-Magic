@@ -923,6 +923,42 @@ std::vector<signed char> classifyInside(const Graph& g, const FaceBuild& fb, con
 // ================================================================ операции с контуром
 enum class PolyMode { Create, Add, Remove };
 
+// Новая провинция (ТЗ «Доработки №1», п.1): щель — свободный участок её рельефа вне контура, отрезанный контуром
+// (граничит с новой провинцией), прилегающий к соседней провинции того же рельефа и лежащий у контура (в его
+// габаритах с запасом). Если она уже kPocketSnaps × 2 допусков прилипания (вписанный круг радиусом не больше
+// kPocketSnaps допусков), это след неточной обводки вдоль границы соседа — щель достаётся новой провинции.
+// Широкие участки и узкие проходы, уходящие далеко от контура, остаются свободными.
+constexpr double kPocketSnaps = 1.5;
+
+// Присоединить щели к новой провинции pid (грани taken — уже её). near — габариты контура.
+void absorbPockets(Graph& g, const FaceInput& in, const FaceBuild& fb, const std::vector<signed char>& inside,
+                   const std::vector<Side>& side, const std::vector<char>& taken, Id pid, Terrain ter, double snap,
+                   Box2 near) {
+  const double limit = kPocketSnaps * snap;
+  near = near.inflated(2 * limit);
+  std::vector<int> pockets;
+  for (int f = 0; f < fb.nfaces(); f++) {
+    const Side s = side[size_t(f)];
+    if (inside[size_t(f)] == 1 || taken[size_t(f)] || s.prov != 0 || s.ter != ter) continue;
+    const Box2& fbox = fb.faceBox[size_t(f)];
+    if (!(fbox.x0 >= near.x0 && fbox.x1 <= near.x1 && fbox.y0 >= near.y0 && fbox.y1 <= near.y1)) continue;
+    bool byNew = false, byOther = false;
+    fb.eachHalf(f, [&](int h) {
+      int o = fb.faceOfHalf(h ^ 1);
+      if (o < 0) return;
+      if (taken[size_t(o)]) byNew = true;
+      else if (side[size_t(o)].prov != 0 && side[size_t(o)].ter == ter) byOther = true;
+    });
+    if (!byNew || !byOther) continue;
+    std::vector<std::vector<Vec2>> rings{fb.cycleCoords(in, fb.faceOuter[size_t(f)])};
+    for (int c : fb.faceHoles[size_t(f)]) rings.push_back(fb.cycleCoords(in, c));
+    double r = 0;
+    polylabel(rings, limit * 0.25, &r);
+    if (r <= limit) pockets.push_back(f);
+  }
+  for (int f : pockets) relabelFace(g, fb, f, Side{pid, ter});
+}
+
 Id polyOp(Tx& tx, PolyMode mode, Id prov, const std::vector<Vec2>& polyIn, Terrain terrain, double snap) {
   if (mode != PolyMode::Create && !tx.w().province(prov)) fail("Провинция не найдена");
   Graph g;
@@ -955,20 +991,32 @@ Id polyOp(Tx& tx, PolyMode mode, Id prov, const std::vector<Vec2>& polyIn, Terra
     rec.sea = ter == Terrain::Sea;
     pid = tx.add(std::move(rec)).id;
   }
-  double changedArea = 0;
+  // Новая провинция берёт только свободную (не назначенную) площадь своего рельефа: соседи не уменьшаются,
+  // зашедшие на них части контура удаляет очистка, и граница идёт по их границам. Расширение забирает у соседей.
+  double changedArea = 0, terArea = 0;
+  std::vector<char> taken(size_t(f1.nfaces()), 0);
   for (int f = 0; f < f1.nfaces(); f++) {
     if (inside[size_t(f)] != 1) continue;
     Side s = side1[size_t(f)];
-    bool take = mode == PolyMode::Remove ? s.prov == prov : (s.ter == ter && s.prov != pid);
+    if (s.ter == ter) terArea += f1.faceArea[size_t(f)];
+    bool take = mode == PolyMode::Remove ? s.prov == prov
+                : mode == PolyMode::Create ? (s.ter == ter && s.prov == 0)
+                                           : (s.ter == ter && s.prov != pid);
     if (!take) continue;
     relabelFace(g, f1, f, Side{mode == PolyMode::Remove ? Id(0) : pid, s.ter});
+    taken[size_t(f)] = 1;
     changedArea += f1.faceArea[size_t(f)];
   }
   if (!(changedArea > kMinArea)) {
-    if (mode == PolyMode::Create) fail(ter == Terrain::Sea ? "Контур не захватывает море" : "Контур не захватывает сушу");
+    if (mode == PolyMode::Create) {
+      if (terArea > kMinArea) fail(ter == Terrain::Sea ? "Внутри контура нет свободного моря: оно уже разделено между провинциями"
+                                                       : "Внутри контура нет свободной суши: она уже разделена между провинциями");
+      fail(ter == Terrain::Sea ? "Контур не захватывает море" : "Контур не захватывает сушу");
+    }
     if (mode == PolyMode::Add) fail("Контур не добавляет провинции новой территории");
     fail("Контур не задевает провинцию");
   }
+  if (mode == PolyMode::Create) absorbPockets(g, in1, f1, inside, side1, taken, pid, ter, snap, bounds(res.paths[0]));
   cleanup(g);
   finalize(tx, g);
   return pid;

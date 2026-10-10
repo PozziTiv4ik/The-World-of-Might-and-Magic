@@ -227,8 +227,10 @@ TEST(app_faction_relations_symmetric) {
   h.step();
   CHECK(h->world().relation(a, b).s == RelStatus::War);
   CHECK_NEAR(h->world().relation(a, b).v, schema::kWarRelation, 1e-9);
+  // Поле — действующее значение (с «+10 одна вера», ТЗ «Доработки №4», п.3); хранится значение без смещения.
   CHECK(typeNumber(h, "dip.value." + std::to_string(b), "-40"));
-  CHECK_NEAR(h->world().relation(a, b).v, -40, 1e-9);
+  CHECK_NEAR(rules::relationValue(h->world(), a, b), -40, 1e-9);
+  CHECK_NEAR(h->world().relation(a, b).v, -40 - rules::relationBonus(h->world(), a, b), 1e-9);
   CHECK(h.shot("faction_diplomacy_war_a"));
   // Вкладка другой стороны показывает то же самое; состояние заблокировано, есть «Заключить перемирие».
   openTab(h, b, "faction.diplomacy");
@@ -239,7 +241,7 @@ TEST(app_faction_relations_symmetric) {
     if (r.other == a) {
       seen = true;
       CHECK(r.status == RelStatus::War);
-      CHECK_NEAR(r.value, -40, 1e-9);
+      CHECK_NEAR(r.value + r.bonus, -40, 1e-9);
     }
   CHECK(seen);
   CHECK(h.shot("faction_diplomacy_war_b"));
@@ -264,7 +266,7 @@ TEST(app_faction_relations_symmetric) {
   h.settle();
   CHECK(!h->hasDialog("truce"));
   CHECK(h->world().relation(b, a).s == RelStatus::Alliance);
-  CHECK_NEAR(h->world().relation(a, b).v, -40, 1e-9);
+  CHECK_NEAR(rules::relationValue(h->world(), a, b), -40, 1e-9);
   // Фильтр «Гильдии» скрывает государства.
   CHECK(h->uiRect("dip.filter") != nullptr);
   {

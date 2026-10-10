@@ -96,7 +96,9 @@ class Sketch {
   void pop();
 
   // Предпросмотр: линия, заливка (для многоугольника), вершины, резиновая нить к указателю, прилипание.
-  void draw(App& a, gfx::Canvas& c, const map::View& v, Color line, Color fill) const;
+  // fillArea — своя заливка контура без самопересечений (экранные точки, включая указатель); иначе — весь многоугольник.
+  void draw(App& a, gfx::Canvas& c, const map::View& v, Color line, Color fill,
+            const std::function<void(const Pts&)>& fillArea = {}) const;
   std::optional<Vec2> cursor(const App& a) const;   // точка под указателем (если он над картой)
 
  private:

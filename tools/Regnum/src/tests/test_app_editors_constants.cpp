@@ -41,6 +41,12 @@ std::string rowRace(const World& w, std::pair<Id, Id> fr) {
   return r ? r->race : std::string("?");
 }
 
+Id resByName(const World& w, const std::string& name) {
+  for (const CatalogItem& c : w.catalogs->resources)
+    if (c.name == name) return c.id;
+  return 0;
+}
+
 bool hasValue(const World& w, const char* key, const std::string& v) {
   const Constant& c = rules::constantOf(w, key);
   return std::find(c.values.begin(), c.values.end(), v) != c.values.end();
@@ -78,24 +84,36 @@ TEST(app_editors_constants_builtin) {
   CHECK(sel(h, schema::cst::CorpsesPerUnit));
   CHECK(enterValue(h, "constants.corpsesPerUnit.num", "2.5", kArea, kTop));
   CHECK_NEAR(num(h->world(), schema::cst::CorpsesPerUnit), 2.5, 1e-12);
-  // Стоимость линкора — список ресурсов: древесина 40, золото 250,125; золото убирается крестиком.
+  // Стоимость линкора — список ресурсов с базовой стоимостью (ТЗ «Доработки №3», п.7): древесина 1000, золото 100,
+  // ткань 1000, сталь 250 — меньше нельзя, убрать нельзя (замок); увеличить можно, свой ресурс — добавить и убрать.
   CHECK(sel(h, schema::cst::ShipLineCost));
-  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Древесина", kArea, kTop));
-  Id wood = 0;
-  for (auto& [rid, v] : rules::constantOf(h->world(), schema::cst::ShipLineCost).res) wood = rid;
+  const Id wood = resByName(h->world(), "Древесина");
   CHECK(wood != 0);
-  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(wood), "40", kArea, kTop));
-  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Золото", kArea, kTop));
-  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(kGold), "250.125", kArea, kTop));
   {
     const Constant& c = rules::constantOf(h->world(), schema::cst::ShipLineCost);
-    CHECK_EQ(c.res.size(), size_t(2));
-    CHECK_NEAR(c.res.count(wood) ? c.res.at(wood) : -1, 40.0, 1e-9);
-    CHECK_NEAR(c.res.count(kGold) ? c.res.at(kGold) : -1, 250.125, 1e-9);
+    CHECK_EQ(c.res.size(), size_t(4));
+    CHECK_NEAR(c.res.count(wood) ? c.res.at(wood) : -1, 1000.0, 1e-9);
+    CHECK_NEAR(c.res.count(kGold) ? c.res.at(kGold) : -1, 100.0, 1e-9);
   }
-  CHECK(clickRevealed(h, "constants.shipLineCost.res." + std::to_string(kGold) + ".remove", kArea, kTop));
+  CHECK(reveal(h, "constants.shipLineCost.res." + std::to_string(wood), kArea, kTop));
+  CHECK(h->uiRect("constants.shipLineCost.res." + std::to_string(wood) + ".lock") != nullptr);
+  CHECK(h->uiRect("constants.shipLineCost.res." + std::to_string(wood) + ".remove") == nullptr);
+  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(wood), "40", kArea, kTop));   // ниже базовой — нельзя
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.at(wood), 1000.0, 1e-9);
+  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(wood), "1200", kArea, kTop));
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.at(wood), 1200.0, 1e-9);
+  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(kGold), "250.125", kArea, kTop));
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.at(kGold), 250.125, 1e-9);
+  CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Уголь", kArea, kTop));
+  const Id coal = resByName(h->world(), "Уголь");
+  CHECK(coal != 0);
+  CHECK_EQ(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.size(), size_t(5));
+  CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(coal), "7.5", kArea, kTop));
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.at(coal), 7.5, 1e-9);
+  CHECK(clickRevealed(h, "constants.shipLineCost.res." + std::to_string(coal) + ".remove", kArea, kTop));
   quick(h);
-  CHECK_EQ(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.count(kGold), size_t(0));
+  CHECK_EQ(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.count(coal), size_t(0));
+  CHECK_EQ(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.size(), size_t(4));
   // Расы для отрядов: базовые закреплены (замок, без удаления).
   CHECK(sel(h, schema::cst::UnitRaces));
   CHECK(reveal(h, "constants.unitRaces.addval", kArea, kTop));
@@ -177,10 +195,12 @@ TEST(app_editors_constants_user_and_window) {
   CHECK_EQ(h->ui.editor, std::string("constants"));
   CHECK(h.clickUi("constants.list.frigateCost"));
   quick(h);
-  CHECK(pickInCombo(h, "constants.frigateCost.addres", "Железо"));
-  CHECK_EQ(rules::constantOf(h->world(), schema::cst::FrigateCost).res.size(), size_t(1));
+  // Стоимость фрегата: 4 базовых ресурса (древесина, золото, ткань, железо) и добавленный уголь.
+  CHECK_EQ(rules::constantOf(h->world(), schema::cst::FrigateCost).res.size(), size_t(4));
+  CHECK(pickInCombo(h, "constants.frigateCost.addres", "Уголь"));
+  CHECK_EQ(rules::constantOf(h->world(), schema::cst::FrigateCost).res.size(), size_t(5));
   shotClean(h, "editors_constants_window");
-  CHECK(h.clickUi("constants.list.user2"));
+  CHECK(clickRevealed(h, "constants.list.user2", kArea, kTop));   // свои — ниже 14 встроенных: список прокручивается
   quick(h);
   CHECK(h->uiRect("constants.user2.delete") != nullptr);
   shotClean(h, "editors_constants_window_values");

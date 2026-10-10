@@ -129,13 +129,14 @@ TEST(geo_create_partial_and_overlap) {
   s.world().edges.each([&](const Edge& e) {
     if (e.kind == EdgeKind::Border) CHECK(e.tl == Terrain::Land && e.tr == Terrain::Land);
   });
-  // вторая провинция частично поверх первой: первая уменьшается, суша сохраняется
+  // вторая провинция частично поверх первой (ТЗ «Доработки №1», п.1): первая не меняется, вторая получает только
+  // свободную сушу и прилегает к первой по её границе; суша сохраняется
   Id b = s.transact("b", [](Tx& tx) {
     return createProvince(tx, {{430, 120}, {600, 140}, {640, 300}, {560, 470}, {420, 480}}, Terrain::Land);
   });
   GEO_CHECK_WORLD(s.world(), W, H);
   double aa2 = provArea(s.world(), a), bb = provArea(s.world(), b);
-  CHECK(aa2 < aa);
+  CHECK_NEAR(aa2, aa, 1e-9 * aa);
   CHECK(bb > 0);
   CHECK_NEAR(terrainArea(s.world(), Terrain::Land), land0, 1e-6 * land0);
   CHECK_NEAR(terrainArea(s.world(), Terrain::Land, 0) + aa2 + bb, land0, 1e-6 * land0);

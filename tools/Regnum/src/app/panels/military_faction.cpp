@@ -202,7 +202,7 @@ void raceCombo(App& a, std::string_view id, Id fid, Id row, bool disabled) {
   const ArmyRow* r = armyRowOf(w, fid, row);
   if (!r) return;
   const std::string cur = rules::unitRace(w, fid, *r);
-  const bool locked = schema::isElemental(r->type) || r->special;
+  const bool locked = schema::isElemental(r->type) || r->special || r->merc;   // наёмники — всегда «Наемники»
   std::vector<std::string> races = rules::unitRaces(w);
   if (std::find(races.begin(), races.end(), cur) == races.end()) races.push_back(cur);   // раса не из константы
   std::vector<ui::Option> opts;
@@ -233,6 +233,28 @@ void keyCombo(App& a, std::string_view id, Id fid, const ArmyRow& r, bool disabl
     const double per = r.keyPer;
     a.act("Ключевой ресурс", [&](Tx& tx) { rules::setRowKey(tx, fid, row, v, v ? per : 1); });
   }
+}
+
+// Ключевой ресурс судна (ТЗ «Доработки №3», п.8): морское чудовище — ресурс подгруппы «Морские чудовища», 1 на судно;
+// не задан — красная обводка (найм заблокирован). У прочих судов ключевого ресурса нет.
+void fleetKeyCombo(App& a, std::string_view id, Id fid, const FleetRow& r, bool disabled) {
+  const World& w = frameWorld(a);
+  const std::vector<Id> allowed = rules::shipKeyResources(w, r.type);
+  Id v = r.keyRes;
+  const bool missing = std::find(allowed.begin(), allowed.end(), r.keyRes) == allowed.end();
+  const std::string rule = "Из подгруппы «Морские чудовища», 1 на судно";
+  const std::string tip = missing ? "Не указан ключевой ресурс — найм недоступен\n" + rule : rule;
+  const bool changed = w::resourceFrom(id, v, allowed, "Не выбран", disabled, tip);
+  if (missing) ui::draw::rectStroke(ui::lastItem().rect.expand(1), ui::theme().danger, 8, 1.5f);
+  if (changed && v != r.keyRes) {
+    const Id row = r.id;
+    a.act("Ключевой ресурс судна", [&](Tx& tx) { rules::setFleetRowKey(tx, fid, row, v); });
+  }
+}
+
+const FleetRow* fleetRowOf(const World& w, Id fid, Id row) {
+  const Faction* f = w.faction(fid);
+  return f ? f->fleetRow(row) : nullptr;
 }
 
 // ---------------------------------------------------------------- цена и содержание
@@ -278,7 +300,7 @@ void partsCell(std::string_view key, RectF r, const std::vector<Part>& parts, st
   std::vector<float> widths;
   std::vector<std::string> nums;
   for (const Part& p : parts) {
-    nums.push_back(fmtMoney(p.v));
+    nums.push_back(p.kind == Part::Res && p.id == kGold ? fmtGold(p.v) : fmtMoney(p.v));
     widths.push_back(is + 3 + ui::measure(nums.back(), ui::Font::Small));
   }
   size_t shown = 0;
@@ -299,7 +321,7 @@ void partsCell(std::string_view key, RectF r, const std::vector<Part>& parts, st
   }
   if (!rest.empty()) ui::draw::text(rest, RectF{x, r.y, std::max(0.f, r.right() - x), r.h}, ui::Font::Small, t.textMuted);
   std::string tip(title);
-  for (const Part& p : parts) tip += "\n" + p.name + ": " + fmtMoney(p.v);
+  for (const Part& p : parts) tip += "\n" + p.name + ": " + (p.kind == Part::Res && p.id == kGold ? fmtGold(p.v) : fmtMoney(p.v));
   cellTip(key, r, tip);
 }
 
@@ -326,9 +348,11 @@ void costList(App& a, Id fid, const rules::RecruitCost& c, Id key) {
     const std::string tag = p.kind == Part::Res && p.id == key ? p.name + " · ключевой" : p.name;
     const float room = ui::avail().w;
     ui::label(tag, {.font = ui::Font::Small, .ink = ui::Ink::Dim, .tooltip = ui::measure(tag, ui::Font::Small) > room ? std::string_view(tag) : std::string_view()});
-    ui::label(p.kind == Part::People ? fmtCount(i64(p.v)) : fmtMoney(p.v),
+    const bool goldPart = p.kind == Part::Res && p.id == kGold;
+    ui::label(p.kind == Part::People ? fmtCount(i64(p.v)) : goldPart ? fmtGold(p.v) : fmtMoney(p.v),
               {.font = ui::Font::Strong, .ink = lack ? ui::Ink::Danger : ui::Ink::Normal, .align = ui::Align::Right,
-               .tooltip = lack ? "Есть " + (p.kind == Part::People ? fmtCount(i64(have)) : fmtMoney(std::max(0.0, have))) : std::string()});
+               .tooltip = lack ? "Есть " + (p.kind == Part::People ? fmtCount(i64(have)) : goldPart ? fmtGold(std::max(0.0, have)) : fmtMoney(std::max(0.0, have)))
+                               : std::string()});
   }
 }
 
@@ -581,7 +605,7 @@ void statTiles(App& a, Id fid, bool fleet, bool wide) {
               .tooltip = fleet ? "Корабли во флотах на карте и в торговле" : "Отряды в войсках на карте, в гарнизонах и оккупационных гарнизонах"});
     ui::stat(fmtCount(total - field), "В резерве",
              {.icon = fleet ? "anchor" : "shield", .tone = ui::Tone::Success, .delta = double(forming), .deltaText = formText, .tooltip = reserveTip});
-    ui::stat(fmtMoney(upkeep), "Содержание",
+    ui::stat(fmtGold(upkeep), "Содержание",
              {.icon = fleet ? "fleet-upkeep" : "army-upkeep", .tone = ui::Tone::Warning, .delta = mod, .deltaText = modText,
               .invertDelta = true,
               .tooltip = std::fabs(mod) > 1e-9 ? std::string("Золотом; с модификатором содержания ") + (fleet ? "флота " : "войск ") + modText
@@ -668,7 +692,7 @@ struct WideCols {
   bool upkeepTotal = false, keyFull = false, cost = false, race = false, field = false, typeLabel = false;
 };
 WideCols wideCols(float aw, bool fleet) {
-  float budget = aw - kNameMin - (kTypeIcon + kTotalW + kReserveW + kUpkeepW + kActionsW + (fleet ? 0 : kKeyIcon));
+  float budget = aw - kNameMin - (kTypeIcon + kTotalW + kReserveW + kUpkeepW + kActionsW + kKeyIcon);
   WideCols c;
   auto take = [&](bool& on, float w) {
     if (budget >= w) {
@@ -677,8 +701,8 @@ WideCols wideCols(float aw, bool fleet) {
     }
   };
   take(c.upkeepTotal, kUpkeepTotalW);
+  take(c.keyFull, kKeyFull - kKeyIcon);   // флот: ключевой ресурс морского чудовища
   if (!fleet) {
-    take(c.keyFull, kKeyFull - kKeyIcon);
     take(c.cost, kCostW);
     take(c.race, kRaceW);
   }
@@ -705,7 +729,7 @@ void essenceUpkeepCell(std::string_view key, RectF r, const World& w, const std:
   if (auto it = per.find(total.begin()->first); it != per.end()) each = it->second;
   ui::draw::text(fmtMoney(each) + " за ед.", RectF{r.x, y0 + h1, r.w, h2}, ui::Font::Caption, t.textMuted, ui::Align::Right);
   std::string tip = "Содержание эссенциями за ход";
-  for (const Part& p : parts) tip += "\n" + p.name + ": " + fmtMoney(p.v);
+  for (const Part& p : parts) tip += "\n" + p.name + ": " + (p.kind == Part::Res && p.id == kGold ? fmtGold(p.v) : fmtMoney(p.v));
   cellTip(key, r, tip);
 }
 
@@ -751,7 +775,7 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
     const float aw = ui::avail().w;
     const WideCols wc = wideCols(aw, fleet);
     shown.race = wc.race;
-    shown.key = !fleet;
+    shown.key = true;
     std::vector<ui::Column> cols;
     std::vector<int> keys;
     auto col = [&](int key, ui::Column c2) {
@@ -762,9 +786,8 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
                               : ui::Column{"", nullptr, ui::px(kTypeIcon), ui::Align::Left, true, fleet ? "Тип судна" : "Тип войск"});
     col(ColName, {"Наименование", nullptr, ui::fr(1, 120), ui::Align::Left, true});
     if (wc.race) col(ColRace, {"Раса", nullptr, ui::px(kRaceW), ui::Align::Left, true, "Раса отряда"});
-    if (!fleet)
-      col(ColKey, wc.keyFull ? ui::Column{"Ключевой ресурс", nullptr, ui::px(kKeyFull), ui::Align::Left, true, "Ключевой ресурс юнита — без него найм недоступен"}
-                             : ui::Column{"", "resource", ui::px(kKeyIcon), ui::Align::Left, true, "Ключевой ресурс юнита — без него найм недоступен"});
+    col(ColKey, wc.keyFull ? ui::Column{"Ключевой ресурс", nullptr, ui::px(kKeyFull), ui::Align::Left, true, "Ключевой ресурс юнита — без него найм недоступен"}
+                           : ui::Column{"", "resource", ui::px(kKeyIcon), ui::Align::Left, true, "Ключевой ресурс юнита — без него найм недоступен"});
     if (wc.cost) col(ColCost, {"Цена", nullptr, ui::px(kCostW), ui::Align::Left, false, "Цена найма одного юнита: население, ресурсы, эссенции"});
     col(ColTotal, {"Всего", nullptr, ui::px(kTotalW), st.editReserve ? ui::Align::Left : ui::Align::Right, true,
                    st.editReserve ? "Численность общая — правка резерва" : "Численность общая"});
@@ -807,7 +830,7 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
       }
       t.cell();
       std::string name = l.row.name;
-      if (ui::textField("name", name, {.placeholder = noun(fleet), .icon = special ? "special-unit" : nullptr, .maxLength = 60,
+      if (ui::textField("name", name, {.placeholder = noun(fleet), .icon = special ? "special-unit" : l.row.merc ? "mercenary" : nullptr, .maxLength = 60,
                                        .tooltip = special ? "Особый отряд справочника" : ""}))
         renameRow(a, fid, l.row.id, fleet, name);
       a.markUi(mark + ".name");
@@ -818,8 +841,13 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
       }
       if (ar) {
         t.cell();
-        if (schema::needsKeyResource(ar->type)) keyCombo(a, "key", fid, *ar, ro);
+        if (schema::needsKeyResource(ar->type) && !ar->merc) keyCombo(a, "key", fid, *ar, ro);
         else ui::label("—", {.ink = ui::Ink::Muted, .tooltip = "У этого типа нет ключевого ресурса"});
+        a.markUi(mark + ".key");
+      } else if (const FleetRow* fr = fleet ? fleetRowOf(w, fid, l.row.id) : nullptr) {
+        t.cell();
+        if (fr->type == ShipType::SeaMonster) fleetKeyCombo(a, "key", fid, *fr, ro);
+        else ui::label("—", {.ink = ui::Ink::Muted, .tooltip = "У этого судна нет ключевого ресурса"});
         a.markUi(mark + ".key");
       }
       if (wc.cost && ar) {
@@ -850,7 +878,7 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
         t.cell();
         ui::Disabled lock(special);
         double up = l.row.upkeep;
-        if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 0.5, .digits = 3,
+        if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 0.5, .digits = 3, .unit = "тыс.",
                                            .tooltip = special ? "Содержание особого отряда — из справочника" : ""}))
           setRowUpkeep(a, fid, l.row.id, fleet, up);
       }
@@ -860,7 +888,7 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
           const RectF cr = t.cell();
           partsCell("##esstotal", cr, essenceParts(w, l.essTotal), "Содержание эссенциями за ход", ui::Align::Right);
         } else {
-          t.text(fmtMoney(l.upkeepTotal()));
+          t.text(fmtGold(l.upkeepTotal()));
         }
       }
       t.cell();
@@ -881,7 +909,7 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
       t.cell();
       t.text("Итого");
       if (wc.race) t.cell();
-      if (!fleet) t.cell();
+      t.cell();   // ключевой ресурс
       if (wc.cost) t.cell();
       t.text(fmtCount(sumTotal));
       if (wc.field) t.text(fmtCount(sumField));
@@ -894,7 +922,7 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
         const RectF cr = t.cell();   // содержание элементалей эссенциями — под «Сод. 1»
         if (!sumEss.empty()) partsCell("##essfoot", cr, essenceParts(w, sumEss), "Содержание эссенциями за ход");
       }
-      if (wc.upkeepTotal) t.text(fmtMoney(sumUpkeep));
+      if (wc.upkeepTotal) t.text(fmtGold(sumUpkeep));
     }
   } else {
     ui::Column cols[] = {{noun(fleet), nullptr, ui::fr(1, 110)},
@@ -915,14 +943,14 @@ Shown forcesTable(App& a, Id fid, bool fleet, ForcesState& st, bool wide) {
         const ArmyRow* ar = armyRowOf(w, fid, l.row.id);
         essenceUpkeepCell("##essup", cr, w, l.essTotal, ar ? ar->essUpkeep : std::map<Id, double>{});
       } else {
-        cellLines(cr, fmtMoney(l.upkeepTotal()), fmtMoney(l.row.upkeep) + " за ед.", ui::Align::Right);
+        cellLines(cr, fmtGold(l.upkeepTotal()), fmtGold(l.row.upkeep) + " за ед.", ui::Align::Right);
       }
     }
     if (!lines.empty() && t.footer()) {
       t.text("Итого");
       RectF cr = t.cell();
       cellLines(cr, fmtCount(sumTotal), fmtCount(sumReserve), ui::Align::Right, ui::Ink::Normal, ui::Ink::Success);
-      t.text(fmtMoney(sumUpkeep));
+      t.text(fmtGold(sumUpkeep));
     }
   }
   // Выбор меняется только щелчком или стрелками: новая строка из меню ещё может отсутствовать в мире кадра.
@@ -1048,7 +1076,14 @@ bool rowCard(App& a, Id fid, bool fleet, ForcesState& st, bool editors, Shown in
       raceCombo(a, "race", fid, r->id, ro);
       a.markUi("mil.detail.race");
     }
-    if (ar) armyPrice(a, fid, *ar, inTable.key, ro);
+    if (ar && ar->merc) mercHireField(a, fid, ar->id);   // наёмники — только золото (military_merc.cpp)
+    else if (ar && !ar->merc) armyPrice(a, fid, *ar, inTable.key, ro);   // у наёмников — только цена найма золотом
+    // Морское чудовище: ключевой ресурс (в узкой таблице его столбца нет).
+    if (const FleetRow* fr = fleet && !inTable.key ? fleetRowOf(w, fid, r->id) : nullptr; fr && fr->type == ShipType::SeaMonster) {
+      ui::caption("Ключевой ресурс");   // во всю ширину карточки, как у отрядов
+      fleetKeyCombo(a, "key", fid, *fr, ro);
+      a.markUi("mil.detail.key");
+    }
     if (editors) {
       if (st.editReserve) {   // п.10.3: напрямую — только в режиме «Правка резерва»
         ui::prop("Численность", fleet ? "fleet" : "users");
@@ -1062,7 +1097,7 @@ bool rowCard(App& a, Id fid, bool fleet, ForcesState& st, bool editors, Shown in
         ui::prop(fleet ? "За корабль" : "За единицу", "coins");
         ui::Disabled lock(special);
         double up = r->upkeep;
-        if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 0.5, .digits = 3,
+        if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 0.5, .digits = 3, .unit = "тыс.",
                                            .tooltip = special ? "Содержание особого отряда — из справочника" : "Содержание одного за ход, золотом"}))
           setRowUpkeep(a, fid, r->id, fleet, up);
         a.markUi("mil.detail.upkeep");
@@ -1109,7 +1144,7 @@ bool rowCard(App& a, Id fid, bool fleet, ForcesState& st, bool editors, Shown in
       for (auto& [e, v] : ess) sum += v;
       ui::tag(fmtMoney(sum) + " за ход", ui::Tone::Warning, "essence");
     } else {
-      ui::tag(fmtMoney(rc ? rc->upkeepTotal : 0) + " за ход", ui::Tone::Warning, "coins");
+      ui::tag(fmtGold(rc ? rc->upkeepTotal : 0) + " за ход", ui::Tone::Warning, "coins");
     }
   }
   ui::caption(fleet ? "Где корабли" : "Где отряды");
@@ -1178,7 +1213,7 @@ void tradeFleetSection(App& a, Id fid) {
   {
     // Риск пиратов: бросок в конце этого хода (сгенерирован в конце прошлого) и новый — по кораблям в торговле.
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
-    ui::stat((income > 0 ? "+" : "") + fmtMoney(income), "Прибыль за ход", {.icon = "coins", .tone = ui::Tone::Success,
+    ui::stat((income > 0 ? "+" : "") + fmtGold(income), "Прибыль за ход", {.icon = "coins", .tone = ui::Tone::Success,
                                                                             .tooltip = "Торговые галеоны в торговле: содержание × 2"});
     const std::string nextText = "→ " + fmtPct(next, 1);
     ui::stat(fmtPct(f->pirateRisk, 1), "Пираты", {.icon = "dice", .tone = f->pirateRisk > 0 ? ui::Tone::Danger : ui::Tone::Neutral,
@@ -1221,7 +1256,7 @@ void tradeFleetSection(App& a, Id fid) {
       a.markUi("mil.trade." + std::to_string(l.row.id));
     }
     t.text(fmtCount(l.reserve), l.reserve > 0 ? ui::Ink::Success : ui::Ink::Muted);
-    t.text(l.income > 0 ? "+" + fmtMoney(l.income) : std::string("—"), l.income > 0 ? ui::Ink::Success : ui::Ink::Muted);
+    t.text(l.income > 0 ? "+" + fmtGold(l.income) : std::string("—"), l.income > 0 ? ui::Ink::Success : ui::Ink::Muted);
   }
 }
 
@@ -1245,14 +1280,18 @@ void objectsOnMap(App& a, Id fid, bool fleet) {
   if (list.empty()) {
     bool ro = a.readOnly();
     ui::Disabled dis(ro);
-    if (ui::emptyState(fleet ? "fleet" : "army", fleet ? "Флотов на карте нет." : "Войск на карте нет.", fleet ? "Поставить флот" : "Поставить войско",
-                       fleet ? "tool-fleet" : "tool-army"))
-      startPlacing(a, fleet ? ArmyKind::Fleet : ArmyKind::Army, fid);
-    a.markUi(fleet ? "mil.fleet.placeEmpty" : "mil.army.placeEmpty");
+    if (fleet) {   // флот — у верфи, если свободное редактирование флотов выключено (ТЗ «Доработки №3», п.3)
+      placeFleetButton(a, fid, true);
+      return;
+    }
+    if (ui::emptyState("army", "Войск на карте нет.", "Поставить войско", "tool-army")) startPlacing(a, ArmyKind::Army, fid);
+    a.markUi("mil.army.placeEmpty");
     return;
   }
   for (const Army* ar : list) {
     std::string sub = w.provinceName(provinceUnder(w, ar->pos));
+    if (const Id fl = rules::carrierOf(w, ar->id)) sub = "на борту «" + objectName(*w.army(fl)) + "»";   // войско на борту флота
+    else if (rules::cargoOf(w, ar->id)) sub += " · с войском";
     if (ar->allied()) {
       std::vector<std::string> names;
       for (Id f : factionsIn(*ar))
@@ -1264,8 +1303,9 @@ void objectsOnMap(App& a, Id fid, bool fleet) {
   }
   ui::Disabled dis(a.readOnly());
   ui::HStack hs(0, ui::Align::Left, 6);
-  if (ui::button(fleet ? "Поставить флот" : "Поставить войско", {.variant = ui::Variant::Ghost, .icon = fleet ? "tool-fleet" : "tool-army", .size = ui::Size::Small}))
-    startPlacing(a, fleet ? ArmyKind::Fleet : ArmyKind::Army, fid);
+  if (fleet) placeFleetButton(a, fid, false);
+  else if (ui::button("Поставить войско", {.variant = ui::Variant::Ghost, .icon = "tool-army", .size = ui::Size::Small}))
+    startPlacing(a, ArmyKind::Army, fid);
 }
 
 // Списание из казны за ход: войска + флот (ТЗ 1.c.ii).
@@ -1283,10 +1323,10 @@ void upkeepCard(App& a, Id fid, bool fleet) {
   {
     ui::Group g(0, 0);
     ui::label("Из казны за ход", {.font = ui::Font::Strong});
-    std::string parts = std::string(fleet ? "флот " : "войска ") + fmtMoney(fleet ? fl : army) + " + " + (fleet ? "войска " : "флот ") + fmtMoney(fleet ? army : fl);
+    std::string parts = std::string(fleet ? "флот " : "войска ") + fmtGold(fleet ? fl : army) + " + " + (fleet ? "войска " : "флот ") + fmtGold(fleet ? army : fl);
     ui::label(parts, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   }
-  ui::label(fmtSigned(-(army + fl), 3), {.font = ui::Font::Number, .ink = army + fl > 0 ? ui::Ink::Danger : ui::Ink::Muted, .align = ui::Align::Right,
+  ui::label(fmtGoldSigned(-(army + fl)), {.font = ui::Font::Number, .ink = army + fl > 0 ? ui::Ink::Danger : ui::Ink::Muted, .align = ui::Align::Right,
                                          .tooltip = "Сумма содержания общего из таблиц войск и флота"});
 }
 
@@ -1311,6 +1351,7 @@ void drawForces(App& a, Id fid, bool fleet, bool fullscreen) {
     a.markUi(fleet ? "mil.fleet.add" : "mil.army.add");
     addRowMenu(a, "addrow", fid, fleet, st);
     if (s) {
+      if (!fleet) mercBar(a, fid);   // «Создать войско наемников» и лимит (military_merc.cpp)
       if (n == 0) {
         ui::Disabled dis(a.readOnly());
         if (ui::emptyState(fleet ? "fleet" : "army", fleet ? "В таблице флота пока нет судов." : "В таблице войск пока нет отрядов.",

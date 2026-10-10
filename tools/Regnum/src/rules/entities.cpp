@@ -1,5 +1,7 @@
 // Regnum — создание и удаление сущностей с полной очисткой ссылок, справочники, владение провинциями,
 // удаление, объединение и разделение провинций, строки войск и флота.
+#include "core/arch.h"
+#include "core/content.h"
 #include "geo/ops.h"
 #include "rules/internal.h"
 
@@ -38,7 +40,7 @@ bool dropGroup(Tx& tx, Id army, Id faction) {
   if (a.commander && contains(it->heroes, a.commander)) a.commander = 0;
   a.groups.erase(it);
   if (a.groups.empty()) {
-    tx.eraseArmy(army);
+    eraseObject(tx, army);   // флот — войско на борту высаживается; войско на борту — флот освобождается
     return true;
   }
   return false;
@@ -52,8 +54,10 @@ void dropBuildingEverywhere(Tx& tx, Id building) {
   for (Id pid : ids) {
     const Province& p0 = *tx.w().province(pid);
     std::optional<ProvBuilding> started;
-    for (const ProvBuilding& pb : p0.buildings)
+    for (const ProvBuilding& pb : p0.buildings) {
       if (pb.building == building && pb.constructing) started = pb;
+      if (pb.building == building) releaseBuildingRelics(tx, p0.owner, pb);
+    }
     auto& list = tx.province(pid).buildings;
     list.erase(std::remove_if(list.begin(), list.end(), [&](const ProvBuilding& b) { return b.building == building; }), list.end());
     if (!started) continue;
@@ -123,7 +127,11 @@ Id createFaction(Tx& tx, FactionKind kind, const std::string& name) {
   f.color = Color::palette(int(f.id));
   f.flag.colors[0] = f.color;
   f.res[kGold] = 0;
-  return tx.add(std::move(f)).id;
+  const Id id = tx.add(std::move(f)).id;
+  // «Гильдия Археологов» — культовая постройка уникального дерева каждого государства (ТЗ «Доработки №1», п.10).
+  if (kind == FactionKind::State)
+    tx.add(content::archGuildFor(id, nextTreePos(tx.w().buildings, [&](const Building& x) { return x.owner == id; })));
+  return id;
 }
 
 void removeFaction(Tx& tx, Id faction) {
@@ -180,8 +188,11 @@ void removeFaction(Tx& tx, Id faction) {
   for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return c.faction == faction; })) tx.character(cid).faction = 0;
   for (Id mid : idsWhere(tx.w().modifiers, [&](const Modifier& m) { return contains(m.targets, faction); }))
     eraseValue(tx.modifier(mid).targets, faction);
-  // Уникальные постройки фракции удаляются вместе с ней.
-  for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) { return b.owner == faction; })) removeBuilding(tx, bid);
+  // Уникальные постройки фракции удаляются вместе с ней (и «Гильдия Археологов»).
+  for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) { return b.owner == faction; })) {
+    if (!tx.w().building(bid)->key.empty()) tx.building(bid).key.clear();
+    removeBuilding(tx, bid);
+  }
   for (Id tid : idsWhere(tx.w().techs, [&](const Tech& t) { return t.faction == faction; })) tx.eraseTech(tid);
   for (Id aid : idsWhere(tx.w().armies, [&](const Army& a) {
          return std::any_of(a.groups.begin(), a.groups.end(), [&](const ArmyGroup& g) { return g.faction == faction; });
@@ -200,6 +211,20 @@ void removeFaction(Tx& tx, Id faction) {
   tx.eraseFaction(faction);
   addLog(tx, LogKind::Note, std::string(state ? "Государство " : "Гильдия ") + name + (state ? " упразднено" : " упразднена"),
          LogRefs{0, 0, {faction}});
+}
+
+// ================================================================ совет
+Id addCouncilSeat(Tx& tx, Id faction, const std::string& position, Id character) {
+  const Faction& f = needFaction(tx.w(), faction);
+  if (int(f.council.size()) >= schema::kMaxCouncilSeats)
+    fail("В совете не больше " + std::to_string(schema::kMaxCouncilSeats) + " должностей");
+  CouncilSeat seat;
+  seat.id = tx.nextId(Seq::Council);
+  const std::string p = trim(position);
+  seat.position = p.empty() ? std::string("Советник") : p;
+  tx.faction(faction).council.push_back(seat);
+  if (character) setCouncilMember(tx, faction, seat.id, character);
+  return seat.id;
 }
 
 // ================================================================ персонажи, модификаторы
@@ -326,6 +351,37 @@ Id createModifier(Tx& tx, const std::string& name) {
   return tx.add(std::move(m)).id;
 }
 
+void fitModifierUses(Tx& tx, Id modifier) {
+  const Modifier* m = tx.w().modifier(modifier);
+  if (!m) fail("Модификатор не найден");
+  if (m->kind != ModKind::ArchGroup) {
+    for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) {
+           return std::any_of(f.archGroups.begin(), f.archGroups.end(), [&](const ArchGroup& g) { return contains(g.modifiers, modifier); });
+         }))
+      for (ArchGroup& g : tx.faction(fid).archGroups) {
+        eraseValue(g.modifiers, modifier);
+        g.modTurns.erase(modifier);
+      }
+    return;
+  }
+  for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return contains(p.modifiers, modifier); })) {
+    eraseValue(tx.province(pid).modifiers, modifier);
+    tx.province(pid).modTurns.erase(modifier);
+  }
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return contains(f.modifiers, modifier); })) {
+    eraseValue(tx.faction(fid).modifiers, modifier);
+    tx.faction(fid).modTurns.erase(modifier);
+  }
+  for (Id aid : idsWhere(tx.w().armies, [&](const Army& a) { return contains(a.modifiers, modifier); })) {
+    eraseValue(tx.army(aid).modifiers, modifier);
+    tx.army(aid).modTurns.erase(modifier);
+  }
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return contains(c.modifiers, modifier); })) {
+    eraseValue(tx.character(cid).modifiers, modifier);
+    tx.character(cid).modTurns.erase(modifier);
+  }
+}
+
 void removeModifier(Tx& tx, Id modifier) {
   if (!tx.w().modifier(modifier)) fail(modifier ? "Модификатор не найден" : "Не выбран модификатор");
   for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return contains(p.modifiers, modifier); })) {
@@ -344,6 +400,14 @@ void removeModifier(Tx& tx, Id modifier) {
     eraseValue(tx.character(cid).modifiers, modifier);
     tx.character(cid).modTurns.erase(modifier);
   }
+  // Модификаторы археологических групп.
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) {
+         return std::any_of(f.archGroups.begin(), f.archGroups.end(), [&](const ArchGroup& g) { return contains(g.modifiers, modifier); });
+       }))
+    for (ArchGroup& g : tx.faction(fid).archGroups) {
+      eraseValue(g.modifiers, modifier);
+      g.modTurns.erase(modifier);
+    }
   {
     const auto& pos = tx.w().catalogs->positions;
     if (std::any_of(pos.begin(), pos.end(), [&](const CatalogItem& c) { return contains(c.modifiers, modifier) || contains(c.vacantModifiers, modifier); }))
@@ -358,6 +422,15 @@ void removeModifier(Tx& tx, Id modifier) {
     for (BuildingLevel& l : tx.building(bid).levels) eraseValue(l.modifiers, modifier);
   for (Id tid : idsWhere(tx.w().techs, [&](const Tech& t) { return contains(t.modifiers, modifier); }))
     eraseValue(tx.tech(tid).modifiers, modifier);
+  // Модификаторы талантов классов героев.
+  {
+    const auto& cls = tx.w().catalogs->classes;
+    if (std::any_of(cls.begin(), cls.end(), [&](const HeroClass& c) {
+          return std::any_of(c.talents.begin(), c.talents.end(), [&](const Talent& t) { return contains(t.modifiers, modifier); });
+        }))
+      for (HeroClass& c : tx.catalogs().classes)
+        for (Talent& t : c.talents) eraseValue(t.modifiers, modifier);
+  }
   tx.eraseModifier(modifier);
 }
 
@@ -376,7 +449,9 @@ Id createBuilding(Tx& tx, Id owner, const std::string& name) {
 }
 
 void removeBuilding(Tx& tx, Id building) {
-  needBuilding(tx.w(), building);
+  const Building& b0 = needBuilding(tx.w(), building);
+  if (b0.key == schema::bld::ArchGuild && b0.owner && tx.w().faction(b0.owner))
+    fail("«" + b0.name + "» — постоянная культовая постройка государства: её можно изменить, но не удалить");
   dropBuildingEverywhere(tx, building);
   for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) {
          return std::any_of(b.requires_.begin(), b.requires_.end(), [&](const BuildingReq& r) { return r.building == building; });
@@ -664,6 +739,7 @@ void setProvinceOwner(Tx& tx, Id province, Id faction) {
   for (const ProvBuilding& pb : unique) {
     lost.push_back(buildingName(tx.w(), pb.building));
     if (pb.constructing) refundPaid(tx, pb);
+    releaseBuildingRelics(tx, old, pb);
   }
   if (const Faction* of = tx.w().faction(old); of && of->capital == province) tx.faction(old).capital = 0;
   std::string text = faction ? "Провинция " + provName(tx.w(), province) + " перешла к " + facName(tx.w(), faction)
@@ -836,6 +912,9 @@ void mergeProvinces(Tx& tx, Id target, Id source) {
   // Ссылки на исходную провинцию.
   for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.capital == source; }))
     tx.faction(fid).capital = fid == t.owner ? target : 0;
+  for (const ProvBuilding& b : src.buildings)
+    if (std::none_of(t.buildings.begin(), t.buildings.end(), [&](const ProvBuilding& x) { return x.building == b.building && x.relics == b.relics; }))
+      releaseBuildingRelics(tx, src.owner, b);
   tx.eraseProvince(source);
   int refunds = 0;
   for (const ProvBuilding& b : lostStarted)
@@ -865,7 +944,9 @@ Id splitProvince(Tx& tx, Id province, const std::vector<Vec2>& line) {
     rec.localTax = src.localTax;
     rec.occupied = src.occupied;
     rec.occupier = src.occupier;
-    return t.add(std::move(rec)).id;
+    const Id nid = t.add(std::move(rec)).id;
+    t.province(nid).arch = arch::rollSlots(*t.w().catalogs, arch::provinceSeed(nid));   // ТЗ «Доработки №2», п.6
+    return nid;
   });
   LogRefs refs{province, 0, {}};
   if (src.owner) refs.factions.push_back(src.owner);
@@ -899,6 +980,7 @@ void setRowRace(Tx& tx, Id faction, Id row, const std::string& race) {
   std::string r = trim(race);
   if (r.empty()) fail("Не выбрана раса отряда");
   if (schema::isElemental(cur->type) && r != schema::kRaceElemental) fail("Раса элементалей — только «Элементали»");
+  if (cur->merc && r != schema::kRaceMercenary) fail("Раса наёмников — только «Наемники»");
   for (ArmyRow& x : tx.faction(faction).army)
     if (x.id == row) x.race = r;
 }

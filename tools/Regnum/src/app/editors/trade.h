@@ -13,6 +13,7 @@ struct DraftItem {
   DealItemKind kind = DealItemKind::Resource;   // ресурс, провинция или пленный герой (провинция и герой — разово)
   Id ref = 0;                      // провинция или герой
   Id res = kGold;
+  Id group = 0;                    // группа ресурсов выбора (0 — все ресурсы)
   double amount = 100;
   DealMode mode = DealMode::Once;
   int turns = 5;                   // срок для «каждый ход»

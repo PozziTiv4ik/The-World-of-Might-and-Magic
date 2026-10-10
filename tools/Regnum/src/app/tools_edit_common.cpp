@@ -404,7 +404,8 @@ Sketch::Result Sketch::key(App& a, const platform::Event& e) {
   return Result::Ignored;
 }
 
-void Sketch::draw(App& a, gfx::Canvas& c, const map::View& v, Color line, Color fill) const {
+void Sketch::draw(App& a, gfx::Canvas& c, const map::View& v, Color line, Color fill,
+                  const std::function<void(const Pts&)>& fillArea) const {
   const Palette P = palette();
   std::optional<Vec2> cur = cursor(a);
   Pts sp = toScreen(v, pts_);
@@ -418,7 +419,8 @@ void Sketch::draw(App& a, gfx::Canvas& c, const map::View& v, Color line, Color 
   if (closed && sp.size() >= 2) {
     Pts poly = sp;
     if (cs && !nearFirst) poly.push_back(*cs);
-    fillPoly(c, poly, ok ? fill : P.danger.alpha(0.16f));
+    if (ok && fillArea) fillArea(poly);
+    else fillPoly(c, poly, ok ? fill : P.danger.alpha(0.16f));
   }
   if (sp.size() >= 2) glowLine(c, sp, false, lc, 2.0f);
   if (nearFirst) glowLine(c, Pts{sp.back(), sp.front()}, false, lc, 2.0f);   // контур замкнётся

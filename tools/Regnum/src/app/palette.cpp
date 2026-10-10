@@ -74,6 +74,7 @@ struct Palette : Dialog {
         items.push_back(std::move(it));
       };
       w.factions.each([&](const Faction& f) {
+        if (f.isWild()) return;   // у войск без государства нет страницы
         add({SelType::Faction, f.id}, entityName(w, {SelType::Faction, f.id}), f.isGuild() ? "Торговая гильдия" : "Государство", f.isGuild() ? "гильдия" : "государство",
             f.isGuild() ? "guild" : "crown", f.color);
       });

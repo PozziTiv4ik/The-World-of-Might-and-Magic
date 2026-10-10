@@ -181,12 +181,13 @@ struct MapView::Impl {
   }
 
   // Объекты с отметками: «Скрыть войска» (ТЗ «Фиксы», п.2) — ни фигурок, ни попадания мышью; перетаскиваемые
-  // объекты рисует инструмент.
+  // объекты рисует инструмент; войско на борту флота отдельной фигуркой не рисуется (ТЗ «Доработки №3», п.6).
   std::vector<const Army*> markedArmies() const {
     std::vector<const Army*> list;
     list.reserve(world.armies.size());
     if (world.settings->showArmies)
       world.armies.each([&](const Army& a) {
+        if (a.carrier && rules::carrierOf(world, a.id)) return;
         if (!std::binary_search(lastHidden.begin(), lastHidden.end(), a.id)) list.push_back(&a);
       });
     return list;

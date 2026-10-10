@@ -196,8 +196,9 @@ TEST(geo_scenario_multi_island_province) {
 // внутренняя провинция не меняется; нож, заходящий в дыру с одной стороны, — отказ.
 TEST(geo_scenario_knife_through_hole) {
   Store s = initStore();
-  Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 220, 560, 380), Terrain::Land); });
+  // внутренняя провинция первой: контур кольца, охватывающий её, её не трогает (ТЗ «Доработки №1», п.1)
   Id b = s.transact("b", [](Tx& tx) { return createProvince(tx, rect(450, 270, 510, 330), Terrain::Land); });
+  Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 220, 560, 380), Terrain::Land); });
   GEO_CHECK_WORLD(s.world(), W, H);
   CHECK_NEAR(provArea(s.world(), a), 160.0 * 160 - 60.0 * 60, 1e-6);
   CHECK_NEAR(provArea(s.world(), b), 3600, 1e-6);

@@ -91,7 +91,7 @@ void factionQuick(App& a, Id id) {
   if (f->ruler && w.character(f->ruler) && room(150)) w::characterChip(f->ruler);
   if (room(110)) {
     const double t = f->treasury();
-    ui::label(fmtNum(t, 0), {.font = ui::Font::Small, .ink = t < 0 ? ui::Ink::Danger : ui::Ink::Dim, .icon = "coins", .tooltip = "Казна"});
+    ui::label(fmtGoldShort(t), {.font = ui::Font::Small, .ink = t < 0 ? ui::Ink::Danger : ui::Ink::Dim, .icon = "coins", .tooltip = "Казна"});
   }
 }
 

@@ -97,6 +97,7 @@ const KindGroup kKindGroups[] = {
     {ModKind::Faction, "Глобальные", "crown", "faction"},
     {ModKind::Army, "Для армий", "army", "army"},
     {ModKind::Hero, "Для героев", "hero", "hero"},
+    {ModKind::ArchGroup, "Для археологических групп", "pickaxe", "arch"},
     {ModKind::Any, "Везде", "sparkles", "any"},
 };
 constexpr int kKindGroupCount = int(std::size(kKindGroups));
@@ -105,6 +106,9 @@ int groupIndex(ModKind k) {
     if (kKindGroups[i].kind == k) return i;
   return kKindGroupCount - 1;
 }
+
+// Генерация за ход (ТЗ «Доработки №1», п.5): виды «Везде», «Для провинций», «Глобальный», «Для героев».
+bool genKind(ModKind k) { return k == ModKind::Any || k == ModKind::Province || k == ModKind::Faction || k == ModKind::Hero; }
 
 // Свёрнутые группы списка: состояние окна, пока открыт тот же мир (другой мир — все раскрыты).
 std::array<bool, kKindGroupCount>& closedGroups(App& a) {
@@ -123,8 +127,10 @@ std::array<bool, kKindGroupCount>& closedGroups(App& a) {
 struct ModUse {
   std::vector<Id> provinces, states, guilds, techs, armies, heroes, positions;
   std::vector<std::pair<Id, int>> levels;   // постройка, номер уровня (с 1)
+  std::vector<std::pair<Id, Id>> groups;    // археологические группы: государство, группа
   size_t total() const {
-    return provinces.size() + states.size() + guilds.size() + techs.size() + levels.size() + armies.size() + heroes.size() + positions.size();
+    return provinces.size() + states.size() + guilds.size() + techs.size() + levels.size() + armies.size() + heroes.size() + positions.size() +
+           groups.size();
   }
 };
 
@@ -136,6 +142,8 @@ ModUse usageOf(const World& w, Id mod) {
   });
   w.factions.each([&](const Faction& f) {
     if (has(f.modifiers, mod)) (f.isGuild() ? u.guilds : u.states).push_back(f.id);
+    for (const ArchGroup& g : f.archGroups)
+      if (has(g.modifiers, mod)) u.groups.push_back({f.id, g.id});
   });
   w.techs.each([&](const Tech& t) {
     if (has(t.modifiers, mod)) u.techs.push_back(t.id);
@@ -167,6 +175,8 @@ std::unordered_map<Id, int> usageCounts(const World& w) {
   });
   w.factions.each([&](const Faction& f) {
     for (Id m : f.modifiers) n[m]++;
+    for (const ArchGroup& g : f.archGroups)
+      for (Id m : g.modifiers) n[m]++;
   });
   w.techs.each([&](const Tech& t) {
     for (Id m : t.modifiers) n[m]++;
@@ -189,16 +199,19 @@ std::unordered_map<Id, int> usageCounts(const World& w) {
   return n;
 }
 
-// Где сейчас действуют модификаторы, которые ставятся сами (ключ → государства; столица — провинции).
+// Где сейчас действуют модификаторы, которые ставятся сами (ключ → государства; модификаторы провинций — столица,
+// «Ценности археологии» — провинции).
 std::map<std::string, std::vector<Id>> autoUse(const World& w) {
   std::map<std::string, std::vector<Id>> out;
   w.factions.each([&](const Faction& f) {
     if (!f.isState()) return;
     for (const rules::AutoMod& am : rules::autoModifiers(w, f.id))
       if (!am.key.empty() && !has(out[am.key], f.id)) out[am.key].push_back(f.id);
-    if (f.capital)
-      for (const rules::AutoMod& am : rules::autoProvinceModifiers(w, f.capital))
-        if (!am.key.empty()) out[am.key].push_back(f.capital);
+  });
+  w.provinces.each([&](const Province& p) {
+    if (p.sea || !p.owner) return;
+    for (const rules::AutoMod& am : rules::autoProvinceModifiers(w, p.id))
+      if (!am.key.empty()) out[am.key].push_back(p.id);
   });
   return out;
 }
@@ -214,6 +227,7 @@ std::string usageText(const ModUse& u) {
   add(u.armies.size(), "войско", "войска", "войск");
   add(u.heroes.size(), "персонаж", "персонажа", "персонажей");
   add(u.positions.size(), "должность", "должности", "должностей");
+  add(u.groups.size(), "археологическая группа", "археологические группы", "археологических групп");
   add(u.techs.size(), "технология", "технологии", "технологий");
   add(u.levels.size(), "уровень постройки", "уровня построек", "уровней построек");
   std::string s;
@@ -240,24 +254,43 @@ bool hasGlobal(const Modifier& m) {
 // Дипломатия включена, а цели не выбраны (ТЗ 1.g.ii.2.b: «с указанными для модификатора государствами»).
 bool missingTargets(const Modifier& m) { return m.has(Fx::DiplomacyPerTurn) && m.targets.empty(); }
 
+// Генерация за ход подписями: «+10 эссенция смерти», «+25 археологические сокровища» (у шаблона встроенного — по
+// умолчанию).
+std::vector<std::string> genTexts(const World& w, const Modifier& m) {
+  std::vector<std::string> out;
+  for (auto& [e, v] : rules::modEssGen(w, m))
+    if (const CatalogItem* c = w.essence(e); c && v > 0) out.push_back("+" + fmtNum(v, 3) + " " + utf8::lower(c->name));
+  for (auto& [r, v] : rules::modResGen(w, m))
+    if (const CatalogItem* c = w.resource(r); c && v > 0) out.push_back("+" + fmtNum(v, 3) + (r == kGold ? " тыс. золота" : " " + utf8::lower(c->name)));
+  return out;
+}
+
 // Краткая сводка эффектов для строки списка.
-std::string effectSummary(const Modifier& m) {
+std::string effectSummary(const World& w, const Modifier& m) {
   int n = effectCount(m);
+  const std::vector<std::string> gen = genTexts(w, m);
+  n += int(gen.size());
   if (n == 0) return isAuto(m) ? "Ставится сам" : "Без эффектов";
-  for (int f = 0; f < kFxCount; f++) {
-    if (!m.has(Fx(f))) continue;
-    std::string s = w::effectText(Fx(f), m.fx[size_t(f)]);
-    if (n > 1) s += " · ещё " + std::to_string(n - 1);
-    return s;
-  }
-  return {};
+  std::string s;
+  for (int f = 0; f < kFxCount && s.empty(); f++)
+    if (m.has(Fx(f))) s = w::effectText(Fx(f), m.fx[size_t(f)]);
+  if (s.empty()) s = gen.front() + " за ход";
+  if (n > 1) s += " · ещё " + std::to_string(n - 1);
+  return s;
 }
 
 // ---------------------------------------------------------------- эффекты: группы, единицы и шаги
-enum class FxGroup : u8 { Local, Global, Army };
+// Arch — эффекты археологических групп (у модификатора группы — эта группа, у глобального — все группы государства).
+enum class FxGroup : u8 { Local, Global, Army, Arch };
 FxGroup groupOf(int f) {
   const auto& e = schema::kEffects[f];
-  return e.army ? FxGroup::Army : e.local ? FxGroup::Local : FxGroup::Global;
+  return e.arch ? FxGroup::Arch : e.army ? FxGroup::Army : e.local ? FxGroup::Local : FxGroup::Global;
+}
+u32 archMask() {
+  u32 m = 0;
+  for (int f = 0; f < kFxCount; f++)
+    if (schema::kEffects[f].arch) m |= 1u << f;
+  return m;
 }
 
 const char* fxUnit(Fx f) {
@@ -268,10 +301,11 @@ const char* fxUnit(Fx f) {
     case Fx::DiplomacyPerTurn: return "за ход";
     case Fx::ResourceFlat: return "ед.";
     case Fx::Slots: return "слот|слота|слотов";
+    case Fx::ArchStartLevel: return "уровень|уровня|уровней";
     default: return schema::effect(f).unit[0] == '%' ? "%" : "";
   }
 }
-int fxDigits(Fx f) { return f == Fx::TradeFlat || f == Fx::Slots ? 0 : 1; }
+int fxDigits(Fx f) { return f == Fx::TradeFlat || f == Fx::Slots || f == Fx::ArchStartLevel ? 0 : 1; }
 double fxStep(Fx f) { return schema::effect(f).max >= 1000 ? 10 : 1; }
 // Начальное значение при включении эффекта (заметное, в пределах ТЗ).
 double fxDefault(Fx f) {
@@ -428,7 +462,7 @@ void listRow(App& a, const Entry& e, Id& sel, EdState& st) {
                     : isAuto(m)       ? (e.uses ? "Действует сейчас: " + fmtInt(e.uses) : std::string("Ставится сам"))
                     : e.uses          ? "Используется: " + usageText(usageOf(w, m.id))
                                       : std::string("Нигде не используется");
-  if (edkit::entityRow(orName(m.name, "Без названия"), effectSummary(m), modIcon(m), m.color, e.uses ? std::to_string(e.uses) : std::string(),
+  if (edkit::entityRow(orName(m.name, "Без названия"), effectSummary(w, m), modIcon(m), m.color, e.uses ? std::to_string(e.uses) : std::string(),
                        e.id == sel, missingTargets(m), e.builtin ? "Встроенный · " + tip : tip))
     sel = e.id;
   if (e.builtin) {   // встроенный — замок на плитке значка
@@ -572,11 +606,13 @@ void effectRow(App& a, const Modifier& m, Fx f, bool ro) {
       editMod(a, m, "Эффект модификатора", [&](Modifier& x) { x.fx[size_t(f)] = nv; }, key);
     }
   } else {
-    // Выключенный эффект: только шкала с отметкой нуля (без ползунка).
+    // Выключенный эффект: только шкала с отметкой нуля (без ползунка; у пределов без нуля — без отметки).
     RectF tr = ui::next(0, 30).inset(8, 0);
-    float zx = tr.x + float((0 - e.min) / (e.max - e.min)) * tr.w;
     ui::draw::rect(RectF{tr.x, tr.cy() - 2, tr.w, 4}, th.track, 2);
-    ui::draw::rect(RectF{std::round(zx) - 1, tr.cy() - 6, 2, 12}, th.borderStrong, 1);
+    if (e.min < 0 && e.max > 0) {
+      float zx = tr.x + float((0 - e.min) / (e.max - e.min)) * tr.w;
+      ui::draw::rect(RectF{std::round(zx) - 1, tr.cy() - 6, 2, 12}, th.borderStrong, 1);
+    }
   }
   a.markUi(std::string("modifiers.fx.") + e.id + ".slider");
   double nv = v;
@@ -651,10 +687,16 @@ void effectGroup(App& a, const Modifier& m, FxGroup group, bool ro) {
     on += m.has(Fx(f)) ? 1 : 0;
   }
   std::string badge = std::to_string(on) + " из " + std::to_string(total);
-  const char* title = group == FxGroup::Local ? "Локальные (провинция)" : group == FxGroup::Global ? "Глобальные (государство)" : "Войско";
-  const char* icon = group == FxGroup::Local ? "province" : group == FxGroup::Global ? "crown" : "army";
+  const char* title = group == FxGroup::Local    ? "Локальные (провинция)"
+                      : group == FxGroup::Global ? "Глобальные (государство)"
+                      : group == FxGroup::Arch   ? "Археологические группы"
+                                                 : "Войско";
+  const char* icon = group == FxGroup::Local ? "province" : group == FxGroup::Global ? "crown" : group == FxGroup::Arch ? "pickaxe" : "army";
   ui::Section sec(title, icon, {.badge = badge});
-  a.markUi(group == FxGroup::Local ? "modifiers.local" : group == FxGroup::Global ? "modifiers.global" : "modifiers.army");
+  a.markUi(group == FxGroup::Local    ? "modifiers.local"
+           : group == FxGroup::Global ? "modifiers.global"
+           : group == FxGroup::Arch   ? "modifiers.arch"
+                                      : "modifiers.army");
   if (!sec) return;
   ui::gap(2);
   for (int f = 0; f < kFxCount; f++) {
@@ -662,6 +704,83 @@ void effectGroup(App& a, const Modifier& m, FxGroup group, bool ro) {
     effectRow(a, m, Fx(f), ro);
     if (Fx(f) == Fx::DiplomacyPerTurn && m.has(Fx::DiplomacyPerTurn)) targetsRow(a, m, ro);
   }
+}
+
+// ---------------------------------------------------------------- карточка: генерация за ход
+// Эссенции и ресурсы, которые модификатор даёт каждый ход (ТЗ «Доработки №1», п.5): владельцу провинции, государству,
+// фракции героя. У встроенного без записи — значения по умолчанию (некромант, лич); первая правка создаёт запись.
+void genRows(App& a, const Modifier& m, bool essence, const std::map<Id, double>& cur, bool ro) {
+  const World& w = a.world();
+  ui::IdScope scope(essence ? "ess" : "res");
+  const std::string mark = std::string("modifiers.gen.") + (essence ? "ess" : "res");
+  auto setMap = [&](std::string_view label, std::map<Id, double> nm, std::string coalesce = {}) {
+    editMod(a, m, label, [&](Modifier& x) { (essence ? x.essGen : x.resGen) = nm; }, std::move(coalesce));
+  };
+  for (auto [id, amount] : cur) {
+    ui::IdScope s{i64(id)};
+    const Id key = id;
+    ui::Row r({ui::px(16), ui::fr(1, 100), ui::px(132), ui::px(28)}, 30, 6);
+    const CatalogItem* c = essence ? w.essence(key) : w.resource(key);
+    Color col = essence ? w::essenceColor(w, key) : w::resourceColor(w, key);
+    if (col.luminance() < 0.12f) col = col.lighten(0.45f);   // тёмный цвет — светлее на тёмном фоне
+    ui::iconColored(essence ? "essence" : w::resourceIcon(w, key), col, 16);
+    ui::label(c && !c->name.empty() ? c->name : std::string(essence ? "Эссенция" : "Ресурс"));
+    double v = amount;
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = !essence && key == kGold ? "тыс." : nullptr,
+                                      .disabled = ro, .tooltip = "За ход"})) {
+      std::map<Id, double> nm = cur;
+      nm[key] = std::max(0.0, v);
+      setMap("Генерация модификатора", nm, mergeKey(m, mark + "." + std::to_string(key)));
+    }
+    a.markUi(mark + "." + std::to_string(key));
+    if (ui::iconButton("close", essence ? "Убрать эссенцию" : "Убрать ресурс", {.size = ui::Size::Small, .disabled = ro})) {
+      std::map<Id, double> nm = cur;
+      nm.erase(key);
+      setMap("Убрать генерацию модификатора", nm);
+    }
+    a.markUi(mark + "." + std::to_string(key) + ".remove");
+  }
+  if (ro) return;
+  Id pick = 0;
+  bool picked = false;
+  if (essence) {
+    std::vector<const CatalogItem*> left;
+    for (const CatalogItem& e : w.catalogs->essences)
+      if (!cur.count(e.id)) left.push_back(&e);
+    int idx = -1;
+    picked = ui::combo("addess", idx, int(left.size()),
+                       [&](int i) {
+                         const std::string& n = left[size_t(i)]->name;   // подпись — вид на запись справочника, не на временную строку
+                         return ui::Option{n.empty() ? std::string_view("Без названия") : std::string_view(n), "essence", left[size_t(i)]->color};
+                       },
+                       {.placeholder = "Эссенция за ход", .search = 1, .icon = "plus", .disabled = left.empty()}) &&
+             idx >= 0 && idx < int(left.size());
+    if (picked) pick = left[size_t(idx)]->id;
+  } else {
+    std::vector<Id> left;
+    for (const CatalogItem& r : w.catalogs->resources)
+      if (!cur.count(r.id)) left.push_back(r.id);
+    picked = w::resourceByGroup("addres", pick, false, &left) && pick;
+  }
+  a.markUi(mark + ".add");
+  if (picked) {
+    std::map<Id, double> nm = cur;
+    nm[pick] = 1;
+    setMap(essence ? "Эссенция за ход" : "Ресурс за ход", nm);
+  }
+}
+
+void genSection(App& a, const Modifier& m, bool ro) {
+  const World& w = a.world();
+  const std::map<Id, double> ess = rules::modEssGen(w, m), res = rules::modResGen(w, m);
+  const size_t n = ess.size() + res.size();
+  ui::Section sec("Генерация за ход", "repeat", {.badge = n ? std::to_string(n) : std::string()});
+  a.markUi("modifiers.gen");
+  if (!sec) return;
+  ui::caption("Эссенции");
+  genRows(a, m, true, ess, ro);
+  ui::caption("Ресурсы");
+  genRows(a, m, false, res, ro);
 }
 
 // ---------------------------------------------------------------- карточка: «Где используется»
@@ -734,7 +853,7 @@ void usageSection(App& a, const Modifier& m, const std::map<std::string, std::ve
     ChipFlow cf;
     for (Id id : *now) {
       ui::IdScope s{i64(id) + 0x500000};
-      if (m.key == schema::mod::Capital) {
+      if (m.kind == ModKind::Province) {
         const Province* p = w.province(id);
         if (useChip(orName(p ? p->name : std::string(), "Без названия"), "province", w::factionColor(w, p ? p->owner : 0), "Открыть провинцию",
                     false) == ui::ChipAction::Click)
@@ -812,6 +931,26 @@ void usageSection(App& a, const Modifier& m, const std::map<std::string, std::ve
             if (c.id == pid) {
               c.modifiers.erase(std::remove(c.modifiers.begin(), c.modifiers.end(), mid), c.modifiers.end());
               c.vacantModifiers.erase(std::remove(c.vacantModifiers.begin(), c.vacantModifiers.end(), mid), c.vacantModifiers.end());
+            }
+        });
+    }
+  }
+  if (group("Археологические группы", u.groups.size())) {
+    ChipFlow cf;
+    for (auto [fid, gid] : u.groups) {
+      const Faction* f = w.faction(fid);
+      const ArchGroup* g = f ? f->archGroup(gid) : nullptr;
+      if (!g) continue;
+      ui::IdScope s{i64(gid) + 0x900000};
+      auto act = useChip(termed(orName(g->name, "Группа"), g->modTurns) + " · " + orName(f->name, "Без названия"), "pickaxe", w::factionColor(w, fid),
+                         "Открыть государство", !ro);
+      if (act == ui::ChipAction::Click) edkit::goTo(a, {SelType::Faction, fid});
+      if (act == ui::ChipAction::Remove)
+        a.act("Убрать модификатор археологической группы", [&](Tx& tx) {
+          for (ArchGroup& x : tx.faction(fid).archGroups)
+            if (x.id == gid) {
+              x.modifiers.erase(std::remove(x.modifiers.begin(), x.modifiers.end(), mid), x.modifiers.end());
+              x.modTurns.erase(mid);
             }
         });
     }
@@ -943,6 +1082,36 @@ void usageSection(App& a, const Modifier& m, const std::map<std::string, std::ve
     if (addCombo(a, "addhero", "modifiers.addHero", items, colors, "Добавить персонажу", "character", "Добавить модификатор персонажу", pick))
       addTo(a, m, ModTarget::Character, pick, "Модификатор персонажа");
   }
+  // Модификатор археологических групп — только группам (ТЗ «Доработки №2», п.1).
+  if (m.kind == ModKind::ArchGroup) {
+    items.clear();
+    colors.clear();
+    std::vector<std::pair<Id, Id>> refs;   // государство, группа
+    w.factions.each([&](const Faction& f) {
+      for (const ArchGroup& g : f.archGroups)
+        if (!has(g.modifiers, mid)) {
+          refs.push_back({f.id, g.id});
+          items.push_back({Id(refs.size()), orName(g.name, "Группа") + " · " + orName(f.name, "Без названия")});
+          colors.push_back(f.color);
+        }
+    });
+    if (addCombo(a, "addgroup", "modifiers.addGroup", items, colors, "Добавить группе", "pickaxe", "Добавить модификатор археологической группе", pick) &&
+        pick >= 1 && pick <= refs.size()) {
+      const auto [fid, gid] = refs[size_t(pick - 1)];
+      Id made = 0;
+      if (a.act("Модификатор археологической группы", [&](Tx& tx) {
+            made = recordOf(tx, m);
+            const int turns = std::max(0, tx.w().modifier(made)->duration);
+            for (ArchGroup& g : tx.faction(fid).archGroups)
+              if (g.id == gid && !has(g.modifiers, made)) {
+                g.modifiers.push_back(made);
+                if (turns > 0) g.modTurns[made] = turns;
+              }
+          }) &&
+          !m.id && made && a.ui.editor == "modifiers")
+        a.ui.editorArg = made;
+    }
+  }
 }
 
 // ---------------------------------------------------------------- карточка модификатора
@@ -1036,7 +1205,24 @@ void drawDetail(App& a, EdState& st, const Modifier& m, Id next, const std::map<
           if (ui::combo("kind", kind, std::span<const ui::Option>(kinds),
                         {.disabled = ro || builtin, .tooltip = builtin ? std::string_view("У встроенного модификатора закреплено") : std::string_view("Где действует")}) &&
               kind != int(m.kind) && kind >= 0 && kind < int(ModKind::Count))
-            editMod(a, m, "Где действует модификатор", [&](Modifier& x) { x.kind = ModKind(kind); });
+            a.act("Где действует модификатор", [&](Tx& tx) {
+              Modifier& x = tx.modifier(m.id);
+              x.kind = ModKind(kind);
+              // Модификатор археологических групп — только эффекты групп (ТЗ «Доработки №2», п.1): прочие снимаются.
+              if (x.kind == ModKind::ArchGroup) {
+                x.fxMask &= archMask();
+                for (int f = 0; f < kFxCount; f++)
+                  if (!x.has(Fx(f))) x.fx[size_t(f)] = 0;
+                x.targets.clear();
+              }
+              // Генерация за ход — у видов «Везде», «Для провинций», «Глобальный», «Для героев».
+              if (!genKind(x.kind)) {
+                x.essGen.clear();
+                x.resGen.clear();
+              }
+              // Носители, на которых модификатор по новому виду не действует, его теряют.
+              rules::fitModifierUses(tx, m.id);
+            });
           a.markUi("modifiers.kind");
         }
         // Срок по умолчанию: ходов действия при установке, 0 — бессрочно.
@@ -1077,22 +1263,30 @@ void drawDetail(App& a, EdState& st, const Modifier& m, Id next, const std::map<
       ui::stat(fmtInt(i64(u.techs.size() + u.levels.size())), "Технологии и постройки", {.icon = "tech", .tone = ui::Tone::Success});
     }
   }
-  // Эффекты (ТЗ 1.g.ii): на широком экране локальные и глобальные — рядом, эффекты войск — ниже.
-  if (ui::avail().w >= 1180) {
-    ui::Row r({ui::fr(1), ui::fr(1)}, ui::kAuto, 12);
-    {
-      ui::Group g;
+  // Эффекты (ТЗ 1.g.ii): на широком экране локальные и глобальные — рядом, эффекты войск — ниже. Модификатор
+  // археологических групп — только эффекты групп; у глобального и «везде» они тоже есть (действуют на все группы
+  // государства). Генерация за ход — у видов «Везде», «Для провинций», «Глобальный», «Для героев».
+  if (m.kind == ModKind::ArchGroup) {
+    effectGroup(a, m, FxGroup::Arch, ro);
+  } else {
+    if (ui::avail().w >= 1180) {
+      ui::Row r({ui::fr(1), ui::fr(1)}, ui::kAuto, 12);
+      {
+        ui::Group g;
+        effectGroup(a, m, FxGroup::Local, ro);
+      }
+      {
+        ui::Group g;
+        effectGroup(a, m, FxGroup::Global, ro);
+      }
+    } else {
       effectGroup(a, m, FxGroup::Local, ro);
-    }
-    {
-      ui::Group g;
       effectGroup(a, m, FxGroup::Global, ro);
     }
-  } else {
-    effectGroup(a, m, FxGroup::Local, ro);
-    effectGroup(a, m, FxGroup::Global, ro);
+    effectGroup(a, m, FxGroup::Army, ro);
+    if (m.kind == ModKind::Any || m.kind == ModKind::Faction || (m.fxMask & archMask())) effectGroup(a, m, FxGroup::Arch, ro);
   }
-  effectGroup(a, m, FxGroup::Army, ro);
+  if (genKind(m.kind)) genSection(a, m, ro);
   usageSection(a, m, autos, ro);
   ui::spacer(8);
 }
@@ -1348,6 +1542,17 @@ void effectChips(const Modifier& m) {
     co.icon = schema::effect(Fx(f)).icon;
     co.tone = w::effectGood(Fx(f), v) ? ui::Tone::Success : ui::Tone::Danger;
     edkit::chip(w::effectText(Fx(f), v), co);
+  }
+  // Генерация за ход (эссенции и ресурсы).
+  const std::vector<std::string> gen = genTexts(app().world(), m);
+  for (size_t i = 0; i < gen.size(); i++) {
+    any = true;
+    ui::IdScope s2{i64(i) + 0x100};
+    ui::ChipOpt co;
+    co.icon = "repeat";
+    co.tone = ui::Tone::Success;
+    co.tooltip = "Каждый ход";
+    edkit::chip(gen[i] + " за ход", co);
   }
   chipsEnd();
   if (!any) ui::label("Без эффектов", {.ink = ui::Ink::Muted});

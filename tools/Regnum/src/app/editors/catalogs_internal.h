@@ -1,6 +1,7 @@
 // Regnum — окно справочников: общее для вкладок (catalogs.cpp — окно, вкладки и простые справочники;
-// catalogs_resources.cpp — ресурсы деревом групп; catalogs_relics.cpp — реликвии; catalogs_specials.cpp — особые
-// отряды). Только для этих файлов.
+// catalogs_resources.cpp — ресурсы деревом групп; catalogs_relics.cpp — реликвии деревом групп; catalogs_specials.cpp —
+// особые отряды; catalogs_classes.cpp — классы героев и деревья талантов; catalogs_arch.cpp — археологические места и
+// сундуки сокровищ). Только для этих файлов.
 #pragma once
 #include <unordered_map>
 
@@ -21,7 +22,7 @@ void chipsEnd();
 namespace cat {
 
 // Вкладки окна в порядке a.openEditor("catalogs", N): N = номер вкладки + 1.
-enum Tab : int { kResources, kRaces, kCultures, kReligions, kGovernments, kPositions, kEssences, kRelics, kSpecials, kTabCount };
+enum Tab : int { kResources, kRaces, kCultures, kReligions, kGovernments, kPositions, kEssences, kRelics, kSpecials, kClasses, kArchSites, kChests, kTabCount };
 
 // Выделение во вкладке «Ресурсы»: группа, «Без группы» (не настоящая группа) или ресурс.
 struct ResSel {
@@ -49,6 +50,16 @@ struct State {
   Id editRelic = 0;                        // название реликвии правится в таблице
   bool focusRelic = false;                 // в следующем кадре — фокус в поле названия
   Id pendingRelic = 0;                     // щелчок по названию: правка — после отпускания кнопки
+  // Дерево групп реликвий: выбрана группа (relGroup), «Без группы» (relNoGroup) или реликвия sel[kRelics].
+  Id relGroup = 0;
+  bool relNoGroup = false;
+  Id relScroll = 0, relScrollGroup = 0;    // показать строку реликвии или группы (прокрутка)
+  Id editRelGroup = 0, focusRelGroup = 0, pendingRelGroup = 0;   // правка названия группы на месте
+  std::unordered_map<Id, bool> relOpen;    // раскрытие групп реликвий (нет записи — раскрыта)
+  bool relNoGroupOpen = true;
+  // ---- классы героев
+  Id talent = 0;                           // выбранный талант дерева класса sel[kClasses]
+  Id focusTalent = 0;                      // в следующем кадре — фокус в поле названия таланта
 };
 State& state(App& a);
 
@@ -135,7 +146,7 @@ void searchBox(App& a, State& st, float w, std::string_view placeholder = "По�
 // Число в ячейке таблицы: 0 — прочерк.
 void numCell(ui::Table& t, double v, int digits = 0);
 // Значок и число ресурса или эссенции (компактная цена) с подсказкой — внутри ряда ui::HStack.
-void amountGlyph(const char* icon, Color color, double amount, std::string_view tip);
+void amountGlyph(const char* icon, Color color, double amount, std::string_view tip, bool gold = false);   // золото — «тыс.»
 // Раздел «Где используется» карточки записи: все места использования фишками со ссылками.
 void usageSection(App& a, State& st, const World& w, rules::CatalogList list, const CatalogItem& c, const Use& u);
 // Строки армий: перейти к войскам фракции.
@@ -152,6 +163,9 @@ bool rowChip(App& a, const World& w, const RowRef& r, bool showCount);
 void drawResources(App& a, State& st);
 void drawRelics(App& a, State& st);
 void drawSpecials(App& a, State& st);
+void drawClasses(App& a, State& st);
+void drawArchSites(App& a, State& st);   // catalogs_arch.cpp: археологические места
+void drawChests(App& a, State& st);      // catalogs_arch.cpp: сундуки сокровищ
 // Раскладка вкладки: таблица слева, линия, карточка справа; в узком окне карточка — под таблицей.
 struct Split {
   RectF table, card;

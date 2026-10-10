@@ -70,12 +70,23 @@ std::vector<Constant> allConstants(const World& w) {
 const char* typeIcon(ConstType t) { return schema::kConstTypes[int(t) >= 0 && t < ConstType::Count ? int(t) : 0].icon; }
 const char* typeName(ConstType t) { return schema::kConstTypes[int(t) >= 0 && t < ConstType::Count ? int(t) : 0].name; }
 
-// Значок числа встроенной константы: золото, трупы, демоническая энергия.
+// Значок числа встроенной константы: золото, трупы, демоническая энергия, вместимость кораблей, наёмники, археология.
 const char* numberIcon(std::string_view key) {
-  if (key == schema::cst::ColonizationCost) return "coins";
+  if (key == schema::cst::ColonizationCost || key == schema::cst::MercHire || key == schema::cst::ArchGroupGold) return "coins";
   if (key == schema::cst::CorpsesPerUnit) return "skull";
   if (key == schema::cst::EnergyPerUnit) return "flame";
+  if (key == schema::cst::FrigateCapacity || key == schema::cst::LineCapacity) return "fleet";
+  if (key == schema::cst::MercPerGuild) return "mercenary";
+  if (key == schema::cst::ArchGroupPeople) return "population";
   return "hash";
+}
+// Константа — золото (1 единица = 1 тыс. золотых): подпись «тыс.».
+bool goldNumber(std::string_view key) {
+  return key == schema::cst::ColonizationCost || key == schema::cst::MercHire || key == schema::cst::ArchGroupGold;
+}
+// Константа — люди или корабли: целое число.
+bool wholeNumber(std::string_view key) {
+  return key == schema::cst::FrigateCapacity || key == schema::cst::LineCapacity || key == schema::cst::MercPerGuild || key == schema::cst::ArchGroupPeople;
 }
 
 std::string resName(const World& w, Id res) {
@@ -88,14 +99,19 @@ std::string orName(const std::string& s) { return s.empty() ? std::string("Бе�
 std::string summary(const World& w, const Constant& c) {
   switch (c.type) {
     case ConstType::Resources: {
-      if (c.res.empty()) return "Нет ресурсов";
+      if (c.res.empty() && c.ess.empty()) return "Нет ресурсов";
       std::vector<std::string> parts;
-      for (auto& [rid, v] : c.res) {
-        if (parts.size() == 3) {
-          parts.push_back("…");
-          break;
+      auto add = [&](const std::string& s) {
+        if (parts.size() >= 3) {
+          if (parts.back() != "…") parts.push_back("…");
+          return;
         }
-        parts.push_back(resName(w, rid) + " " + fmtNum(v, 3));
+        parts.push_back(s);
+      };
+      for (auto& [rid, v] : c.res) add(resName(w, rid) + " " + fmtNum(v, 3) + (rid == kGold ? " тыс." : ""));
+      for (auto& [eid, v] : c.ess) {
+        const CatalogItem* e = w.essence(eid);
+        add((e && !e->name.empty() ? e->name : std::string("Эссенция")) + " " + fmtNum(v, 3));
       }
       return join(parts, " · ");
     }
@@ -104,7 +120,7 @@ std::string summary(const World& w, const Constant& c) {
       std::vector<std::string> parts(c.values.begin(), c.values.begin() + long(std::min<size_t>(c.values.size(), 4)));
       return join(parts, ", ") + (c.values.size() > 4 ? "…" : "");
     }
-    default: return fmtNum(c.num, 3);
+    default: return fmtNum(c.num, 3) + (goldNumber(c.key) ? " тыс." : "");
   }
 }
 
@@ -161,11 +177,12 @@ void numberValue(App& a, const Constant& c, const std::string& mark) {
   ui::NumberOpt o;
   o.min = c.builtin ? 0 : -1e12;
   o.max = 1e12;
-  o.step = 1;
-  o.digits = 3;
+  o.step = wholeNumber(c.key) ? 100 : 1;
+  o.digits = wholeNumber(c.key) ? 0 : 3;
+  o.unit = goldNumber(c.key) ? "тыс." : nullptr;
   o.icon = numberIcon(c.key);
   o.disabled = a.readOnly();
-  o.tooltip = c.key == schema::cst::ColonizationCost ? std::string_view("Золото") : std::string_view();
+  o.tooltip = goldNumber(c.key) ? std::string_view("Золото") : std::string_view();
   if (ui::numberField("num", v, o)) {
     std::string key = c.key;
     editConst(a, key, "Значение константы", [&](Tx&, Constant& k) { k.num = v; }, {.coalesce = "const:" + key});
@@ -173,49 +190,89 @@ void numberValue(App& a, const Constant& c, const std::string& mark) {
   a.markUi(mark + ".num");
 }
 
+// Позиции константы-списка (ресурсы или эссенции): количество не меньше базовой стоимости (Constant::minRes/minEss),
+// базовую позицию убрать нельзя (ТЗ «Доработки №3», п.7–8; rules::setConstantRes/removeConstantRes).
+void amountRows(App& a, const Constant& c, const std::string& mark, bool essence) {
+  const World& w = a.world();
+  const bool ro = a.readOnly();
+  const std::string key = c.key;
+  const std::map<Id, double>& list = essence ? c.ess : c.res;
+  const std::map<Id, double>& floor = essence ? c.minEss : c.minRes;
+  for (auto& [rid, amount] : list) {
+    ui::IdScope s{i64(rid) + (essence ? 0x2e000000LL : 0)};
+    const Id id = rid;
+    const std::string rm = mark + (essence ? ".ess." : ".res.") + std::to_string(rid);
+    auto base = floor.find(id);
+    const bool locked = base != floor.end();
+    ui::Row r({ui::px(16), ui::fr(1, 90), ui::px(124), ui::px(28)}, 30, 6);
+    if (essence) {
+      const CatalogItem* e = w.essence(id);
+      ui::iconColored("essence", w::essenceColor(w, id), 16);
+      ui::label(e && !e->name.empty() ? e->name : std::string("Эссенция"));
+    } else {
+      Color col = w::resourceColor(w, id);
+      if (col.luminance() < 0.12f) col = col.lighten(0.45f);   // тёмный ресурс — светлее на тёмном фоне
+      ui::iconColored(w::resourceIcon(w, id), col, 16);
+      ui::label(resName(w, id));
+    }
+    double v = amount;
+    ui::NumberOpt o;
+    o.min = locked ? base->second : 0;
+    o.max = 1e12;
+    o.step = 1;
+    o.digits = !essence && id == kGold ? 3 : 1;
+    o.unit = !essence && id == kGold ? "тыс." : nullptr;
+    o.disabled = ro;
+    const std::string tip = locked ? "Базовая стоимость: не меньше " + fmtNum(base->second, 3) : std::string("Количество");
+    o.tooltip = tip;
+    if (ui::numberField("amount", v, o))
+      editConst(a, key, essence ? "Эссенция константы" : "Ресурс константы", [&](Tx& tx, Constant&) { rules::setConstantRes(tx, key, id, v, essence); },
+                {.coalesce = "const:" + key + (essence ? ":e" : ":") + std::to_string(id)});
+    a.markUi(rm);
+    if (locked) {
+      ui::icon("lock", ui::Ink::Muted, 16, essence ? "Базовую эссенцию нельзя убрать — только увеличить количество"
+                                                   : "Базовый ресурс нельзя убрать — только увеличить количество");
+      a.markUi(rm + ".lock");
+      continue;
+    }
+    if (ui::iconButton("close", essence ? "Убрать эссенцию" : "Убрать ресурс", {.size = ui::Size::Small, .disabled = ro}))
+      editConst(a, key, essence ? "Убрать эссенцию константы" : "Убрать ресурс константы",
+                [&](Tx& tx, Constant&) { rules::removeConstantRes(tx, key, id, essence); });
+    a.markUi(rm + ".remove");
+  }
+}
+
 void resourcesValue(App& a, const Constant& c, const std::string& mark) {
   const World& w = a.world();
   bool ro = a.readOnly();
   const std::string key = c.key;
-  if (c.res.empty()) ui::label("Нет ресурсов", {.ink = ui::Ink::Muted});
-  for (auto& [rid, amount] : c.res) {
-    ui::IdScope s{i64(rid)};
-    const Id res = rid;
-    const std::string rm = mark + ".res." + std::to_string(rid);
-    ui::Row r({ui::fr(1, 90), ui::px(112), ui::px(28)}, 30, 6);
-    {
-      ui::HStack hs(30, ui::Align::Left, 6);
-      ui::iconColored(w::resourceIcon(w, res), w::resourceColor(w, res), 16);
-      ui::label(resName(w, res));
-    }
-    double v = amount;
-    ui::NumberOpt o;
-    o.min = 0;
-    o.max = 1e12;
-    o.step = 1;
-    o.digits = res == kGold ? 3 : 1;
-    o.disabled = ro;
-    o.tooltip = "Количество";
-    if (ui::numberField("amount", v, o))
-      editConst(a, key, "Ресурс константы", [&](Tx&, Constant& k) { k.res[res] = v; }, {.coalesce = "const:" + key + ":" + std::to_string(res)});
-    a.markUi(rm);
-    if (ui::iconButton("close", "Убрать ресурс", {.size = ui::Size::Small, .disabled = ro}))
-      editConst(a, key, "Убрать ресурс константы", [&](Tx&, Constant& k) { k.res.erase(res); });
-    a.markUi(rm + ".remove");
-  }
+  if (c.res.empty() && c.ess.empty()) ui::label("Нет ресурсов", {.ink = ui::Ink::Muted});
+  amountRows(a, c, mark, false);
+  amountRows(a, c, mark, true);
   if (ro) return;
-  std::vector<const CatalogItem*> left;
+  // Добавить ресурс (через группы и подгруппы) или эссенцию.
+  std::vector<Id> left;
   for (const CatalogItem& r : w.catalogs->resources)
-    if (!c.res.count(r.id)) left.push_back(&r);
-  int idx = -1;
-  if (ui::combo("addres", idx, int(left.size()),
-                [&](int i) { return ui::Option{left[size_t(i)]->name, nullptr, left[size_t(i)]->color}; },
-                {.placeholder = "Добавить ресурс", .search = 1, .icon = "plus", .disabled = left.empty()}) &&
-      idx >= 0 && idx < int(left.size())) {
-    Id res = left[size_t(idx)]->id;
-    editConst(a, key, "Ресурс константы", [&](Tx&, Constant& k) { k.res[res] = 1; });
-  }
+    if (!c.res.count(r.id)) left.push_back(r.id);
+  Id res = 0;
+  if (w::resourceByGroup("addres", res, left.empty(), &left) && res)
+    editConst(a, key, "Ресурс константы", [&](Tx& tx, Constant&) { rules::setConstantRes(tx, key, res, 1); });
   a.markUi(mark + ".addres");
+  std::vector<const CatalogItem*> ess;
+  for (const CatalogItem& e : w.catalogs->essences)
+    if (!c.ess.count(e.id)) ess.push_back(&e);
+  int idx = -1;
+  if (ui::combo("addess", idx, int(ess.size()),
+                [&](int i) {
+                  const std::string& n = ess[size_t(i)]->name;   // подпись — вид на запись справочника, не на временную строку
+                  return ui::Option{n.empty() ? std::string_view("Без названия") : std::string_view(n), "essence", ess[size_t(i)]->color};
+                },
+                {.placeholder = "Добавить эссенцию", .search = 1, .icon = "plus", .disabled = ess.empty()}) &&
+      idx >= 0 && idx < int(ess.size())) {
+    const Id e = ess[size_t(idx)]->id;
+    editConst(a, key, "Эссенция константы", [&](Tx& tx, Constant&) { rules::setConstantRes(tx, key, e, 1, true); });
+  }
+  a.markUi(mark + ".addess");
 }
 
 // Новое значение списка: непустое и без повторов (без учёта регистра).

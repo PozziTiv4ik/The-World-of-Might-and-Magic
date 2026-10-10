@@ -39,6 +39,25 @@ Id learner(const World& w, const Tech& t, Id faction) {
   return faction;
 }
 TechProgress& commonState(Tx& tx, Id faction, Id tech) { return tx.faction(faction).techs[tech]; }
+// Списать стоимость исследования у изучающей фракции и запомнить уплаченное (возврат при остановке).
+void payCost(Tx& tx, Id faction, const Tech& t, std::map<Id, double>& paid) {
+  paid.clear();
+  for (auto& [res, v] : t.cost)
+    if (std::isfinite(v) && v > 0 && tx.w().resource(res)) paid[res] = v;
+  if (paid.empty()) return;
+  const std::map<Id, double> copy = paid;
+  Faction& f = tx.faction(faction);
+  for (auto& [res, v] : copy) addStock(f, res, -v);
+}
+void refundCost(Tx& tx, Id faction, std::map<Id, double>& paid) {
+  if (paid.empty()) return;
+  const std::map<Id, double> copy = paid;
+  paid.clear();
+  if (!tx.w().faction(faction)) return;
+  Faction& f = tx.faction(faction);
+  for (auto& [res, v] : copy)
+    if (tx.w().resource(res)) addStock(f, res, v);
+}
 void dropEmpty(Tx& tx, Id faction, Id tech) {
   auto& m = tx.faction(faction).techs;
   auto it = m.find(tech);
@@ -56,8 +75,55 @@ ResearchCheck canResearch(const World& w, Id tech, Id faction) {
     const Tech* pt = w.tech(p);
     if (pt && !techStudied(w, p, who) && !contains(r.missing, p)) r.missing.push_back(p);
   }
-  r.ok = !techStudied(w, tech, who) && r.missing.empty();
+  // Постройки государства (ветка «Археология» — «Гильдия Археологов») и стоимость исследования.
+  for (const std::string& k : t->needKeys)
+    if (!builtWithKey(w, who, k)) r.problems.push_back("Нужна достроенная постройка " + q(buildingKeyName(w, who, k)));
+  const TechProgress st = techState(w, tech, who);
+  if (!st.research)
+    if (const Faction* f = w.faction(who))
+      for (auto& [res, need] : t->cost) {
+        const double have = f->stock(res);
+        if (need > 0 && have + 1e-9 < need)
+          r.problems.push_back("Недостаточно ресурса «" + resName(w, res) + "»: нужно " + amountOf(res, need) + ", есть " + amountOf(res, std::max(0.0, have)));
+      }
+  r.ok = !st.studied && r.missing.empty() && r.problems.empty();
   return r;
+}
+
+int builtWithKey(const World& w, Id state, std::string_view key) {
+  if (key.empty()) return 0;
+  int n = 0;
+  w.provinces.each([&](const Province& p) {
+    if (p.sea || p.owner != state) return;
+    for (const ProvBuilding& pb : p.buildings) {
+      const Building* b = w.building(pb.building);
+      if (b && b->key == key && pb.builtLevel() >= 1) n++;
+    }
+  });
+  return n;
+}
+
+bool studiedTechKey(const World& w, Id faction, std::string_view key) {
+  bool yes = false;
+  w.techs.each([&](const Tech& t) {
+    if (yes || t.key != key) return;
+    if (t.faction ? (t.faction == faction && t.studied) : techStudied(w, t.id, faction)) yes = true;
+  });
+  return yes;
+}
+
+std::string buildingKeyName(const World& w, Id state, std::string_view key) {
+  std::string name;
+  w.buildings.each([&](const Building& b) {
+    if (b.key != key) return;
+    if (name.empty() || b.owner == state) name = b.name;
+  });
+  if (!name.empty()) return name;
+  if (key == schema::bld::ArchGuild) return "Гильдия Археологов";
+  if (key == schema::bld::Port) return "Порт";
+  if (key == schema::bld::Shipyard) return "Верфь";
+  if (key == schema::bld::MercGuild) return "Гильдия Наемников";
+  return std::string(key);
 }
 
 void setStudied(Tx& tx, Id tech, bool studied, Id faction) {
@@ -72,6 +138,7 @@ void setStudied(Tx& tx, Id tech, bool studied, Id faction) {
       TechProgress& m = commonState(tx, who, tech);
       m.studied = true;
       m.research = false;
+      m.paid.clear();
       m.progress = std::max(1, t.turns);
       addLog(tx, LogKind::Tech, facName(tx.w(), who) + ": изучена общая технология " + techName(tx.w(), tech), LogRefs{0, 0, {who}});
       return;
@@ -92,6 +159,7 @@ void setStudied(Tx& tx, Id tech, bool studied, Id faction) {
     Tech& m = tx.tech(tech);
     m.studied = true;
     m.research = false;
+    m.paid.clear();
     m.progress = m.turns;
     addLog(tx, LogKind::Tech, facName(tx.w(), owner) + ": изучена технология " + techName(tx.w(), tech), LogRefs{0, 0, {owner}});
     return;
@@ -103,6 +171,7 @@ void setStudied(Tx& tx, Id tech, bool studied, Id faction) {
   m.studied = false;
   m.research = false;
   m.progress = 0;
+  m.paid.clear();
 }
 
 void startResearch(Tx& tx, Id tech, Id faction) {
@@ -114,7 +183,9 @@ void startResearch(Tx& tx, Id tech, Id faction) {
     if (cur.research) fail("Технология уже исследуется");
     ResearchCheck c = canResearch(tx.w(), tech, who);
     if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
+    if (!c.problems.empty()) fail(c.problems.front());
     int left = std::max(1, researchTurns(tx.w(), t, who) - std::max(0, cur.progress));
+    payCost(tx, who, t, commonState(tx, who, tech).paid);
     commonState(tx, who, tech).research = true;
     addLog(tx, LogKind::Tech, facName(tx.w(), who) + ": начато исследование общей технологии " + techName(tx.w(), tech) + ", осталось " + nTurns(left),
            LogRefs{0, 0, {who}});
@@ -124,8 +195,10 @@ void startResearch(Tx& tx, Id tech, Id faction) {
   if (t.research) fail("Технология уже исследуется");
   ResearchCheck c = canResearch(tx.w(), tech);
   if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
+  if (!c.problems.empty()) fail(c.problems.front());
   const Id owner = t.faction;
   int left = std::max(1, researchTurns(tx.w(), t) - std::max(0, t.progress));
+  payCost(tx, owner, t, tx.tech(tech).paid);
   tx.tech(tech).research = true;
   addLog(tx, LogKind::Tech, facName(tx.w(), owner) + ": начато исследование " + techName(tx.w(), tech) + ", осталось " + nTurns(left),
          LogRefs{0, 0, {owner}});
@@ -136,12 +209,33 @@ void stopResearch(Tx& tx, Id tech, Id faction) {
   if (t.common()) {
     const Id who = learner(tx.w(), t, faction);
     if (!techState(tx.w(), tech, who).research) return;
+    refundCost(tx, who, commonState(tx, who, tech).paid);
     commonState(tx, who, tech).research = false;   // пройденные ходы сохраняются
     dropEmpty(tx, who, tech);
     return;
   }
   if (!t.research) return;
+  refundCost(tx, t.faction, tx.tech(tech).paid);
   tx.tech(tech).research = false;  // пройденные ходы сохраняются
+}
+
+void setTechCost(Tx& tx, Id tech, Id res, double amount) {
+  needTech(tx.w(), tech);
+  if (!tx.w().resource(res)) fail("Ресурс не найден");
+  needFinite(amount, "Стоимость исследования");
+  if (amount < 0) fail("Стоимость исследования не может быть меньше нуля");
+  auto& m = tx.tech(tech).cost;
+  if (amount > 0) m[res] = amount;
+  else m.erase(res);
+}
+
+void setTechNeedKey(Tx& tx, Id tech, const std::string& key, bool on) {
+  const Tech& t = needTech(tx.w(), tech);
+  if (key.empty()) fail("Не выбрана постройка");
+  const bool has = contains(t.needKeys, key);
+  if (has == on) return;
+  if (on) tx.tech(tech).needKeys.push_back(key);
+  else eraseValue(tx.tech(tech).needKeys, key);
 }
 
 bool wouldCycle(const World& w, Id tech, Id prereq) {

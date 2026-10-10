@@ -3,6 +3,7 @@
 #pragma once
 #include "base/fs.h"
 #include "codec/png.h"
+#include "core/arch.h"
 #include "core/io.h"
 #include "core/schema.h"
 #include "tests/test.h"
@@ -36,10 +37,20 @@ inline std::string jpegLikeBytes() {
   return s;
 }
 
+// Археологические места провинций — как при создании провинции (иначе нормализация заполнит пустые слоты).
+inline void rollArch(Tx& tx) {
+  for (Id id : tx.w().provinces.ids())
+    if (tx.w().province(id)->arch[0].site == 0) tx.province(id).arch = arch::rollSlots(*tx.w().catalogs, arch::provinceSeed(id));
+}
+
 // Мир, в котором заполнено каждое поле каждой сущности (значения уже нормализованы).
 inline World richWorld() {
   World base = newWorld("Мир Ардена 🐉 «тест»");
   Tx tx(base);
+  // Базовые постройки, технологии и модификаторы нового мира уступают место записям с явными ID ниже.
+  for (Id id : base.buildings.ids()) tx.eraseBuilding(id);
+  for (Id id : base.techs.ids()) tx.eraseTech(id);
+  for (Id id : base.modifiers.ids()) tx.eraseModifier(id);
   Meta& m = tx.meta();
   m.createdAt = "2026-09-01T10:00:00Z";
   m.updatedAt = "2026-10-01T11:22:33Z";
@@ -125,7 +136,7 @@ inline World richWorld() {
   f3.id = 3;
   f3.name = "Империя Зар";
   f3.color = Color::hex(0x992222);
-  f3.fleet = {{4, "Пиратский флот", ShipType::Galleon, 5, 10}};
+  f3.fleet = {{4, "Пиратский флот", ShipType::Frigate, 5, 10}};
   f3.army = {{5, "Орда", UnitType::Monsters, 50, 7}};
   tx.add(f3);
   m.seq[int(Seq::Row)] = 5;
@@ -389,6 +400,7 @@ inline World richWorld() {
   tx.setRelation(1, 3, Relation{-25, RelStatus::War});
   tx.setRelation(1, 2, Relation{50.5, RelStatus::Alliance});
   tx.setRelation(2, 3, Relation{0, RelStatus::Neutral});
+  rollArch(tx);
   return std::move(tx).finish();
 }
 

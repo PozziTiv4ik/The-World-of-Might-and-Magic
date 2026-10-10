@@ -464,6 +464,11 @@ void App::setTool(ToolId t) {
     toast("Включите правку карты (T), чтобы менять сушу, воды, горы, замки и башни", ToastKind::Info, "lock");
     return;
   }
+  if (def->blocked)
+    if (std::string why = def->blocked(*this); !why.empty()) {
+      toast(why, ToastKind::Info, def->icon);
+      return;
+    }
   // Инструмент карты со страницы (например, «Поставить войско» на странице государства) — на карту.
   if (t != ToolId::Select && t != ToolId::Pan && ui.screen == Screen::Editor && view() != View::Map) {
     if (view() == View::Entity) setPage(false);

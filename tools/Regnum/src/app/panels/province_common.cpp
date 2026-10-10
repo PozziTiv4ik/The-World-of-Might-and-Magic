@@ -33,8 +33,8 @@ std::string pct(double v, bool sign = false) { return fmtPct(v, std::fabs(v - st
 std::string signedNum(double v) { return fmtSigned(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0); }
 std::string popText(double v) { return v >= 1e6 ? fmtShort(v) : fmtNum(v); }
 // Золото — до тысячных (ТЗ «Фиксы», п.13).
-std::string gold(double v) { return fmtNum(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
-std::string goldSigned(double v) { return fmtSigned(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
+std::string gold(double v) { return fmtGold(v); }   // золото — в тысячах (ТЗ «Доработки №1», п.12)
+std::string goldSigned(double v) { return fmtGoldSigned(v); }
 
 const char* sourceIcon(rules::EffectSource::Kind k) {
   switch (k) {

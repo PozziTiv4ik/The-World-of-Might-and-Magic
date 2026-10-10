@@ -31,13 +31,14 @@ TEST(app_editors_modifiers_builtin) {
   h.dropToasts();
   h->openEditor("modifiers", 0);
   quick(h);
-  // Все встроенные (ТЗ 1.1–1.26) — в списке, даже без записей мира.
-  CHECK_EQ(schema::builtinModifiers().size(), size_t(26));
+  // Все встроенные (ТЗ 1.1–1.26 и 7 модификаторов доработок 2026-10-10) — в списке, даже без записей мира.
+  CHECK_EQ(schema::builtinModifiers().size(), size_t(33));
   for (const Modifier& m : schema::builtinModifiers()) CHECK_MSG(h->uiRect("modifiers.builtin." + m.key) != nullptr, m.key);
-  // Список сгруппирован по виду: для провинций, глобальные, для армий, для героев, везде (сверху вниз).
+  // Список сгруппирован по виду: для провинций, глобальные, для армий, для героев, для археологических групп, везде
+  // (сверху вниз).
   {
     float y = -1;
-    for (const char* g : {"province", "faction", "army", "hero", "any"}) {
+    for (const char* g : {"province", "faction", "army", "hero", "arch", "any"}) {
       const RectF* r = h->uiRect(std::string("modifiers.group.") + g);
       CHECK_MSG(r != nullptr, g);
       if (r) CHECK_MSG(r->y > y, g);

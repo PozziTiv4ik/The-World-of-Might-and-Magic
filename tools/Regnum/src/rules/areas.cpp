@@ -2,6 +2,7 @@
 // у которых после правки не осталось области на карте (иначе запись «призрака» продолжала бы приносить доход).
 #include <unordered_set>
 
+#include "core/arch.h"
 #include "geo/ops.h"
 #include "rules/internal.h"
 
@@ -37,6 +38,15 @@ std::vector<std::string> dropEmptied(Tx& tx, const std::unordered_set<Id>& befor
   return names;
 }
 
+// Новые провинции получают археологические места (ТЗ «Доработки №2», п.6): все четыре слота по шансам ТЗ.
+void fillArchSlots(Tx& tx) {
+  if (tx.w().catalogs->archSites.empty()) return;
+  for (Id pid : idsWhere(tx.w().provinces, [](const Province& p) {
+         return std::all_of(p.arch.begin(), p.arch.end(), [](const ArchSlot& s) { return s.site == 0; });
+       }))
+    tx.province(pid).arch = arch::rollSlots(*tx.w().catalogs, arch::provinceSeed(pid));
+}
+
 }  // namespace
 
 AreaEdit createProvince(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, double snap) {
@@ -44,6 +54,7 @@ AreaEdit createProvince(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, 
   AreaEdit r;
   r.province = geo::createProvince(tx, poly, terrain, geo::EditOptions{snap});
   r.removed = dropEmptied(tx, before);
+  fillArchSlots(tx);
   return r;
 }
 
@@ -54,6 +65,7 @@ AreaEdit addArea(Tx& tx, Id province, const std::vector<Vec2>& poly, double snap
   AreaEdit r;
   r.removed = dropEmptied(tx, before);
   r.province = tx.w().province(province) ? province : 0;
+  fillArchSlots(tx);
   return r;
 }
 
@@ -64,6 +76,7 @@ AreaEdit removeArea(Tx& tx, Id province, const std::vector<Vec2>& poly, double s
   AreaEdit r;
   r.removed = dropEmptied(tx, before);
   r.province = tx.w().province(province) ? province : 0;
+  fillArchSlots(tx);
   return r;
 }
 
@@ -72,6 +85,7 @@ AreaEdit paintTerrain(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, do
   geo::paintTerrain(tx, poly, terrain, geo::EditOptions{snap});
   AreaEdit r;
   r.removed = dropEmptied(tx, before);
+  fillArchSlots(tx);
   return r;
 }
 
@@ -81,6 +95,7 @@ AreaEdit fillAt(Tx& tx, Vec2 p, Id province) {
   AreaEdit r;
   r.province = geo::fillAt(tx, p, province);
   r.removed = dropEmptied(tx, before);
+  fillArchSlots(tx);
   return r;
 }
 

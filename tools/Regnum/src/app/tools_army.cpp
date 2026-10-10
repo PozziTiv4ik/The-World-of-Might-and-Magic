@@ -1,6 +1,7 @@
 // Regnum — инструменты карты «Новое войско» и «Новый флот» (ТЗ 1.c.iii, 1.c.v): щелчок по суше (по морю) ставит
 // объект выбранной фракции. Фракция выбирается на плавающей панели инструмента (по умолчанию — выделенная или
-// последняя). Под указателем — фигурка-призрак; недопустимое место — красное кольцо и причина.
+// последняя). Под указателем — фигурка-призрак; недопустимое место — красное кольцо и причина. «Новый флот» доступен
+// только при «Свободном редактировании флотов» (ТЗ «Доработки №3», п.3); иначе флот ставится у верфи во вкладке «Флот».
 #include "app/tools_edit.h"
 #include "app/panels/military.h"
 #include "gfx/figures.h"
@@ -11,6 +12,11 @@ namespace mil {
 
 namespace {
 Id gForcedFaction = 0;   // фракция, заданная кнопкой «Поставить войско» до выбора инструмента
+}
+
+std::string fleetToolBlocked(App& a) {
+  if (a.world().settings->freeFleets) return {};
+  return "Свободное редактирование флотов выключено — флот ставится у верфи во вкладке «Флот» государства";
 }
 
 Id& lastPlaceFaction() {
@@ -50,6 +56,11 @@ class PlaceTool final : public MapTool {
       a.act("Новый объект", [](Tx&) {});
       return true;
     }
+    if (kind_ == ArmyKind::Fleet)
+      if (std::string why = fleetToolBlocked(a); !why.empty()) {
+        a.toast(why, ToastKind::Info, "tool-fleet");
+        return true;
+      }
     Id fac = faction(a);
     if (!fac) {
       a.toast("Сначала выберите фракцию на панели инструмента", ToastKind::Info, "crown");
@@ -98,7 +109,7 @@ class PlaceTool final : public MapTool {
 
   static Id defaultFaction(App& a) {
     const World& w = frameWorld(a);
-    auto ok = [&](Id f) { return f != 0 && w.faction(f) != nullptr; };
+    auto ok = [&](Id f) { return f != 0 && w.faction(f) != nullptr && !w.faction(f)->isWild(); };
     if (ok(gForcedFaction)) {
       Id f = gForcedFaction;
       gForcedFaction = 0;
@@ -127,6 +138,11 @@ class PlaceTool final : public MapTool {
   }
 
   bool valid(App& a, Vec2 p, std::string* why) const {
+    if (kind_ == ArmyKind::Fleet)
+      if (std::string no = fleetToolBlocked(a); !no.empty()) {
+        if (why) *why = "Свободное редактирование флотов выключено";
+        return false;
+      }
     if (!faction(a)) {
       if (why) *why = "Выберите фракцию";
       return false;
@@ -222,7 +238,8 @@ class PlaceTool final : public MapTool {
 };
 
 ToolReg armyReg({ToolId::NewArmy, "tool-army", "Новое войско", "A", false, [] { return std::make_unique<PlaceTool>(ArmyKind::Army); }, 50});
-ToolReg fleetReg({ToolId::NewFleet, "tool-fleet", "Новый флот", "Shift+A", false, [] { return std::make_unique<PlaceTool>(ArmyKind::Fleet); }, 51});
+ToolReg fleetReg({ToolId::NewFleet, "tool-fleet", "Новый флот", "Shift+A", false, [] { return std::make_unique<PlaceTool>(ArmyKind::Fleet); }, 51, false, false,
+                  fleetToolBlocked});
 
 }  // namespace
 

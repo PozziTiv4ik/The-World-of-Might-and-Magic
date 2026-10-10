@@ -30,10 +30,7 @@ void addSeat(App& a, Id id) {
         break;
       }
     }
-    CouncilSeat seat;
-    seat.id = tx.nextId(Seq::Council);
-    seat.position = pos.empty() ? std::string("Советник") : pos;
-    tx.faction(id).council.push_back(seat);
+    rules::addCouncilSeat(tx, id, pos);
   });
 }
 
@@ -91,30 +88,47 @@ void drawCouncil(App& a, Id id) {
     if (c) total += std::max(0.0, c->upkeep);
     else vacant++;
   }
+  // Не больше 10 должностей (ТЗ «Доработки №1», п.4).
+  const bool full = n >= schema::kMaxCouncilSeats;
+  const std::string fullTip = "В совете не больше " + std::to_string(schema::kMaxCouncilSeats) + " должностей";
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
-    ui::stat(fmtInt(n), plural(n, "место в совете", "места в совете", "мест в совете"),
-             {.icon = "council", .tone = ui::Tone::Accent, .tooltip = vacant ? "Вакантных мест: " + std::to_string(vacant) : std::string("Все места заняты")});
-    ui::stat(money(total), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning,
-                                                   .tooltip = "Сумма содержания советников — входит в расход «специалисты»"});
+    ui::stat(fmtInt(n) + " / " + fmtInt(schema::kMaxCouncilSeats), plural(n, "место в совете", "места в совете", "мест в совете"),
+             {.icon = "council", .tone = full ? ui::Tone::Warning : ui::Tone::Accent,
+              .tooltip = (vacant ? "Вакантных мест: " + std::to_string(vacant) : std::string("Все места заняты")) + "\n" + fullTip});
+    a.markUi("council.seats");
+    ui::stat(money(total) + " тыс.", "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning,
+                                                            .tooltip = "Сумма содержания советников — входит в расход «специалисты»"});
   }
-  // Модификатор совета по числу назначений (ТЗ «Общие доработки», п.6): ставится сам.
-  if (f->isState())
+  // Модификатор совета по числу назначений (ТЗ «Общие доработки», п.6) и «Влияние совета» вместе с «Централизованной
+  // властью» (ТЗ «Доработки №1», п.4: значение за каждую должность): ставятся сами.
+  if (f->isState()) {
+    ui::HStack hs(24, ui::Align::Left, 6);
     for (const rules::AutoMod& am : rules::autoModifiers(w, id)) {
-      if (am.key != schema::mod::Decentralization && am.key != schema::mod::WeakControl && am.key != schema::mod::Centralized) continue;
-      const bool good = am.key == schema::mod::Centralized;
+      const bool influence = am.key == schema::mod::CouncilInfluence;
+      if (am.key != schema::mod::Decentralization && am.key != schema::mod::WeakControl && am.key != schema::mod::Centralized && !influence) continue;
+      const bool good = am.key == schema::mod::Centralized || influence;
       std::string tip = am.why;
+      std::string label = am.m ? am.m->name : std::string("Совет");
       if (am.m)
         for (int k = 0; k < kFxCount; k++)
-          if (am.m->has(Fx(k))) tip += "\n" + w::effectText(Fx(k), am.m->fx[size_t(k)]);
-      ui::HStack hs(24, ui::Align::Left, 6);
-      ui::chip(am.m ? am.m->name : std::string("Совет"), {.icon = good ? "crown" : "council", .tone = good ? ui::Tone::Success : ui::Tone::Warning, .tooltip = tip});
-      a.markUi("council.auto");
+          if (am.m->has(Fx(k))) {
+            const double v = am.m->fx[size_t(k)];
+            tip += "\n" + w::effectText(Fx(k), v * am.scale);
+            if (influence) tip += " (" + w::effectText(Fx(k), v) + " × " + fmtNum(am.scale) + ")";
+          }
+      if (influence && am.m)
+        for (int k = 0; k < kFxCount; k++)
+          if (am.m->has(Fx(k))) label += " " + fmtSigned(am.m->fx[size_t(k)]) + "\xC2\xA0% × " + fmtNum(am.scale);
+      ui::IdScope s(am.key);
+      ui::chip(label, {.icon = influence ? "research" : good ? "crown" : "council", .tone = good ? ui::Tone::Success : ui::Tone::Warning, .tooltip = tip});
+      a.markUi(influence ? "council.influence" : "council.auto");
     }
+  }
   ui::spacer(2);
-  ui::Section sec("Совет", "council", {.badge = n ? std::to_string(n) : std::string(), .actionIcon = ro ? nullptr : "plus",
+  ui::Section sec("Совет", "council", {.badge = n ? std::to_string(n) : std::string(), .actionIcon = ro || full ? nullptr : "plus",
                                        .actionTooltip = "Добавить место в совете"});
-  if (sec.action()) addSeat(a, id);
+  if (sec.action() && !full) addSeat(a, id);
   if (!sec) return;
   if (n == 0) {
     ui::emptyState("council", "Совет пока пуст.");
@@ -150,7 +164,7 @@ void drawCouncil(App& a, Id id) {
       }
       double up = c->upkeep;
       const Id cid = c->id;
-      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .icon = "coins", .disabled = ro,
+      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = "тыс.", .icon = "coins", .disabled = ro,
                                          .tooltip = "Содержание советника за ход (расход «специалисты»)"}))
         a.act("Содержание советника", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "council.upkeep:" + std::to_string(cid)});
       a.markUi("council.upkeep." + std::to_string(i));
@@ -176,7 +190,7 @@ void drawCouncil(App& a, Id id) {
       }
     };
     if (wide) {
-      ui::Row row({ui::px(24), ui::fr(1), ui::fr(1.25f), ui::px(84), ui::px(28)}, 30, 10);
+      ui::Row row({ui::px(24), ui::fr(1), ui::fr(1.25f), ui::px(104), ui::px(28)}, 30, 10);
       avatar();
       position();
       lord();
@@ -191,7 +205,7 @@ void drawCouncil(App& a, Id id) {
         remove();
       }
       {
-        ui::Row row({ui::px(24), ui::fr(1), ui::px(84)}, 30, 10);
+        ui::Row row({ui::px(24), ui::fr(1), ui::px(104)}, 30, 10);
         avatar();
         lord();
         upkeep();
@@ -203,11 +217,12 @@ void drawCouncil(App& a, Id id) {
     ui::Row row({ui::fr(1), ui::px(120)}, 24, 8);
     ui::label(vacant ? std::to_string(vacant) + " " + plural(vacant, "вакансия", "вакансии", "вакансий") : std::string("Все места заняты"),
               {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    ui::label("Итого " + money(total) + " / ход", {.font = ui::Font::Strong, .align = ui::Align::Right});
+    ui::label("Итого " + money(total) + " тыс. / ход", {.font = ui::Font::Strong, .align = ui::Align::Right});
   }
   if (!ro) {
     ui::spacer(2);
-    if (ui::button("Добавить место", {.icon = "plus", .fill = true})) addSeat(a, id);
+    if (ui::button("Добавить место", {.icon = "plus", .fill = true, .disabled = full, .tooltip = full ? std::string_view(fullTip) : std::string_view()}))
+      addSeat(a, id);
     a.markUi("council.add");
   }
 }

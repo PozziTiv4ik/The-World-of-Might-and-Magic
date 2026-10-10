@@ -251,7 +251,12 @@ link_exe() {  # $1 = имя, $2 = gui|console, остальные — исход
     objs+=("$rc_obj")
   fi
   echo "== сборка $name$EXE"
-  "$CXX" "${objs[@]}" -o "$out" "${extra[@]}" "${LDFLAGS[@]}"
+  # Объектные файлы — через файл ответов: длинный путь проекта × сотни файлов не помещаются в командную строку Windows.
+  local rsp="$BUILD/$name.rsp"
+  # Git Bash: пути MSYS (/d/...) в файле ответов компилятор не понимает — пишутся пути Windows.
+  if command -v cygpath >/dev/null; then cygpath -m "${objs[@]}" | sed 's/.*/"&"/' > "$rsp"
+  else printf '"%s"\n' "${objs[@]}" > "$rsp"; fi
+  "$CXX" "@$rsp" -o "$out" "${extra[@]}" "${LDFLAGS[@]}"
 }
 
 sources_for_modules() { local m; for m in "$@"; do module_sources "$m"; done; }

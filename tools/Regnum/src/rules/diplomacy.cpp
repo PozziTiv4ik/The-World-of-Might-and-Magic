@@ -9,6 +9,7 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
   const Faction& fa = needFaction(tx.w(), a);
   const Faction& fb = needFaction(tx.w(), b);
   if (a == b) fail("Отношения фракции с самой собой не задаются");
+  if (fa.isWild() || fb.isWild()) fail("Войска без государства враждебны всем — отношений с ними нет");
   needFinite(value, "Отношения");
   if (int(status) < 0 || int(status) > 3) fail("Неизвестное состояние отношений");
   Relation old = tx.w().relation(a, b);
@@ -29,6 +30,7 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
 
 void shiftRelation(Tx& tx, Id a, Id b, double delta) {
   if (!a || !b || a == b || !tx.w().faction(a) || !tx.w().faction(b) || delta == 0) return;
+  if (tx.w().faction(a)->isWild() || tx.w().faction(b)->isWild()) return;
   Relation r = tx.w().relation(a, b);
   r.v = clamp(r.v + delta, -100.0, 100.0);
   tx.setRelation(a, b, r);
@@ -38,7 +40,7 @@ std::vector<RelationRow> relationsOf(const World& w, Id faction) {
   std::vector<RelationRow> rows;
   if (!w.faction(faction)) return rows;
   std::vector<const Faction*> others;
-  w.factions.each([&](const Faction& f) { if (f.id != faction) others.push_back(&f); });
+  w.factions.each([&](const Faction& f) { if (f.id != faction && !f.isWild()) others.push_back(&f); });
   std::stable_sort(others.begin(), others.end(), [](const Faction* x, const Faction* y) {
     if (x->kind != y->kind) return x->kind == FactionKind::State;  // сначала государства
     int c = compareRu(x->name, y->name);
@@ -48,9 +50,20 @@ std::vector<RelationRow> relationsOf(const World& w, Id faction) {
   rows.reserve(others.size());
   for (const Faction* f : others) {
     Relation r = w.relation(faction, f->id);
-    rows.push_back(RelationRow{f->id, r.v, r.s});
+    rows.push_back(RelationRow{f->id, r.v, r.s, relationBonus(w, faction, f->id)});
   }
   return rows;
+}
+
+double relationBonus(const World& w, Id a, Id b) {
+  const Faction* fa = w.faction(a);
+  const Faction* fb = w.faction(b);
+  if (!fa || !fb || a == b || !fa->isState() || !fb->isState() || !fa->religion || fa->religion != fb->religion) return 0;
+  return schema::kSameReligionRelation;
+}
+
+double relationValue(const World& w, Id a, Id b) {
+  return clamp(w.relation(a, b).v + relationBonus(w, a, b), -100.0, 100.0);
 }
 
 }  // namespace rg::rules

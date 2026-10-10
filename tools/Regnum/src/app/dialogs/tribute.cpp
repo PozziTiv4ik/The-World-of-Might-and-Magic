@@ -46,7 +46,7 @@ struct TributeDlg : Dialog {
     a.markUi("tribute.kind");
     {
       ui::Row r({ui::fr(1), ui::fr(1)}, 30, 10);
-      ui::numberField("amount", amount, {.min = 0.001, .max = 1e9, .step = 10, .digits = 3, .icon = "coins", .tooltip = "Золото за ход"});
+      ui::numberField("amount", amount, {.min = 0.001, .max = 1e9, .step = 10, .digits = 3, .unit = "тыс.", .icon = "coins", .tooltip = "Золото за ход"});
       a.markUi("tribute.amount");
       ui::numberField("turns", turns, {.min = 1, .max = 999, .unit = "ход|хода|ходов", .icon = "hourglass", .steppers = true, .tooltip = "Срок выплат"});
       a.markUi("tribute.turns");
@@ -56,19 +56,19 @@ struct TributeDlg : Dialog {
     const rules::FactionCalc* rc = receiver ? c->faction(receiver) : nullptr;
     {
       ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
-      ui::stat(fmtNum(amount * turns, 3), "Всего золота", {.icon = "coins", .tone = ui::Tone::Accent});
+      ui::stat(fmtGold(amount * turns), "Всего золота", {.icon = "coins", .tone = ui::Tone::Accent});
       if (pc) {
         double net = pc->net - amount;
-        ui::stat(fmtSigned(net), "Доход плательщика", {.icon = "trend-down", .tone = net < 0 ? ui::Tone::Danger : ui::Tone::Neutral,
-                                                       .deltaText = "−" + fmtNum(amount, 3), .invertDelta = true,
-                                                       .tooltip = "Чистый доход за ход с учётом выплаты; сейчас " + fmtSigned(pc->net)});
+        ui::stat(fmtGoldSigned(net), "Доход плательщика", {.icon = "trend-down", .tone = net < 0 ? ui::Tone::Danger : ui::Tone::Neutral,
+                                                           .deltaText = "−" + fmtGold(amount), .invertDelta = true,
+                                                           .tooltip = "Чистый доход за ход с учётом выплаты; сейчас " + fmtGoldSigned(pc->net)});
       } else {
         ui::stat("—", "Доход плательщика", {.icon = "trend-down", .tone = ui::Tone::Neutral});
       }
       if (rc) {
         double net = rc->net + amount;
-        ui::stat(fmtSigned(net), "Доход получателя", {.icon = "trend-up", .tone = ui::Tone::Success, .deltaText = "+" + fmtNum(amount, 3),
-                                                      .tooltip = "Чистый доход за ход с учётом выплаты; сейчас " + fmtSigned(rc->net)});
+        ui::stat(fmtGoldSigned(net), "Доход получателя", {.icon = "trend-up", .tone = ui::Tone::Success, .deltaText = "+" + fmtGold(amount),
+                                                          .tooltip = "Чистый доход за ход с учётом выплаты; сейчас " + fmtGoldSigned(rc->net)});
       } else {
         ui::stat("—", "Доход получателя", {.icon = "trend-up", .tone = ui::Tone::Neutral});
       }
@@ -90,7 +90,7 @@ struct TributeDlg : Dialog {
       double amt = amount;
       int n = turns;
       if (a.act(kind == 0 ? "Навязать дань" : "Назначить репарации", [&](Tx& tx) { rules::imposeTribute(tx, k, rcv, pay, amt, n); })) {
-        a.toast(w.factionName(pay) + (kind == 0 ? " платит дань: " : " платит репарации: ") + fmtNum(amt, 3) + " золота за ход, " + nTurns(n),
+        a.toast(w.factionName(pay) + (kind == 0 ? " платит дань: " : " платит репарации: ") + fmtGold(amt) + " золота за ход, " + nTurns(n),
                 ToastKind::Success, kind == 0 ? "tribute" : "reparations");
         return false;
       }

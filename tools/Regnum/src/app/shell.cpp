@@ -475,7 +475,11 @@ map::RenderOptions renderOptions(App& a) {
   switch (a.ui.sel.type) {
     case SelType::Province: o.selProvince = a.ui.sel.id; break;
     case SelType::Faction: o.selFaction = a.ui.sel.id; break;
-    case SelType::Army: o.selArmy = a.ui.sel.id; break;
+    case SelType::Army: {
+      const Id carrier = rules::carrierOf(a.world(), a.ui.sel.id);   // войско на борту — выделен его флот
+      o.selArmy = carrier ? carrier : a.ui.sel.id;
+      break;
+    }
     case SelType::Route: o.selRoute = a.ui.sel.id; break;
     default: break;
   }

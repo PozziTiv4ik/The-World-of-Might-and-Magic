@@ -76,7 +76,7 @@ void drawHeroes(App& a, Id id) {
     if (dead) tip += "\nПогибли: " + std::to_string(dead);
     if (captive) tip += "\nВ плену: " + std::to_string(captive);
     ui::stat(fmtInt(i64(heroes.size())), plural(i64(heroes.size()), "герой", "героя", "героев"), {.icon = "hero", .tone = ui::Tone::Accent, .tooltip = tip});
-    ui::stat(money(upkeep), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Входит в расход «специалисты»"});
+    ui::stat(fmtGold(upkeep), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Входит в расход «специалисты»"});
   }
   ui::spacer(2);
   {
@@ -132,7 +132,7 @@ void drawHeroes(App& a, Id id) {
           }
           t.cell();
           double up = c.upkeep;
-          if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .disabled = ro, .tooltip = "Содержание за ход"}))
+          if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = "тыс.", .disabled = ro, .tooltip = "Содержание за ход"}))
             a.act("Содержание героя", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "hero.upkeep:" + std::to_string(cid)});
           if (Id army = armyOfCharacter(w, cid)) {
             t.cell();
@@ -195,7 +195,7 @@ void drawHeroes(App& a, Id id) {
           int relics = 0;
           for (const Character* c : heroes) relics += relicsOf(*c);
           t.text("Итого");
-          t.text(money(upkeep));
+          t.text(fmtGold(upkeep));
           t.text({});
           t.text(relics ? std::to_string(relics) : std::string(), ui::Ink::Dim);
           t.text({});

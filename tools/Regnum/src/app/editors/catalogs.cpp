@@ -1,6 +1,7 @@
 // Regnum — окно справочников: девять вкладок (a.openEditor("catalogs", N) открывает вкладку N): 1 ресурсы (деревом
 // групп, catalogs_resources.cpp), 2 расы, 3 культуры, 4 религии, 5 формы правления, 6 должности, 7 эссенции
-// элементов, 8 реликвии (catalogs_relics.cpp), 9 особые отряды (catalogs_specials.cpp). Простые справочники —
+// элементов, 8 реликвии (catalogs_relics.cpp), 9 особые отряды (catalogs_specials.cpp), 10 классы героев
+// (catalogs_classes.cpp), 11 археологические места и 12 сундуки сокровищ (catalogs_arch.cpp). Простые справочники —
 // таблица с правкой названия и цвета, добавлением, удалением через rules::removeCatalogItem (с перечнем мест
 // использования; встроенные записи закреплены), числами использования и карточкой выбранной записи со ссылками;
 // у должности — модификаторы занятой и пустующей должности (ТЗ «Общие доработки», п.4–5). Использование записей
@@ -51,6 +52,9 @@ const TabInfo kTabs[kTabCount] = {
     {"essence", "Эссенции", "Эссенции элементов", "essences"},
     {"relic", "Реликвии", "Реликвии", "relics"},
     {"special-unit", "Особые отряды", "Особые отряды", "specials"},
+    {"hero-class", "Классы героев", "Классы героев и деревья талантов", "classes"},
+    {"pickaxe", "Археологические места", "Археологические места и финальные награды", "archsites"},
+    {"chest", "Сундуки сокровищ", "Сундуки сокровищ", "chests"},
 };
 
 const ListDef* defOfTab(int tab) {
@@ -328,9 +332,9 @@ void numCell(ui::Table& t, double v, int digits) {
   t.text(v == 0 ? std::string("—") : fmtNum(v, digits), v == 0 ? ui::Ink::Muted : ui::Ink::Normal);
 }
 
-void amountGlyph(const char* icon, Color color, double amount, std::string_view tip) {
+void amountGlyph(const char* icon, Color color, double amount, std::string_view tip, bool gold) {
   ui::iconColored(icon, legible(color), 15, tip);
-  ui::label(fmtNum(amount, 3), {.font = ui::Font::Small, .tooltip = tip});
+  ui::label(gold ? fmtGold(amount) : fmtNum(amount, 3), {.font = ui::Font::Small, .tooltip = tip});
   ui::next(4, 1);   // промежуток до следующей пары
 }
 
@@ -495,7 +499,7 @@ void usageSection(App& a, State& st, const World& w, CatalogList l, const Catalo
       co.tooltip = f->isGuild() ? "Открыть гильдию" : "Открыть государство";
       std::string label = orName(f->name);
       if (res) {
-        label += " · " + fmtNum(f->stock(c.id), 3);
+        label += " · " + (c.id == kGold ? fmtGold(f->stock(c.id)) : fmtNum(f->stock(c.id), 3));
       } else if (ess) {
         const double v = f->essence(c.id);
         label += " · " + fmtNum(v, 3);
@@ -925,7 +929,8 @@ void drawTabs(App& a, State& st, const World& w) {
   const Catalogs& c = *w.catalogs;
   const int counts[kTabCount] = {int(c.resources.size()), int(c.races.size()),     int(c.cultures.size()),
                                  int(c.religions.size()), int(c.governments.size()), int(c.positions.size()),
-                                 int(c.essences.size()),  int(c.relics.size()),     int(c.specials.size())};
+                                 int(c.essences.size()),  int(c.relics.size()),     int(c.specials.size()),
+                                 int(c.classes.size()),   int(c.archSites.size()),   int(c.chests.size())};
   const float avail = ui::avail().w;
   auto natural = [&](bool labels, bool badges) {
     float total = 0;
@@ -974,6 +979,9 @@ void drawEditor(App& a, Id arg) {
     case kResources: drawResources(a, st); break;
     case kRelics: drawRelics(a, st); break;
     case kSpecials: drawSpecials(a, st); break;
+    case kClasses: drawClasses(a, st); break;
+    case kArchSites: drawArchSites(a, st); break;
+    case kChests: drawChests(a, st); break;
     default:
       if (const ListDef* d = defOfTab(st.tab)) drawList(a, st, *d);
       break;

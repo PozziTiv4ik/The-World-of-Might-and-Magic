@@ -18,11 +18,12 @@ Id mirrorFleetRow(Tx& tx, Id rebelState, const FleetRow& src) {
   return addFleetRow(tx, rebelState, src.type, src.name, 0, src.upkeep);
 }
 
-// Верная при мятеже раса: нежить и механизмы.
+// Верная при мятеже раса: нежить, механизмы и наёмники (наёмники верны нанимателю, ТЗ «Доработки №3», п.13).
 bool alwaysLoyal(const World& w, Id faction, const ArmyRow* r) {
   if (!r) return false;
+  if (r->merc) return true;
   const std::string race = unitRace(w, faction, *r);
-  return race == schema::kRaceUndead || race == schema::kRaceMechanical;
+  return race == schema::kRaceUndead || race == schema::kRaceMechanical || race == schema::kRaceMercenary;
 }
 
 // Перенести count отрядов строки row фракции origin в группу мятежного войска: строка-зеркало у мятежников
@@ -137,6 +138,8 @@ bool canMutiny(const World& w, Id army, std::string* why) {
   const Army* a = w.army(army);
   if (!a) return no("Войско не найдено");
   if (a->allied()) return no("В союзном войске мятежа не бывает — сначала распустите союз");
+  // Войско на борту и флот с войском на борту (ТЗ «Доработки №3», п.6) восстают только после высадки.
+  if (carrierOf(w, army) || cargoOf(w, army)) return no(a->isFleet() ? "На борту флота войско — мятеж после высадки" : "Войско на борту флота — мятеж после высадки");
   const Faction* f = w.faction(a->leader());
   if (!f || !f->isState()) return no("Мятеж бывает только в войсках государства");
   if (f->rebelOf) return no("Войско само мятежное");
@@ -317,7 +320,7 @@ MutinyResult mutiny(Tx& tx, Id army) {
   std::vector<Id> list{army};
   if (province)
     tx.w().armies.each([&](const Army& x) {
-      if (x.id == army || x.allied() || x.leader() != origin || x.kind != a.kind) return;
+      if (x.id == army || x.allied() || x.leader() != origin || x.kind != a.kind || x.cargo || x.carrier) return;
       if (provinceAtTx(tx, x.pos) == province) list.push_back(x.id);
     });
   const Province* p = province ? tx.w().province(province) : nullptr;
@@ -400,7 +403,7 @@ void garrisonDefect(Tx& tx, Id rebelArmy, Id province) {
 bool willDefect(const World& w, Id rebelArmy, Id target) {
   const Army* r = w.army(rebelArmy);
   const Army* t = w.army(target);
-  if (!r || !t || t->allied() || r->kind != t->kind) return false;
+  if (!r || !t || t->allied() || r->kind != t->kind || cargoOf(w, target)) return false;   // с войском на борту — не переходит
   const Faction* rf = w.faction(r->leader());
   return rf && rf->rebelOf && rf->rebelOf == t->leader() && t->loyalty < 0;
 }

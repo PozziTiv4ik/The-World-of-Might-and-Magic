@@ -199,7 +199,7 @@ bool canVassalRebel(const World& w, Id vassal, std::string* why) {
     if (why) *why = "Государство — не вассал";
     return false;
   }
-  const double rel = w.relation(vassal, v->suzerain).v;
+  const double rel = relationValue(w, vassal, v->suzerain);   // с учётом одной религии (+10)
   if (rel > schema::kVassalRebelAt) {
     if (why) *why = "Восстать можно при отношениях с сюзереном " + fmtNum(schema::kVassalRebelAt) + " и ниже (сейчас " + fmtSigned(rel) + ")";
     return false;

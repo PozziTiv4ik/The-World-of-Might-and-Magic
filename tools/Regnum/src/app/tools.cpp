@@ -6,7 +6,8 @@
 // или незнакомы — объявить войну, затем битва; война — панель битвы; иначе (море, суша, флот, занято) —
 // возврат с причиной. Войско на знаке «замок» или «башня» провинции государства, с которым его фракция в войне, —
 // штурм (ТЗ «Механика войн», п.4): войско встаёт у стен, окно штурма гарнизона или захвата. Отказ в диалоге плавно
-// возвращает объект на исходную позицию.
+// возвращает объект на исходную позицию. Войско на флот своего государства — посадка (окно подтверждения), а если на
+// борту уже есть войско — окно обмена отрядами с ним (ТЗ «Доработки №3», п.6).
 #include "app/tools_edit.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -95,7 +96,7 @@ Id armyAtScreen(App& a, float sx, float sy, Id exclude) {
   std::stable_sort(list.begin(), list.end(), [](const Army* x, const Army* y) { return x->pos.y < y->pos.y; });
   Id best = 0;
   for (const Army* ar : list) {
-    if (ar->id == exclude) continue;
+    if (ar->id == exclude || (ar->carrier && rules::carrierOf(a.world(), ar->id))) continue;   // войско на борту — не фигурка
     gfx::Pt s = v.toScreen(ar->pos);
     float dx = sx - s.x, dy = sy - (s.y - r * 0.08f);
     if (dx * dx + dy * dy <= r * r * 1.1f) best = ar->id;
@@ -136,6 +137,13 @@ Status statusOf(App& a, const DragState& d) {
     case rules::EncounterType::Alliance: return {"alliance", "Союз с " + tn, ui::Tone::Success};
     case rules::EncounterType::DeclareWar: return {"war", "Объявить войну: " + w.factionName(e.them), ui::Tone::Danger};
     case rules::EncounterType::Battle: return {"battle", "Битва: " + tn + " · " + w.factionName(t ? t->leader() : 0), ui::Tone::Danger};
+    case rules::EncounterType::Embark: {
+      // Войско на флот или флот к войску (забрать на борт).
+      const Army* m = w.army(d.army);
+      const bool pickUp = m && m->isFleet();
+      if (const Army* c = w.army(rules::cargoOf(w, pickUp ? d.army : e.target))) return {"exchange", "Обмен отрядами с «" + mil::objectName(*c) + "»", ui::Tone::Accent};
+      return {"embark", (pickUp ? "Забрать на борт " : "На борт ") + tn, ui::Tone::Accent};
+    }
     default: return {"warning", e.reason.empty() ? std::string("Сюда нельзя") : e.reason, ui::Tone::Danger};
   }
 }
@@ -403,6 +411,12 @@ class SelectTool final : public MapTool {
       case rules::EncounterType::Battle:
         d.phase = DragState::Pending;
         mil::openBattle(a, id, e.target, d.origin, decided);
+        return;
+      case rules::EncounterType::Embark:
+        d.phase = DragState::Pending;
+        // На борту уже есть войско — обмен отрядами с ним (подошедший объект возвращается на место); иначе — посадка.
+        if (Id cargo = rules::cargoOf(w, fleet ? id : e.target)) mil::openExchange(a, fleet ? e.target : id, cargo, [decided](App& x, bool) { decided(x, false); });
+        else mil::openEncounter(a, id, e.target, e, d.origin, decided);
         return;
       default:
         a.toast(e.reason.empty() ? std::string("Сюда нельзя") : e.reason, ToastKind::Warning, "warning");

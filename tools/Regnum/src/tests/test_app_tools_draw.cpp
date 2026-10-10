@@ -123,6 +123,102 @@ TEST(app_tools_new_province_over_coast) {
   CHECK(h->ui.tool == app::ToolId::NewProvince);
 }
 
+// ТЗ «Доработки №1», п.1: новая провинция рядом с существующей. Контур от руки глубоко заходит на соседа и
+// петляет вдоль его границы — сосед не обрезается, новая провинция прилегает ровно по его границе (без щелей);
+// предпросмотр заливает только свободную сушу.
+TEST(app_tools_new_province_attaches_to_neighbor) {
+  ToolGuard guard;
+  Harness h("tools_new_neighbor");
+  freshWorld(h);
+  auto fs0 = geo::faces(h->world());
+  const geo::Face* land = largestLand(*fs0);
+  CHECK(land != nullptr);
+  const Vec2 L = land->label;
+  CHECK(landDisk(*fs0, L, 160));
+  h->focusMap(Vec2{L.x - 15, L.y}, 3.0);
+  h.settle();
+  h.key(Key::P);
+  // Сосед A — прямоугольник щелчками; его правая сторона x = bx.
+  const double bx = L.x - 10;
+  clickAll(h, {{L.x - 90, L.y - 50}, {bx, L.y - 50}, {bx, L.y + 50}, {L.x - 90, L.y + 50}});
+  h.key(Key::Enter);
+  CHECK(h->ui.sel.type == app::SelType::Province);
+  const Id a = h->ui.sel.id;
+  const World wa = h->world();
+  const double areaA = provArea(wa, a);
+  CHECK(areaA > 7000);
+  h->clearSelection();   // A без подсветки выделения: на снимке видно, что предпросмотр её не заливает
+  h->focusMap(Vec2{L.x - 15, L.y}, 3.0);
+  h.settle();
+  std::vector<std::vector<Vec2>> ringsA;
+  {
+    auto fa = geo::faces(wa);
+    for (int f : fa->shape(a)->faces)
+      for (auto& r : fa->faces[size_t(f)].rings) ringsA.push_back(r);
+  }
+  const size_t faces0 = geo::faces(wa)->faces.size();
+  // Контур от руки: из глубины A вправо, вниз, обратно в глубину A, вверх и зигзагом (±1,6 допуска прилипания)
+  // вдоль границы A к началу.
+  const double s = h->map().view().toMapLen(app::tools::kSnapPx), dev = 1.6 * s;
+  const double y0 = L.y - 35, y1 = L.y + 35;
+  std::vector<Vec2> path{{bx - 30, y0}};
+  auto line = [&](Vec2 q, int n) {
+    Vec2 p = path.back();
+    for (int i = 1; i <= n; i++) path.push_back(p + (q - p) * (double(i) / n));
+  };
+  line({bx + 70, y0}, 10);
+  line({bx + 70, y1}, 8);
+  line({bx - 30, y1}, 10);
+  line({bx - 30, L.y + 10}, 3);
+  line({bx - dev, L.y + 5}, 3);
+  int k = 0;
+  for (double y = L.y + 5 - 2 * s; y > y0 + 2 * s; y -= 2 * s, k++) path.push_back({bx + (k % 2 == 0 ? dev : -dev), y});
+  std::vector<gfx::Pt> pts;
+  for (Vec2 p : path) pts.push_back(scr(h, p));
+  for (auto& p : pts) CHECK(freeAt(h, p));
+  // Пиксели до контура: внутри A (будет внутри контура) и на свободной суше внутри контура.
+  const gfx::Pt inA = scr(h, {bx - 15, L.y + 20}), inFree = scr(h, {bx + 35, L.y});
+  moveMap(h, path.back());
+  h.waitMap();
+  h.frames(3);
+  const u32 inA0 = h.pixel(inA.x, inA.y), inFree0 = h.pixel(inFree.x, inFree.y);
+  double t0 = nowSeconds();
+  h.frames(10);
+  const double tPlain = (nowSeconds() - t0) * 100;
+  stroke(h, pts, false);
+  CHECK(cleanShot(h, "tools_new_province_neighbor"));
+  t0 = nowSeconds();
+  h.frames(10);
+  std::printf("  new province preview: %.2f ms per frame (without contour %.2f ms)\n", (nowSeconds() - t0) * 100, tPlain);
+  CHECK_EQ(h.pixel(inA.x, inA.y), inA0);         // предпросмотр не заливает соседа
+  CHECK(h.pixel(inFree.x, inFree.y) != inFree0);  // свободная суша внутри контура залита
+  release(h, pts.back());
+  CHECK(h->ui.sel.type == app::SelType::Province);
+  const Id b = h->ui.sel.id;
+  CHECK(b != a && h->world().province(b) != nullptr);
+  CHECK(geo::validate(h->world()).empty());
+  CHECK_NEAR(provArea(h->world(), a), areaA, 1e-9 * areaA);  // сосед не обрезан
+  const double want = 70 * (y1 - y0);
+  CHECK_NEAR(provArea(h->world(), b), want, 0.01 * want);
+  CHECK_EQ(provFaces(h->world(), b), 1);
+  CHECK_EQ(geo::faces(h->world())->faces.size(), faces0 + 1);  // щелей между провинциями нет
+  // Общая граница — прежняя граница A.
+  double shared = 0;
+  h->world().edges.each([&](const Edge& e) {
+    if (!((e.pl == a && e.pr == b) || (e.pl == b && e.pr == a))) return;
+    auto c = geo::edgeCoords(h->world(), e);
+    for (size_t i = 0; i + 1 < c.size(); i++) shared += dist(c[i], c[i + 1]);
+    for (Vec2 p : c) CHECK(geo::distToRings(p, ringsA) < 1e-6);
+  });
+  CHECK_NEAR(shared, y1 - y0, 0.01 * (y1 - y0));
+  h.waitMap();
+  CHECK(cleanShot(h, "tools_new_province_neighbor_done"));
+  // Отмена — провинции B нет, A прежняя.
+  h.key(Key::Z, ctrl());
+  CHECK(h->world().province(b) == nullptr);
+  CHECK_NEAR(provArea(h->world(), a), areaA, 1e-9 * areaA);
+}
+
 TEST(app_tools_lasso_add_remove_fill) {
   ToolGuard guard;
   Harness h("tools_areas");

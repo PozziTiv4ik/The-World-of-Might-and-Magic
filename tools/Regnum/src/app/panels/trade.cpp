@@ -26,10 +26,11 @@ void drawTab(App& a, Id fid) {
   double trib = fc ? fc->incTribute - fc->expTribute : 0;
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
-    std::string tt = fc ? "Поступления " + turnui::money(fc->incTrade) + ", выплаты " + turnui::money(fc->expTrade) : std::string();
-    ui::stat(fmtSigned(trade, 3), "Торговля за ход", {.icon = "trade", .tone = trade < 0 ? ui::Tone::Danger : ui::Tone::Success, .tooltip = tt});
-    std::string tb = fc ? "Получаем " + turnui::money(fc->incTribute) + ", платим " + turnui::money(fc->expTribute) : std::string();
-    ui::stat(fmtSigned(trib, 3), "Дань за ход", {.icon = "tribute", .tone = trib < 0 ? ui::Tone::Danger : ui::Tone::Warning, .tooltip = tb});
+    // Золото: 1 единица = 1 тыс. золотых.
+    std::string tt = fc ? "Поступления " + turnui::money(fc->incTrade) + " тыс., выплаты " + turnui::money(fc->expTrade) + " тыс." : std::string();
+    ui::stat(fmtSigned(trade, 3) + " тыс.", "Торговля за ход", {.icon = "trade", .tone = trade < 0 ? ui::Tone::Danger : ui::Tone::Success, .tooltip = tt});
+    std::string tb = fc ? "Получаем " + turnui::money(fc->incTribute) + " тыс., платим " + turnui::money(fc->expTribute) + " тыс." : std::string();
+    ui::stat(fmtSigned(trib, 3) + " тыс.", "Дань за ход", {.icon = "tribute", .tone = trib < 0 ? ui::Tone::Danger : ui::Tone::Warning, .tooltip = tb});
   }
   {
     ui::Disabled dis(a.readOnly());

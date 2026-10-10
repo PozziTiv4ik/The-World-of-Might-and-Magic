@@ -268,10 +268,8 @@ struct Fuzz {
       if (!rec) return;
       if (t != Terrain::None) CHECK_EQ(rec->sea, t == Terrain::Sea);
       CHECK(areaIn(a0, pid) == 0 && areaIn(a1, pid) > 0);
-      expectShrinkOthers("create", a0, a1, pid, rec->sea);
-      double lost = 0;
-      for (auto& [id, v] : a0) lost += v - areaIn(a1, id);
-      CHECK(lost <= areaIn(a1, pid) + kAreaEps);
+      // новая провинция берёт только свободную площадь: остальные провинции не меняются
+      expectOnly("create", a0, a1, {pid});
     } else if (r < 32) {
       Id id = anyProv();
       auto p = polyNear(id);

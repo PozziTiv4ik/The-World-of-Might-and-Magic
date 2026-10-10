@@ -3,6 +3,7 @@
 // «Общие технологии» (ТЗ «Доработки», п.6): общее дерево фракция изучает сама — состояние для неё, исследование,
 // отметка изученности, переход в общее дерево. Сроки — с модификатором «Время исследования технологий» государства
 // (rules::researchTurns).
+#include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
 #include "app/widgets.h"
 
@@ -17,6 +18,8 @@ struct T {
   int need = 1, progress = 0;
   bool studied = false, research = false, available = false;
   std::vector<Id> missing;   // общие: не изученные условия
+  std::vector<std::string> problems;   // не достроены нужные постройки, не хватает ресурсов (ТЗ «Доработки №4», п.1)
+  std::map<Id, double> cost;           // стоимость исследования
   int left() const { return std::max(1, need - progress); }
 };
 
@@ -37,10 +40,12 @@ std::vector<T> techsOf(const World& w, Id tree, Id faction) {
     x.progress = std::max(0, p.progress);
     x.studied = p.studied;
     x.research = p.research && !p.studied;
+    x.cost = t.cost;
     if (!x.studied) {
       rules::ResearchCheck rc = rules::canResearch(w, t.id, faction);
       x.available = !x.research && rc.ok;
       x.missing = rc.missing;
+      x.problems = rc.problems;
     }
     out.push_back(std::move(x));
   });
@@ -71,33 +76,49 @@ void commonSection(App& a, Id fid, bool ro) {
     const std::string id = std::to_string(t.id);
     const char* icon = t.studied ? "check" : t.research ? "hourglass" : t.available ? "research" : "lock";
     const ui::Tone tone = t.studied ? ui::Tone::Success : t.research ? ui::Tone::Info : t.available ? ui::Tone::Accent : ui::Tone::Neutral;
-    std::string state = t.studied     ? std::string("изучено")
-                        : t.research  ? "исследуется " + std::to_string(t.progress) + " из " + std::to_string(t.need)
-                        : t.available ? "доступно · " + nTurns(t.left())
-                                      : std::string("закрыто");
-    const std::string lockTip = t.missing.empty() ? std::string() : "Сначала изучите: " + names(w, t.missing);
+    // Закрыта: не изучены условия, не достроены нужные постройки, не хватает ресурсов на стоимость.
+    const bool lockedByNeeds = !t.studied && !t.research && !t.available && t.missing.empty() && !t.problems.empty();
+    std::string state = t.studied       ? std::string("изучено")
+                        : t.research    ? "исследуется " + std::to_string(t.progress) + " из " + std::to_string(t.need)
+                        : t.available   ? "доступно · " + nTurns(t.left())
+                        : lockedByNeeds ? t.problems.front()
+                                        : std::string("закрыто");
+    const std::string lockTip = !t.missing.empty() ? "Сначала изучите: " + names(w, t.missing) : join(t.problems, "\n");
+    const Faction* payer = w.faction(fid);
     ui::Row row({ui::px(18), ui::fr(1), ui::px(30), ui::px(30)}, ui::kAuto, 6);
     ui::iconColored(icon, ui::toneColor(tone), 16);
     {
       ui::Group g(0, 1);
       if (ui::link(t.name)) openTechTree(a, 0, t.id, fid);
       a.markUi("faction.ctech.row." + id);
-      ui::label(state, {.font = ui::Font::Small, .ink = t.research ? ui::Ink::Info : t.available ? ui::Ink::Accent : ui::Ink::Muted, .tooltip = lockTip});
+      ui::label(state, {.font = ui::Font::Small, .ink = t.research ? ui::Ink::Info : t.available ? ui::Ink::Accent : lockedByNeeds ? ui::Ink::Warning : ui::Ink::Muted,
+                        .tooltip = lockTip});
       a.markUi("faction.ctech.state." + id);
       if (t.research) ui::progress(double(t.progress) / double(std::max(1, t.need)), {.tone = ui::Tone::Info, .height = 3});
+      // Стоимость исследования (у идущего — уплачено, без отметки нехватки).
+      if (!t.studied && !t.cost.empty()) {
+        ui::IdScope cs("cost");
+        bld::costChips(t.cost, t.research ? nullptr : payer, false);
+        a.markUi("faction.ctech.cost." + id);
+      }
     }
     const Id tid = t.id;
-    // Исследование: начать / остановить; изученную — снять отметку.
+    // Исследование: начать / остановить (стоимость возвращается); изученную — снять отметку.
     if (t.research) {
-      if (ui::iconButton("close", "Остановить исследование", {.disabled = ro})) a.act("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid, fid); });
+      if (ui::iconButton("close", t.cost.empty() ? std::string("Остановить исследование") : std::string("Остановить исследование: стоимость вернётся"),
+                         {.disabled = ro}))
+        a.act("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid, fid); });
       a.markUi("faction.ctech.stop." + id);
     } else if (t.studied) {
       if (ui::iconButton("check-circle", "Снять отметку изучения", {.toggled = true, .disabled = ro, .tone = ui::Tone::Success}))
         a.act("Снять отметку изучения", [&](Tx& tx) { rules::setStudied(tx, tid, false, fid); });
       a.markUi("faction.ctech.unstudy." + id);
     } else {
-      if (ui::iconButton("play", t.available ? std::string("Начать исследование: ") + nTurns(t.left()) : lockTip.empty() ? std::string("Начать исследование") : lockTip,
-                         {.disabled = ro || !t.available, .tone = ui::Tone::Accent}))
+      const std::string startTip = t.available ? std::string("Начать исследование: ") + nTurns(t.left()) +
+                                                     (t.cost.empty() ? std::string() : "; стоимость спишется сразу")
+                                   : lockTip.empty() ? std::string("Начать исследование")
+                                                     : lockTip;
+      if (ui::iconButton("play", startTip, {.disabled = ro || !t.available, .tone = ui::Tone::Accent}))
         a.act("Начать исследование", [&](Tx& tx) { rules::startResearch(tx, tid, fid); });
       a.markUi("faction.ctech.start." + id);
     }

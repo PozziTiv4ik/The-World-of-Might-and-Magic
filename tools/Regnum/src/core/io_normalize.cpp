@@ -5,6 +5,7 @@
 #include <tuple>
 #include <unordered_set>
 
+#include "core/arch.h"
 #include "core/content.h"
 #include "core/io_internal.h"
 
@@ -49,6 +50,12 @@ const char* genitive(Seq s) {
     case Seq::Relic: return "реликвии";
     case Seq::Special: return "особого отряда";
     case Seq::ResGroup: return "группы ресурсов";
+    case Seq::HeroClass: return "класса героя";
+    case Seq::Talent: return "таланта";
+    case Seq::RelicGroup: return "группы реликвий";
+    case Seq::ArchSite: return "археологического места";
+    case Seq::Chest: return "сундука сокровищ";
+    case Seq::ArchGroup: return "археологической группы";
     default: return "объекта";
   }
 }
@@ -68,7 +75,8 @@ struct Norm {
   Warnings& out;
   std::array<u32, kSeqCount> seq{};
   std::unordered_set<Id> cat[7];  // ресурсы, расы, культуры, религии, формы правления, должности, эссенции
-  std::unordered_set<Id> relicIds, specialIds, groupIds;
+  std::unordered_set<Id> relicIds, specialIds, groupIds, relicGroupIds, classIds, siteIds, chestIds;
+  std::unordered_set<Id> relicTaken;  // реликвии, у которых уже есть место (герой, постройка, государство, тайник)
   std::unordered_set<Id> heroUsed;  // герои в гарнизонах и войсках (каждый — не больше чем в одном месте)
   std::map<std::tuple<Id, bool, Id>, Id> rowRemap;  // (фракция, флот, прежний ID) -> новый ID строки
 
@@ -96,6 +104,10 @@ struct Norm {
       case Seq::Relic: return relicIds.count(id) > 0;
       case Seq::Special: return specialIds.count(id) > 0;
       case Seq::ResGroup: return groupIds.count(id) > 0;
+      case Seq::RelicGroup: return relicGroupIds.count(id) > 0;
+      case Seq::HeroClass: return classIds.count(id) > 0;
+      case Seq::ArchSite: return siteIds.count(id) > 0;
+      case Seq::Chest: return chestIds.count(id) > 0;
       default: return false;
     }
   }
@@ -392,8 +404,12 @@ struct Norm {
           ch = true;
         }
     ch |= resGroups(c);
+    ch |= relicGroups(c);
     ch |= relics(c);
     ch |= specials(c);
+    ch |= chests(c);
+    ch |= archSites(c);
+    ch |= classes(c);
     if (ch) tx.catalogs() = std::move(c);
     catalogSets();
   }
@@ -409,9 +425,17 @@ struct Norm {
     relicIds.clear();
     specialIds.clear();
     groupIds.clear();
+    relicGroupIds.clear();
+    classIds.clear();
+    siteIds.clear();
+    chestIds.clear();
     for (auto& r : c.relics) relicIds.insert(r.id);
     for (auto& s : c.specials) specialIds.insert(s.id);
     for (auto& g : c.resGroups) groupIds.insert(g.id);
+    for (auto& g : c.relicGroups) relicGroupIds.insert(g.id);
+    for (auto& k : c.classes) classIds.insert(k.id);
+    for (auto& s : c.archSites) siteIds.insert(s.id);
+    for (auto& x : c.chests) chestIds.insert(x.id);
   }
 
   // Группы ресурсов: ID без повторов, родитель — существующая группа без циклов, ключи базовых групп — известные и
@@ -486,7 +510,249 @@ struct Norm {
         ch = true;
       }
       seen.insert(r.id);
-      ch |= fixEnum(r.rarity, int(Rarity::Count), Rarity::Common, F_CATALOGS, "relics." + refStr(Seq::Relic, r.id), "rarity");
+      const std::string where = "relics." + refStr(Seq::Relic, r.id);
+      ch |= fixEnum(r.rarity, int(Rarity::Count), Rarity::Common, F_CATALOGS, where, "rarity");
+      if (r.group && !c.relicGroup(r.group)) {
+        warn(F_CATALOGS, where + ".group", "нет группы реликвий " + refStr(Seq::RelicGroup, r.group) + " — реликвия без группы");
+        r.group = 0;
+        ch = true;
+      }
+      if (!r.image.empty() && !isPng(r.image) && !isJpeg(r.image)) {
+        warn(F_CATALOGS, where + ".image", "изображение не является PNG или JPEG — удалено");
+        r.image.clear();
+        ch = true;
+      }
+    }
+    return ch;
+  }
+
+  // ID записи справочника: нет или повтор — новый (fresh).
+  template <class T>
+  bool fixIds(std::vector<T>& list, Seq s, const char* key, const char* noun) {
+    bool ch = false;
+    u32 maxId = 0;
+    for (auto& x : list) maxId = std::max(maxId, x.id);
+    std::unordered_set<Id> seen;
+    for (auto& x : list) {
+      if (x.id == 0 || seen.count(x.id)) {
+        Id old = x.id;
+        x.id = fresh(s, maxId);
+        warn(F_CATALOGS, std::string(key) + "." + refStr(s, x.id),
+             old ? "повторный ID " + refStr(s, old) + " — назначен новый" : std::string(noun) + " без ID — назначен новый");
+        ch = true;
+      }
+      seen.insert(x.id);
+    }
+    return ch;
+  }
+
+  // Группы реликвий: как группы ресурсов (родитель — существующая группа без циклов, ключи известные и без повторов).
+  bool relicGroups(Catalogs& c) {
+    bool ch = fixIds(c.relicGroups, Seq::RelicGroup, "relicGroups", "группа");
+    std::unordered_set<Id> seen;
+    for (auto& g : c.relicGroups) seen.insert(g.id);
+    std::unordered_set<std::string> keys;
+    for (auto& g : c.relicGroups) {
+      const std::string where = "relicGroups." + refStr(Seq::RelicGroup, g.id);
+      if (g.parent && (!seen.count(g.parent) || g.parent == g.id)) {
+        warn(F_CATALOGS, where + ".parent", "нет группы " + refStr(Seq::RelicGroup, g.parent) + " — группа стала группой верхнего уровня");
+        g.parent = 0;
+        ch = true;
+      }
+      if (!g.key.empty() && (g.key != schema::kRelicArchFinds || !keys.insert(g.key).second)) {
+        warn(F_CATALOGS, where + ".key", "неизвестный или повторный ключ группы «" + g.key + "» — снят");
+        g.key.clear();
+        ch = true;
+      }
+    }
+    for (auto& g : c.relicGroups) {
+      Id p = g.parent;
+      for (int guard = 0; p && guard < 256; guard++) {
+        if (p == g.id) {
+          warn(F_CATALOGS, "relicGroups." + refStr(Seq::RelicGroup, g.id) + ".parent", "группы замыкаются в цикл — группа стала группой верхнего уровня");
+          g.parent = 0;
+          ch = true;
+          break;
+        }
+        const RelicGroup* x = c.relicGroup(p);
+        p = x ? x->parent : 0;
+      }
+    }
+    return ch;
+  }
+
+  // Сундуки сокровищ: поля своего вида, ссылки на существующие записи, вложенные сундуки — без циклов.
+  bool chests(Catalogs& c) {
+    bool ch = fixIds(c.chests, Seq::Chest, "chests", "сундук");
+    std::unordered_set<Id> ids, res, ess, rgroups, groups;
+    for (auto& x : c.chests) ids.insert(x.id);
+    for (auto& r : c.resources) res.insert(r.id);
+    for (auto& e : c.essences) ess.insert(e.id);
+    for (auto& g : c.relicGroups) rgroups.insert(g.id);
+    for (auto& g : c.resGroups) groups.insert(g.id);
+    std::unordered_set<std::string> keys;
+    for (auto& x : c.chests) {
+      const std::string where = "chests." + refStr(Seq::Chest, x.id);
+      if (!x.key.empty() && !keys.insert(x.key).second) {
+        warn(F_CATALOGS, where + ".key", "ключ «" + x.key + "» уже у другого сундука — снят");
+        x.key.clear();
+        ch = true;
+      }
+      for (size_t i = 0; i < x.items.size(); i++) {
+        ChestItem& it = x.items[i];
+        const std::string at = where + ".items[" + std::to_string(i) + "]";
+        ch |= fixEnum(it.kind, int(ChestItemKind::Count), ChestItemKind::Treasure, F_CATALOGS, at, "kind");
+        ch |= fixNum(it.amount, 0.0, 1e12, 0.0, F_CATALOGS, at, "amount");
+        ChestItem keep;
+        keep.kind = it.kind;
+        keep.amount = it.amount;
+        switch (it.kind) {
+          case ChestItemKind::Resource:
+            keep.res = res.count(it.res) ? it.res : 0;
+            keep.group = groups.count(it.group) ? it.group : 0;
+            for (Id r : it.exclude)
+              if (res.count(r) && std::find(keep.exclude.begin(), keep.exclude.end(), r) == keep.exclude.end()) keep.exclude.push_back(r);
+            break;
+          case ChestItemKind::Essence: keep.essence = ess.count(it.essence) ? it.essence : 0; break;
+          case ChestItemKind::Relic:
+            keep.relicGroup = rgroups.count(it.relicGroup) ? it.relicGroup : 0;
+            keep.rarities = it.rarities & ((1u << int(Rarity::Count)) - 1);
+            break;
+          case ChestItemKind::Chest:
+            for (Id k : it.chests)
+              if (ids.count(k) && std::find(keep.chests.begin(), keep.chests.end(), k) == keep.chests.end()) keep.chests.push_back(k);
+            break;
+          default: break;
+        }
+        if (!(keep == it)) {
+          warn(F_CATALOGS, at, "поле сундука исправлено: ссылки на несуществующие записи и поля другого вида удалены");
+          it = keep;
+          ch = true;
+        }
+      }
+    }
+    // Циклы вложенных сундуков (сундук сам в себе через цепочку) — ссылка, замыкающая цикл, удаляется.
+    std::unordered_map<Id, std::vector<Id>> deps;
+    for (auto& x : c.chests)
+      for (auto& it : x.items)
+        if (it.kind == ChestItemKind::Chest)
+          for (Id k : it.chests) deps[x.id].push_back(k);
+    std::vector<Id> order;
+    for (auto& x : c.chests) order.push_back(x.id);
+    std::sort(order.begin(), order.end());
+    auto cut = cycleEdges(order, [&](Id id) -> const std::vector<Id>& { return deps[id]; });
+    for (auto& [from, to] : cut) {
+      warn(F_CATALOGS, "chests." + refStr(Seq::Chest, from), "вложенный сундук " + refStr(Seq::Chest, to) + " замыкает цикл — удалён");
+      for (auto& x : c.chests)
+        if (x.id == from)
+          for (auto& it : x.items) it.chests.erase(std::remove(it.chests.begin(), it.chests.end(), to), it.chests.end());
+      ch = true;
+    }
+    return ch;
+  }
+
+  // Археологические места: постоянный список (ключи базовых мест, без повторов), награды — существующие сундуки.
+  bool archSites(Catalogs& c) {
+    bool ch = fixIds(c.archSites, Seq::ArchSite, "archSites", "место");
+    std::unordered_set<Id> ids;
+    for (auto& x : c.chests) ids.insert(x.id);
+    std::unordered_set<std::string> keys;
+    for (auto it = c.archSites.begin(); it != c.archSites.end();) {
+      const std::string where = "archSites." + refStr(Seq::ArchSite, it->id);
+      bool known = false;
+      for (const arch::BaseSite& b : arch::baseSites()) known = known || it->key == b.key;
+      if (!known || !keys.insert(it->key).second) {
+        warn(F_CATALOGS, where, known ? "место «" + it->key + "» уже есть — повтор удалён" : "археологические места — постоянный список: «" + it->name + "» удалено");
+        it = c.archSites.erase(it);
+        ch = true;
+        continue;
+      }
+      for (int s = 0; s < kArchSlots; s++) {
+        auto& list = it->rewards[size_t(s)];
+        std::vector<Id> keep;
+        for (Id k : list)
+          if (ids.count(k) && std::find(keep.begin(), keep.end(), k) == keep.end()) keep.push_back(k);
+        if (keep != list) {
+          warn(F_CATALOGS, where + ".rewards[" + std::to_string(s) + "]", "несуществующие и повторные сундуки удалены");
+          list = std::move(keep);
+          ch = true;
+        }
+      }
+      ++it;
+    }
+    return ch;
+  }
+
+  // Классы героев: таланты с уникальными ID во всём мире, ярус и столбец ≥ 0, стоимость 1…5, предшествующий талант —
+  // того же класса и без циклов, модификаторы — существующие.
+  bool classes(Catalogs& c) {
+    bool ch = fixIds(c.classes, Seq::HeroClass, "classes", "класс");
+    u32 maxTalent = 0;
+    for (auto& k : c.classes)
+      for (auto& t : k.talents) maxTalent = std::max(maxTalent, t.id);
+    std::unordered_set<Id> usedTalents;
+    for (auto& k : c.classes) {
+      const std::string where = "classes." + refStr(Seq::HeroClass, k.id);
+      ch |= fixNum(k.tierPoints, 1, 60, 5, F_CATALOGS, where, "tierPoints");
+      for (size_t i = 0; i < k.talents.size(); i++) {
+        Talent& t = k.talents[i];
+        const std::string at = where + ".talents[" + std::to_string(i) + "]";
+        if (t.id == 0 || usedTalents.count(t.id)) {
+          Id old = t.id;
+          t.id = fresh(Seq::Talent, maxTalent);
+          warn(F_CATALOGS, at, old ? "повторный ID " + refStr(Seq::Talent, old) + " — назначен " + refStr(Seq::Talent, t.id)
+                                   : "талант без ID — назначен " + refStr(Seq::Talent, t.id));
+          ch = true;
+        }
+        usedTalents.insert(t.id);
+        ch |= fixNum(t.row, 0, schema::kTalentRows - 1, 0, F_CATALOGS, at, "row");
+        ch |= fixNum(t.col, 0, schema::kTalentCols - 1, 0, F_CATALOGS, at, "col");
+        ch |= fixNum(t.cost, schema::kMinTalentCost, schema::kMaxTalentCost, 1, F_CATALOGS, at, "cost");
+        ch |= fixRefList(t.modifiers, Seq::Modifier, F_CATALOGS, at, "modifiers");
+      }
+      // В ячейке дерева — один талант: повтор переносится в ближайшую свободную ячейку ниже.
+      {
+        std::set<std::pair<int, int>> taken;
+        for (auto& t : k.talents) {
+          if (taken.insert({t.row, t.col}).second) continue;
+          for (int cell = t.row * schema::kTalentCols; cell < schema::kTalentRows * schema::kTalentCols; cell++)
+            if (!taken.count({cell / schema::kTalentCols, cell % schema::kTalentCols})) {
+              t.row = cell / schema::kTalentCols;
+              t.col = cell % schema::kTalentCols;
+              break;
+            }
+          taken.insert({t.row, t.col});
+          warn(F_CATALOGS, where + ".talents." + refStr(Seq::Talent, t.id),
+               "ячейка дерева занята — талант перенесён в ярус " + std::to_string(t.row + 1) + ", столбец " + std::to_string(t.col + 1));
+          ch = true;
+        }
+      }
+      for (auto& t : k.talents) {
+        if (t.prereq && (t.prereq == t.id || !k.talent(t.prereq))) {
+          warn(F_CATALOGS, where + ".talents." + refStr(Seq::Talent, t.id) + ".prereq", "предшествующий талант не из дерева класса — снят");
+          t.prereq = 0;
+          ch = true;
+        }
+        // Условие — из яруса выше (правило дерева талантов; заодно исключает циклы).
+        if (const Talent* p = t.prereq ? k.talent(t.prereq) : nullptr; p && p->row >= t.row) {
+          warn(F_CATALOGS, where + ".talents." + refStr(Seq::Talent, t.id) + ".prereq", "предшествующий талант не выше в дереве — снят");
+          t.prereq = 0;
+          ch = true;
+        }
+      }
+      for (auto& t : k.talents) {
+        Id p = t.prereq;
+        for (int guard = 0; p && guard < 256; guard++) {
+          if (p == t.id) {
+            warn(F_CATALOGS, where + ".talents." + refStr(Seq::Talent, t.id) + ".prereq", "таланты замыкаются в цикл — снят");
+            t.prereq = 0;
+            ch = true;
+            break;
+          }
+          const Talent* x = k.talent(p);
+          p = x ? x->prereq : 0;
+        }
+      }
     }
     return ch;
   }
@@ -517,20 +783,40 @@ struct Norm {
     if (!g || !c.resourceIn(res, g)) return false;
     if (k.exclude)
       if (Id x = c.groupId(k.exclude); x && c.resourceIn(res, x)) return false;
+    if (k.exclude2)
+      if (Id x = c.groupId(k.exclude2); x && c.resourceIn(res, x)) return false;
     return true;
+  }
+  // Ключевой ресурс корабля (морское чудовище — ресурс подгруппы «Морские чудовища»).
+  static bool shipKeyAllowed(const Catalogs& c, ShipType t, Id res) {
+    const schema::KeyRule k = schema::shipKeyRule(t);
+    if (!res || !k.group || !Catalogs::find(c.resources, res)) return false;
+    const Id g = c.groupId(k.group);
+    return g && c.resourceIn(res, g);
   }
 
   // Цена юнита: ключевой ресурс по типу, дополнительные ресурсы и эссенции ≥ 0, содержание эссенциями — у элементалей.
   template <class Row>
-  bool fixUnitCost(Row& r, const Catalogs& c, const std::unordered_set<Id>& resIds, FileId f, const std::string& at) {
+  bool fixUnitCost(Row& r, const Catalogs& c, const std::unordered_set<Id>& resIds, FileId f, const std::string& at, bool special = false) {
     bool ch = false;
     const schema::KeyRule k = schema::keyRule(r.type);
-    if (r.keyRes && !keyAllowed(c, r.type, r.keyRes)) {
+    if (special) {
+      // Особый отряд задаёт свои цены: ключевой ресурс — любой ресурс справочника, не меньше 1 на юнит.
+      if (r.keyRes && !resIds.count(r.keyRes)) {
+        warn(f, at + ".keyRes", "нет ресурса " + refStr(Seq::Resource, r.keyRes) + " — ключевой ресурс снят");
+        r.keyRes = 0;
+        ch = true;
+      }
+      if (!std::isfinite(r.keyPer) || r.keyPer < 1 || r.keyPer > 1e12) {
+        r.keyPer = std::isfinite(r.keyPer) ? clamp(r.keyPer, 1.0, 1e12) : 1.0;
+        ch = true;
+      }
+    } else if (r.keyRes && !keyAllowed(c, r.type, r.keyRes)) {
       warn(f, at + ".keyRes", refStr(Seq::Resource, r.keyRes) + " не подходит ключевым ресурсом для типа «" + schema::unitType(r.type).name + "» — снят");
       r.keyRes = 0;
       ch = true;
     }
-    if (!std::isfinite(r.keyPer) || r.keyPer < 1 || r.keyPer > 1e12 || (k.fixedOne && r.keyPer != 1)) {
+    if (!special && (!std::isfinite(r.keyPer) || r.keyPer < 1 || r.keyPer > 1e12 || (k.fixedOne && r.keyPer != 1))) {
       r.keyPer = k.fixedOne || !std::isfinite(r.keyPer) ? 1.0 : clamp(r.keyPer, 1.0, 1e12);
       ch = true;
     }
@@ -538,6 +824,12 @@ struct Norm {
     ch |= fixAmounts(r.essence, Seq::Essence, cat[6], f, at, "essence");
     ch |= fixAmounts(r.essUpkeep, Seq::Essence, cat[6], f, at, "essUpkeep");
     if (schema::isElemental(r.type)) {
+      if (r.keyRes) {   // и без ключевого ресурса
+        warn(f, at + ".keyRes", "элементали нанимаются только за эссенции — ключевой ресурс снят");
+        r.keyRes = 0;
+        r.keyPer = 1;
+        ch = true;
+      }
       if (!r.extra.empty()) {   // элементали нанимаются только за эссенции
         warn(f, at + ".extra", "элементали нанимаются только за эссенции — ресурсы сняты");
         r.extra.clear();
@@ -575,7 +867,7 @@ struct Norm {
       const std::string where = "specials." + refStr(Seq::Special, s.id);
       ch |= fixEnum(s.type, int(UnitType::Count), UnitType::Monsters, F_CATALOGS, where, "type");
       ch |= fixNum(s.upkeep, 0.0, 1e12, 0.0, F_CATALOGS, where, "upkeep");
-      ch |= fixUnitCost(s, c, resIds, F_CATALOGS, where);
+      ch |= fixUnitCost(s, c, resIds, F_CATALOGS, where, true);
     }
     return ch;
   }
@@ -656,6 +948,28 @@ struct Norm {
           ++it;
         }
       }
+      ch |= fixAmounts(k.ess, Seq::Essence, cat[6], F_CONSTANTS, where, "ess");
+      ch |= fixAmounts(k.minRes, Seq::Resource, cat[0], F_CONSTANTS, where, "minRes");
+      ch |= fixAmounts(k.minEss, Seq::Essence, cat[6], F_CONSTANTS, where, "minEss");
+      if (k.type != ConstType::Resources && (!k.ess.empty() || !k.minRes.empty() || !k.minEss.empty())) {
+        k.ess.clear();
+        k.minRes.clear();
+        k.minEss.clear();
+        ch = true;
+      }
+      // Базовая цена (ТЗ «Доработки №3», п.7–8): не меньше наименьших значений, базовые позиции не удаляются.
+      for (auto& [r, v] : k.minRes)
+        if (k.res[r] + 1e-9 < v) {
+          warn(F_CONSTANTS, where + ".res." + refStr(Seq::Resource, r), "меньше базовой стоимости " + ns(v) + " — поднято");
+          k.res[r] = v;
+          ch = true;
+        }
+      for (auto& [e, v] : k.minEss)
+        if (k.ess[e] + 1e-9 < v) {
+          warn(F_CONSTANTS, where + ".ess." + refStr(Seq::Essence, e), "меньше базовой стоимости " + ns(v) + " — поднято");
+          k.ess[e] = v;
+          ch = true;
+        }
     }
     if (ch) tx.constants() = std::move(c);
   }
@@ -774,11 +1088,15 @@ struct Norm {
       for (auto& r : f.fleet) maxRow = std::max(maxRow, r.id);
       for (auto& s : f.council) maxSeat = std::max(maxSeat, s.id);
     });
-    std::unordered_set<Id> usedRows, usedSeats;
+    std::unordered_set<Id> usedRows, usedSeats, usedArchGroups;
+    u32 maxArchGroup = 0;
+    base.factions.each([&](const Faction& f) {
+      for (auto& g : f.archGroups) maxArchGroup = std::max(maxArchGroup, g.id);
+    });
     base.factions.each([&](const Faction& f0) {
       Faction f = f0;
       const std::string where = refStr(Seq::Faction, f.id);
-      bool ch = fixEnum(f.kind, 2, FactionKind::State, F_FACTIONS, where, "kind");
+      bool ch = fixEnum(f.kind, 3, FactionKind::State, F_FACTIONS, where, "kind");
 
       // Строки войск и флота: ID уникальны во всём мире (общая последовательность u).
       auto rows = [&](auto& list, bool fleet, const char* field, int types) {
@@ -812,6 +1130,16 @@ struct Norm {
           ch |= fixNum(r.upkeep, 0.0, 1e12, 0.0, F_FACTIONS, at, "upkeep");
         }
       };
+      // Ключевой ресурс строки флота — только у морского чудовища (ресурс подгруппы «Морские чудовища»).
+      for (size_t i = 0; i < f.fleet.size(); i++) {
+        FleetRow& r = f.fleet[i];
+        if (r.keyRes && !shipKeyAllowed(*w().catalogs, r.type, r.keyRes)) {
+          warn(F_FACTIONS, where + ".fleet[" + std::to_string(i) + "].keyRes",
+               refStr(Seq::Resource, r.keyRes) + " не подходит ключевым ресурсом для «" + schema::shipType(r.type).name + "» — снят");
+          r.keyRes = 0;
+          ch = true;
+        }
+      }
       rows(f.army, false, "army", int(UnitType::Count));
       rows(f.fleet, true, "fleet", int(ShipType::Count));
       // Цена найма строк армии; строка особого отряда повторяет запись справочника.
@@ -821,6 +1149,34 @@ struct Norm {
         if (r.special && !specialIds.count(r.special)) {
           warn(F_FACTIONS, at + ".special", "нет особого отряда " + refStr(Seq::Special, r.special) + " — строка стала обычной");
           r.special = 0;
+          ch = true;
+        }
+        // Наёмники: золото за найм ≥ 0; только пехота и кавалерия, раса «Наемники», без особого отряда.
+        ch |= fixNum(r.hire, 0.0, 1e12, 0.0, F_FACTIONS, at, "hire");
+        if (r.merc) {
+          const bool typeOk = r.type == UnitType::LightInf || r.type == UnitType::MediumInf || r.type == UnitType::HeavyInf ||
+                              r.type == UnitType::LightCav || r.type == UnitType::MediumCav || r.type == UnitType::HeavyCav;
+          if (!typeOk || r.special) {
+            warn(F_FACTIONS, at + ".merc", "наёмники — только пехота и кавалерия без особого отряда: признак снят");
+            r.merc = false;
+            ch = true;
+          } else {
+            if (r.race != schema::kRaceMercenary) {
+              r.race = schema::kRaceMercenary;
+              ch = true;
+            }
+            if (r.keyRes || !r.extra.empty() || !r.essence.empty() || !r.essUpkeep.empty()) {
+              r.keyRes = 0;
+              r.keyPer = 1;
+              r.extra.clear();
+              r.essence.clear();
+              r.essUpkeep.clear();
+              ch = true;
+            }
+            continue;
+          }
+        } else if (r.hire != 0) {
+          r.hire = 0;
           ch = true;
         }
         if (const SpecialUnit* s = r.special ? w().catalogs->special(r.special) : nullptr) {
@@ -858,6 +1214,11 @@ struct Norm {
           s.research = false;
           ch = true;
         }
+        if (!s.research && !s.paid.empty()) {
+          s.paid.clear();
+          ch = true;
+        }
+        ch |= fixAmounts(s.paid, Seq::Resource, cat[0], F_FACTIONS, where + ".techs." + refStr(Seq::Tech, it->first), "paid");
         if (s == TechProgress{}) {
           it = f.techs.erase(it);
           ch = true;
@@ -865,6 +1226,35 @@ struct Norm {
         }
         ++it;
       }
+
+      // Археологические группы: ID уникальны во всём мире, опыт 0…1000, модификаторы — только археологических групп.
+      for (size_t i = 0; i < f.archGroups.size(); i++) {
+        ArchGroup& g = f.archGroups[i];
+        const std::string at = where + ".archGroups[" + std::to_string(i) + "]";
+        if (g.id == 0 || usedArchGroups.count(g.id)) {
+          Id old = g.id;
+          g.id = fresh(Seq::ArchGroup, maxArchGroup);
+          warn(F_FACTIONS, at, old ? "повторный ID " + refStr(Seq::ArchGroup, old) + " — назначен " + refStr(Seq::ArchGroup, g.id)
+                                   : "группа без ID — назначен " + refStr(Seq::ArchGroup, g.id));
+          ch = true;
+        }
+        usedArchGroups.insert(g.id);
+        ch |= fixNum(g.exp, 0, arch::kMaxExp, 0, F_FACTIONS, at, "exp");
+        ch |= fixNum(g.busy, 0, kMaxTurn, 0, F_FACTIONS, at, "busy");
+        ch |= fixRefList(g.modifiers, Seq::Modifier, F_FACTIONS, at, "modifiers",
+                         [&](Id id) { const Modifier* m = base.modifier(id); return m && m->kind == ModKind::ArchGroup; },
+                         "не модификатор археологических групп");
+        ch |= fixModTurns(g.modTurns, g.modifiers, F_FACTIONS, at);
+      }
+      if (!f.isState() && !f.archGroups.empty()) {
+        warn(F_FACTIONS, where + ".archGroups", "археологические группы бывают только у государства — удалены");
+        f.archGroups.clear();
+        ch = true;
+      }
+      // Реликвии государства: существующие, каждая — в одном месте.
+      ch |= fixRefList(f.relics, Seq::Relic, F_FACTIONS, where, "relics", [&](Id id) { return relicIds.count(id) && !relicTaken.count(id); },
+                       "реликвия уже в другом месте");
+      for (Id r : f.relics) relicTaken.insert(r);
 
       for (size_t i = 0; i < f.council.size(); i++) {
         auto& s = f.council[i];
@@ -1067,13 +1457,49 @@ struct Norm {
       }
       ch |= fixRef(c.burial, Seq::Province, F_CHARACTERS, where, "burial");
       // Инвентарь: реликвии справочника; каждая реликвия — только у одного персонажа (первого по ID).
-      ch |= fixRefList(c.inventory, Seq::Relic, F_CHARACTERS, where, "inventory", [&](Id id) { return relicIds.count(id) && !relicOwner.count(id); },
-                       "реликвия уже у другого персонажа");
-      for (Id r : c.inventory) relicOwner[r] = c.id;
+      ch |= fixRefList(c.inventory, Seq::Relic, F_CHARACTERS, where, "inventory", [&](Id id) { return relicIds.count(id) && !relicTaken.count(id); },
+                       "реликвия уже в другом месте");
+      for (Id r : c.inventory) relicTaken.insert(r);
+      // Уровень 1…60, класс справочника, таланты — из дерева своего класса, без повторов; по порядку изучения каждый
+      // талант законен после предыдущих: изучено условие, ярус открыт (в ярусах выше вложено не меньше ярус × очки на
+      // ярус), вложено не больше очков, чем уровней (незаконные снимаются).
+      ch |= fixNum(c.level, 1, schema::kMaxHeroLevel, 1, F_CHARACTERS, where, "level");
+      ch |= fixRef(c.heroClass, Seq::HeroClass, F_CHARACTERS, where, "heroClass");
+      const HeroClass* hc = base.heroClass(c.heroClass);
+      ch |= fixRefList(c.talents, Seq::Talent, F_CHARACTERS, where, "talents", [&](Id id) { return hc && hc->talent(id); },
+                       "талант не из дерева класса героя");
+      if (hc) {
+        std::vector<Id> keep;
+        int spent = 0;
+        bool over = false, rule = false;
+        for (Id id : c.talents) {
+          const Talent* t = hc->talent(id);
+          if (!t) continue;
+          int above = 0;
+          for (Id k : keep)
+            if (const Talent* x = hc->talent(k); x && x->row < t->row) above += x->cost;
+          if ((t->prereq && std::find(keep.begin(), keep.end(), t->prereq) == keep.end()) || above < t->row * std::max(1, hc->tierPoints)) {
+            rule = true;
+            continue;
+          }
+          if (spent + t->cost > c.level) {
+            over = true;
+            continue;
+          }
+          keep.push_back(id);
+          spent += t->cost;
+        }
+        if (keep.size() != c.talents.size()) {
+          warn(F_CHARACTERS, where + ".talents",
+               over && !rule ? "вложено больше очков талантов, чем уровней героя — лишние таланты сняты"
+                             : "таланты, которые нельзя изучить (условие, порог яруса, очки уровня), сняты");
+          c.talents = std::move(keep);
+          ch = true;
+        }
+      }
       if (ch) tx.character(c.id) = std::move(c);
     });
   }
-  std::unordered_map<Id, Id> relicOwner;
 
   void modifiers() {
     const World base = w();
@@ -1105,6 +1531,8 @@ struct Norm {
       ch |= fixRefList(m.targets, Seq::Faction, F_MODIFIERS, where, "targets");
       ch |= fixEnum(m.kind, int(ModKind::Count), ModKind::Any, F_MODIFIERS, where, "kind");
       ch |= fixNum(m.duration, 0, kMaxTurns, 0, F_MODIFIERS, where, "duration");
+      ch |= fixAmounts(m.essGen, Seq::Essence, cat[6], F_MODIFIERS, where, "essGen");
+      ch |= fixAmounts(m.resGen, Seq::Resource, cat[0], F_MODIFIERS, where, "resGen");
       // Ключ встроенного модификатора: известный и у одной записи.
       if (!m.key.empty()) {
         if (!schema::builtinModifier(m.key)) {
@@ -1151,6 +1579,7 @@ struct Norm {
     return cut;
   }
 
+  std::set<std::pair<Id, std::string>> buildingKeys;
   void buildings() {
     {
       const World base = w();
@@ -1206,6 +1635,13 @@ struct Norm {
             ch = true;
           }
           ch |= fixAmounts(l.essence, Seq::Essence, cat[6], F_BUILDINGS, at, "essence");
+          ch |= fixAmounts(l.essCost, Seq::Essence, cat[6], F_BUILDINGS, at, "essCost");
+          const u32 ships = b.shipyard ? l.ships & ((1u << int(ShipType::Count)) - 1) : 0u;
+          if (ships != l.ships) {
+            if (!b.shipyard) warn(F_BUILDINGS, at + ".ships", "постройка не верфь — типы кораблей сняты");
+            l.ships = ships;
+            ch = true;
+          }
         }
         ch |= fixPoint(b.pos, false, F_BUILDINGS, where, "pos");
         // Постройка преобразования: до трёх разных ресурсов на входе, ресурс на выходе, срок цикла 1…kMaxTurns.
@@ -1247,6 +1683,29 @@ struct Norm {
           ch = true;
         }
         ch |= fixRefList(b.specials, Seq::Special, F_BUILDINGS, where, "specials");
+        // Требования «на государство»: существующая постройка (общей — только общая), 1…100 на каждую, без повторов.
+        {
+          std::vector<StateReq> keep;
+          for (const StateReq& q0 : b.stateReqs) {
+            StateReq q = q0;
+            const Building* t = base.building(q.building);
+            if (!t || q.building == b.id || (t->owner && t->owner != b.owner) ||
+                std::any_of(keep.begin(), keep.end(), [&](const StateReq& x) { return x.building == q.building; })) {
+              warn(F_BUILDINGS, where + ".stateReqs", "требование " + ref(Seq::Building, q.building) + " недопустимо — удалено");
+              ch = true;
+              continue;
+            }
+            ch |= fixNum(q.per, 1, 100, 4, F_BUILDINGS, where + ".stateReqs", "per");
+            keep.push_back(q);
+          }
+          if (keep != b.stateReqs) b.stateReqs = std::move(keep);
+        }
+        // Ключ встроенной постройки: у общих построек — без повторов, у уникальных — без повторов у одного государства.
+        if (!b.key.empty() && !buildingKeys.insert({b.owner, b.key}).second) {
+          warn(F_BUILDINGS, where + ".key", "ключ «" + b.key + "» уже у другой постройки — снят");
+          b.key.clear();
+          ch = true;
+        }
         // Технологии: общая постройка зависит только от общих технологий, уникальная — ещё и от технологий своего
         // государства (ТЗ «Доработки», п.4 и 7).
         ch |= fixRefList(b.techs, Seq::Tech, F_BUILDINGS, where, "techs",
@@ -1313,6 +1772,7 @@ struct Norm {
     }
   }
 
+  std::set<std::pair<Id, std::string>> techKeys;
   void techs() {
     {
       const World base = w();
@@ -1349,6 +1809,26 @@ struct Norm {
                          "технология другой фракции, уникальная у общей или она сама");
         ch |= fixRefList(t.modifiers, Seq::Modifier, F_TECHS, where, "modifiers");
         ch |= fixPoint(t.pos, false, F_TECHS, where, "pos");
+        ch |= fixAmounts(t.cost, Seq::Resource, cat[0], F_TECHS, where, "cost");
+        ch |= fixAmounts(t.paid, Seq::Resource, cat[0], F_TECHS, where, "paid");
+        if (!t.paid.empty() && (t.faction == 0 || !t.research)) {
+          t.paid.clear();
+          ch = true;
+        }
+        {
+          std::vector<std::string> keys;
+          for (const std::string& k : t.needKeys)
+            if (!k.empty() && std::find(keys.begin(), keys.end(), k) == keys.end()) keys.push_back(k);
+          if (keys != t.needKeys) {
+            t.needKeys = std::move(keys);
+            ch = true;
+          }
+        }
+        if (!t.key.empty() && !techKeys.insert({t.faction, t.key}).second) {
+          warn(F_TECHS, where + ".key", "ключ «" + t.key + "» уже у другой технологии — снят");
+          t.key.clear();
+          ch = true;
+        }
         if (ch) tx.tech(t.id) = std::move(t);
       });
     }
@@ -1610,6 +2090,35 @@ struct Norm {
               bch = true;
             }
           }
+          if (!b.constructing && !b.paidEss.empty()) {
+            b.paidEss.clear();
+            bch = true;
+          }
+          bch |= fixAmounts(b.paidEss, Seq::Essence, cat[6], F_PROVINCES, at, "paidEss");
+          // Хранилище реликвий: только у постройки с этой возможностью; реликвия — в одном месте. Без хранилища
+          // реликвии переходят государству-владельцу (иначе — свободны).
+          if (!b.relics.empty()) {
+            std::vector<Id> keep;
+            for (Id r : b.relics) {
+              if (!relicIds.count(r) || relicTaken.count(r)) {
+                warn(F_PROVINCES, at + ".relics", ref(Seq::Relic, r) + ": нет реликвии или она уже в другом месте — удалена");
+                bch = true;
+                continue;
+              }
+              if (!def->relicStore) {
+                if (isState(p.owner)) {
+                  orphanRelics[p.owner].push_back(r);
+                  relicTaken.insert(r);
+                }
+                warn(F_PROVINCES, at + ".relics", "постройка не хранилище реликвий — " + refStr(Seq::Relic, r) + " передана государству-владельцу");
+                bch = true;
+                continue;
+              }
+              relicTaken.insert(r);
+              keep.push_back(r);
+            }
+            if (keep != b.relics) b.relics = std::move(keep);
+          }
           res.push_back(b);
         }
         if (bch) { p.buildings = std::move(res); ch = true; }
@@ -1675,9 +2184,74 @@ struct Norm {
                            [&](Id row) { return occ ? remapRow(occ->id, false, row) : row; }, "у оккупанта нет строки армии");
         ch |= fixNum(p.occIdle, 0, kMaxTurns, 0, F_PROVINCES, where, "occIdle");
       }
+      // Археологические места: существующие места без повторов, сокровища — сундуки справочника, этапы в пределах слота.
+      {
+        std::vector<Id> taken;
+        bool bad = false;
+        for (int i = 0; i < kArchSlots; i++) {
+          ArchSlot& s = p.arch[size_t(i)];
+          if (s.site && (!siteIds.count(s.site) || std::find(taken.begin(), taken.end(), s.site) != taken.end())) {
+            s = ArchSlot{};
+            bad = true;
+          }
+          if (s.site) taken.push_back(s.site);
+          if (s.chest && !chestIds.count(s.chest)) {
+            s.chest = 0;
+            ch = true;
+          }
+          if (!s.site && (s.open || s.stage || s.chest)) {
+            s = ArchSlot{};
+            ch = true;
+          }
+          const int maxStage = s.open ? arch::stagesOf(i) : 0;
+          if (s.stage < 0 || s.stage > maxStage) {
+            s.stage = std::clamp(s.stage, 0, maxStage);
+            ch = true;
+          }
+        }
+        // Пустые слоты (провинция прежней версии или место удалено) заполняются по шансам ТЗ.
+        if (!siteIds.empty() && std::any_of(p.arch.begin(), p.arch.end(), [](const ArchSlot& s) { return s.site == 0; })) {
+          const auto rolled = arch::rollSlots(*w().catalogs, arch::provinceSeed(p.id));
+          Rng rng(hashMix(arch::provinceSeed(p.id), 0x5245524F4C4Cull));
+          for (int i = 0; i < kArchSlots; i++) {
+            ArchSlot& s = p.arch[size_t(i)];
+            if (s.site) continue;
+            std::vector<Id> others;
+            for (const ArchSlot& o : p.arch)
+              if (o.site) others.push_back(o.site);
+            Id site = std::find(others.begin(), others.end(), rolled[size_t(i)].site) == others.end() ? rolled[size_t(i)].site
+                                                                                                     : arch::pickSite(arch::slotChances(*w().catalogs, i, others), rng);
+            s = ArchSlot{};
+            s.site = site;
+            s.chest = site == rolled[size_t(i)].site ? rolled[size_t(i)].chest : arch::pickChest(*w().catalogs, site, i, rng);
+          }
+          if (bad) warn(F_PROVINCES, where + ".arch", "недопустимые или повторные археологические места заменены");
+          ch = true;
+        } else if (bad) {
+          ch = true;
+        }
+      }
+      // Тайник: существующая реликвия, которая больше нигде не лежит; спрятавшее государство — существующее государство.
+      if (p.hiddenRelic && (!relicIds.count(p.hiddenRelic) || relicTaken.count(p.hiddenRelic))) {
+        warn(F_PROVINCES, where + ".hiddenRelic", ref(Seq::Relic, p.hiddenRelic) + ": нет реликвии или она уже в другом месте — тайник пуст");
+        p.hiddenRelic = 0;
+        ch = true;
+      }
+      if (p.hiddenRelic) relicTaken.insert(p.hiddenRelic);
+      if (!p.hiddenRelic && p.hiddenBy) {
+        p.hiddenBy = 0;
+        ch = true;
+      }
+      if (p.hiddenBy && !isState(p.hiddenBy)) {
+        p.hiddenBy = 0;
+        ch = true;
+      }
       if (ch) tx.province(p.id) = std::move(p);
     });
+    for (auto& [fid, list] : orphanRelics)
+      for (Id r : list) tx.faction(fid).relics.push_back(r);
   }
+  std::map<Id, std::vector<Id>> orphanRelics;
 
   void armies() {
     const World base = w();
@@ -1707,6 +2281,11 @@ struct Norm {
           if (fleet ? !f->fleetRow(u.row) : !f->armyRow(u.row)) {
             warn(F_ARMIES, uat + ".row", std::string("у ") + refStr(Seq::Faction, f->id) + (fleet ? " нет строки флота " : " нет строки армии ") +
                                              ref(Seq::Row, u.row) + " — отряд удалён");
+            ch = true;
+            continue;
+          }
+          if (fleet && f->fleetRow(u.row)->type == ShipType::Galleon) {
+            warn(F_ARMIES, uat, "торговые галеоны не входят во флоты на карте — вернулись в резерв");
             ch = true;
             continue;
           }
@@ -1764,6 +2343,35 @@ struct Norm {
       ch |= fixRefList(a.modifiers, Seq::Modifier, F_ARMIES, where, "modifiers");
       ch |= fixModTurns(a.modTurns, a.modifiers, F_ARMIES, where);
       if (ch) tx.army(a.id) = std::move(a);
+    });
+    // Войско на борту флота: флот — существующий флот, у которого это войско в грузе; у флота — одно войско;
+    // положение войска — у флота.
+    const World cur = w();
+    cur.armies.each([&](const Army& a) {
+      const std::string where = refStr(Seq::Army, a.id);
+      if (a.isFleet()) {
+        if (a.carrier) {
+          warn(F_ARMIES, where + ".carrier", "флот не перевозится другим флотом — снято");
+          tx.army(a.id).carrier = 0;
+        }
+        const Army* c = cur.army(a.cargo);
+        if (a.cargo && (!c || c->isFleet() || c->carrier != a.id)) {
+          warn(F_ARMIES, where + ".cargo", "войска на борту нет или оно на другом флоте — груз снят");
+          tx.army(a.id).cargo = 0;
+        }
+      } else {
+        if (a.cargo) {
+          tx.army(a.id).cargo = 0;
+          warn(F_ARMIES, where + ".cargo", "груз бывает только у флота — снят");
+        }
+        const Army* s = cur.army(a.carrier);
+        if (a.carrier && (!s || !s->isFleet() || s->cargo != a.id)) {
+          warn(F_ARMIES, where + ".carrier", "флота нет или у него другое войско на борту — войско высажено");
+          tx.army(a.id).carrier = 0;
+        } else if (s && a.pos != s->pos) {
+          tx.army(a.id).pos = s->pos;
+        }
+      }
     });
   }
 
@@ -1926,10 +2534,21 @@ struct Norm {
     for (auto& i : c.relics) upd(Seq::Relic, i.id);
     for (auto& i : c.specials) upd(Seq::Special, i.id);
     for (auto& i : c.resGroups) upd(Seq::ResGroup, i.id);
+    for (auto& i : c.relicGroups) upd(Seq::RelicGroup, i.id);
+    for (auto& i : c.archSites) upd(Seq::ArchSite, i.id);
+    for (auto& i : c.chests) upd(Seq::Chest, i.id);
+    for (auto& k : c.classes) {
+      upd(Seq::HeroClass, k.id);
+      for (auto& t : k.talents) upd(Seq::Talent, t.id);
+    }
+    x.factions.each([&](const Faction& e) {
+      for (auto& g : e.archGroups) upd(Seq::ArchGroup, g.id);
+    });
     static const char* const names[kSeqCount] = {"province", "faction", "character", "modifier", "building", "tech", "army",
                                                  "route", "deal", "log", "row", "council", "node", "edge", "resource", "race",
                                                  "culture", "religion", "government", "position", "symbol", "shape",
-                                                 "essence", "relic", "special", "resGroup"};
+                                                 "essence", "relic", "special", "resGroup", "heroClass", "talent",
+                                                 "relicGroup", "archSite", "chest", "archGroup"};
     for (int i = 0; i < kSeqCount; i++) {
       if (seq[size_t(i)] < maxId[size_t(i)]) {
         warn(F_WORLD, std::string("meta.seq.") + names[i], "счётчик " + std::to_string(seq[size_t(i)]) + " меньше наибольшего ID " +

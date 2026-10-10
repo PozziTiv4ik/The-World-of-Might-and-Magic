@@ -8,6 +8,10 @@ namespace rg {
 // ---------------------------------------------------------------- World
 Relation World::relation(Id a, Id b) const {
   if (a == b) return Relation{100, RelStatus::Alliance};
+  // Войска без государства враждебны всем (ТЗ «Доработки №2», п.19.1.2).
+  const Faction* fa = factions.get(a);
+  const Faction* fb = factions.get(b);
+  if ((fa && fa->isWild()) || (fb && fb->isWild())) return Relation{-100, RelStatus::War};
   auto it = relations->find(relKey(a, b));
   return it == relations->end() ? Relation{} : it->second;
 }

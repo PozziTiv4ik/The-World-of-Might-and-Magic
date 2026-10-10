@@ -4,7 +4,8 @@
 // «Модификаторы»; воскрешение погибшего — ТЗ «Механика героев»; инвентарь — реликвии справочника с подсветкой
 // редкости, ТЗ «Доработки», п.10; заметки и раздел «Канон» — связь с карточкой, поиск по части имени и выбор из
 // найденных, портрет из карточки) и вкладка «Роли» (правитель, лорд провинций, места в совете, герой и полководец
-// войск — ТЗ 1.a.vi, 1.b.iv, 1.c.iii — и гарнизон провинции) с назначением только в своей фракции и снятием.
+// войск — ТЗ 1.a.vi, 1.b.iv, 1.c.iii — и гарнизон провинции) с назначением только в своей фракции и снятием. Класс,
+// уровень, «Возвысить до Лича» и вкладка «Таланты» — character_talents.cpp (ТЗ «Доработки №1», п.11; «№4», п.6, 8).
 #include <algorithm>
 
 #include "app/app_internal.h"
@@ -29,6 +30,8 @@ void askDelete(App& a, Id character);
 void loadPortrait(App& a, Id character);
 void askClearPortrait(App& a, Id character);
 std::string positionOf(const World& w, Id faction, Id seat);
+void classFields(App& a, const Character& c, bool ro);   // character_talents.cpp
+void lichButton(App& a, const Character& c, bool ro);
 }  // namespace rg::app::chars
 
 namespace rg::app::edkit {   // editors/modifiers.cpp — фишки с переносом
@@ -137,7 +140,7 @@ void portraitBlock(App& a, const Character& c, const chars::Roles& roles, bool r
         a.markUi("character.clearPortrait");
       }
     }
-    ui::stat(fmtNum(c.upkeep, 3), "Содержание за ход",
+    ui::stat(fmtGold(c.upkeep), "Содержание за ход",
              {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Платит фракция, которой персонаж служит: правитель, советник или герой — расход «специалисты»"});
     ui::stat(fmtInt(i64(roles.total())), plural(i64(roles.total()), "Роль", "Роли", "Ролей"),
              {.icon = "council", .tone = ui::Tone::Info, .tooltip = roles.total() ? chars::rolesText(a.world(), roles) : std::string_view("Пока без ролей")});
@@ -163,6 +166,7 @@ void modifiersSection(App& a, const World& w, const Character& c, bool ro) {
     a.act("Срок модификатора", [&](Tx& tx) { rules::setModTurns(tx, rules::ModTarget::Character, cid, ed.termOf, ed.turns); },
           {.coalesce = "hero.modturns:" + std::to_string(cid) + ":" + std::to_string(ed.termOf)});
   a.markUi("character.mods");
+  chars::lichButton(a, c, ro);
   if (dead) {
     ui::Disabled d(ro);
     ui::prop("Захоронение", "map-pin");
@@ -181,15 +185,17 @@ void modifiersSection(App& a, const World& w, const Character& c, bool ro) {
   }
 }
 
-// Инвентарь героя (ТЗ «Доработки», п.10: «В инвентарь можно будет добавлять реликвии из соответствующего
-// справочника»): реликвии фишками с подсветкой редкости, крестик — убрать (rules::takeRelic), щелчок и значок
-// заголовка — справочник реликвий; добавить — реликвии справочника: свободные, затем у других персонажей (подпись
-// «у <имя>»; выбор передаёт реликвию этому герою — rules::giveRelic).
+// Инвентарь героя (ТЗ «Доработки», п.10; «Доработки №1», п.14; «№2», п.11): реликвии строками по главенству редкости —
+// значок (изображение реликвии с обводкой цвета редкости), название цветом редкости; крестик — убрать (к государству
+// героя, rules::takeRelic), щелчок и значок заголовка — справочник реликвий. Добавить — свободные реликвии, реликвии и
+// хранилища государства героя, реликвии других героев (подпись — где лежит; выбор передаёт реликвию этому герою —
+// rules::giveRelic: находки археологов — только из владений государства, иначе уведомление с причиной).
 void inventorySection(App& a, const World& w, const Character& c, bool ro) {
   const Id cid = c.id;
-  std::vector<const Relic*> mine;
+  std::vector<Id> mine;
   for (Id rid : c.inventory)
-    if (const Relic* r = w.relic(rid)) mine.push_back(r);
+    if (w.relic(rid)) mine.push_back(rid);
+  rules::sortByRarity(w, mine);
   const ui::Theme& th = ui::theme();
   ui::Section s("Инвентарь", "inventory",
                 {.badge = mine.empty() ? std::string() : std::to_string(mine.size()), .actionIcon = "book", .actionTooltip = "Справочник реликвий"});
@@ -200,35 +206,64 @@ void inventorySection(App& a, const World& w, const Character& c, bool ro) {
   }
   if (s.action()) a.openEditor("catalogs", 8);
   if (!s) return;
+  const Faction* own = w.faction(c.faction);
+  const bool toState = own && own->isState();
   if (mine.empty()) {
     ui::label("Пусто", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   } else {
-    edkit::chipsBegin();
-    for (const Relic* r : mine) {
-      const Id rid = r->id;
-      const ui::ChipAction act = w::relicChip(*r, !ro);
-      a.markUi("character.relic." + std::to_string(rid));
-      if (act == ui::ChipAction::Remove) a.act("Убрать реликвию", [&](Tx& tx) { rules::takeRelic(tx, cid, rid); });
-      else if (act == ui::ChipAction::Click) a.openEditor("catalogs", 8);
+    for (Id rid : mine) {
+      const Relic& r = *w.relic(rid);
+      ui::IdScope sc{i64(rid)};
+      const std::string sub = std::string(schema::rarity(r.rarity).name) + (rules::isPhylactery(r) ? " · филактерия" : std::string());
+      RectF rr;
+      const bool open = w::relicRow(r, sub, ro ? 0 : 32, &rr);
+      a.markUi("character.relic." + std::to_string(rid), rr);
+      if (open) a.openEditor("catalogs", 8);
+      if (!ro) {
+        ui::at(RectF{rr.right() - 28, rr.cy() - 12, 24, 24});
+        if (ui::iconButton("close", toState ? "Убрать — реликвия перейдёт государству героя" : "Убрать из инвентаря", {.size = ui::Size::Small}))
+          a.act("Убрать реликвию", [&](Tx& tx) { rules::takeRelic(tx, cid, rid); });
+      }
     }
-    edkit::chipsEnd();
   }
   if (ro) return;
-  // Кандидаты: свободные реликвии, затем у других персонажей; внутри — по названию.
+  // Кандидаты: свободные, своего государства (реликвии и хранилища), у других героев; внутри — по главенству редкости.
   struct Cand {
     const Relic* r;
-    Id holder;
+    rules::RelicPlace place;
+    int rank;
     std::string label, hint;
   };
   std::vector<Cand> cand;
   for (const Relic& r : w.catalogs->relics) {
-    if (std::find(c.inventory.begin(), c.inventory.end(), r.id) != c.inventory.end()) continue;
-    const Id holder = rules::relicHolder(w, r.id);
-    cand.push_back({&r, holder, orName(r.name, "Без названия"),
-                    holder ? "у " + orName(w.characterName(holder), "Без имени") : std::string(schema::rarity(r.rarity).name)});
+    const rules::RelicPlace p = rules::relicPlace(w, r.id);
+    if (p.kind == rules::RelicPlace::Hidden) continue;   // спрятанная — только археологам
+    if (p.kind == rules::RelicPlace::Hero && p.id == cid) continue;
+    Cand k{&r, p, 0, orName(r.name, "Без названия"), {}};
+    switch (p.kind) {
+      case rules::RelicPlace::Free:
+        k.rank = 0;
+        k.hint = schema::rarity(r.rarity).name;
+        break;
+      case rules::RelicPlace::State:
+        k.rank = p.id == c.faction ? 1 : 3;
+        k.hint = p.id == c.faction ? std::string("у государства") : "у " + w.factionName(p.id);
+        break;
+      case rules::RelicPlace::Building:
+        k.rank = p.owner == c.faction ? 1 : 3;
+        k.hint = "в хранилище · " + w.provinceName(p.id);
+        break;
+      case rules::RelicPlace::Hero:
+        k.rank = 2;
+        k.hint = "у " + orName(w.characterName(p.id), "Без имени");
+        break;
+      case rules::RelicPlace::Hidden: break;
+    }
+    cand.push_back(std::move(k));
   }
   std::stable_sort(cand.begin(), cand.end(), [](const Cand& x, const Cand& y) {
-    if ((x.holder != 0) != (y.holder != 0)) return x.holder == 0;
+    if (x.rank != y.rank) return x.rank < y.rank;
+    if (x.r->rarity != y.r->rarity) return rules::rarityAbove(x.r->rarity, y.r->rarity);
     return compareRu(x.label, y.label) < 0;
   });
   std::vector<ui::Option> opts;
@@ -237,10 +272,10 @@ void inventorySection(App& a, const World& w, const Character& c, bool ro) {
   int idx = -1;
   const std::string_view ph = w.catalogs->relics.empty() ? "Реликвий в справочнике нет" : cand.empty() ? "Все реликвии у героя" : "Добавить реликвию";
   if (ui::combo("addRelic", idx, std::span<const ui::Option>(opts),
-                {.placeholder = ph, .search = 1, .icon = "plus", .disabled = cand.empty(), .popupWidth = 340, .tooltip = "Реликвия из справочника"}) &&
+                {.placeholder = ph, .search = 1, .icon = "plus", .disabled = cand.empty(), .popupWidth = 360, .tooltip = "Реликвия из справочника"}) &&
       idx >= 0 && idx < int(cand.size())) {
     const Id rid = cand[size_t(idx)].r->id;
-    const Id from = cand[size_t(idx)].holder;
+    const Id from = cand[size_t(idx)].place.kind == rules::RelicPlace::Hero ? cand[size_t(idx)].place.id : 0;
     if (a.act(from ? "Передать реликвию" : "Реликвия в инвентарь", [&](Tx& tx) { rules::giveRelic(tx, cid, rid); }) && from)
       a.toast("«" + cand[size_t(idx)].label + "» передана от «" + orName(w.characterName(from), "Без имени") + "»", ToastKind::Info, "relic");
   }
@@ -288,12 +323,13 @@ void drawInfo(App& a, Id cid) {
       if (left) a.toast("«" + orName(c.name, "Персонаж") + "» покинул войска прежней фракции: " + std::to_string(left), ToastKind::Info, "army");
     }
     a.markUi("character.faction");
+    chars::classFields(a, c, ro);
     bool hero = c.hero;
     if (ui::toggle("Значимый герой фракции", hero, ro)) a.act(hero ? "Отметить героем" : "Снять отметку героя", [&](Tx& tx) { tx.character(cid).hero = hero; });
     a.markUi("character.hero");
     ui::prop("Содержание", "coins");
     double up = c.upkeep;
-    if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 3, .unit = "за ход", .disabled = ro,
+    if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 3, .unit = "тыс. за ход", .disabled = ro,
                                        .tooltip = "Начисляется, пока персонаж правитель, советник или герой фракции"}))
       a.act("Содержание персонажа", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "upkeep:" + std::to_string(cid)});
     a.markUi("character.upkeep");
@@ -473,13 +509,7 @@ void drawRoles(App& a, Id cid) {
           Id fid = own->id;
           a.act("Место в совете", [&](Tx& tx) {
             Id seat = o.seat;
-            if (!seat) {
-              CouncilSeat st;
-              st.id = tx.nextId(Seq::Council);
-              st.position = o.position;
-              tx.faction(fid).council.push_back(st);
-              seat = st.id;
-            }
+            if (!seat) seat = rules::addCouncilSeat(tx, fid, o.position);
             rules::setCouncilMember(tx, fid, seat, cid);
           });
         }

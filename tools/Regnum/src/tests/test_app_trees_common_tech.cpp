@@ -57,6 +57,12 @@ TEST(app_trees_common_tech_tree) {
   h.dropToasts();
   auto [A, B] = twoStates(h->world());
   CHECK(A && B);
+  // Базовая ветка «Археология» (новый мир сеет её в общее дерево) убирается: сценарий строит общее дерево с нуля.
+  CHECK(!commonTechs(h->world()).empty());
+  CHECK(h->act("Без базовой ветки", [&](Tx& tx) {
+    for (Id t : commonTechs(tx.w())) rules::removeTech(tx, t);
+  }));
+  CHECK(commonTechs(h->world()).empty());
   // Пустое общее дерево: технология с пустого холста — общая (без фракции).
   app::openTechTree(h.a(), 0, 0, A);
   h.settle(40);

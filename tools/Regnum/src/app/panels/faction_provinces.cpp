@@ -201,7 +201,7 @@ void drawHqs(App& a, Id id) {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
     ui::stat(fmtInt(i64(rows.size())), plural(i64(rows.size()), "штаб", "штаба", "штабов"),
              {.icon = "hq", .tone = ui::Tone::Info, .tooltip = "В провинции — не больше 5 штабов разных гильдий, у гильдии — один штаб в провинции"});
-    ui::stat(moneySigned(fc->incGuilds), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success,
+    ui::stat(fmtGoldSigned(fc->incGuilds), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success,
                                                            .tooltip = "Σ торговая ценность × влияние гильдии − налог провинции"});
   }
   ui::spacer(2);
@@ -243,7 +243,7 @@ void drawHqs(App& a, Id id) {
             a.act("Влияние гильдии", [&](Tx& tx) { rules::setInfluence(tx, pid, id, pct); },
                   {.coalesce = "influence:" + std::to_string(pid) + ":" + std::to_string(id)});
           a.markUi("hq.influence." + std::to_string(pid));
-          t.text(money(r.share.net), r.share.net > 0 ? ui::Ink::Success : ui::Ink::Muted);
+          t.text(fmtGold(r.share.net), r.share.net > 0 ? ui::Ink::Success : ui::Ink::Muted);
           t.cell();
           if (ui::iconButton("trash", "Закрыть штаб", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
             std::string pname = provName(*r.p);
@@ -255,12 +255,12 @@ void drawHqs(App& a, Id id) {
         if (t.footer()) {
           t.text("Итого");
           t.text({});
-          t.text(money(fc->incGuilds));
+          t.text(fmtGold(fc->incGuilds));
           t.text({});
         }
         if (int c = t.clicked(); c >= 0) a.select(SelType::Province, rows[size_t(c)].p->id, true);
       }
-      ui::label("Валовой доход " + money(gross) + " · налог провинциям " + money(tax), {.font = ui::Font::Small, .ink = ui::Ink::Muted,
+      ui::label("Валовой доход " + fmtGold(gross) + " · налог провинциям " + fmtGold(tax), {.font = ui::Font::Small, .ink = ui::Ink::Muted,
                                                                                          .tooltip = "Налог штабов идёт владельцам провинций"});
     }
     // Открыть штаб: провинция без штаба этой гильдии и кнопка.

@@ -25,6 +25,7 @@ struct ToolLayout {
 ToolLayout toolLayout(App& a) {
   ToolLayout L;
   for (auto& t : toolDefs()) {
+    if (t.hidden) continue;
     if (t.id == ToolId::Select || t.id == ToolId::Pan) L.base.push_back(&t);
     else if (t.mapMode) {
       if (a.ui.editMap) L.map.push_back(&t);
@@ -40,8 +41,18 @@ ToolLayout toolLayout(App& a) {
 void toolButton(App& a, const ToolDef& t) {
   ui::IdScope s{int(t.id)};
   std::string tip = t.title;
+  // Недоступный инструмент: причина в подсказке, щелчок — уведомление с ней (setTool), в углу кнопки — замок.
+  const std::string why = t.blocked ? t.blocked(a) : std::string();
+  if (!why.empty()) tip += "\n" + why;
   if (ui::iconButton(t.icon, tip, {.size = ui::Size::Large, .toggled = a.ui.tool == t.id})) a.setTool(t.id);
   if (t.shortcut && *t.shortcut) ui::tooltip(tip, parseShortcut(t.shortcut));
+  if (!why.empty()) {
+    const ui::Theme& th = ui::theme();
+    const RectF br = ui::lastItem().rect;
+    const RectF lb{br.right() - 13, br.bottom() - 13, 11, 11};
+    ui::draw::rect(lb.expand(1.5f), th.surface1, 4);
+    ui::draw::icon("lock", lb, th.textMuted);
+  }
   static const char* names[] = {"select", "pan",        "borders-tool", "new-province", "add-area", "remove-area", "fill",
                                 "knife",  "merge",      "delete",       "army",         "fleet",    "route",       "map-objects",
                                 "symbol", "lake",       "river",        "wall",         "land-add", "land-remove", "coast",

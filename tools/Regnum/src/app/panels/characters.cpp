@@ -1,10 +1,11 @@
 // Regnum — раздел «Персонажи» правой ленты: каталог с поиском, фильтром по фракции и героям, список по фракциям
-// (портрет или инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя),
-// создание, удаление с подтверждением. Щелчок открывает страницу персонажа (character_inspector.cpp).
+// (портрет или инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя, класс и
+// уровень), создание, удаление с подтверждением. Щелчок открывает страницу персонажа (character_inspector.cpp).
 #include <algorithm>
 
 #include "app/app_internal.h"
 #include "app/widgets.h"
+#include "gfx/icons.h"
 
 namespace rg::app::chars {   // объявления из character_common.cpp (struct Roles — точная копия)
 struct Roles {
@@ -77,6 +78,19 @@ bool characterRow(App& a, const Character& c, const chars::Roles& roles, bool se
     RectF sr{right - 16, r.cy() - 8, 16, 16};
     ui::draw::icon(dead ? "skull" : "shackles", sr, dead ? th.danger : th.warning);
     right = sr.x - 8;
+  }
+  // Класс и уровень героя (ТЗ «Доработки №4», п.6): значок цвета класса и уровень.
+  if (const HeroClass* hc = w.heroClass(c.heroClass)) {
+    if (!c.hero) right -= 24;   // место звезды героя: класс — в одном столбце у всех строк
+    const std::string lv = std::to_string(c.level);
+    const float lw = std::ceil(ui::measure(lv, ui::Font::Caption)) + 2;
+    const RectF lr{right - lw, r.cy() - 8, lw, 16};
+    ui::draw::text(lv, lr, ui::Font::Caption, th.textMuted, ui::Align::Right);
+    const RectF ir{lr.x - 17, r.cy() - 8, 16, 16};
+    const Color col = hc->color.luminance() < 0.1f ? hc->color.lighten(0.45f) : hc->color;
+    ui::draw::icon(!hc->icon.empty() && gfx::hasIcon(hc->icon) ? hc->icon.c_str() : "hero-class", ir, col);
+    ui::hoverTip("##cls", RectF{ir.x, ir.y, lr.right() - ir.x, 16}, (hc->name.empty() ? std::string("Без названия") : hc->name) + ", уровень " + lv);
+    right = ir.x - 8;
   }
   float lh = ui::lineHeight(ui::Font::Body), sh = ui::lineHeight(ui::Font::Small);
   float y0 = std::round(r.cy() - (lh + sh) * 0.5f);

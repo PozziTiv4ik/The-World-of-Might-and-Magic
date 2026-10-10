@@ -238,7 +238,7 @@ struct HistoryDlg : Dialog {
           sum += v[MTreasury];
           if (v[MTreasury] < 0) debt++;
         }
-        std::string t = "Σ казна " + fmtNum(sum) + (debt ? " · в долгу " + std::to_string(debt) : std::string());
+        std::string t = "Σ казна " + fmtGoldShort(sum) + (debt ? " · в долгу " + std::to_string(debt) : std::string());
         ui::draw::icon("coins", RectF{midX, r.y + 40, 14, 14}, th.textMuted);
         ui::draw::text(t, RectF{midX + 20, r.y + 37, midW - 20, 20}, ui::Font::Small, th.textDim);
       }
@@ -291,7 +291,9 @@ struct HistoryDlg : Dialog {
       return;
     }
     std::vector<const Faction*> facs;
-    w.factions.each([&](const Faction& f) { facs.push_back(&f); });
+    w.factions.each([&](const Faction& f) {
+      if (!f.isWild()) facs.push_back(&f);   // войска без государства — не фракция игры
+    });
     std::stable_sort(facs.begin(), facs.end(), [](const Faction* x, const Faction* y) {
       if (x->kind != y->kind) return x->kind < y->kind;
       return compareRu(x->name, y->name) < 0;

@@ -31,7 +31,7 @@ void summary(App& a, const Faction& f, const rules::FactionCalc* fc) {
   } else {
     ui::stat(fmtInt(fc ? i64(fc->provinces.size()) : 0), "Штабы", {.icon = "hq", .tone = ui::Tone::Info, .tooltip = "Провинции со штабами гильдии — открыть список"});
     if (ui::lastItem().clicked) showTab(a, kTabHqs);
-    ui::stat(moneySigned(fc ? fc->incGuilds : 0), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success});
+    ui::stat(fmtGoldSigned(fc ? fc->incGuilds : 0), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success});
   }
   ui::stat(fmtShort(double(fc ? fc->armyTotal : 0)), "Войска", {.icon = "army", .tone = ui::Tone::Danger,
                                                                   .tooltip = "Численность войск: в поле и в резерве"});

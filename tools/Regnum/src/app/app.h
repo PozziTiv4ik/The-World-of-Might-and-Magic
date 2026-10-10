@@ -82,6 +82,7 @@ enum class ToolId : u8 {
   LandRemove,    // море контуром
   Coast,         // точки береговой линии
   NewSeaProvince, // многоугольник новой морской провинции (NewProvince — сухопутной)
+  Landing,       // высадка войска с флота (кнопка панели флота; на ленте инструментов нет)
   Count
 };
 
@@ -210,6 +211,8 @@ struct ToolDef {
   std::function<std::unique_ptr<MapTool>()> make;
   int order = 100;                     // порядок на панели инструментов
   bool mapMode = false;                // доступен только при включённой правке карты
+  bool hidden = false;                 // не на ленте инструментов (включается кнопкой панели)
+  std::string (*blocked)(App&) = nullptr;   // непусто — инструмент недоступен, причина (подсказка, уведомление)
 };
 struct ToolReg { explicit ToolReg(const ToolDef& d); };
 const ToolDef* findTool(ToolId id);

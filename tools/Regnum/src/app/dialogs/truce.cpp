@@ -76,12 +76,12 @@ struct TruceDlg final : Dialog {
     {
       ui::Row r({ui::fr(1), ui::px(84)}, 30, 8);
       double gold = terms.resources.count(kGold) ? terms.resources[kGold] : 0;
-      if (ui::numberField("gold", gold, {.min = 0, .max = 1e12, .step = 10, .digits = 3, .icon = "coins", .tooltip = "Золото из казны"})) {
+      if (ui::numberField("gold", gold, {.min = 0, .max = 1e12, .step = 10, .digits = 3, .unit = "тыс.", .icon = "coins", .tooltip = "Золото из казны"})) {
         if (gold > 0) terms.resources[kGold] = gold;
         else terms.resources.erase(kGold);
       }
       a.markUi("truce." + k + ".gold");
-      ui::label("есть " + money(g->treasury()), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
+      ui::label("есть " + fmtGold(g->treasury()), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
     }
     for (auto it = terms.resources.begin(); it != terms.resources.end();) {
       const Id res = it->first;

@@ -43,6 +43,16 @@ void roleLines(App& a, const Building& b, const BuildingLevel* L) {
   }
   if (b.specialAccess && !b.specials.empty())
     ui::label(bld::specialsText(w, b.specials), {.font = ui::Font::Small, .ink = ui::Ink::Accent, .icon = "special-unit", .tooltip = "Доступ к особым отрядам"});
+  // Возможности ТЗ «Доработки №1–3» — значками с подсказкой.
+  std::vector<bld::Token> tk;
+  const ui::Theme& th = ui::theme();
+  if (b.relicStore) tk.push_back({"relic", Color::hex(0xa45cff), {}, ui::Ink::Normal, "Хранилище реликвий"});
+  if (b.healing) tk.push_back({"heal", th.success, {}, ui::Ink::Normal, "Здание целительства: «Вылечить провинцию»"});
+  if (b.plague) tk.push_back({"plague", Color::hex(0x9aac3a), {}, ui::Ink::Normal, "Здание чумы: «Заразить чумой», чума даёт прирост"});
+  if (b.shipyard) tk.push_back({"shipyard", th.info, L ? bld::shipsText(L->ships) : std::string(), ui::Ink::Dim, "Верфь: открывает найм кораблей", ui::Font::Small});
+  if (b.mercenary) tk.push_back({"mercenary", th.accent, {}, ui::Ink::Normal, "Гильдия наёмников: лимит наёмников государства"});
+  if (b.coastal) tk.push_back({"anchor", th.textDim, {}, ui::Ink::Normal, "Только в приморской провинции"});
+  if (!tk.empty()) bld::tokens(tk, 8);
 }
 
 void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Faction* owner, bool& close) {
@@ -70,6 +80,7 @@ void optionCard(App& a, BuildPicker& d, const rules::BuildOption& o, const Facti
     std::string desc = L && !trim(L->desc).empty() ? L->desc : b->desc;
     if (!trim(desc).empty()) ui::label(desc, {.font = ui::Font::Small, .ink = ui::Ink::Dim, .wrap = true, .maxLines = 2});
     bld::costChips(o.cost, owner);
+    bld::essCostChips(o.essCost, owner);
     if (L) {
       bld::levelEffects(w, *L);
       bld::produceChips(L->produce);
@@ -138,27 +149,41 @@ bool BuildPicker::draw(App& a) {
   const rules::ProvinceCalc* pc = calc->province(pid);
   int slots = pc ? pc->slots : 0, used = int(p->buildings.size());
   std::vector<rules::BuildOption> opts = rules::buildOptions(w, pid);
-  // Шапка: владелец, слоты, запасы ресурсов, нужных для строительства.
+  // Варианты под текущими фильтрами (вкладка категории, поиск, «Только доступные»).
+  auto passes = [&](const rules::BuildOption& o, bool byTab) {
+    const Building* b = w.building(o.building);
+    if (!b || (onlyAvail && !o.can)) return false;
+    if (!query.empty() && !utf8::matches(b->name, query) && !utf8::matches(b->desc, query)) return false;
+    return !byTab || tab == 0 || int(b->cat) == tab - 1;
+  };
+  // Шапка: владелец, слоты; ниже — запасы ресурсов и эссенций, нужных показанным вариантам (с переносом строк).
   {
     ui::HStack hs(28, ui::Align::Left, 8);
     if (owner) w::factionChip(owner->id);
     ui::tag("Слоты " + std::to_string(used) + " / " + std::to_string(slots), used >= slots ? ui::Tone::Danger : ui::Tone::Neutral, "slots");
     if (pc && std::fabs(pc->buildCostFactor - 1) > 1e-9) ui::tag("Стоимость ×" + fmtNum(pc->buildCostFactor, 2), pc->buildCostFactor > 1 ? ui::Tone::Warning : ui::Tone::Success, "percent");
-    ui::flex();
-    if (owner) {
-      std::map<Id, double> need;
-      need[kGold] = 0;
-      for (const auto& o : opts)
-        for (auto& [res, v] : o.cost) need[res] = 0;
-      for (auto& [res, v] : need) {
-        ui::IdScope s{i64(res)};
-        const CatalogItem* c = w.resource(res);
-        ui::spacer(6);
-        std::string tip = (c ? c->name : std::string("Ресурс")) + " в запасе государства";
-        ui::iconColored(w::resourceIcon(w, res), w::resourceColor(w, res), 16, tip);
-        ui::label(fmtNum(owner->stock(res), 3), {.font = ui::Font::Strong, .tooltip = tip});
-      }
+  }
+  if (owner) {
+    std::map<Id, double> need, needEss;
+    need[kGold] = 0;
+    for (const auto& o : opts) {
+      if (!passes(o, true)) continue;
+      for (auto& [res, v] : o.cost) need[res] = 0;
+      for (auto& [e, v] : o.essCost) needEss[e] = 0;
     }
+    std::vector<bld::Token> tk;
+    for (auto& [res, v] : need) {
+      const CatalogItem* c = w.resource(res);
+      tk.push_back({w::resourceIcon(w, res), w::resourceColor(w, res), fmtNum(owner->stock(res), 3) + (res == kGold ? " тыс." : ""), ui::Ink::Normal,
+                    (c ? c->name : std::string("Ресурс")) + " в запасе государства"});
+    }
+    for (auto& [e, v] : needEss) {
+      const CatalogItem* c = w.essence(e);
+      tk.push_back({"essence", w::essenceColor(w, e), fmtNum(owner->essence(e), 3), ui::Ink::Normal,
+                    (c ? c->name : std::string("Эссенция")) + " в запасе государства"});
+    }
+    bld::tokens(tk, 12);
+    a.markUi("build.stocks");
   }
   // Фильтры
   int counts[int(BuildingCat::Count) + 1] = {};

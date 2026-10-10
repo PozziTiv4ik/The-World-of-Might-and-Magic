@@ -12,7 +12,7 @@ namespace rg::app::canon {
 
 namespace {
 
-const char* dirOf(Kind k) { return k == Kind::Character ? "03_Персонажи" : "04_Локации"; }
+const char* dirOf(Kind k) { return k == Kind::Character ? "03_Персонажи" : k == Kind::Relic ? "05_Активы_персонажей" : "04_Локации"; }
 
 // Поля карточки: заголовок «# Имя», id, type, aliases, portrait (front matter в первых строках).
 Card readCard(const std::string& path, const std::string& text) {
@@ -28,6 +28,8 @@ Card readCard(const std::string& path, const std::string& text) {
     if (c.id.empty() && startsWith(ln, "id:")) c.id = trim(ln.substr(3));
     if (c.type.empty() && startsWith(ln, "type:")) c.type = trim(ln.substr(5));
     if (c.portrait.empty() && startsWith(ln, "portrait:")) c.portrait = trim(ln.substr(9));
+    if (c.portrait.empty() && startsWith(ln, "visual:")) c.portrait = trim(ln.substr(7));   // визуал актива
+    if (c.assetKind.empty() && startsWith(ln, "asset_kind:")) c.assetKind = trim(ln.substr(11));
     if (startsWith(ln, "aliases:")) {
       std::string v = trim(ln.substr(8));
       v = replaceAll(replaceAll(replaceAll(v, "[", ""), "]", ""), "\"", "");
@@ -41,6 +43,7 @@ Card readCard(const std::string& path, const std::string& text) {
     lines++;
   }
   if (c.title.empty()) c.title = replaceAll(fs::stem(path), "_", " ");
+  if (c.portrait == "null" || c.portrait == "~") c.portrait.clear();
   return c;
 }
 
@@ -51,7 +54,7 @@ struct DirCache {
   std::vector<Card> cards;
 };
 DirCache& cacheOf(Kind k) {
-  static DirCache c[2];
+  static DirCache c[3];
   return c[int(k)];
 }
 
@@ -65,13 +68,23 @@ const std::vector<Card>& cards(App& a, Kind kind) {
   dc.at = now;
   dc.cards.clear();
   if (dir.empty()) return dc.cards;
-  for (const fs::DirEntry& e : fs::list(dir)) {
-    if (e.dir || !endsWith(e.name, ".md") || startsWith(e.name, "00_") || startsWith(e.name, "01_") || startsWith(e.name, "02_")) continue;
-    auto text = fs::readFile(e.path);
-    if (!text) continue;
-    Card c = readCard(e.path, text->substr(0, std::min<size_t>(text->size(), 6144)));
-    if (c.id.empty()) continue;   // без ID связать нельзя
-    dc.cards.push_back(std::move(c));
+  auto scan = [&](const std::string& folder) {
+    for (const fs::DirEntry& e : fs::list(folder)) {
+      if (e.dir || !endsWith(e.name, ".md") || startsWith(e.name, "00_") || startsWith(e.name, "01_") || startsWith(e.name, "02_")) continue;
+      auto text = fs::readFile(e.path);
+      if (!text) continue;
+      Card c = readCard(e.path, text->substr(0, std::min<size_t>(text->size(), 6144)));
+      if (c.id.empty()) continue;   // без ID связать нельзя
+      // Реликвии — только предметы среди активов персонажей.
+      if (kind == Kind::Relic && (c.type != "character_asset" || c.assetKind != "item")) continue;
+      dc.cards.push_back(std::move(c));
+    }
+  };
+  if (kind == Kind::Relic) {
+    for (const fs::DirEntry& e : fs::list(dir))   // активы — по папкам владельцев
+      if (e.dir) scan(e.path);
+  } else {
+    scan(dir);
   }
   std::sort(dc.cards.begin(), dc.cards.end(), [](const Card& x, const Card& y) { return compareRu(x.title, y.title) < 0; });
   return dc.cards;
@@ -124,19 +137,18 @@ void setNotes(Tx& tx, SelType t, Id id, const std::string& notes) {
   }
 }
 
-// Портрет из файла карточки: большие уменьшаются (мир хранит портрет внутри файла персонажей).
-std::string portraitBytes(const std::string& root, const std::string& rel) {
+// Изображение из файла карточки (портрет героя, визуал актива): большие уменьшаются (мир хранит изображение внутри
+// своих файлов).
+std::string imageBytes(const std::string& root, const std::string& rel, int maxSide, int target) {
   if (rel.empty() || root.empty()) return {};
-  std::string path = fs::join(root, rel);
-  auto bytes = fs::readFile(path);
+  auto bytes = fs::readFile(fs::join(root, rel));
   if (!bytes) return {};
   auto img = codec::decodeImage(*bytes);
   if (!img || img->empty()) return {};
-  constexpr int kMaxSide = 1024, kTarget = 512;
   constexpr size_t kMaxBytes = size_t(2) << 20;
-  if (std::max(img->w, img->h) <= kMaxSide && bytes->size() <= kMaxBytes) return std::move(*bytes);
+  if (std::max(img->w, img->h) <= maxSide && bytes->size() <= kMaxBytes) return std::move(*bytes);
   gfx::Image g = gfx::Image::fromRgba(img->rgba.data(), img->w, img->h);
-  double k = double(kTarget) / std::max(img->w, img->h);
+  double k = double(target) / std::max(img->w, img->h);
   if (k < 1) g = g.scaled(std::max(1, int(std::lround(img->w * k))), std::max(1, int(std::lround(img->h * k))));
   codec::RgbaImage out;
   out.w = g.w;
@@ -145,6 +157,9 @@ std::string portraitBytes(const std::string& root, const std::string& rel) {
   std::vector<u8> png = codec::encodePng(out, 6);
   return std::string(png.begin(), png.end());
 }
+std::string portraitBytes(const std::string& root, const std::string& rel) { return imageBytes(root, rel, 1024, 512); }
+
+constexpr int kRelicSide = 256;   // изображение реликвии — значок: больше не нужно
 
 // Насколько карточка подходит запросу key (searchKey): 0 — поле совпадает целиком, 1 — начинается с запроса,
 // 2 — содержит его, 3 — содержит все слова запроса; −1 — не подходит. Поля: заголовок, имя файла, псевдонимы, ID.
@@ -169,6 +184,7 @@ int matchRank(const Card& c, const std::string& key) {
 struct PickDialog final : Dialog {
   SelType type = SelType::Character;
   Id target = 0;
+  bool relic = false;           // target — реликвия справочника (карточки активов-предметов)
   std::string query, shown;   // запрос и запрос, по которому найдены found
   std::vector<Card> found;
   int sel = 0;
@@ -176,8 +192,11 @@ struct PickDialog final : Dialog {
   const char* id() const override { return "canon.pick"; }
   Style style(App&) override { return {"Связать с каноном", "book", ui::Tone::Accent, 560}; }
   bool draw(App& a) override {
-    const char* icon = type == SelType::Character ? "user" : "province";
-    ui::label(nameOf(a.world(), type, target), {.font = ui::Font::Strong, .icon = icon});
+    const char* icon = relic ? "relic" : type == SelType::Character ? "user" : "province";
+    const Kind kind = relic ? Kind::Relic : kindOf(type);
+    const Relic* rr = relic ? a.world().relic(target) : nullptr;
+    if (relic && !rr) return false;
+    ui::label(rr ? rr->name : nameOf(a.world(), type, target), {.font = ui::Font::Strong, .icon = icon});
     if (focus) {
       ui::setKeyboardFocus(ui::id("q"));
       focus = false;
@@ -187,7 +206,7 @@ struct PickDialog final : Dialog {
     if (query != shown) {
       // Пустой запрос — все карточки (выбор вручную).
       shown = query;
-      found = trim(query).empty() ? cards(a, kindOf(type)) : find(a, kindOf(type), query);
+      found = trim(query).empty() ? cards(a, kind) : find(a, kind, query);
       sel = found.empty() ? -1 : 0;
     }
     // Стрелки — выбор в списке (поле поиска в фокусе).
@@ -228,7 +247,8 @@ struct PickDialog final : Dialog {
     if (ui::button("Отмена")) return false;
     const bool ok = sel >= 0 && sel < int(found.size());
     if (ui::button("Связать", {.variant = ui::Variant::Primary, .icon = "link", .disabled = !ok, .isDefault = true}) || (pick && ok)) {
-      link(a, type, target, found[size_t(sel)]);
+      if (relic) linkRelic(a, target, found[size_t(sel)]);
+      else link(a, type, target, found[size_t(sel)]);
       return false;
     }
     a.markUi("canon.pick.ok");
@@ -257,6 +277,36 @@ void findAndLink(App& a, SelType type, Id id) {
   d->query = d->shown = name;
   d->found = std::move(found);
   a.openDialog(std::move(d));
+}
+
+// Реликвия: поиск карточки актива-предмета по названию (одна — вопрос, несколько — выбор).
+void findAndLinkRelic(App& a, Id relic) {
+  const Relic* r = a.world().relic(relic);
+  if (!r) return;
+  const std::string name = r->name;
+  std::vector<Card> found = find(a, Kind::Relic, name);
+  if (found.empty()) {
+    a.toast(projectRoot(a).empty() ? std::string("Папка кампании не найдена рядом с миром") : "Карточка «" + name + "» не найдена", ToastKind::Info, "book");
+    return;
+  }
+  if (found.size() == 1) {
+    Card c = found[0];
+    a.confirm("Связать с каноном?", "Точно ли это реликвия «" + c.title + "» (" + c.id + ")?", "Связать", false,
+              [relic, c](App& x) { linkRelic(x, relic, c); });
+    return;
+  }
+  auto d = std::make_unique<PickDialog>();
+  d->relic = true;
+  d->target = relic;
+  d->query = d->shown = name;
+  d->found = std::move(found);
+  a.openDialog(std::move(d));
+}
+
+void setRelicDesc(Tx& tx, Id relic, const std::string& desc) {
+  const Relic* r = tx.w().relic(relic);
+  if (!r) fail("Реликвия не найдена");
+  rules::setRelic(tx, relic, r->name, r->rarity, desc);
 }
 
 }  // namespace
@@ -403,6 +453,89 @@ void notesField(App& a, SelType type, Id id, float height) {
       }
     }
     a.markUi("canon.refresh");
+  }
+}
+
+// ================================================================ реликвии
+std::string fitImage(const std::string& bytes, int maxSide) {
+  auto img = codec::decodeImage(bytes);
+  if (!img || img->empty()) return {};
+  if (std::max(img->w, img->h) <= maxSide && bytes.size() <= (size_t(1) << 20)) return bytes;
+  gfx::Image g = gfx::Image::fromRgba(img->rgba.data(), img->w, img->h);
+  const double k = double(maxSide) / std::max(img->w, img->h);
+  if (k < 1) g = g.scaled(std::max(1, int(std::lround(img->w * k))), std::max(1, int(std::lround(img->h * k))));
+  codec::RgbaImage out;
+  out.w = g.w;
+  out.h = g.h;
+  out.rgba = g.toRgba();
+  std::vector<u8> png = codec::encodePng(out, 6);
+  return std::string(png.begin(), png.end());
+}
+
+void linkRelic(App& a, Id relic, const Card& card) {
+  const std::string desc = summary(card);
+  const std::string img = imageBytes(projectRoot(a), card.portrait, kRelicSide, kRelicSide);
+  const bool ok = a.act("Связь реликвии с каноном", [&](Tx& tx) {
+    rules::setRelicEntity(tx, relic, card.id);
+    setRelicDesc(tx, relic, desc);
+    if (!img.empty()) rules::setRelicImage(tx, relic, img);   // изображение карточки — в значок реликвии
+  });
+  if (ok) a.toast("Связано с карточкой " + card.id + (img.empty() ? std::string() : ", изображение добавлено"), ToastKind::Success, "book");
+}
+
+void relicSection(App& a, Id relic) {
+  const World& w = a.world();
+  const Relic* r = w.relic(relic);
+  if (!r) return;
+  const std::string ent = r->entity;
+  const bool ro = a.readOnly();
+  {
+    ui::Row row({ui::fr(1), ui::px(30), ui::px(30), ui::px(30)}, 30, 6);
+    std::string e = ent;
+    if (ui::textField("relicEntity", e, {.placeholder = "ID карточки, напр. ASSET-0037", .icon = "link", .maxLength = 40, .readOnly = ro,
+                                         .tooltip = "ID карточки актива в 05_Активы_персонажей"}) &&
+        trim(e) != ent) {
+      const std::string v = trim(e);
+      if (v.empty()) a.act("Связь реликвии с каноном", [&](Tx& tx) { rules::setRelicEntity(tx, relic, ""); });
+      else if (auto c = byId(a, Kind::Relic, v)) linkRelic(a, relic, *c);
+      else a.act("Связь реликвии с каноном", [&](Tx& tx) { rules::setRelicEntity(tx, relic, v); });
+    }
+    a.markUi("canon.relic.entity");
+    if (ui::iconButton("search", "Найти карточку по названию", {.disabled = ro})) findAndLinkRelic(a, relic);
+    a.markUi("canon.relic.find");
+    if (ui::iconButton("external", "Открыть карточку", {.disabled = ent.empty()})) {
+      if (auto c = byId(a, Kind::Relic, ent)) platform::openPath(c->path);
+      else a.toast("Карточка " + ent + " не найдена рядом с проектом", ToastKind::Warning, "book");
+    }
+    a.markUi("canon.relic.open");
+    if (ui::iconButton("unlink", "Отвязать от канона", {.disabled = ro || ent.empty()}))
+      a.act("Связь реликвии с каноном", [&](Tx& tx) { rules::setRelicEntity(tx, relic, ""); });
+    a.markUi("canon.relic.unlink");
+  }
+  if (!ent.empty())
+    if (auto c = byId(a, Kind::Relic, ent)) ui::label(c->title, {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "book"});
+}
+
+void relicDescField(App& a, Id relic, float height) {
+  const World& w = a.world();
+  const Relic* r = w.relic(relic);
+  if (!r) return;
+  const bool linked = !r->entity.empty();
+  const bool ro = a.readOnly() || linked;
+  std::string desc = r->desc;
+  if (ui::textArea("desc", desc, height, {.placeholder = linked ? "" : "Описание", .readOnly = ro,
+                                          .tooltip = linked ? "Описание из канона — правится в карточке" : ""}) &&
+      !ro && desc != r->desc)
+    a.act("Описание реликвии", [&](Tx& tx) { setRelicDesc(tx, relic, desc); });
+  a.markUi("catalogs.relicCard.desc");
+  if (linked && !a.readOnly()) {
+    ui::HStack hs(24, ui::Align::Right, 4);
+    if (ui::iconButton("refresh", "Обновить описание и изображение из канона", {.size = ui::Size::Small})) {
+      const std::string ent = r->entity;
+      if (auto c = byId(a, Kind::Relic, ent)) linkRelic(a, relic, *c);
+      else a.toast("Карточка " + ent + " не найдена рядом с проектом", ToastKind::Warning, "book");
+    }
+    a.markUi("canon.relic.refresh");
   }
 }
 

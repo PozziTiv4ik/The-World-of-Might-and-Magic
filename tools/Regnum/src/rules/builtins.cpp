@@ -32,7 +32,29 @@ Id ensureBuiltinMod(Tx& tx, std::string_view key) {
   if (!t) fail("Неизвестный встроенный модификатор «" + std::string(key) + "»");
   Modifier m = *t;
   m.id = 0;
+  m.essGen = builtinGenOf(tx.w(), key, true);
+  m.resGen = builtinGenOf(tx.w(), key, false);
   return tx.add(std::move(m)).id;
+}
+
+std::map<Id, double> builtinGenOf(const World& w, std::string_view key, bool essence) {
+  std::map<Id, double> out;
+  for (const schema::BuiltinGen& g : schema::builtinGens()) {
+    if (key != g.key || g.essence != essence) continue;
+    const std::string k = utf8::searchKey(g.name);
+    for (const CatalogItem& c : essence ? w.catalogs->essences : w.catalogs->resources)
+      if (utf8::searchKey(c.name) == k) out[c.id] = g.perTurn;
+  }
+  return out;
+}
+
+std::map<Id, double> modEssGen(const World& w, const Modifier& m) {
+  if (m.id == 0 && !m.key.empty() && m.essGen.empty()) return builtinGenOf(w, m.key, true);   // шаблон встроенного
+  return m.essGen;
+}
+std::map<Id, double> modResGen(const World& w, const Modifier& m) {
+  if (m.id == 0 && !m.key.empty() && m.resGen.empty()) return builtinGenOf(w, m.key, false);
+  return m.resGen;
 }
 
 Id resourceId(const World& w, std::string_view key) {
@@ -121,7 +143,8 @@ std::vector<std::string> unitRaces(const World& w) {
     if (!t.empty() && !contains(out, t)) out.push_back(t);
   }
   // Базовые расы правил есть всегда (нежить и механизмы при мятеже остаются верными).
-  for (const char* b : {schema::kRaceLiving, schema::kRaceDemonic, schema::kRaceUndead, schema::kRaceMechanical, schema::kRaceElemental})
+  for (const char* b : {schema::kRaceLiving, schema::kRaceDemonic, schema::kRaceUndead, schema::kRaceMechanical, schema::kRaceElemental,
+                        schema::kRaceMercenary})
     if (!contains(out, std::string(b))) out.push_back(b);
   return out;
 }
@@ -153,7 +176,24 @@ bool hasModKey(const World& w, const std::vector<Id>& mods, std::string_view key
 }
 bool characterHas(const World& w, Id character, std::string_view key) {
   const Character* c = w.character(character);
-  return c && hasModKey(w, c->modifiers, key);
+  if (!c) return false;
+  if (hasModKey(w, c->modifiers, key)) return true;
+  for (Id m : talentModifiers(w, character))
+    if (const Modifier* x = w.modifier(m); x && x->key == key) return true;
+  return false;
+}
+
+std::vector<Id> talentModifiers(const World& w, Id character) {
+  std::vector<Id> out;
+  const Character* c = w.character(character);
+  if (!c || c->talents.empty()) return out;
+  const HeroClass* hc = w.heroClass(c->heroClass);
+  if (!hc) return out;
+  for (Id t : c->talents)
+    if (const Talent* x = hc->talent(t))
+      for (Id m : x->modifiers)
+        if (std::find(out.begin(), out.end(), m) == out.end()) out.push_back(m);
+  return out;
 }
 bool armyHas(const World& w, Id army, std::string_view key) {
   const Army* a = w.army(army);
@@ -194,7 +234,7 @@ bool kindFits(ModKind k, ModTarget t) {
     case ModKind::Faction: return t == ModTarget::Faction;
     case ModKind::Army: return t == ModTarget::Army;
     case ModKind::Hero: return t == ModTarget::Character;
-    default: return false;
+    default: return false;   // модификаторы археологических групп — только группам (rules/archaeology.cpp)
   }
 }
 
@@ -249,6 +289,15 @@ void dropModifier(Tx& tx, ModTarget t, Id target, Id modifier) {
     if (key == schema::mod::Dead) c.burial = 0;
     if (key == schema::mod::Captive) c.captor = 0;
   }
+  // Любое снятие «Чумы» даёт провинции «Временный иммунитет» (ТЗ «Доработки №3», п.4).
+  if (t == ModTarget::Province && key == schema::mod::Plague) {
+    const Id imm = ensureBuiltinMod(tx, schema::mod::PlagueImmunity);
+    if (!contains(tx.w().province(target)->modifiers, imm)) {
+      Province& p = tx.province(target);
+      p.modifiers.push_back(imm);
+      p.modTurns[imm] = schema::kImmunityTurns;
+    }
+  }
 }
 
 void addModifier(Tx& tx, ModTarget t, Id target, Id modifier, int turns) {
@@ -276,6 +325,10 @@ void addModifier(Tx& tx, ModTarget t, Id target, Id modifier, int turns) {
   }
   if (t == ModTarget::Army && key == schema::mod::Sadism && !hasModKey(w, cur, schema::mod::DemonArmy) && !hasModKey(w, cur, schema::mod::Ruthless))
     fail("«Изуверское наслаждение» — только для войск с модификатором «Армия демонов» или «Безжалостная армия»");
+  if (t == ModTarget::Province && key == schema::mod::Plague) {
+    std::string why;
+    if (!canPlague(w, target, &why)) fail(why);
+  }
   const int n = turns < 0 ? std::max(0, m->duration) : turns;
   ModSlot s = slotOf(tx, t, target);
   s.list->push_back(modifier);
@@ -317,6 +370,27 @@ void setModifiers(Tx& tx, ModTarget t, Id target, const std::vector<Id>& mods) {
   *s.list = std::move(ordered);
 }
 
+// ================================================================ константы: базовая стоимость
+void setConstantRes(Tx& tx, std::string_view key, Id res, double amount, bool essence) {
+  if (!std::isfinite(amount) || amount < 0) fail("Количество — число не меньше 0");
+  Constant& c = ensureConstant(tx, key);
+  if (c.type != ConstType::Resources) fail("«" + c.name + "» — не список ресурсов");
+  auto& list = essence ? c.ess : c.res;
+  const auto& floor = essence ? c.minEss : c.minRes;
+  if (essence ? !tx.w().essence(res) : !tx.w().resource(res)) fail(essence ? "Эссенция не найдена" : "Ресурс не найден");
+  auto it = floor.find(res);
+  if (it != floor.end() && amount + 1e-9 < it->second)
+    fail("Базовая стоимость «" + c.name + "»: не меньше " + fmtNum(it->second, 3) + " — её можно увеличивать, но не уменьшать");
+  list[res] = amount;
+}
+
+void removeConstantRes(Tx& tx, std::string_view key, Id res, bool essence) {
+  Constant& c = ensureConstant(tx, key);
+  const auto& floor = essence ? c.minEss : c.minRes;
+  if (floor.count(res)) fail("«" + c.name + "»: базовый ресурс или эссенцию нельзя убрать — только увеличить количество");
+  (essence ? c.ess : c.res).erase(res);
+}
+
 // ================================================================ модификаторы, которые ставятся сами
 int councilAssigned(const World& w, Id faction) {
   const Faction* f = w.faction(faction);
@@ -344,7 +418,14 @@ std::vector<AutoMod> autoModifiers(const World& w, Id faction) {
   const std::string seats = std::to_string(n) + " " + plural(n, "назначение", "назначения", "назначений") + " в совете";
   if (n == 0) addKey(schema::mod::Decentralization, "В совете нет назначений");
   else if (n <= 3) addKey(schema::mod::WeakControl, seats);
-  else addKey(schema::mod::Centralized, seats);
+  else {
+    addKey(schema::mod::Centralized, seats);
+    // «Влияние совета» (ТЗ «Доработки №1», п.4): вместе с «Централизованной властью» — значение модификатора за каждую
+    // должность в совете.
+    const int posts = int(f->council.size());
+    addKey(schema::mod::CouncilInfluence, std::to_string(posts) + " " + plural(posts, "должность", "должности", "должностей") + " в совете");
+    if (!out.empty() && out.back().key == schema::mod::CouncilInfluence) out.back().scale = double(posts);
+  }
   // Голод (п.7): недостача провизии (ресурсов группы «Провизия» не хватило на расход населения).
   if (f->provisionDebt > 1e-9) addKey(schema::mod::Famine, "Недостача провизии " + fmtNum(f->provisionDebt, 2));
   // Должности (п.4–5): модификатор занятой или пустующей должности.
@@ -380,6 +461,22 @@ std::vector<AutoMod> autoProvinceModifiers(const World& w, Id province) {
     a.m = builtinMod(w, a.key);
     a.why = "Столица " + facName(w, o->id);
     if (a.m) out.push_back(std::move(a));
+  }
+  // «Ценности археологии»: достроенная «Гильдия Археологов» государства, изучившего технологию «Ценности археологии».
+  if (o && o->isState()) {
+    bool guild = false;
+    for (const ProvBuilding& pb : p->buildings) {
+      const Building* b = w.building(pb.building);
+      guild = guild || (b && b->key == schema::bld::ArchGuild && pb.builtLevel() >= 1);
+    }
+    if (guild && studiedTechKey(w, o->id, schema::tech::ArchValues)) {
+      AutoMod a;
+      a.key = schema::mod::ArchValues;
+      a.modifier = builtinModId(w, a.key);
+      a.m = builtinMod(w, a.key);
+      a.why = "Изучена технология «Ценности археологии»";
+      if (a.m) out.push_back(std::move(a));
+    }
   }
   return out;
 }

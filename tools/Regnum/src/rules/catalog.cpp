@@ -1,5 +1,6 @@
 // Regnum — группы ресурсов, реликвии, особые отряды, эссенции элементов, ключевой ресурс и цены найма строк армии
 // (ТЗ «Добавления в справочники», п.3–4; «Доработки», п.8 и 10; «Ввод новых механик», п.1–5).
+#include "codec/jpeg.h"
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -172,29 +173,110 @@ void setRelic(Tx& tx, Id relic, const std::string& name, Rarity rarity, const st
 
 void removeRelic(Tx& tx, Id relic) {
   if (!tx.w().relic(relic)) fail("Реликвия не найдена");
-  for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return contains(c.inventory, relic); }))
-    eraseValue(tx.character(cid).inventory, relic);
+  moveRelic(tx, relic, RelicPlace{});
   auto& list = tx.catalogs().relics;
   list.erase(std::remove_if(list.begin(), list.end(), [&](const Relic& r) { return r.id == relic; }), list.end());
 }
 
-Id relicHolder(const World& w, Id relic) {
-  Id who = 0;
+RelicPlace relicPlace(const World& w, Id relic) {
+  RelicPlace out;
+  if (!relic) return out;
+  bool found = false;
   w.characters.each([&](const Character& c) {
-    if (!who && contains(c.inventory, relic)) who = c.id;
+    if (found || !contains(c.inventory, relic)) return;
+    found = true;
+    out = RelicPlace{RelicPlace::Hero, c.id, 0, c.faction};
   });
-  return who;
+  if (found) return out;
+  w.provinces.each([&](const Province& p) {
+    if (found) return;
+    if (p.hiddenRelic == relic) {
+      found = true;
+      out = RelicPlace{RelicPlace::Hidden, p.id, 0, p.owner};
+      return;
+    }
+    for (const ProvBuilding& pb : p.buildings)
+      if (contains(pb.relics, relic)) {
+        found = true;
+        out = RelicPlace{RelicPlace::Building, p.id, pb.building, p.owner};
+        return;
+      }
+  });
+  if (found) return out;
+  w.factions.each([&](const Faction& f) {
+    if (found || !contains(f.relics, relic)) return;
+    found = true;
+    out = RelicPlace{RelicPlace::State, f.id, 0, f.id};
+  });
+  return out;
+}
+
+Id relicHolder(const World& w, Id relic) {
+  const RelicPlace p = relicPlace(w, relic);
+  return p.kind == RelicPlace::Hero ? p.id : 0;
+}
+
+bool isArchFind(const World& w, Id relic) {
+  const Relic* r = w.relic(relic);
+  const Id root = w.catalogs->relicGroupId(schema::kRelicArchFinds);
+  return r && root && w.catalogs->inRelicGroup(r->group, root);
+}
+
+void moveRelic(Tx& tx, Id relic, const RelicPlace& to) {
+  if (!tx.w().relic(relic)) fail("Реликвия не найдена");
+  const RelicPlace from = relicPlace(tx.w(), relic);
+  if (from.kind == to.kind && from.id == to.id && from.building == to.building) return;
+  switch (from.kind) {
+    case RelicPlace::Hero: eraseValue(tx.character(from.id).inventory, relic); break;
+    case RelicPlace::Hidden: {
+      Province& p = tx.province(from.id);
+      p.hiddenRelic = 0;
+      p.hiddenBy = 0;
+      break;
+    }
+    case RelicPlace::Building:
+      for (ProvBuilding& pb : tx.province(from.id).buildings)
+        if (pb.building == from.building) eraseValue(pb.relics, relic);
+      break;
+    case RelicPlace::State: eraseValue(tx.faction(from.id).relics, relic); break;
+    case RelicPlace::Free: break;
+  }
+  switch (to.kind) {
+    case RelicPlace::Hero: tx.character(to.id).inventory.push_back(relic); break;
+    case RelicPlace::Hidden: {
+      Province& p = tx.province(to.id);
+      if (p.hiddenRelic) fail("В провинции уже спрятана реликвия");
+      p.hiddenRelic = relic;
+      p.hiddenBy = to.owner;
+      break;
+    }
+    case RelicPlace::Building: {
+      bool put = false;
+      for (ProvBuilding& pb : tx.province(to.id).buildings)
+        if (pb.building == to.building) {
+          pb.relics.push_back(relic);
+          put = true;
+        }
+      if (!put) fail("Постройки нет в провинции");
+      break;
+    }
+    case RelicPlace::State: tx.faction(to.id).relics.push_back(relic); break;
+    case RelicPlace::Free: break;
+  }
 }
 
 void giveRelic(Tx& tx, Id character, Id relic) {
-  needCharacter(tx.w(), character);
+  const Character& c0 = needCharacter(tx.w(), character);
   const Relic* r = tx.w().relic(relic);
   if (!r) fail("Реликвия не найдена");
-  const Id was = relicHolder(tx.w(), relic);
-  if (was == character) return;
+  const RelicPlace from = relicPlace(tx.w(), relic);
+  if (from.kind == RelicPlace::Hero && from.id == character) return;
+  // Находки археологов (ТЗ «Доработки №2», п.11) — героям только из владений их государства, не из свободных.
+  if (isArchFind(tx.w(), relic) && (from.kind == RelicPlace::Free || !c0.faction || from.owner != c0.faction))
+    fail(q(r->name) + " — археологическая находка: героям её не назначают напрямую, только из владений их государства");
   const std::string rn = q(r->name);
-  if (was) eraseValue(tx.character(was).inventory, relic);
-  tx.character(character).inventory.push_back(relic);
+  const Id was = from.kind == RelicPlace::Hero ? from.id : 0;
+  moveRelic(tx, relic, RelicPlace{RelicPlace::Hero, character, 0, c0.faction});
   const Character& c = *tx.w().character(character);
   LogRefs refs{0, 0, c.faction ? std::vector<Id>{c.faction} : std::vector<Id>{}};
   addLog(tx, LogKind::Note,
@@ -204,7 +286,169 @@ void giveRelic(Tx& tx, Id character, Id relic) {
 void takeRelic(Tx& tx, Id character, Id relic) {
   const Character& c = needCharacter(tx.w(), character);
   if (!contains(c.inventory, relic)) return;
-  eraseValue(tx.character(character).inventory, relic);
+  // Из инвентаря героя — государству героя (если оно есть), иначе реликвия свободна.
+  const Faction* f = tx.w().faction(c.faction);
+  moveRelic(tx, relic, f && f->isState() ? RelicPlace{RelicPlace::State, f->id, 0, f->id} : RelicPlace{});
+}
+
+void storeRelic(Tx& tx, Id province, Id building, Id relic) {
+  const Province& p = needProvince(tx.w(), province);
+  const Building& b = needBuilding(tx.w(), building);
+  const Relic* r = tx.w().relic(relic);
+  if (!r) fail("Реликвия не найдена");
+  if (!b.relicStore) fail(buildingName(tx.w(), building) + " — не хранилище реликвий");
+  const ProvBuilding* pb = nullptr;
+  for (const ProvBuilding& x : p.buildings)
+    if (x.building == building) pb = &x;
+  if (!pb) fail("Постройки " + buildingName(tx.w(), building) + " нет в провинции");
+  if (pb->builtLevel() < 1) fail(buildingName(tx.w(), building) + " ещё не достроена");
+  if (!p.owner) fail("У провинции нет владельца");
+  const RelicPlace from = relicPlace(tx.w(), relic);
+  if (from.kind == RelicPlace::Building && from.id == province && from.building == building) return;
+  // ТЗ «Доработки №1», п.9: из общего списка (свободные и реликвии государства-владельца) или из инвентаря героев того
+  // же государства.
+  const bool ok = from.kind == RelicPlace::Free || (from.kind == RelicPlace::State && from.id == p.owner) ||
+                  (from.kind == RelicPlace::Hero && from.owner == p.owner);
+  if (!ok) fail("В хранилище кладут свободные реликвии, реликвии государства или реликвии его героев");
+  moveRelic(tx, relic, RelicPlace{RelicPlace::Building, province, building, p.owner});
+}
+
+void unstoreRelic(Tx& tx, Id province, Id building, Id relic) {
+  const Province& p = needProvince(tx.w(), province);
+  const RelicPlace from = relicPlace(tx.w(), relic);
+  if (from.kind != RelicPlace::Building || from.id == 0 || from.id != province || from.building != building) fail("Реликвии нет в этой постройке");
+  const Faction* f = tx.w().faction(p.owner);
+  moveRelic(tx, relic, f && f->isState() ? RelicPlace{RelicPlace::State, f->id, 0, f->id} : RelicPlace{});
+}
+
+void releaseStateRelic(Tx& tx, Id state, Id relic) {
+  const Faction& f = needFaction(tx.w(), state);
+  if (!contains(f.relics, relic)) fail("Реликвии нет у государства");
+  moveRelic(tx, relic, RelicPlace{});
+}
+
+// ================================================================ группы реликвий (ТЗ «Доработки №1», п.14)
+namespace {
+
+const RelicGroup& needRelicGroup(const World& w, Id group) {
+  const RelicGroup* g = w.catalogs->relicGroup(group);
+  if (!g) fail(group ? "Группа реликвий не найдена" : "Не выбрана группа реликвий");
+  return *g;
+}
+
+}  // namespace
+
+Id addRelicGroup(Tx& tx, const std::string& name, Id parent) {
+  if (parent) needRelicGroup(tx.w(), parent);
+  std::vector<std::string> taken;
+  for (const RelicGroup& g : tx.w().catalogs->relicGroups)
+    if (g.parent == parent) taken.push_back(g.name);
+  std::string n = trim(name);
+  if (n.empty()) {
+    n = uniqueName(taken, parent ? "Новая подгруппа" : "Новая группа");
+  } else {
+    for (const std::string& t : taken)
+      if (utf8::searchKey(t) == utf8::searchKey(n)) fail("Группа «" + t + "» уже есть" + (parent ? " в этой группе" : ""));
+  }
+  RelicGroup g;
+  g.id = tx.nextId(Seq::RelicGroup);
+  g.name = n;
+  g.parent = parent;
+  tx.catalogs().relicGroups.push_back(g);
+  return g.id;
+}
+
+void renameRelicGroup(Tx& tx, Id group, const std::string& name) {
+  const RelicGroup& g = needRelicGroup(tx.w(), group);
+  const std::string n = trim(name);
+  if (n.empty()) fail("Название группы не может быть пустым");
+  for (const RelicGroup& o : tx.w().catalogs->relicGroups)
+    if (o.id != group && o.parent == g.parent && utf8::searchKey(o.name) == utf8::searchKey(n)) fail("Группа «" + o.name + "» уже есть рядом");
+  for (RelicGroup& x : tx.catalogs().relicGroups)
+    if (x.id == group) x.name = n;
+}
+
+void setRelicGroupParent(Tx& tx, Id group, Id parent) {
+  needRelicGroup(tx.w(), group);
+  if (parent) needRelicGroup(tx.w(), parent);
+  if (parent == group || (parent && tx.w().catalogs->inRelicGroup(parent, group))) fail("Группа не может войти в саму себя или в свою подгруппу");
+  for (RelicGroup& x : tx.catalogs().relicGroups)
+    if (x.id == group) x.parent = parent;
+}
+
+void removeRelicGroup(Tx& tx, Id group) {
+  const RelicGroup g = needRelicGroup(tx.w(), group);
+  if (g.key == schema::kRelicArchFinds)
+    fail(q(g.name.empty() ? std::string("Без названия") : g.name) + " нужна археологии (находки героям напрямую не назначаются) — её нельзя удалить");
+  Catalogs& c = tx.catalogs();
+  for (RelicGroup& x : c.relicGroups)
+    if (x.parent == group) x.parent = g.parent;
+  for (Relic& r : c.relics)
+    if (r.group == group) r.group = g.parent;
+  c.relicGroups.erase(std::remove_if(c.relicGroups.begin(), c.relicGroups.end(), [&](const RelicGroup& x) { return x.id == group; }), c.relicGroups.end());
+}
+
+void setRelicGroup(Tx& tx, Id relic, Id group) {
+  if (!tx.w().relic(relic)) fail("Реликвия не найдена");
+  if (group) needRelicGroup(tx.w(), group);
+  for (Relic& r : tx.catalogs().relics)
+    if (r.id == relic) r.group = group;
+}
+
+std::vector<Id> relicsIn(const World& w, Id group) {
+  std::vector<Id> out;
+  const Catalogs& c = *w.catalogs;
+  for (const Relic& r : c.relics)
+    if (!group || c.inRelicGroup(r.group, group)) out.push_back(r.id);
+  return out;
+}
+
+std::vector<Id> childRelicGroups(const World& w, Id parent) {
+  std::vector<Id> out;
+  for (const RelicGroup& g : w.catalogs->relicGroups)
+    if (g.parent == parent) out.push_back(g.id);
+  return out;
+}
+
+std::string relicGroupPath(const World& w, Id group) {
+  std::vector<std::string> parts;
+  for (int guard = 0; group && guard < 64; guard++) {
+    const RelicGroup* g = w.catalogs->relicGroup(group);
+    if (!g) break;
+    parts.insert(parts.begin(), g->name.empty() ? std::string("Без названия") : g->name);
+    group = g->parent;
+  }
+  return join(parts, " / ");
+}
+
+void sortByRarity(const World& w, std::vector<Id>& relics) {
+  std::stable_sort(relics.begin(), relics.end(), [&](Id x, Id y) {
+    const Relic* a = w.relic(x);
+    const Relic* b = w.relic(y);
+    if (!a || !b) return a != nullptr;
+    if (a->rarity != b->rarity) return rarityAbove(a->rarity, b->rarity);
+    return compareRu(a->name, b->name) < 0;
+  });
+}
+
+void setRelicImage(Tx& tx, Id relic, const std::string& bytes) {
+  if (!tx.w().relic(relic)) fail("Реликвия не найдена");
+  constexpr size_t kMaxBytes = size_t(4) << 20;
+  if (bytes.size() > kMaxBytes) fail("Изображение реликвии слишком большое (больше 4 МБ)");
+  if (!bytes.empty()) {
+    auto img = codec::decodeImage(bytes);
+    if (!img || img->empty()) fail("Файл не похож на изображение PNG или JPEG");
+  }
+  for (Relic& r : tx.catalogs().relics)
+    if (r.id == relic) r.image = bytes;
+}
+
+void setRelicEntity(Tx& tx, Id relic, const std::string& entity) {
+  if (!tx.w().relic(relic)) fail("Реликвия не найдена");
+  const std::string e = trim(entity);
+  if (e.size() > 64) fail("ID карточки слишком длинный");
+  for (Relic& r : tx.catalogs().relics)
+    if (r.id == relic) r.entity = e;
 }
 
 // ================================================================ ключевой ресурс
@@ -218,7 +462,30 @@ bool keyAllowed(const World& w, UnitType type, Id res) {
   if (!g || !c.resourceIn(res, g)) return false;
   if (k.exclude)
     if (Id x = c.groupId(k.exclude); x && c.resourceIn(res, x)) return false;
+  if (k.exclude2)
+    if (Id x = c.groupId(k.exclude2); x && c.resourceIn(res, x)) return false;
   return true;
+}
+
+std::vector<Id> shipKeyResources(const World& w, ShipType type) {
+  std::vector<Id> out;
+  const schema::KeyRule k = schema::shipKeyRule(type);
+  const Id g = k.group ? w.catalogs->groupId(k.group) : 0;
+  if (!g) return out;
+  for (const CatalogItem& r : w.catalogs->resources)
+    if (w.catalogs->resourceIn(r.id, g)) out.push_back(r.id);
+  return out;
+}
+
+void setFleetRowKey(Tx& tx, Id faction, Id row, Id res) {
+  const Faction& f = needFaction(tx.w(), faction);
+  const FleetRow* r = f.fleetRow(row);
+  if (!r) fail("Строки нет в таблице флота " + facName(tx.w(), faction));
+  if (res && !contains(shipKeyResources(tx.w(), r->type), res))
+    fail(r->type == ShipType::SeaMonster ? "Ключевой ресурс морского чудовища — из подгруппы «Морские чудовища»"
+                                         : std::string("У этого типа судна нет ключевого ресурса"));
+  for (FleetRow& x : tx.faction(faction).fleet)
+    if (x.id == row) x.keyRes = res;
 }
 
 std::vector<Id> keyResources(const World& w, UnitType type) {
@@ -230,10 +497,18 @@ std::vector<Id> keyResources(const World& w, UnitType type) {
 
 namespace {
 
-// Проверка цены юнита (строки или особого отряда).
-void checkKey(const World& w, UnitType type, Id res, double per) {
+// Проверка цены юнита (строки или особого отряда). Особый отряд задаёт свои цены: ключевой ресурс — любой ресурс
+// справочника, не меньше 1 на юнит (ТЗ «Доработки №4», п.1.9–1.10, 5).
+void checkKey(const World& w, UnitType type, Id res, double per, bool special = false) {
   const schema::KeyRule k = schema::keyRule(type);
   if (!res) return;
+  if (special) {
+    if (!w.resource(res)) fail("Ресурс не найден");
+    needFinite(per, "Ключевой ресурс на юнит");
+    if (per < 1) fail("Ключевого ресурса на юнит — не меньше 1");
+    if (per > kMaxAmount) fail("Ключевой ресурс на юнит: слишком большое число");
+    return;
+  }
   if (!schema::needsKeyResource(type)) fail("У типа «" + typeName(type) + "» нет ключевого ресурса");
   if (!keyAllowed(w, type, res)) {
     if (k.resKey) fail("Ключевой ресурс военных механизмов — «Запчасти механизмов»");
@@ -248,11 +523,13 @@ void checkKey(const World& w, UnitType type, Id res, double per) {
 
 // Ключевой ресурс, раса и цены под новый тип: неподходящее снимается.
 template <class R>
-void fitToType(const World& w, R& r) {
-  if (r.keyRes && !keyAllowed(w, r.type, r.keyRes)) r.keyRes = 0;
-  if (schema::keyRule(r.type).fixedOne || r.keyPer < 1) r.keyPer = 1;
+void fitToType(const World& w, R& r, bool special = false) {
+  if (!special && r.keyRes && !keyAllowed(w, r.type, r.keyRes)) r.keyRes = 0;
+  if ((!special && schema::keyRule(r.type).fixedOne) || r.keyPer < 1) r.keyPer = 1;
   if (schema::isElemental(r.type)) {
     r.extra.clear();   // элементали нанимаются только за эссенции
+    r.keyRes = 0;
+    r.keyPer = 1;
     r.race = schema::kRaceElemental;
   } else {
     r.essUpkeep.clear();
@@ -267,6 +544,7 @@ void setRowType(Tx& tx, Id faction, Id row, UnitType type) {
   const ArmyRow cur = needRow(tx.w(), faction, row);
   notSpecial(cur);
   if (cur.type == type) return;
+  if (cur.merc && !mercType(type)) fail("Наёмники — только пехота и кавалерия");
   const StateKind kind = stateKindOf(tx.w(), faction);
   ArmyRow& r = rowOf(tx, faction, row);
   if (r.name == schema::unitType(r.type).name) r.name = schema::unitType(type).name;   // имя по типу следует за типом
@@ -364,8 +642,8 @@ void setSpecial(Tx& tx, const SpecialUnit& s0) {
   for (const SpecialUnit& o : tx.w().catalogs->specials)
     if (o.id != s.id && utf8::searchKey(o.name) == utf8::searchKey(s.name)) fail("Особый отряд «" + o.name + "» уже есть");
   if (int(s.type) < 0 || s.type >= UnitType::Count) fail("Неизвестный тип войск");
-  fitToType(tx.w(), s);
-  checkKey(tx.w(), s.type, s.keyRes, s.keyRes ? s.keyPer : 1);
+  fitToType(tx.w(), s, true);
+  checkKey(tx.w(), s.type, s.keyRes, s.keyRes ? s.keyPer : 1, true);
   needAmount(s.upkeep, "Содержание");
   for (auto& [res, v] : s.extra) {
     if (!tx.w().resource(res)) fail("Ресурс не найден");

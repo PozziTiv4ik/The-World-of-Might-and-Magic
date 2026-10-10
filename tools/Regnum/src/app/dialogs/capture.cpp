@@ -66,8 +66,8 @@ struct CaptureDialog final : Dialog {
     if (!a.act(std::string(kOptions[int(how)].button) + ": " + pn, [&](Tx& tx) { rules::capture(tx, ar, pid, how, pct); })) return;
     switch (how) {
       case Capture::Occupy: a.toast("Провинция оккупирована: " + pn, ToastKind::Success, "occupied"); break;
-      case Capture::Plunder: a.toast("Разграблено: +" + fmtMoney(o.plunderGold) + " золота", ToastKind::Success, "coins"); break;
-      case Capture::Raze: a.toast("Разорено: +" + fmtMoney(o.razeGold) + " золота", ToastKind::Success, "flame"); break;
+      case Capture::Plunder: a.toast("Разграблено: +" + fmtGold(o.plunderGold) + " золота", ToastKind::Success, "coins"); break;
+      case Capture::Raze: a.toast("Разорено: +" + fmtGold(o.razeGold) + " золота", ToastKind::Success, "flame"); break;
       default: {
         const i64 slaves = i64(std::floor(double(o.population) * pct / 100.0));
         a.toast("Опустошено: в рабство " + fmtCount(slaves) + ", погибли " + fmtCount(o.population - slaves), ToastKind::Warning, "skull");
@@ -123,7 +123,7 @@ struct CaptureDialog final : Dialog {
           ui::icon(kOptions[i].icon, o.can[i] ? ui::Ink::Dim : ui::Ink::Muted, 16);
         }
         const double gold = how == Capture::Plunder ? o.plunderGold : how == Capture::Raze ? o.razeGold : 0;
-        if (gold > 0) ui::label("+" + fmtMoney(gold), {.font = ui::Font::Strong, .ink = o.can[i] ? ui::Ink::Success : ui::Ink::Muted, .align = ui::Align::Right,
+        if (gold > 0) ui::label("+" + fmtGold(gold), {.font = ui::Font::Strong, .ink = o.can[i] ? ui::Ink::Success : ui::Ink::Muted, .align = ui::Align::Right,
                                                        .icon = "coins", .tooltip = "Золото в казну"});
         else ui::next(0, 0);
       }

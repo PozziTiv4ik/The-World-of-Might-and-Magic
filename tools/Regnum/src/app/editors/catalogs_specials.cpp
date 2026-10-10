@@ -103,7 +103,7 @@ void upkeepGlyphs(const World& w, const SpecialUnit& s) {
     if (s.essUpkeep.empty()) ui::label("—", {.ink = ui::Ink::Muted});
     return;
   }
-  if (s.upkeep > 0) amountGlyph("coins", w::resourceColor(w, kGold), s.upkeep, "Золото на 1 юнит в ход");
+  if (s.upkeep > 0) amountGlyph("coins", w::resourceColor(w, kGold), s.upkeep, "Золото на 1 юнит в ход", true);
   else ui::label("—", {.ink = ui::Ink::Muted});
 }
 
@@ -375,7 +375,7 @@ void specialCard(App& a, State& st, const World& w, const SpecialUnit& s) {
   } else {
     ui::prop("Содержание", "coins", 0.37f);
     double up = s.upkeep;
-    if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 3, .unit = "в ход", .icon = "coins", .disabled = ro,
+    if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 3, .unit = "тыс. в ход", .icon = "coins", .disabled = ro,
                                        .tooltip = "Золото на 1 юнит в ход"}))
       editSpecial(a, id, "Содержание особого отряда", [&](SpecialUnit& x) { x.upkeep = std::max(0.0, up); }, "special:upkeep:" + std::to_string(id));
     a.markUi("catalogs.special.upkeep");

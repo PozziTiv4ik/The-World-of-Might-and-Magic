@@ -306,8 +306,19 @@ TEST(rules_tz_recruit_undead_and_ships) {
     setStateKind(tx, f.A, StateKind::Undead);
     row = addArmyRow(tx, f.A, UnitType::HeavyInf, "Скелеты", 0, 0);
     frig = addFleetRow(tx, f.A, ShipType::Frigate, "", 0, 1);
-    ensureConstant(tx, schema::cst::FrigateCost).res[kGold] = 100;
+    Constant& cost = ensureConstant(tx, schema::cst::FrigateCost);
+    cost.res = {{kGold, 100}};
+    cost.minRes.clear();
     tx.faction(f.A).res[kGold] = 250;
+  });
+  // Без верфи корабли не строятся (ТЗ «Доработки №3», п.2).
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { recruit(tx, f.A, frig, 1); }); }), "верфь"));
+  f.tx([&](Tx& tx) {
+    tx.province(f.p[0]).owner = f.A;
+    const Id yard = createBuilding(tx, 0, "Верфь");
+    setBuildingFlag(tx, yard, BuildingFlag::Shipyard, true);
+    setLevelShips(tx, yard, 1, 1u << int(ShipType::Frigate));
+    placeBuilding(tx, f.p[0], yard, 1);
   });
   CHECK_EQ(unitRace(f.w(), f.A, *f.w().faction(f.A)->armyRow(row)), std::string(schema::kRaceUndead));
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { recruit(tx, f.A, row, 10); }); }), "Трупы"));

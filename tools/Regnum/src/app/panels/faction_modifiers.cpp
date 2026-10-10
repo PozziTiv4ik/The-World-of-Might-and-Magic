@@ -129,6 +129,14 @@ void autoSection(App& a, const std::vector<rules::AutoMod>& autos) {
     c.tip = am.why;
     if (am.m)
       if (std::string fx = effectsTip(*am.m); !fx.empty()) c.tip += "\n" + fx;
+    // Множитель («Влияние совета» — за каждую должность): «−2 % × 7».
+    if (am.m && std::fabs(am.scale - 1) > 1e-9) {
+      for (int k = 0; k < kFxCount; k++)
+        if (am.m->has(Fx(k)) && am.m->fx[size_t(k)] != 0) {
+          c.label += " " + fmtSigned(am.m->fx[size_t(k)], 0) + (schema::effect(Fx(k)).unit[0] == '%' ? "\xC2\xA0%" : "") + " × " + fmtNum(am.scale);
+          c.tip += "\nИтого: " + w::effectText(Fx(k), am.m->fx[size_t(k)] * am.scale);
+        }
+    }
     c.clickable = am.modifier != 0;
     chips.push_back(std::move(c));
   }
@@ -165,7 +173,8 @@ void drawModifiers(App& a, Id id) {
     bool any = false;
     // Глобальные эффекты фракции (и эффекты всех её войск).
     std::vector<ChipItem> global;
-    for (Fx g : {Fx::IncomePct, Fx::ArmyUpkeepPct, Fx::FleetUpkeepPct, Fx::ResearchTimePct, Fx::LoyaltyPerTurn}) {
+    for (Fx g : {Fx::IncomePct, Fx::ArmyUpkeepPct, Fx::FleetUpkeepPct, Fx::ResearchTimePct, Fx::LoyaltyPerTurn, Fx::ArchSuccessPct, Fx::ArchVitalityPct,
+                 Fx::ArchExpPct, Fx::ArchUpkeepPct, Fx::ArchTreasurePct, Fx::ArchDiscoveryPct, Fx::ArchStartLevel}) {
       double v = fx[g];
       if (std::fabs(v) < 1e-9) continue;
       global.push_back({w::effectText(g, v), fxIcon(g), Color(0, 0, 0, 0), w::effectGood(g, v) ? ui::Tone::Success : ui::Tone::Danger, schema::effect(g).name});

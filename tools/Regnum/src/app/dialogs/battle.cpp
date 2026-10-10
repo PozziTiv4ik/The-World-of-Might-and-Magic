@@ -235,6 +235,17 @@ struct BattleDialog final : Dialog {
           t.text(fmtCount(after), after == 0 ? ui::Ink::Danger : loss > 0 ? ui::Ink::Warning : ui::Ink::Normal);
         }
       }
+      // Войско на борту (ТЗ «Доработки №3», п.6): гибнет вместе с флотом.
+      const Army* cargo = fleet ? w.army(rules::cargoOf(w, ar.id)) : nullptr;
+      if (cargo) {
+        const i64 n = rules::armySize(w, cargo->id);
+        ui::HStack hs(26, ui::Align::Left, 6);
+        ui::icon("army", ui::Ink::Accent, 16, "Войско на борту");
+        ui::label(objectName(*cargo), {.font = ui::Font::Strong});
+        a.markUi(role == 0 ? "battle.cargo.attacker" : "battle.cargo.defender");
+        ui::flex();
+        ui::label(fmtCount(n) + " " + plural(n, "воин", "воина", "воинов"), {.ink = ui::Ink::Dim});
+      }
       // Итог стороны.
       i64 before = unitCount(ar), lost = lossTotal(losses, ar.id), after = before - lost;
       {
@@ -246,7 +257,9 @@ struct BattleDialog final : Dialog {
         ui::label(fmtCount(after), {.font = ui::Font::Strong, .ink = after == 0 ? ui::Ink::Danger : ui::Ink::Normal});
         if (lost > 0) ui::tag(fmtSigned(double(-lost)), ui::Tone::Danger);
       }
-      if (after == 0) ui::tag(fleet ? "Флот будет потоплен" : "Войско будет уничтожено", ui::Tone::Danger, "skull");
+      if (after == 0)
+        ui::tag(fleet ? (cargo ? "Флот будет потоплен вместе с войском на борту" : "Флот будет потоплен") : "Войско будет уничтожено", ui::Tone::Danger,
+                "skull");
     }
     cardsH = std::max(cardsH, ui::lastItem().rect.h);
   }

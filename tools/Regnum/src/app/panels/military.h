@@ -32,6 +32,7 @@ struct UnitRow {
   Id special = 0;                 // особый отряд справочника (строка армии)
   bool keyMissing = false;        // ключевой ресурс обязателен, но не задан или не подходит типу
   bool elemental = false;         // элементали: содержание эссенциями
+  bool merc = false;              // наёмники: найм и содержание только золотом (отметка на плитке)
 };
 std::vector<UnitRow> unitRows(const World& w, Id faction, bool fleet);
 std::optional<UnitRow> unitRow(const World& w, Id faction, Id row, bool fleet);
@@ -106,8 +107,26 @@ void askDisband(App& a, Id army);                  // подтверждение
 void dissolveAllied(App& a, Id army);              // распустить союзное войско (флот)
 void askRemoveRow(App& a, Id faction, Id row, bool fleet);   // удалить строку таблицы с подтверждением
 
+// Наёмники (ТЗ «Доработки №3», п.12–13; military_merc.cpp): кнопка «Создать войско наемников» с окном (тип, название,
+// цена найма, содержание) и лимит «Наёмники X из Y» во вкладке «Войска»; цена найма в карточке строки наёмников.
+void mercBar(App& a, Id faction);
+void mercHireField(App& a, Id faction, Id row);
+
+// ---------------------------------------------------------------- флот (ТЗ «Доработки №3», п.3, 6; «№4», п.9)
+// Обмен отрядами двух объектов одного государства (dialogs/exchange.cpp); done(changed) — после закрытия окна.
+void openExchange(App& a, Id first, Id second, std::function<void(App&, bool)> done = {});
+// Высадка войска с флота: инструмент карты «Высадка войска» (tools_landing.cpp), Esc — отмена.
+void startLanding(App& a, Id fleet);
+// Вместимость флота строкой «занято / всего» с полосой (перегруз — красным); used < 0 — войско на борту.
+void capacityRow(App& a, Id fleet, i64 used = -1);
+// «Поставить флот» (military_naval.cpp): при «Свободном редактировании флотов» — инструмент карты, иначе — выбор
+// провинции фракции с верфью у моря (флот появляется у её берега). empty — кнопка пустого списка флотов.
+void placeFleetButton(App& a, Id faction, bool empty);
+
 // Инструменты карты «Новое войско» и «Новый флот» (повторная регистрация в тестах).
 std::unique_ptr<MapTool> makePlaceTool(ArmyKind kind);
+// «Новый флот» недоступен без «Свободного редактирования флотов» (ТЗ «Доработки №3», п.3): причина; пусто — доступен.
+std::string fleetToolBlocked(App& a);
 // Фракция для новых объектов: последняя выбранная в инструменте (0 — ещё не выбирали).
 Id& lastPlaceFaction();
 // Выбрать инструмент постановки объекта для фракции.

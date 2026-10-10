@@ -33,7 +33,10 @@ bool canSiege(const World& w, Id army, Id province, std::string* why) {
   const Army* a = w.army(army);
   if (!a) return no("Войско не найдено");
   if (a->isFleet()) return no("Флот не штурмует провинции");
+  if (carrierOf(w, army)) return no("Войско на борту флота — сначала высадите его");
   if (a->allied()) return no("Союзное войско не штурмует провинции — сначала распустите союз");
+  // Войска без государства не вступают в бой с местными войсками и гарнизонами (ТЗ «Доработки №2», п.19.2.2).
+  if (const Faction* lf = w.faction(a->leader()); lf && lf->isWild()) return no("Войско без государства не штурмует провинции");
   const Province* p = w.province(province);
   if (!p) return no("Провинция не найдена");
   if (p->sea) return no("Морскую провинцию нельзя захватить");
@@ -224,7 +227,7 @@ void capture(Tx& tx, Id army, Id province, Capture how, int slavesPct) {
       if (o.plunderGold > 0) addStock(tx.faction(L), kGold, o.plunderGold);
       addModifier(tx, ModTarget::Province, province, ensureBuiltinMod(tx, schema::mod::Plundered), schema::kCaptureModTurns);
       shiftRelation(tx, L, owner, schema::kPlunderRelation);
-      addLog(tx, LogKind::War, facName(tx.w(), L) + " разграбляет провинцию " + pn + ": " + amount(o.plunderGold) + " золота", LogRefs{province, army, {L, owner}});
+      addLog(tx, LogKind::War, facName(tx.w(), L) + " разграбляет провинцию " + pn + ": " + amount(o.plunderGold) + " тыс. золота", LogRefs{province, army, {L, owner}});
       return;
     }
     case Capture::Raze: {
@@ -251,7 +254,7 @@ void capture(Tx& tx, Id army, Id province, Capture how, int slavesPct) {
           tx.army(army).pos = *spot;
           moved = ", войско отступило в провинцию " + provName(tx.w(), provinceAtTx(tx, *spot));
         }
-      addLog(tx, LogKind::War, facName(tx.w(), L) + " разоряет провинцию " + pn + ": " + amount(o.razeGold) + " золота" + moved, LogRefs{province, army, {L, owner}});
+      addLog(tx, LogKind::War, facName(tx.w(), L) + " разоряет провинцию " + pn + ": " + amount(o.razeGold) + " тыс. золота" + moved, LogRefs{province, army, {L, owner}});
       return;
     }
     case Capture::Devastate: {

@@ -24,6 +24,7 @@ const EnumInfo kShipTypes[int(ShipType::Count)] = {
   {"ship_line", "Линкор", "s-ship-line", 1},
   {"frigate", "Фрегат", "s-frigate", 1},
   {"galleon", "Торговый галеон", "s-galleon", 0},
+  {"sea_monster", "Морское чудовище", "s-sea-monster", 1},
 };
 
 const EnumInfo kRelStatus[4] = {
@@ -50,14 +51,15 @@ const EnumInfo kBuildingCats[int(BuildingCat::Count)] = {
   {"military", "Военные", "b-military", 0, 0xd0573f},
   {"economic", "Экономические", "b-economic", 0, 0xd6a531},
   {"industrial", "Промышленные", "b-industrial", 0, 0x7f8a99},
-  {"residential", "Жилые", "b-residential", 0, 0x4f9d69},
+  {"residential", "Жилые и сельско-хозяйственные", "b-residential", 0, 0x4f9d69},
   {"religious", "Религиозные", "b-religious", 0, 0x5b8fd6},
   {"cult", "Культовые", "b-cult", 0, 0x9b5bd6},
 };
 
-const EnumInfo kFactionKinds[2] = {
+const EnumInfo kFactionKinds[3] = {
   {"state", "Государство", "crown"},
   {"guild", "Торговая гильдия", "guild"},
+  {"wild", "Без государства", "skull"},
 };
 
 const EnumInfo kDealKinds[3] = {
@@ -86,6 +88,7 @@ const EnumInfo kLogKinds[int(LogKind::Count)] = {
   {"guild", "Гильдия", "guild"},
   {"population", "Население", "population"},
   {"note", "Запись", "note"},
+  {"arch", "Археология", "pickaxe"},
 };
 
 const EnumInfo kFlagPatterns[int(FlagPattern::Count)] = {
@@ -118,6 +121,13 @@ const EffectInfo kEffects[kFxCount] = {
   {Fx::FleetUpkeepPct, "fleetUpkeepPct", "Содержание флота", "%", -75, 75, false, false, false, false, "fleet-upkeep"},
   {Fx::ResearchTimePct, "researchTimePct", "Время исследования технологий", "%", -75, 400, false, false, false, false, "research"},
   {Fx::LoyaltyPerTurn, "loyaltyPerTurn", "Верность войска за ход", "%", -50, 50, false, true, false, false, "shield", true},
+  {Fx::ArchSuccessPct, "archSuccessPct", "Шанс успеха археологических групп", "%", 1, 5, false, false, false, false, "target", false, true},
+  {Fx::ArchVitalityPct, "archVitalityPct", "Живучесть археологических групп", "%", 1, 10, false, false, false, false, "heart", false, true},
+  {Fx::ArchExpPct, "archExpPct", "Опыт археологических групп", "%", 1, 20, false, false, false, false, "trend-up", false, true},
+  {Fx::ArchUpkeepPct, "archUpkeepPct", "Содержание археологических групп", "%", -50, 50, false, false, false, false, "expense", false, true},
+  {Fx::ArchTreasurePct, "archTreasurePct", "Археологические сокровища от действий групп", "%", 1, 100, false, false, false, false, "coins"},
+  {Fx::ArchDiscoveryPct, "archDiscoveryPct", "Шанс обнаружения археологического места", "%", 1, 50, false, false, false, false, "search"},
+  {Fx::ArchStartLevel, "archStartLevel", "Начальный уровень археологических групп", "", 1, 4, false, false, false, false, "star"},
 };
 
 const EnumInfo kStateKinds[int(StateKind::Count)] = {
@@ -132,6 +142,7 @@ const EnumInfo kModKinds[int(ModKind::Count)] = {
   {"faction", "Глобальный", "crown"},
   {"army", "Для армий", "army"},
   {"hero", "Для героев", "hero"},
+  {"arch", "Для археологических групп", "pickaxe"},
 };
 
 const EnumInfo kDealItemKinds[int(DealItemKind::Count)] = {
@@ -146,11 +157,22 @@ const EnumInfo kConstTypes[int(ConstType::Count)] = {
   {"values", "Список значений", "list"},
 };
 
-const BuiltinResource kBuiltinResources[4] = {
-  {kResGold, "Золото", 0xe2b33c, "coins", nullptr},
-  {kResCorpses, "Трупы", 0x8e8a7e, "skull", nullptr},
-  {kResEnergy, "Демоническая энергия", 0xc0392b, "flame", nullptr},
+const EnumInfo kChestItemKinds[int(ChestItemKind::Count)] = {
+  {"treasure", "Археологическая награда", "coins"},
+  {"gold", "Золото", "treasury"},
+  {"res", "Ресурс", "resource"},
+  {"relic", "Артефакт", "relic"},
+  {"essence", "Эссенция", "essence"},
+  {"chest", "Сундук сокровищ", "chest"},
+};
+
+const BuiltinResource kBuiltinResources[6] = {
+  {kResGold, "Золото", 0xe2b33c, "coins", grp::Currencies},
+  {kResCorpses, "Трупы", 0x8e8a7e, "skull", grp::Currencies},
+  {kResEnergy, "Демоническая энергия", 0xc0392b, "flame", grp::Currencies},
   {kResMechParts, "Запчасти механизмов", 0x8d97a5, "hammer", grp::MatIndustrial},
+  {kResArchTreasure, "Археологические сокровища", 0xd4a64a, "coins", grp::Currencies},
+  {kResShantiriScrolls, "Древние свитки Шантири", 0x5fd0c0, "scroll", grp::Currencies},
 };
 
 const BuiltinResource* builtinResource(std::string_view key) {
@@ -182,6 +204,7 @@ KeyRule keyRule(UnitType t) {
   } else if (t == UnitType::Beasts) {
     k.group = grp::Beasts;
     k.exclude = grp::Monsters;
+    k.exclude2 = grp::SeaMonsters;
   } else if (t == UnitType::Monsters) {
     k.group = grp::Monsters;
   } else if (t == UnitType::Machines) {
@@ -190,13 +213,20 @@ KeyRule keyRule(UnitType t) {
   }
   return k;
 }
+KeyRule shipKeyRule(ShipType t) {
+  KeyRule k;
+  if (t == ShipType::SeaMonster) k.group = grp::SeaMonsters;
+  return k;
+}
+
 bool needsKeyResource(UnitType t) {
   const KeyRule k = keyRule(t);
   return k.group || k.resKey;
 }
 
 bool isRuleGroup(std::string_view key) {
-  return key == grp::Provisions || key == grp::Beasts || key == grp::MountsGround || key == grp::MountsFlying || key == grp::Monsters;
+  return key == grp::Provisions || key == grp::Beasts || key == grp::MountsGround || key == grp::MountsFlying || key == grp::Monsters ||
+         key == grp::SeaMonsters || key == grp::Currencies;
 }
 
 namespace {
@@ -266,6 +296,21 @@ const std::vector<Modifier>& builtinModifiers() {
                    "Строить и получать доход с ценности может только государство демонов; даёт демоническую энергию."));
     v.push_back(mk(mod::Necromancer, "Некромант", ModKind::Hero, 0, "skull", 0x5b4a7a,
                    "После победы его войско получает трупы: 10 % побеждённых живых отрядов за каждого некроманта."));
+    v.push_back(mk(mod::Lich, "Лич", ModKind::Hero, 0, "lich", 0x3f6a6a,
+                   "После победы его войско получает трупы: 50 % побеждённых живых отрядов за каждого лича."));
+    v.push_back(mk(mod::CouncilInfluence, "Влияние совета", ModKind::Faction, 0, "council", 0x5b8fd6,
+                   "Вместе с «Централизованной властью»: значение действует за каждую должность в совете.",
+                   {{F::ResearchTimePct, kCouncilInfluencePerSeat}}));
+    v.push_back(mk(mod::Plague, "Чума", ModKind::Province, kPlagueTurns, "plague", 0x7f8f2a,
+                   "Истекая сама, распространяется на соседние провинции.", {{F::PopGrowthPct, -5}}));
+    v.push_back(mk(mod::PlagueImmunity, "Временный иммунитет", ModKind::Province, kImmunityTurns, "heal", 0x4fb09a,
+                   "Пока действует, чуму установить нельзя."));
+    v.push_back(mk(mod::ArchWounded, "Ранение в ходе исследования", ModKind::ArchGroup, 2, "warning", 0xb5523b,
+                   "Группу нельзя отправлять на исследования."));
+    v.push_back(mk(mod::ArchPlague, "Заражение чумой", ModKind::ArchGroup, kPlagueTurns, "plague", 0x7f8f2a,
+                   "Группа заражает чумой провинцию, на которую её назначают."));
+    v.push_back(mk(mod::ArchValues, "Ценности археологии", ModKind::Province, 0, "coins", 0xd4a64a,
+                   "Гильдия археологов: археологические сокровища каждый ход."));
     return v;
   }();
   return list;
@@ -280,7 +325,17 @@ const Modifier* builtinModifier(std::string_view key) {
 bool isNatureKey(std::string_view key) { return key == mod::Living || key == mod::Undead || key == mod::Demon || key == mod::Mechanism; }
 
 bool isAutoKey(std::string_view key) {
-  return key == mod::Capital || key == mod::Decentralization || key == mod::WeakControl || key == mod::Centralized || key == mod::Famine;
+  return key == mod::Capital || key == mod::Decentralization || key == mod::WeakControl || key == mod::Centralized || key == mod::Famine ||
+         key == mod::CouncilInfluence || key == mod::ArchValues;
+}
+
+const std::vector<BuiltinGen>& builtinGens() {
+  static const std::vector<BuiltinGen> v = {
+      {mod::Necromancer, true, "Эссенция смерти", 10},
+      {mod::Lich, true, "Эссенция смерти", 150},
+      {mod::ArchValues, false, "Археологические сокровища", 25},
+  };
+  return v;
 }
 
 const std::vector<Constant>& builtinConstants() {
@@ -313,13 +368,22 @@ const std::vector<Constant>& builtinConstants() {
     races.key = cst::UnitRaces;
     races.name = "Расы для отрядов";
     races.type = ConstType::Values;
-    races.values = {kRaceLiving, kRaceDemonic, kRaceUndead, kRaceMechanical, kRaceElemental};
+    races.values = {kRaceLiving, kRaceDemonic, kRaceUndead, kRaceMechanical, kRaceElemental, kRaceMercenary};
     races.builtin = true;
     races.desc = "Раса отряда: нежить и механизмы при мятеже остаются верными";
     v.push_back(races);
     v.push_back(num(cst::CorpsesPerUnit, "Трупов на 1 воина-нежить", 1, "Сколько трупов уходит на одного воина с расой «Нежить»"));
     v.push_back(num(cst::EnergyPerUnit, "Демонической энергии на 1 воина-демона", 100,
                     "Сколько демонической энергии уходит на одного воина с расой «Демонический»"));
+    v.push_back(res(cst::SeaMonsterCost, "Стоимость Морского чудовища",
+                    "Ресурсы и эссенции для одного морского чудовища (и ресурс подгруппы «Морские чудовища» строки флота)"));
+    v.push_back(num(cst::FrigateCapacity, "Вместимость фрегата", 1000, "Сколько воинов перевозит один фрегат"));
+    v.push_back(num(cst::LineCapacity, "Вместимость линкора", 5000, "Сколько воинов перевозит один линкор"));
+    v.push_back(num(cst::MercPerGuild, "Наемников за гильдию наемников", 2500, "Лимит наёмников государства за каждую «Гильдию Наемников»"));
+    v.push_back(num(cst::MercHire, "Найм наемника", 0.01, "Золото за найм одного наёмника (цена новой строки наёмников)"));
+    v.push_back(num(cst::ArchGroupPeople, "Население на археологическую группу", 100,
+                    "Сколько жителей (у государства нежити — трупов) уходит на одну археологическую группу"));
+    v.push_back(num(cst::ArchGroupGold, "Золото на археологическую группу", 5, "Сколько золота стоит одна археологическая группа"));
     return v;
   }();
   return list;
@@ -330,7 +394,16 @@ const char* shipCostKey(ShipType t) {
     case ShipType::ShipOfLine: return cst::ShipLineCost;
     case ShipType::Frigate: return cst::FrigateCost;
     case ShipType::Galleon: return cst::GalleonCost;
+    case ShipType::SeaMonster: return cst::SeaMonsterCost;
     default: return cst::FrigateCost;
+  }
+}
+
+const char* shipCapacityKey(ShipType t) {
+  switch (t) {
+    case ShipType::ShipOfLine: return cst::LineCapacity;
+    case ShipType::Frigate: return cst::FrigateCapacity;
+    default: return nullptr;
   }
 }
 
@@ -379,6 +452,12 @@ const char* idPrefix(Seq s) {
     case Seq::Relic: return "re";
     case Seq::Special: return "su";
     case Seq::ResGroup: return "rg";
+    case Seq::HeroClass: return "hc";
+    case Seq::Talent: return "tl";
+    case Seq::RelicGroup: return "rlg";
+    case Seq::ArchSite: return "as";
+    case Seq::Chest: return "ch";
+    case Seq::ArchGroup: return "ag";
     default: return "x";
   }
 }

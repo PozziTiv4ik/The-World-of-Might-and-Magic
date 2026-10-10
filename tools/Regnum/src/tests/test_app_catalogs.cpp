@@ -340,13 +340,14 @@ TEST(app_catalogs_lists_add_remove) {
   h.key(Key::Z, ctrl());
   quick(h);
   CHECK(Catalogs::find(h->world().catalogs->races, rid) != nullptr);
-  // «Золото» закреплено: Delete не удаляет (золото — в «Без группы», в конце дерева ресурсов).
+  // «Золото» закреплено: Delete не удаляет (золото — в группе «Валюты»).
   h->openEditor("catalogs", 1);   // ресурсы
   quick(h);
   CHECK(h->world().resource(kGold) != nullptr);
-  CHECK(h->uiRect("catalogs.nogroup") != nullptr);
-  CHECK(h->uiRect("catalogs.res.1") == nullptr);   // «Без группы» свёрнута
-  CHECK(clickRevealed(h, "catalogs.nogroup.toggle", "catalogs.table"));
+  const Id currencies = h->world().catalogs->groupId(schema::grp::Currencies);
+  CHECK(currencies != 0 && h->world().catalogs->resourceIn(kGold, currencies));
+  CHECK(h->uiRect("catalogs.res.1") == nullptr);   // «Валюты» свёрнута
+  CHECK(clickRevealed(h, "catalogs.group." + std::to_string(currencies) + ".toggle", "catalogs.table"));
   CHECK(reveal(h, "catalogs.res.1", "catalogs.table", 40));
   {
     const RectF* r = h->uiRect("catalogs.res.1");   // строка золота: щелчок по числам — выделение строки

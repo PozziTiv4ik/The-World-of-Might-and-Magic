@@ -18,7 +18,7 @@ extern const EnumInfo kRelStatus[4];
 extern const EnumInfo kProvSizes[3];
 extern const EnumInfo kCityTypes[4];
 extern const EnumInfo kBuildingCats[int(BuildingCat::Count)];
-extern const EnumInfo kFactionKinds[2];
+extern const EnumInfo kFactionKinds[3];
 extern const EnumInfo kDealKinds[3];
 extern const EnumInfo kDealModes[2];
 extern const EnumInfo kLogKinds[int(LogKind::Count)];
@@ -28,6 +28,8 @@ extern const EnumInfo kStateKinds[int(StateKind::Count)];
 extern const EnumInfo kModKinds[int(ModKind::Count)];
 extern const EnumInfo kDealItemKinds[int(DealItemKind::Count)];
 extern const EnumInfo kConstTypes[int(ConstType::Count)];
+// Поля сундука сокровищ (ChestItemKind).
+extern const EnumInfo kChestItemKinds[int(ChestItemKind::Count)];
 // Редкость реликвий: color — цвет подсветки (белая, синяя, фиолетовая, оранжевая, красная).
 extern const EnumInfo kRarities[int(Rarity::Count)];
 inline const EnumInfo& rarity(Rarity r) { return kRarities[int(r) >= 0 && int(r) < int(Rarity::Count) ? int(r) : 0]; }
@@ -64,6 +66,7 @@ struct EffectInfo {
   bool extra;           // не перечислен в ТЗ явно (слоты — из пункта 1.f.i)
   const char* icon;
   bool army = false;    // действует на войска (модификатор войска; у государства — на все его войска)
+  bool arch = false;    // действует на археологические группы (модификатор группы; у государства — на все его группы)
 };
 extern const EffectInfo kEffects[kFxCount];
 inline const EffectInfo& effect(Fx f) { return kEffects[int(f)]; }
@@ -136,6 +139,8 @@ constexpr const char* kResGold = "gold";
 constexpr const char* kResCorpses = "corpses";
 constexpr const char* kResEnergy = "demonEnergy";
 constexpr const char* kResMechParts = "mechParts";
+constexpr const char* kResArchTreasure = "archTreasure";      // «Археологические сокровища» (валюта археологии)
+constexpr const char* kResShantiriScrolls = "shantiriScrolls"; // «Древние свитки Шантири»
 // Прежний встроенный ресурс «Провизия» (до групп ресурсов): при чтении мира переносится в группу «Провизия».
 constexpr const char* kResLegacyProvisions = "provisions";
 struct BuiltinResource {
@@ -145,7 +150,7 @@ struct BuiltinResource {
   const char* icon;
   const char* group;    // ключ группы (schema::grp), в которой ресурс создаётся; nullptr — без группы
 };
-extern const BuiltinResource kBuiltinResources[4];
+extern const BuiltinResource kBuiltinResources[6];
 const BuiltinResource* builtinResource(std::string_view key);
 
 // Группы ресурсов, на которые опираются правила (ResGroup::key): провизия (расход населением и голод), звери и
@@ -168,6 +173,8 @@ constexpr const char* MatRaw = "matRaw";
 constexpr const char* MatPrecious = "matPrecious";
 constexpr const char* MatAlchemy = "matAlchemy";
 constexpr const char* MatIndustrial = "matIndustrial";
+constexpr const char* Currencies = "currencies";     // «Валюты»: золото, трупы, демоническая энергия, сокровища, свитки
+constexpr const char* SeaMonsters = "seaMonsters";   // «Звери / Морские чудовища»: ключевой ресурс морского чудовища
 }  // namespace grp
 // Группа нужна правилам (провизия, звери, ездовые, чудовища): удалить нельзя.
 bool isRuleGroup(std::string_view key);
@@ -176,10 +183,13 @@ bool isRuleGroup(std::string_view key);
 struct KeyRule {
   const char* group = nullptr;
   const char* exclude = nullptr;
+  const char* exclude2 = nullptr;   // ещё одна неподходящая подгруппа (звери — без морских чудовищ)
   const char* resKey = nullptr;
   bool fixedOne = true;   // ровно 1 на юнит (механизмы — не меньше 1)
 };
 KeyRule keyRule(UnitType t);
+// Ключевой ресурс корабля: морское чудовище — ресурс подгруппы «Морские чудовища» (1 на судно); остальные — нет.
+KeyRule shipKeyRule(ShipType t);
 
 // Модификаторы (Modifier::key).
 namespace mod {
@@ -209,14 +219,31 @@ constexpr const char* Famine = "famine";
 constexpr const char* UndeadWaste = "undeadWaste";        // Пустошь нежити
 constexpr const char* Desecrated = "desecrated";          // Оскверненная провинция
 constexpr const char* Necromancer = "necromancer";        // Некромант
+constexpr const char* Lich = "lich";                      // Лич
+constexpr const char* CouncilInfluence = "councilInfluence";   // Влияние совета (вместе с «Централизованной властью»)
+constexpr const char* Plague = "plague";                  // Чума
+constexpr const char* PlagueImmunity = "plagueImmunity";  // Временный иммунитет (к чуме)
+constexpr const char* ArchWounded = "archWounded";        // Ранение в ходе исследования (археологическая группа)
+constexpr const char* ArchPlague = "archPlague";          // Заражение чумой (археологическая группа)
+constexpr const char* ArchValues = "archValues";          // Ценности археологии (гильдия археологов)
 }  // namespace mod
 // Шаблоны встроенных модификаторов (id = 0) в порядке ТЗ.
 const std::vector<Modifier>& builtinModifiers();
 const Modifier* builtinModifier(std::string_view key);
 // Природа героя: «Живой», «Нежить», «Демон», «Механизм» — взаимоисключающие.
 bool isNatureKey(std::string_view key);
-// Модификаторы, которые редактор ставит и снимает сам (столица, совет, голод): вручную не добавляются.
+// Модификаторы, которые редактор ставит и снимает сам (столица, совет, влияние совета, голод, ценности археологии):
+// вручную не добавляются.
 bool isAutoKey(std::string_view key);
+// Эссенция или ресурс, которые встроенный модификатор генерирует по умолчанию (некромант, лич — эссенция смерти;
+// ценности археологии — археологические сокровища): название записи справочника и количество за ход.
+struct BuiltinGen {
+  const char* key;
+  bool essence;
+  const char* name;
+  double perTurn;
+};
+const std::vector<BuiltinGen>& builtinGens();
 
 // Глобальные константы (Constant::key).
 namespace cst {
@@ -227,9 +254,18 @@ constexpr const char* GalleonCost = "galleonCost";             // ресурсы
 constexpr const char* UnitRaces = "unitRaces";                 // значения: расы для отрядов
 constexpr const char* CorpsesPerUnit = "corpsesPerUnit";       // число: трупов на 1 воина-нежить
 constexpr const char* EnergyPerUnit = "energyPerUnit";         // число: демонической энергии на 1 воина-демона
+constexpr const char* SeaMonsterCost = "seaMonsterCost";       // ресурсы и эссенции: одно морское чудовище
+constexpr const char* FrigateCapacity = "frigateCapacity";     // число: вместимость фрегата (воинов)
+constexpr const char* LineCapacity = "shipLineCapacity";       // число: вместимость линкора
+constexpr const char* MercPerGuild = "mercPerGuild";           // число: лимит наёмников за каждую гильдию наёмников
+constexpr const char* MercHire = "mercHire";                   // число: золото за найм одного наёмника (новые строки)
+constexpr const char* ArchGroupPeople = "archGroupPeople";     // число: населения (трупов) на археологическую группу
+constexpr const char* ArchGroupGold = "archGroupGold";         // число: золота на археологическую группу
 }  // namespace cst
 const std::vector<Constant>& builtinConstants();
 const char* shipCostKey(ShipType t);
+// Вместимость корабля (воинов): фрегат и линкор — константы, остальные не перевозят войска.
+const char* shipCapacityKey(ShipType t);
 
 // Базовые расы отрядов (значения константы «Расы для отрядов»).
 constexpr const char* kRaceLiving = "Живой";
@@ -237,6 +273,38 @@ constexpr const char* kRaceDemonic = "Демонический";
 constexpr const char* kRaceUndead = "Нежить";
 constexpr const char* kRaceMechanical = "Механический";
 constexpr const char* kRaceElemental = "Элементали";
+constexpr const char* kRaceMercenary = "Наемники";         // наёмники: всегда верны при мятеже
+
+// Встроенные постройки (Building::key): правила узнают их по ключу.
+namespace bld {
+constexpr const char* ArchGuild = "archGuild";     // «Гильдия Археологов» — культовая постройка в дереве каждого государства
+constexpr const char* Port = "port";
+constexpr const char* Shipyard = "shipyard";
+constexpr const char* MercGuild = "mercGuild";     // «Гильдия Наемников»
+}  // namespace bld
+// Технологии, на которые опираются правила (Tech::key).
+namespace tech {
+constexpr const char* ArchValues = "archValues";   // «Ценности археологии»: гильдия археологов даёт сокровища
+}  // namespace tech
+// Группы реликвий (RelicGroup::key).
+constexpr const char* kRelicArchFinds = "archFinds";   // «Археологические находки»: героям напрямую не назначаются
+
+// Цены и лимиты новых механик (ТЗ «Доработки №1–4»).
+constexpr double kNewRowUpkeep = 0.001;           // содержание новой строки армии и флота, золота за ход
+constexpr i64 kPirateFlatLoss = 20;               // пираты: при меньше чем 100 галеонах в торговле — 20 галеонов
+constexpr i64 kPirateFlatBelow = 100;
+constexpr int kMaxCouncilSeats = 10;              // совет — не больше 10 должностей
+constexpr double kCouncilInfluencePerSeat = -2;   // «Влияние совета»: −2 % времени исследования за должность
+constexpr int kPlagueTurns = 4, kImmunityTurns = 6;   // «Чума» и «Временный иммунитет»
+constexpr double kPlagueBuildingGrowth = 2.5;     // чума в провинции со «Зданием чумы»: прирост +2,5 %
+constexpr double kHealCost = 500;                 // «Вылечить провинцию»: эссенции любого вида
+constexpr double kInfectCost = 2500;              // «Заразить чумой»: эссенции чумы
+constexpr double kLichCorpses = 20000, kLichDeathEssence = 5000;   // «Возвысить до Лича»
+constexpr double kLichShare = 0.50;               // лич: 50 % побеждённых живых отрядов в трупы
+constexpr int kMaxHeroLevel = 60;
+constexpr int kMinTalentCost = 1, kMaxTalentCost = 5;
+constexpr int kTalentCols = 4, kTalentRows = 50;  // дерево талантов: 4 столбца, ярусов не больше 50
+constexpr double kSameReligionRelation = 10;      // одна религия у государств: отношения всегда +10
 // Объекты карты: пределы масштаба знака и ширины линии (единицы карты), ширина новой стены и реки.
 constexpr float kMinSymbolScale = 0.2f, kMaxSymbolScale = 8.f;
 constexpr float kMinShapeWidth = 0.25f, kMaxShapeWidth = 100.f;

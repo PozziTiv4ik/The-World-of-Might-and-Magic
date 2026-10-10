@@ -18,6 +18,8 @@ TEST(app_military_place_tools) {
   RealArmyTools tools;
   h.demo();
   h.waitMap();
+  // Флот ставится инструментом только при «Свободном редактировании флотов» (ТЗ «Доработки №3», п.3).
+  h->act("Свободное редактирование флотов", [](Tx& tx) { tx.settings().freeFleets = true; });
   Id hel = factionByName(h->world(), "Хельдвиг");
   CHECK(hel != 0);
   h->select(app::SelType::Faction, hel);

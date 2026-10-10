@@ -232,10 +232,11 @@ TEST(audit_tbmt_delete_level_leaves_impossible_requirement) {
       }
     }
   });
-  if (!dep) {   // создать такое требование самим
-    h->world().buildings.each([&](const Building& b) {
-      if (!req && b.owner == 0 && b.levels.size() >= 2) req = b.id;
-    });
+  if (!dep) {   // создать такое требование самим: постройка с двумя уровнями (уровни помещаются на панели)
+    CHECK(h->act("Постройка", [&](Tx& tx) {
+      req = rules::createBuilding(tx, 0, "Аудит: требуемая");
+      tx.building(req).levels.push_back(BuildingLevel{});
+    }));
     CHECK(req != 0);
     lvl = int(h->world().building(req)->levels.size());
     CHECK(h->act("Требование", [&](Tx& tx) {

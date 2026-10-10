@@ -104,7 +104,7 @@ struct ConfirmDlg : Dialog {
         RectF cr = cellRect(t);
         std::string tip = fc ? flowText(*fc, k == 0) : std::string();
         ui::at(RectF{cr.x, std::round(cr.cy() - 12), cr.w, 18});
-        ui::label(money(v), {.ink = ui::Ink::Dim, .align = ui::Align::Right, .tooltip = tip});
+        ui::label(fmtGold(v), {.ink = ui::Ink::Dim, .align = ui::Align::Right, .tooltip = tip});
         RectF br{cr.x + cr.w * 0.25f, std::round(cr.cy() + 8), cr.w * 0.75f, 4};
         float bw = float(clamp(v / std::max(1e-9, pg.scale), 0.0, 1.0)) * br.w;
         if (v > 0) bw = std::max(bw, 2.f);
@@ -115,9 +115,9 @@ struct ConfirmDlg : Dialog {
       t.cell();
       {
         ui::HStack hs(24, ui::Align::Right, 6);
-        ui::label(money(l.treasuryBefore), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+        ui::label(fmtGold(l.treasuryBefore), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
         ui::icon("arrow-right", ui::Ink::Muted, 14);
-        ui::label(money(l.treasuryAfter), {.font = ui::Font::Strong, .ink = l.treasuryAfter < 0 ? ui::Ink::Danger : ui::Ink::Normal});
+        ui::label(fmtGold(l.treasuryAfter), {.font = ui::Font::Strong, .ink = l.treasuryAfter < 0 ? ui::Ink::Danger : ui::Ink::Normal});
       }
       double d = l.treasuryAfter - l.treasuryBefore;
       t.text(fmtSigned(d), deltaInk(d));

@@ -22,6 +22,13 @@ const char* iconOf(const Building& b);                 // значок пост�
 int levelTurns(const Building& b, int level);          // срок уровня (1…)
 // Стоимость фишками «значок + количество»; payer != nullptr — нехватка красным.
 void costChips(const std::map<Id, double>& cost, const Faction* payer, bool showEmpty = true);
+// Цена в эссенциях (BuildingLevel::essCost) тем же видом: значок цвета эссенции и количество; пусто — ничего.
+void essCostChips(const std::map<Id, double>& cost, const Faction* payer);
+std::string essenceCostText(const World& w, const std::map<Id, double>& cost);   // «Эссенция смерти 150»
+std::string shipsText(u32 ships);                                                 // типы кораблей верфи через запятую
+// Действия достроенной постройки в провинции (ТЗ «Доработки №3», п.4–5): «Вылечить провинцию» у здания целительства,
+// «Заразить чумой» у здания чумы; недоступность — с причиной в подсказке (panels/construction_roles.cpp).
+void roleActions(App& a, Id province, const ProvBuilding& pb, const Building& b);
 // Что достроенный уровень даёт владельцу за ход (BuildingLevel::produce): «+количество» по ресурсам; пусто — ничего.
 void produceChips(const std::map<Id, double>& produce);
 std::string produceText(const World& w, const std::map<Id, double>& produce);   // «+2 трупы, +100 демоническая энергия»

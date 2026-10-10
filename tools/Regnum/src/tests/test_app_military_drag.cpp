@@ -115,9 +115,18 @@ TEST(app_military_drag_move) {
   CHECK(h->world().army(x)->pos == orig);
   CHECK(h->world().army(fl) != nullptr);
   CHECK(h->world().army(fl)->pos == fpos);
-  bool reason = false;
-  for (auto& t : h->toasts()) reason = reason || t.text.find("флот") != std::string::npos;
-  CHECK(reason);
+  // Войско на флот своего государства — посадка (ТЗ «Доработки №3», п.6): окно подтверждения или причина отказа
+  // (далеко от моря, вместимость); отказ возвращает войско.
+  if (h->hasDialog("army.encounter")) {
+    h.key(Key::Escape);
+    h.settle();
+    CHECK(h->world().army(x)->pos == orig);
+    CHECK(h->world().army(x)->carrier == 0);
+  } else {
+    bool reason = false;
+    for (auto& t : h->toasts()) reason = reason || t.text.find("лот") != std::string::npos;
+    CHECK(reason);
+  }
 }
 
 // Флот: перемещение по морю, суша — возврат с причиной, битва флотов (потери кораблей из таблицы флота).

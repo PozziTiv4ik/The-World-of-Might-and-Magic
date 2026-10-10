@@ -123,6 +123,12 @@ struct SettingsDlg : Dialog {
     if (ui::toggle("Бросок восстания в конце хода", roll)) a.act("Бросок восстания", [roll](Tx& tx) { tx.settings().rebellionRoll = roll; });
     ui::tooltip("Каждая провинция восстаёт с вероятностью своего риска восстания; без броска риск только показывается");
     a.markUi("settings.rebellion");
+    // ТЗ «Доработки №3», п.3: без свободного редактирования флот ставится только у верфи (вкладка «Флот» государства).
+    bool freeFleets = s.freeFleets;
+    if (ui::toggle("Свободное редактирование флотов", freeFleets))
+      a.act("Свободное редактирование флотов", [freeFleets](Tx& tx) { tx.settings().freeFleets = freeFleets; });
+    ui::tooltip("Новый флот (Shift+A) — в любом месте моря; без этого — у верфи приморской провинции во вкладке «Флот» государства");
+    a.markUi("settings.freeFleets");
   }
 
   void saveSection(App& a) {

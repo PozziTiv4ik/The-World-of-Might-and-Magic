@@ -1,6 +1,7 @@
 // Regnum — наложения карты в каждом кадре: наведение, маршруты, диаграммы гильдий, столицы и штабы,
 // войска и флот (фигурки и стопки наложившихся объектов со значками численности), выделение.
 #include "gfx/figures.h"
+#include "gfx/icons.h"
 #include "gfx/text.h"
 #include "map/map_internal.h"
 
@@ -338,6 +339,15 @@ void drawArmies(const FrameCtx& f) {
     }
     if (top->id == o.hoverArmy && !sel) f.c->fillCircle(c.x, c.y, size * 0.62f, Color(255, 255, 255, 70));
     drawFigure(f, *top, c, size, sel);
+    // Войско на борту флота: значок воина слева снизу (на месте, симметричном значку численности).
+    if (top->isFleet() && top->cargo && rules::cargoOf(w, top->id)) {
+      const float d = std::round(15 * dpi);
+      const RectF cr{c.x - std::round(size * 0.16f) - d, c.y + std::round(size * 0.2f), d, d};
+      f.c->boxShadow(cr, d * 0.5f, 4 * dpi, 0, Color(0, 0, 0, 80), gfx::Pt(0, 1 * dpi));
+      f.c->fillCircle(cr.cx(), cr.cy(), d * 0.5f, Color(20, 24, 31, 238));
+      f.c->strokeCircle(cr.cx(), cr.cy(), d * 0.5f - 0.5f * dpi, 1.0f * dpi, col.withA(230));
+      gfx::drawIcon(*f.c, "army", cr.inset(std::round(3 * dpi)), Color(244, 240, 230));
+    }
     // Значок численности (у стопки — всех её объектов).
     const std::string txt = compactCount(m.units);
     const RectF br = unitBadgeRect(c, size, txt, dpi);

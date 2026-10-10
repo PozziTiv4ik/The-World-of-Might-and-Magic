@@ -321,11 +321,13 @@ TEST(rules_fix_area_edits_remove_emptied_provinces) {
   CHECK_EQ(f.w().faction(f.A)->capital, Id(0));
   CHECK(!contains(f.fc(f.A).provinces, f.p[0]));
   CHECK(has(lastLog(f.w()), "не осталось её области"));
-  // Новая провинция целиком поверх p1.
+  // Новая провинция целиком поверх p1 её не трогает (ТЗ «Доработки №1», п.1): берёт только свободную сушу —
+  // полосу бывшей p0 у границы p1.
   f.tx([&](Tx& tx) { r = createProvince(tx, rect(290, 40, 510, 310), Terrain::Land); });
   CHECK(r.province != 0 && f.w().province(r.province));
-  CHECK(!f.w().province(f.p[1]));
-  CHECK(r.removed == std::vector<std::string>{"П1"});
+  CHECK(f.w().province(f.p[1]));
+  CHECK(r.removed.empty());
+  CHECK_NEAR(geo::faces(f.w())->shape(r.province)->area, 10.0 * 200, 1e-6);
   // Расширение p2 на всю p3.
   f.tx([&](Tx& tx) { r = addArea(tx, f.p[2], rect(690, 40, 960, 310)); });
   CHECK(!f.w().province(f.p[3]));

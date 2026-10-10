@@ -171,7 +171,7 @@ TEST(rules_trade_tribute_and_reparations) {
   CHECK_EQ(d.items[0].left, 10);
   CHECK(d.status == DealStatus::Active);
   CHECK(f.w().deal(r)->kind == DealKind::Reparations);
-  CHECK(has(lastLog(f.w()), "«Бельмар» выплачивает «Церис» репарации: 7,5 золота за ход, 2 хода"));
+  CHECK(has(lastLog(f.w()), "«Бельмар» выплачивает «Церис» репарации: 7,5 тыс. золота за ход, 2 хода"));
   CHECK_NEAR(f.fc(f.A).incTribute, 50, 1e-9);
   CHECK_NEAR(f.fc(f.C).incTribute, 7.5, 1e-9);
   CHECK_NEAR(f.fc(f.B).expTribute, 57.5, 1e-9);

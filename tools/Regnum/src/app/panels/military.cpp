@@ -33,7 +33,13 @@ std::vector<UnitRow> unitRows(const World& w, Id faction, bool fleet) {
     out.reserve(f->fleet.size());
     for (const FleetRow& r : f->fleet) {
       const schema::EnumInfo& ti = schema::shipType(r.type);
-      out.push_back(UnitRow{r.id, r.name.empty() ? std::string(ti.name) : r.name, ti.icon, ti.name, int(r.type), r.total, r.upkeep});
+      UnitRow u{r.id, r.name.empty() ? std::string(ti.name) : r.name, ti.icon, ti.name, int(r.type), r.total, r.upkeep};
+      // Морское чудовище: ключевой ресурс подгруппы «Морские чудовища» обязателен (ТЗ «Доработки №3», п.8).
+      if (r.type == ShipType::SeaMonster) {
+        const std::vector<Id> keys = rules::shipKeyResources(w, r.type);
+        u.keyMissing = std::find(keys.begin(), keys.end(), r.keyRes) == keys.end();
+      }
+      out.push_back(std::move(u));
     }
   } else {
     out.reserve(f->army.size());
@@ -41,8 +47,9 @@ std::vector<UnitRow> unitRows(const World& w, Id faction, bool fleet) {
       const schema::EnumInfo& ti = schema::unitType(r.type);
       UnitRow u{r.id, r.name.empty() ? std::string(ti.name) : r.name, ti.icon, ti.name, int(r.type), r.total, r.upkeep};
       u.special = r.special && w.special(r.special) ? r.special : 0;
-      u.keyMissing = schema::needsKeyResource(r.type) && !rules::keyAllowed(w, r.type, r.keyRes);
+      u.keyMissing = !r.merc && schema::needsKeyResource(r.type) && !rules::keyAllowed(w, r.type, r.keyRes);   // наёмники — только золото
       u.elemental = schema::isElemental(r.type);
+      u.merc = r.merc;
       out.push_back(std::move(u));
     }
   }
@@ -302,6 +309,7 @@ void unitCell(RectF r, const UnitRow& row, bool accent, std::string_view caption
   // Подсказка плитки — тип войск, особый отряд и незаданный ключевой ресурс.
   std::string tip = row.typeName;
   if (row.special) tip += "\nОсобый отряд";
+  if (row.merc) tip += "\nНаёмники";
   if (keyMissing) tip += "\nНе указан ключевой ресурс — найм недоступен";
   ui::at(RectF{std::round(tile.cx() - is * 0.5f), std::round(tile.cy() - is * 0.5f), is, is});
   ui::icon(row.icon, keyMissing ? ui::Ink::Danger : accent ? ui::Ink::Accent : ui::Ink::Dim, is, tip);
@@ -312,6 +320,12 @@ void unitCell(RectF r, const UnitRow& row, bool accent, std::string_view caption
     ui::draw::circle(b.cx(), b.cy(), m * 0.5f + 1, t.surface1);
     ui::draw::circle(b.cx(), b.cy(), m * 0.5f, t.accent);
     ui::draw::icon("special-unit", b.inset(m * 0.18f), t.onAccent);
+  }
+  if (row.merc) {   // наёмники — отметка сверху справа (золото)
+    const RectF b{tile.right() - m * 0.6f, tile.y - m * 0.4f, m, m};
+    ui::draw::circle(b.cx(), b.cy(), m * 0.5f + 1, t.surface1);
+    ui::draw::circle(b.cx(), b.cy(), m * 0.5f, t.warning);
+    ui::draw::icon("mercenary", b.inset(m * 0.16f), t.onAccent);
   }
   if (keyMissing) {
     const RectF b{tile.right() - m * 0.6f, tile.bottom() - m * 0.6f, m, m};

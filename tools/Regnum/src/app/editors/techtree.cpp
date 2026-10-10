@@ -84,6 +84,9 @@ struct TN {
   std::vector<Id> prereqs, mods;
   St st = St::Locked;
   std::vector<Id> missing;
+  std::vector<std::string> problems;   // не достроены нужные постройки, не хватает ресурсов на стоимость
+  std::map<Id, double> cost;           // стоимость исследования (ТЗ «Доработки №4», п.1)
+  std::vector<std::string> needKeys;   // постройки государства (ключи schema::bld)
   bool match = true;
 };
 
@@ -176,7 +179,9 @@ std::string bonusText(const World& w, const TN& t) {
 // первая гильдия (по названию).
 Id defaultLearner(const World& w) {
   std::vector<const Faction*> list;
-  w.factions.each([&](const Faction& f) { list.push_back(&f); });
+  w.factions.each([&](const Faction& f) {
+    if (!f.isWild()) list.push_back(&f);   // «Без государства» технологий не изучает
+  });
   std::sort(list.begin(), list.end(), [](const Faction* a, const Faction* b) {
     if (a->isState() != b->isState()) return a->isState();
     if (a->mainState != b->mainState) return a->mainState;
@@ -189,7 +194,9 @@ Id defaultLearner(const World& w) {
 bool learnerSwitch(std::string_view id, Id& value) {
   const World& w = app().world();
   std::vector<const Faction*> list;
-  w.factions.each([&](const Faction& f) { list.push_back(&f); });
+  w.factions.each([&](const Faction& f) {
+    if (!f.isWild()) list.push_back(&f);   // «Без государства» технологий не изучает
+  });
   std::sort(list.begin(), list.end(), [](const Faction* a, const Faction* b) {
     if (a->kind != b->kind) return a->kind < b->kind;
     return compareRu(a->name, b->name) < 0;
@@ -213,9 +220,15 @@ bool learnerSwitch(std::string_view id, Id& value) {
 }
 
 // ---------------------------------------------------------------- сцена (рисуется при сведении слоя)
+struct PriceTag {
+  std::string icon;
+  Color col;
+  std::string text;
+};
 struct Card {
   TN t;
   std::string bonus, need;
+  std::vector<PriceTag> price;   // стоимость исследования: значок ресурса и количество
   bool sel = false, hover = false, dim = false, drop = false, dropBad = false;
   bool checkHot = false, outHot = false, inHot = false, hasIn = false, hasOut = false;
 };
@@ -345,6 +358,16 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
       icon(c, "sparkles", RectF{x, y + 1, 13, 13}, k.accent.alpha(0.9f));
       std::string mt = std::to_string(t.mods.size());
       text(c, mt, st, RectF{x + 16, y, 24, 15}, k.textMuted);
+      x += 16 + gfx::measureText(mt, st) + 10;
+    }
+    // Стоимость исследования: значок ресурса и количество (сколько поместится до края карточки).
+    const float right = r.right() - 12;
+    for (const PriceTag& p : cd.price) {
+      const float pw = gfx::measureText(p.text, st);
+      if (x + 16 + pw > right) break;
+      icon(c, p.icon, RectF{x, y + 1, 13, 13}, p.col);
+      text(c, p.text, st, RectF{x + 16, y, pw + 2, 15}, k.textMuted);
+      x += 16 + pw + 10;
     }
   }
   // «Галочка» изученности (ТЗ 1.b.v)
@@ -536,7 +559,9 @@ Id neighbor(const std::vector<TN>& ts, const TN& cur, int dx, int dy) {
 void learnersSection(App& a, Ed& ed, const std::vector<TN>& ts) {
   const World& w = a.world();
   std::vector<const Faction*> list;
-  w.factions.each([&](const Faction& f) { list.push_back(&f); });
+  w.factions.each([&](const Faction& f) {
+    if (!f.isWild()) list.push_back(&f);   // «Без государства» технологий не изучает
+  });
   std::sort(list.begin(), list.end(), [](const Faction* x, const Faction* y) {
     if (x->kind != y->kind) return x->kind < y->kind;
     return compareRu(x->name, y->name) < 0;
@@ -730,6 +755,83 @@ void unlocksSection(App& a, const TN& t, bool ro) {
   a.markUi("tt.side.addunlock");
 }
 
+// Стоимость исследования (ТЗ «Доработки №4», п.1): ресурсы через группы и количество (rules::setTechCost; 0 — убрать).
+void costEditor(App& a, const TN& t, bool ro) {
+  const World& w = a.world();
+  const Id tid = t.id;
+  ui::IdScope scope("cost");
+  if (ro && t.cost.empty()) return;
+  ui::caption("Стоимость исследования");
+  for (auto [res, amount] : t.cost) {
+    ui::IdScope rs{i64(res)};
+    const Id r = res;
+    ui::Row row({ui::px(16), ui::fr(1), ui::px(104), ui::px(30)}, 30, 6);
+    const CatalogItem* c = w.resource(r);
+    const Color rc = w::resourceColor(w, r);
+    ui::iconColored(w::resourceIcon(w, r), rc.luminance() < 0.12f ? rc.lighten(0.45f) : rc, 16);   // тёмный ресурс — светлее
+    ui::label(c && !c->name.empty() ? c->name : std::string("Ресурс"));
+    double v = amount;
+    if (ui::numberField("amount", v, {.min = 0.001, .max = 1e12, .step = 10, .digits = 3, .unit = r == kGold ? "тыс." : nullptr, .disabled = ro,
+                                      .tooltip = "Количество"}))
+      a.act("Стоимость исследования", [&](Tx& tx) { rules::setTechCost(tx, tid, r, v); },
+            {.coalesce = "tt-cost:" + std::to_string(tid) + ":" + std::to_string(r)});
+    a.markUi("tt.side.cost." + std::to_string(r));
+    if (ui::iconButton("close", "Убрать ресурс из стоимости", {.disabled = ro}))
+      a.act("Убрать ресурс из стоимости исследования", [&](Tx& tx) { rules::setTechCost(tx, tid, r, 0); });
+    a.markUi("tt.side.cost." + std::to_string(r) + ".remove");
+  }
+  if (ro) return;
+  std::vector<Id> left;
+  for (const CatalogItem& c : w.catalogs->resources)
+    if (!t.cost.count(c.id)) left.push_back(c.id);
+  Id pick = 0;
+  if (w::resourceByGroup("addcost", pick, false, &left) && pick)
+    a.act("Стоимость исследования", [&](Tx& tx) { rules::setTechCost(tx, tid, pick, 100); });
+  a.markUi("tt.side.addcost");
+}
+
+// Требуемые постройки государства (по ключу встроенной постройки, ТЗ «Доработки №4», п.1): фишки с названием
+// (rules::buildingKeyName) и выбор из построек с ключом (rules::setTechNeedKey).
+void needsEditor(App& a, const TN& t, Id faction, bool ro) {
+  const World& w = a.world();
+  const Id tid = t.id;
+  // Ключи встроенных построек мира (без повторов).
+  std::vector<std::pair<std::string, std::string>> keys;   // ключ, название
+  w.buildings.each([&](const Building& b) {
+    if (b.key.empty() || std::any_of(keys.begin(), keys.end(), [&](const auto& k) { return k.first == b.key; })) return;
+    keys.push_back({b.key, rules::buildingKeyName(w, faction, b.key)});
+  });
+  if ((keys.empty() || ro) && t.needKeys.empty()) return;
+  ui::IdScope scope("needs");
+  ui::caption("Нужны постройки");
+  if (!t.needKeys.empty()) {
+    tree::ChipFlow flow;
+    for (const std::string& k : t.needKeys) {
+      ui::IdScope s2(k);
+      const std::string key = k;
+      const ui::ChipAction act = tree::chip(rules::buildingKeyName(w, faction, k),
+                                            {.icon = "building", .tone = ui::Tone::Warning, .removable = !ro, .tooltip = "Должна быть достроена в государстве"});
+      a.markUi("tt.side.need." + k);
+      if (act == ui::ChipAction::Remove) a.act("Убрать требуемую постройку", [&](Tx& tx) { rules::setTechNeedKey(tx, tid, key, false); });
+    }
+  }
+  if (ro) return;
+  std::vector<std::pair<std::string, std::string>> cand;
+  for (const auto& k : keys)
+    if (std::find(t.needKeys.begin(), t.needKeys.end(), k.first) == t.needKeys.end()) cand.push_back(k);
+  if (cand.empty()) return;
+  std::stable_sort(cand.begin(), cand.end(), [](const auto& x, const auto& y) { return compareRu(x.second, y.second) < 0; });
+  std::vector<ui::Option> opts;
+  for (const auto& c : cand) opts.push_back(ui::Option{c.second, "building"});
+  int idx = -1;
+  if (ui::combo("addneed", idx, std::span<const ui::Option>(opts), {.placeholder = "Добавить постройку", .search = 1, .icon = "plus"}) && idx >= 0 &&
+      idx < int(cand.size())) {
+    const std::string key = cand[size_t(idx)].first;
+    a.act("Требуемая постройка технологии", [&](Tx& tx) { rules::setTechNeedKey(tx, tid, key, true); });
+  }
+  a.markUi("tt.side.addneed");
+}
+
 void sideTech(App& a, Ed& ed, Id faction, Id who, const std::vector<TN>& ts, const TN& t) {
   const World& w = a.world();
   const bool ro = a.readOnly();
@@ -806,16 +908,35 @@ void sideTech(App& a, Ed& ed, Id faction, Id who, const std::vector<TN>& ts, con
         }
       }
     }
+    // Не достроены нужные постройки, не хватает ресурсов на стоимость (ТЗ «Доработки №4», п.1).
+    if (!t.studied && !t.research)
+      for (size_t i = 0; i < t.problems.size(); i++) {
+        ui::IdScope ps{int(i)};
+        ui::label(t.problems[i], {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
+        a.markUi("tt.side.problem." + std::to_string(i));
+      }
+    // Стоимость: при начале списывается, при остановке возвращается (у идущего — уплачено).
+    const Faction* payer = w.faction(common ? who : faction);
+    if (!t.cost.empty() && !t.studied) {
+      ui::IdScope cs("price");
+      bld::costChips(t.cost, t.research ? nullptr : payer, false);
+      a.markUi("tt.side.price");
+    }
     if (t.research) {
       ui::progress(double(t.progress) / double(std::max(1, t.need)), {.tone = ui::Tone::Info, .height = 6});
-      if (ui::button("Остановить исследование", {.icon = "close", .fill = true, .disabled = ro})) stopResearch(a, t.id, who);
+      if (ui::button("Остановить исследование", {.icon = "close", .fill = true, .disabled = ro,
+                                                 .tooltip = t.cost.empty() ? std::string_view() : std::string_view("Уплаченная стоимость вернётся")}))
+        stopResearch(a, t.id, who);
       a.markUi("tt.side.research");
     } else if (!t.studied) {
       if (t.progress > 0) ui::progress(double(t.progress) / double(std::max(1, t.need)), {.tone = ui::Tone::Neutral, .height = 4});
       bool can = t.st == St::Available;
-      if (ui::button("Начать исследование", {.variant = ui::Variant::Primary, .icon = "play", .fill = true, .disabled = ro || !can,
-                                              .tooltip = can ? std::string_view("Исследование продвигается на один ход при завершении хода")
-                                                             : std::string_view("Не изучены предшествующие технологии")}))
+      const std::string why = can ? (t.cost.empty() ? std::string("Исследование продвигается на один ход при завершении хода")
+                                                    : "Стоимость спишется сразу: " + bld::costText(w, t.cost))
+                              : !t.missing.empty()  ? std::string("Не изучены предшествующие технологии")
+                              : !t.problems.empty() ? t.problems.front()
+                                                    : std::string("Исследование недоступно");
+      if (ui::button("Начать исследование", {.variant = ui::Variant::Primary, .icon = "play", .fill = true, .disabled = ro || !can, .tooltip = why}))
         startResearch(a, t.id, who);
       a.markUi("tt.side.research");
     }
@@ -834,6 +955,11 @@ void sideTech(App& a, Ed& ed, Id faction, Id who, const std::vector<TN>& ts, con
                  .tooltip = "Модификатор «Время исследования технологий» государства"});
       a.markUi("tt.side.need");
     }
+  }
+  costEditor(a, t, ro);
+  needsEditor(a, t, faction, ro);
+  {
+    ui::Disabled dis(ro);
     // Бонус (описание)
     const Faction* owner = w.faction(faction);
     ui::caption(common ? "Бонус изучившему" : owner && owner->isGuild() ? "Бонус для гильдии" : "Бонус для государства");
@@ -998,6 +1124,8 @@ void drawTechTree(App& a, Id faction) {
     n.pos = t.pos;
     n.prereqs = t.prereqs;
     n.mods = t.modifiers;
+    n.cost = t.cost;
+    n.needKeys = t.needKeys;
     ts.push_back(std::move(n));
   });
   for (TN& t : ts) {
@@ -1005,6 +1133,7 @@ void drawTechTree(App& a, Id faction) {
     else {
       rules::ResearchCheck rc = rules::canResearch(w, t.id, who);
       t.missing = rc.missing;
+      t.problems = rc.problems;
       t.st = t.research ? St::Research : (rc.ok ? St::Available : St::Locked);
     }
     t.match = ed.query.empty() || utf8::matches(t.name, ed.query) || utf8::matches(t.desc, ed.query);
@@ -1410,6 +1539,8 @@ void drawTechTree(App& a, Id faction) {
     cd.t = t;
     cd.bonus = bonusText(w, t);
     if (t.st == St::Locked && !t.missing.empty()) cd.need = "Нужно: " + techNames(w, ts, t.missing);
+    else if (t.st == St::Locked && !t.problems.empty()) cd.need = t.problems.front();
+    for (auto& [res, v] : t.cost) cd.price.push_back({w::resourceIcon(w, res), w::resourceColor(w, res), res == kGold ? fmtNum(v, 3) + " тыс." : fmtShort(v)});
     cd.sel = ed.sel == t.id;
     cd.hover = hoverNode == t.id || hoverCheck == t.id || hoverOut == t.id || hoverIn == t.id;
     cd.dim = !t.match;
@@ -1548,6 +1679,9 @@ void drawTechTree(App& a, Id faction) {
         tip.lines.push_back({"hourglass", "Пройдено " + std::to_string(t->progress) + " из " + std::to_string(t->need) + ", осталось " + nTurns(turnsLeft(t->need, t->progress)), th.info});
       if (!t->prereqs.empty()) tip.lines.push_back({"link", "Требует: " + techNames(w, ts, t->prereqs, 4), Color(0, 0, 0, 0), true});
       if (!t->missing.empty()) tip.lines.push_back({"lock", "Не изучены: " + techNames(w, ts, t->missing, 4), th.warning, true});
+      if (!t->cost.empty()) tip.lines.push_back({"coins", "Стоимость: " + bld::costText(w, t->cost), Color(0, 0, 0, 0), true});
+      if (!t->studied && !t->research)
+        for (const std::string& pr : t->problems) tip.lines.push_back({"warning", pr, th.warning, true});
       std::vector<Id> deps;
       for (const TN& o : ts)
         if (std::find(o.prereqs.begin(), o.prereqs.end(), t->id) != o.prereqs.end()) deps.push_back(o.id);

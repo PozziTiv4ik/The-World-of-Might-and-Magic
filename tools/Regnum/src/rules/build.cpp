@@ -18,15 +18,36 @@ std::map<Id, double> levelCost(const Building& b, int level, double factor) {
   return r;
 }
 
+std::map<Id, double> levelEssCost(const Building& b, int level, double factor) {
+  std::map<Id, double> r;
+  if (level < 1 || level > int(b.levels.size())) return r;
+  for (auto& [e, v] : b.levels[size_t(level - 1)].essCost) {
+    double x = v * factor;
+    if (std::isfinite(x) && x > 0) r[e] = x;
+  }
+  return r;
+}
+
 Id refundPaid(Tx& tx, const ProvBuilding& pb) {
   if (!pb.constructing || !pb.payer || !tx.w().faction(pb.payer)) return 0;
   bool any = false;
   for (auto& [res, v] : pb.paid) any = any || (std::isfinite(v) && v > 0);
+  for (auto& [e, v] : pb.paidEss) any = any || (std::isfinite(v) && v > 0);
   if (!any) return 0;
   Faction& f = tx.faction(pb.payer);
   for (auto& [res, v] : pb.paid)
     if (std::isfinite(v) && v > 0) addStock(f, res, v);
+  for (auto& [e, v] : pb.paidEss)
+    if (std::isfinite(v) && v > 0 && tx.w().essence(e)) f.ess[e] += v;
   return pb.payer;
+}
+
+void releaseBuildingRelics(Tx& tx, Id state, const ProvBuilding& pb) {
+  if (pb.relics.empty()) return;
+  const Faction* f = tx.w().faction(state);
+  if (!f || !f->isState()) return;   // без государства-владельца реликвии становятся свободными
+  for (Id r : pb.relics)
+    if (tx.w().relic(r) && !contains(f->relics, r)) tx.faction(state).relics.push_back(r);
 }
 }  // namespace detail
 
@@ -69,6 +90,27 @@ void placeChecks(const World& w, const Province& p, const Building& b, const Pro
   }
   for (Id t : b.techs)
     if (w.tech(t) && (!owner || !techStudied(w, t, owner->id))) r.push_back("Нужна технология " + techName(w, t));
+  // Порт, верфь и другие приморские постройки (ТЗ «Доработки №3», п.3).
+  if (b.coastal && !p.sea && !isCoastal(w, p.id)) r.push_back("Только в приморской провинции (граничит с морем)");
+  // Требования «на государство» (соборы, ТЗ «Доработки №4», п.7): на каждую новую — ещё per таких построек.
+  if (owner && !pb && !b.stateReqs.empty()) {
+    int mine = 0;
+    w.provinces.each([&](const Province& q) {
+      if (q.owner == owner->id && !q.sea && findPb(q, b.id)) mine++;
+    });
+    for (const StateReq& sr : b.stateReqs) {
+      if (!w.building(sr.building) || sr.per <= 0) continue;
+      int have = 0;
+      w.provinces.each([&](const Province& q) {
+        if (q.owner != owner->id || q.sea) return;
+        const ProvBuilding* x = findPb(q, sr.building);
+        if (x && x->builtLevel() >= 1) have++;
+      });
+      const int need = sr.per * (mine + 1);
+      if (have < need)
+        r.push_back("Нужно " + std::to_string(need) + " построек " + buildingName(w, sr.building) + " в государстве: достроено " + std::to_string(have));
+    }
+  }
   if (b.cat == BuildingCat::Cult && !pb)
     if (Id other = cultBuiltIn(w, b.id, p.id))
       r.push_back(std::string(b.owner ? "Культовая постройка — одна на государство: уже есть в провинции "
@@ -99,16 +141,32 @@ BuildOption optionFor(const World& w, const Province& p, const Building& b, doub
   o.upgrade = pb != nullptr;
   o.turns = maxLvl ? std::max(1, b.levels[size_t(o.level - 1)].turns) : 1;
   o.cost = levelCost(b, o.level, factor);
+  o.essCost = levelEssCost(b, o.level, factor);
   const Faction* owner = ownerState(w, p);
   placeChecks(w, p, b, pb, slots, o.reasons);
   o.placeReasons = o.reasons;
   o.canPlace = o.placeReasons.empty();
-  if (owner)
+  // В провинции одновременно строится только одна постройка (ТЗ «Доработки №1», п.13).
+  for (const ProvBuilding& x : p.buildings)
+    if (x.constructing && x.building != b.id) {
+      o.reasons.push_back("В провинции уже строится " + buildingName(w, x.building) + ": одновременно — одна постройка");
+      break;
+    }
+  if (owner) {
     for (auto& [res, need] : o.cost) {
       double have = owner->stock(res);
       if (have + 1e-9 < need)
-        o.reasons.push_back("Недостаточно ресурса «" + resName(w, res) + "»: нужно " + amount(need) + ", есть " + amount(std::max(0.0, have)));
+        o.reasons.push_back("Недостаточно ресурса «" + resName(w, res) + "»: нужно " + amountOf(res, need) + ", есть " + amountOf(res, std::max(0.0, have)));
     }
+    for (auto& [e, need] : o.essCost) {
+      double have = owner->essence(e);
+      if (have + 1e-9 < need) {
+        const CatalogItem* ci = w.essence(e);
+        o.reasons.push_back("Недостаточно эссенции «" + (ci ? ci->name : std::string("?")) + "»: нужно " + amount(need) + ", есть " +
+                            amount(std::max(0.0, have)));
+      }
+    }
+  }
   o.can = o.reasons.empty();
   return o;
 }
@@ -152,6 +210,7 @@ void startBuilding(Tx& tx, Id province, Id building) {
   const Id owner = p.owner;
   Faction& f = tx.faction(owner);
   for (auto& [res, v] : o.cost) addStock(f, res, -v);
+  for (auto& [e, v] : o.essCost) f.ess[e] -= v;
   Province& m = tx.province(province);
   if (o.upgrade) {
     for (ProvBuilding& pb : m.buildings)
@@ -160,10 +219,13 @@ void startBuilding(Tx& tx, Id province, Id building) {
         pb.constructing = true;
         pb.left = o.turns;
         pb.paid = o.cost;
+        pb.paidEss = o.essCost;
         pb.payer = owner;
       }
   } else {
-    m.buildings.push_back(ProvBuilding{building, 1, true, o.turns, o.cost, owner});
+    ProvBuilding nb{building, 1, true, o.turns, o.cost, owner};
+    nb.paidEss = o.essCost;
+    m.buildings.push_back(std::move(nb));
   }
   addLog(tx, LogKind::Build,
          "Начато строительство " + buildingName(tx.w(), building) + (o.upgrade ? " (уровень " + std::to_string(o.level) + ")" : std::string()) +
@@ -188,11 +250,13 @@ void cancelBuilding(Tx& tx, Id province, Id building) {
         x.constructing = false;
         x.left = 0;
         x.paid.clear();
+        x.paidEss.clear();
         x.payer = 0;
       }
   } else {
     m.buildings.erase(std::remove_if(m.buildings.begin(), m.buildings.end(), [&](const ProvBuilding& x) { return x.building == building; }),
                       m.buildings.end());
+    releaseBuildingRelics(tx, owner, pb);
   }
   // Возврат — ровно уплаченное и тому, кто платил (провинция могла сменить владельца, цена — измениться).
   const Id got = refundPaid(tx, pb);
@@ -262,6 +326,7 @@ void trimExcessBuildings(Tx& tx, const std::vector<SlotLoss>* only) {
     for (const ProvBuilding& pb : gone) {
       names.push_back(buildingName(tx.w(), pb.building));
       if (pb.constructing) refundPaid(tx, pb);
+      releaseBuildingRelics(tx, owner, pb);
     }
     addLog(tx, LogKind::Build,
            "Провинция " + provName(tx.w(), l.province) + " лишилась слотов (" + std::to_string(l.slots) + " из " + std::to_string(l.used) +
@@ -284,6 +349,7 @@ void completeBuilding(Tx& tx, Id province, Id building) {
       x.constructing = false;
       x.left = 0;
       x.paid.clear();
+      x.paidEss.clear();
       x.payer = 0;
     }
   addLog(tx, LogKind::Build,
@@ -495,6 +561,120 @@ void setBuildingRole(Tx& tx, Id building, BuildingRole role, bool on) {
   }
 }
 
+void setStateReq(Tx& tx, Id building, Id req, int per) {
+  const Building& b = needBuilding(tx.w(), building);
+  const Building& r = needBuilding(tx.w(), req);
+  if (building == req) fail("Постройка не может требовать саму себя");
+  if (r.owner && r.owner != b.owner)
+    fail(b.owner ? "Уникальная постройка может требовать общие постройки и постройки своего государства"
+                 : "Общая постройка не может зависеть от уникальной постройки государства");
+  auto& list = tx.building(building).stateReqs;
+  auto it = std::find_if(list.begin(), list.end(), [&](const StateReq& q) { return q.building == req; });
+  if (per <= 0) {
+    if (it != list.end()) list.erase(it);
+    return;
+  }
+  if (per > 100) fail("На каждую постройку — от 1 до 100 требуемых");
+  if (it != list.end()) it->per = per;
+  else list.push_back(StateReq{req, per});
+}
+
+void setBuildingFlag(Tx& tx, Id building, BuildingFlag flag, bool on) {
+  const Building& b0 = needBuilding(tx.w(), building);
+  bool* field = nullptr;
+  Building& b = tx.building(building);
+  switch (flag) {
+    case BuildingFlag::RelicStore: field = &b.relicStore; break;
+    case BuildingFlag::Healing: field = &b.healing; break;
+    case BuildingFlag::Plague: field = &b.plague; break;
+    case BuildingFlag::Shipyard: field = &b.shipyard; break;
+    case BuildingFlag::Mercenary: field = &b.mercenary; break;
+    case BuildingFlag::Coastal: field = &b.coastal; break;
+  }
+  if (!field) return;
+  const bool was = flag == BuildingFlag::RelicStore ? b0.relicStore : *field;
+  *field = on;
+  if (on || !was) return;
+  if (flag == BuildingFlag::Shipyard)
+    for (BuildingLevel& l : b.levels) l.ships = 0;
+  if (flag == BuildingFlag::RelicStore)
+    for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
+           return std::any_of(p.buildings.begin(), p.buildings.end(), [&](const ProvBuilding& x) { return x.building == building && !x.relics.empty(); });
+         })) {
+      const Id owner = tx.w().province(pid)->owner;
+      for (ProvBuilding& x : tx.province(pid).buildings)
+        if (x.building == building) {
+          releaseBuildingRelics(tx, owner, x);
+          x.relics.clear();
+        }
+    }
+}
+
+void setLevelShips(Tx& tx, Id building, int level, u32 ships) {
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.shipyard) fail(buildingName(tx.w(), building) + " — не верфь");
+  if (level < 1 || level > int(b.levels.size())) fail("У постройки нет уровня " + std::to_string(level));
+  tx.building(building).levels[size_t(level - 1)].ships = ships & ((1u << int(ShipType::Count)) - 1);
+}
+
+void setLevelEssCost(Tx& tx, Id building, int level, Id essence, double amount) {
+  const Building& b = needBuilding(tx.w(), building);
+  if (level < 1 || level > int(b.levels.size())) fail("У постройки нет уровня " + std::to_string(level));
+  if (!tx.w().essence(essence)) fail("Эссенция не найдена");
+  needFinite(amount, "Цена в эссенции");
+  if (amount < 0) fail("Цена в эссенции не может быть меньше нуля");
+  auto& m = tx.building(building).levels[size_t(level - 1)].essCost;
+  if (amount > 0) m[essence] = amount;
+  else m.erase(essence);
+}
+
+bool isCoastal(const World& w, Id province) {
+  const Province* p = w.province(province);
+  if (!p || p->sea) return false;
+  bool yes = false;
+  w.edges.each([&](const Edge& e) {
+    if (yes) return;
+    if (e.pl == province && e.tr == Terrain::Sea) yes = true;
+    if (e.pr == province && e.tl == Terrain::Sea) yes = true;
+    // Граница с морской провинцией.
+    if (e.pl == province && e.pr)
+      if (const Province* o = w.province(e.pr); o && o->sea) yes = true;
+    if (e.pr == province && e.pl)
+      if (const Province* o = w.province(e.pl); o && o->sea) yes = true;
+  });
+  return yes;
+}
+
+std::vector<Id> seaNeighbors(const World& w, Id province) {
+  std::vector<Id> out;
+  w.edges.each([&](const Edge& e) {
+    Id other = e.pl == province ? e.pr : e.pr == province ? e.pl : 0;
+    if (!other || other == province) return;
+    const Province* o = w.province(other);
+    if (o && o->sea && !contains(out, other)) out.push_back(other);
+  });
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+bool hasBuildingRole(const World& w, Id province, BuildingFlag flag) {
+  const Province* p = w.province(province);
+  if (!p) return false;
+  for (const ProvBuilding& pb : p->buildings) {
+    const Building* b = w.building(pb.building);
+    if (!b || pb.builtLevel() < 1) continue;
+    switch (flag) {
+      case BuildingFlag::RelicStore: if (b->relicStore) return true; break;
+      case BuildingFlag::Healing: if (b->healing) return true; break;
+      case BuildingFlag::Plague: if (b->plague) return true; break;
+      case BuildingFlag::Shipyard: if (b->shipyard) return true; break;
+      case BuildingFlag::Mercenary: if (b->mercenary) return true; break;
+      case BuildingFlag::Coastal: if (b->coastal) return true; break;
+    }
+  }
+  return false;
+}
+
 void setLevelEssence(Tx& tx, Id building, int level, Id essence, double perTurn) {
   const Building& b = needBuilding(tx.w(), building);
   if (!b.essenceGen) fail(buildingName(tx.w(), building) + " — не постройка генерации эссенции");
@@ -523,8 +703,10 @@ void demolish(Tx& tx, Id province, Id building) {
   if (!pb) fail("Постройки " + buildingName(tx.w(), building) + " нет в провинции");
   if (pb->constructing) fail(buildingName(tx.w(), building) + " строится — сначала отмените строительство");
   const Id owner = p.owner;
+  const ProvBuilding gone = *pb;
   auto& list = tx.province(province).buildings;
   list.erase(std::remove_if(list.begin(), list.end(), [&](const ProvBuilding& x) { return x.building == building; }), list.end());
+  releaseBuildingRelics(tx, owner, gone);
   addLog(tx, LogKind::Build, "Снесена постройка " + buildingName(tx.w(), building) + " в провинции " + provName(tx.w(), province),
          LogRefs{province, 0, owner ? std::vector<Id>{owner} : std::vector<Id>{}});
 }

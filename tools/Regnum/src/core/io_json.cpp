@@ -56,7 +56,7 @@ const EnumInfo kShapeKindE[] = {{"water", "", ""}, {"islet", "", ""}, {"wall", "
 const char* const kSeqNames[kSeqCount] = {
   "province", "faction", "character", "modifier", "building", "tech", "army", "route", "deal", "log", "row",
   "council", "node", "edge", "resource", "race", "culture", "religion", "government", "position", "symbol", "shape",
-  "essence", "relic", "special", "resGroup",
+  "essence", "relic", "special", "resGroup", "heroClass", "talent", "relicGroup", "archSite", "chest", "archGroup",
 };
 
 constexpr int kCatalogLists = 7;
@@ -169,6 +169,18 @@ Value resV(const std::map<Id, double>& m, Seq s = Seq::Resource) {
   return o;
 }
 Value essV(const std::map<Id, double>& m) { return resV(m, Seq::Essence); }
+// Набор значений перечисления (биты) — массив идентификаторов.
+Value maskV(Enum e, u32 mask) {
+  json::Array a;
+  for (int i = 0; i < e.n && i < 32; i++)
+    if (mask & (1u << i)) a.emplace_back(e.list[i].id);
+  return Value(std::move(a));
+}
+Value strsV(const std::vector<std::string>& v) {
+  json::Array a;
+  for (auto& s : v) a.emplace_back(s);
+  return Value(std::move(a));
+}
 Value enumV(Enum e, int v) { return Value(e.list[(v >= 0 && v < e.n) ? v : 0].id); }
 Value bytesV(const std::string& b) { return Value(codec::base64::encode(b)); }
 
@@ -184,6 +196,7 @@ Value encMeta(const Meta& m) {
   o.set("basemap", m.basemap);
   o.set("mapObjects", m.mapObjects);
   o.set("content", m.content);
+  o.set("rng", m.rng);
   o.set("notes", m.notes);
   return o;
 }
@@ -200,6 +213,7 @@ Value encSettings(const Settings& s) {
   o.set("rebellionRoll", s.rebellionRoll);
   o.set("autosaveFolder", s.autosaveFolder);
   o.set("autosaveSec", s.autosaveSec);
+  o.set("freeFleets", s.freeFleets);
   return o;
 }
 
@@ -243,9 +257,95 @@ Value encCatalogs(const Catalogs& c) {
     e.set("name", r.name);
     e.set("rarity", enumV(en(kRarityE), int(r.rarity)));
     e.set("desc", r.desc);
+    e.set("group", ref(Seq::RelicGroup, r.group));
+    e.set("entity", r.entity);
+    e.set("image", bytesV(r.image));
     relics.push_back(std::move(e));
   }
   o.set("relics", Value(std::move(relics)));
+  json::Array rgroups;
+  for (const RelicGroup& g : c.relicGroups) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::RelicGroup, g.id));
+    e.set("name", g.name);
+    e.set("parent", ref(Seq::RelicGroup, g.parent));
+    e.set("key", g.key);
+    rgroups.push_back(std::move(e));
+  }
+  o.set("relicGroups", Value(std::move(rgroups)));
+  json::Array classes;
+  for (const HeroClass& k : c.classes) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::HeroClass, k.id));
+    e.set("name", k.name);
+    e.set("desc", k.desc);
+    e.set("icon", k.icon);
+    e.set("color", colorV(k.color));
+    e.set("tierPoints", k.tierPoints);
+    json::Array tl;
+    for (const Talent& t : k.talents) {
+      Value x = Value::object();
+      x.set("id", ref(Seq::Talent, t.id));
+      x.set("name", t.name);
+      x.set("desc", t.desc);
+      x.set("icon", t.icon);
+      x.set("row", t.row);
+      x.set("col", t.col);
+      x.set("cost", t.cost);
+      x.set("prereq", ref(Seq::Talent, t.prereq));
+      x.set("modifiers", refs(Seq::Modifier, t.modifiers));
+      tl.push_back(std::move(x));
+    }
+    e.set("talents", Value(std::move(tl)));
+    classes.push_back(std::move(e));
+  }
+  o.set("classes", Value(std::move(classes)));
+  json::Array sites;
+  for (const ArchSite& s : c.archSites) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::ArchSite, s.id));
+    e.set("key", s.key);
+    e.set("name", s.name);
+    e.set("icon", s.icon);
+    json::Array rw;
+    for (const auto& list : s.rewards) rw.push_back(refs(Seq::Chest, list));
+    e.set("rewards", Value(std::move(rw)));
+    sites.push_back(std::move(e));
+  }
+  o.set("archSites", Value(std::move(sites)));
+  json::Array chests;
+  for (const Chest& ch : c.chests) {
+    Value e = Value::object();
+    e.set("id", ref(Seq::Chest, ch.id));
+    e.set("key", ch.key);
+    e.set("name", ch.name);
+    e.set("icon", ch.icon);
+    e.set("desc", ch.desc);
+    json::Array items;
+    for (const ChestItem& it : ch.items) {
+      Value x = Value::object();
+      x.set("kind", enumV(en(schema::kChestItemKinds), int(it.kind)));
+      x.set("amount", fin(it.amount));
+      switch (it.kind) {
+        case ChestItemKind::Resource:
+          x.set("res", ref(Seq::Resource, it.res));
+          x.set("group", ref(Seq::ResGroup, it.group));
+          x.set("exclude", refs(Seq::Resource, it.exclude));
+          break;
+        case ChestItemKind::Essence: x.set("essence", ref(Seq::Essence, it.essence)); break;
+        case ChestItemKind::Relic:
+          x.set("relicGroup", ref(Seq::RelicGroup, it.relicGroup));
+          x.set("rarities", maskV(en(kRarityE), it.rarities));
+          break;
+        case ChestItemKind::Chest: x.set("chests", refs(Seq::Chest, it.chests)); break;
+        default: break;
+      }
+      items.push_back(std::move(x));
+    }
+    e.set("items", Value(std::move(items)));
+    chests.push_back(std::move(e));
+  }
+  o.set("chests", Value(std::move(chests)));
   json::Array specials;
   for (const SpecialUnit& s : c.specials) {
     Value e = Value::object();
@@ -294,7 +394,12 @@ Value encConstants(const Constants& c) {
     e.set("desc", k.desc);
     switch (k.type) {
       case ConstType::Number: e.set("num", fin(k.num)); break;
-      case ConstType::Resources: e.set("res", resV(k.res)); break;
+      case ConstType::Resources:
+        e.set("res", resV(k.res));
+        e.set("ess", essV(k.ess));
+        e.set("minRes", resV(k.minRes));
+        e.set("minEss", essV(k.minEss));
+        break;
       case ConstType::Values: {
         json::Array v;
         for (auto& s : k.values) v.emplace_back(s);
@@ -427,8 +532,10 @@ Value encProvince(const Province& p) {
       x.set("paid", resV(e.paid));
       x.set("payer", ref(Seq::Faction, e.payer));
     }
+    if (e.constructing && !e.paidEss.empty()) x.set("paidEss", essV(e.paidEss));
     if (e.idle) x.set("idle", true);      // постройка преобразования: простаивает
     if (e.cycle) x.set("cycle", e.cycle);  // ходов до конца цикла преобразования
+    if (!e.relics.empty()) x.set("relics", refs(Seq::Relic, e.relics));   // хранилище реликвий
     b.push_back(std::move(x));
   }
   o.set("buildings", Value(std::move(b)));
@@ -446,6 +553,18 @@ Value encProvince(const Province& p) {
     sl.push_back(std::move(x));
   }
   o.set("slaves", Value(std::move(sl)));
+  json::Array arch;
+  for (const ArchSlot& s : p.arch) {
+    Value x = Value::object();
+    x.set("site", ref(Seq::ArchSite, s.site));
+    x.set("open", s.open);
+    x.set("stage", s.stage);
+    x.set("chest", ref(Seq::Chest, s.chest));
+    arch.push_back(std::move(x));
+  }
+  o.set("arch", Value(std::move(arch)));
+  o.set("hiddenRelic", ref(Seq::Relic, p.hiddenRelic));
+  o.set("hiddenBy", ref(Seq::Faction, p.hiddenBy));
   o.set("notes", p.notes);
   o.set("entity", p.entity);
   return o;
@@ -497,6 +616,8 @@ Value encFaction(const Faction& f) {
     x.set("essence", essV(r.essence));
     x.set("essUpkeep", essV(r.essUpkeep));
     x.set("special", ref(Seq::Special, r.special));
+    x.set("merc", r.merc);
+    x.set("hire", fin(r.hire));
     army.push_back(std::move(x));
   }
   o.set("army", Value(std::move(army)));
@@ -508,6 +629,7 @@ Value encFaction(const Faction& f) {
     x.set("type", enumV(en(schema::kShipTypes), int(r.type)));
     x.set("total", r.total);
     x.set("upkeep", fin(r.upkeep));
+    x.set("keyRes", ref(Seq::Resource, r.keyRes));
     fleet.push_back(std::move(x));
   }
   o.set("fleet", Value(std::move(fleet)));
@@ -552,9 +674,24 @@ Value encFaction(const Faction& f) {
     x.set("studied", s.studied);
     x.set("research", s.research);
     x.set("progress", s.progress);
+    if (!s.paid.empty()) x.set("paid", resV(s.paid));
     techs.set(refStr(Seq::Tech, t), std::move(x));
   }
   o.set("techs", std::move(techs));
+  json::Array groups;
+  for (const ArchGroup& g : f.archGroups) {
+    Value x = Value::object();
+    x.set("id", ref(Seq::ArchGroup, g.id));
+    x.set("name", g.name);
+    x.set("exp", g.exp);
+    x.set("modifiers", refs(Seq::Modifier, g.modifiers));
+    x.set("modTurns", modTurnsV(g.modTurns));
+    x.set("busy", g.busy);
+    if (g.danger) x.set("danger", true);
+    groups.push_back(std::move(x));
+  }
+  o.set("archGroups", Value(std::move(groups)));
+  o.set("relics", refs(Seq::Relic, f.relics));
   o.set("notes", f.notes);
   o.set("entity", f.entity);
   return o;
@@ -574,6 +711,9 @@ Value encCharacter(const Character& c) {
   o.set("captor", ref(Seq::Faction, c.captor));
   o.set("burial", ref(Seq::Province, c.burial));
   o.set("inventory", refs(Seq::Relic, c.inventory));
+  o.set("level", c.level);
+  o.set("heroClass", ref(Seq::HeroClass, c.heroClass));
+  o.set("talents", refs(Seq::Talent, c.talents));
   o.set("notes", c.notes);
   o.set("entity", c.entity);
   return o;
@@ -594,6 +734,8 @@ Value encModifier(const Modifier& m) {
   o.set("key", m.key);
   o.set("kind", enumV(en(schema::kModKinds), int(m.kind)));
   o.set("duration", m.duration);
+  o.set("essGen", essV(m.essGen));
+  o.set("resGen", resV(m.resGen));
   return o;
 }
 
@@ -623,6 +765,8 @@ Value encBuilding(const Building& b) {
     x.set("desc", l.desc);
     x.set("produce", resV(l.produce));
     x.set("essence", essV(l.essence));
+    x.set("essCost", essV(l.essCost));
+    if (b.shipyard) x.set("ships", maskV(en(schema::kShipTypes), l.ships));
     levels.push_back(std::move(x));
   }
   o.set("levels", Value(std::move(levels)));
@@ -648,6 +792,21 @@ Value encBuilding(const Building& b) {
   o.set("essenceGen", b.essenceGen);
   o.set("specialAccess", b.specialAccess);
   o.set("specials", refs(Seq::Special, b.specials));
+  o.set("relicStore", b.relicStore);
+  o.set("healing", b.healing);
+  o.set("plague", b.plague);
+  o.set("shipyard", b.shipyard);
+  o.set("mercenary", b.mercenary);
+  o.set("coastal", b.coastal);
+  json::Array sr;
+  for (const StateReq& q : b.stateReqs) {
+    Value x = Value::object();
+    x.set("building", ref(Seq::Building, q.building));
+    x.set("per", q.per);
+    sr.push_back(std::move(x));
+  }
+  o.set("stateReqs", Value(std::move(sr)));
+  o.set("key", b.key);
   return o;
 }
 
@@ -664,6 +823,10 @@ Value encTech(const Tech& t) {
   o.set("research", t.research);
   o.set("progress", t.progress);
   o.set("pos", posV(t.pos));
+  o.set("cost", resV(t.cost));
+  if (!t.paid.empty()) o.set("paid", resV(t.paid));
+  o.set("needKeys", strsV(t.needKeys));
+  o.set("key", t.key);
   return o;
 }
 
@@ -693,6 +856,8 @@ Value encArmy(const Army& a) {
   o.set("loyalty", fin(a.loyalty));
   o.set("modifiers", refs(Seq::Modifier, a.modifiers));
   o.set("modTurns", modTurnsV(a.modTurns));
+  o.set("carrier", ref(Seq::Army, a.carrier));
+  o.set("cargo", ref(Seq::Army, a.cargo));
   return o;
 }
 
@@ -1118,6 +1283,34 @@ class Rec {
     return out;
   }
 
+  // Набор значений перечисления: массив идентификаторов → биты; неизвестные пропускаются.
+  u32 mask(std::string_view key, Enum e) {
+    u32 m = 0;
+    const Value* a = arr(key);
+    if (!a) return m;
+    const auto& items = a->items();
+    for (size_t i = 0; i < items.size(); i++) {
+      int k = items[i].isStr() ? schema::findEnum(e.list, e.n, items[i].asStr()) : -1;
+      if (k < 0 || k >= 32) {
+        warn(std::string(key) + "[" + std::to_string(i) + "]", "неизвестное значение " + show(items[i]) + " (допустимо: " + enumChoices(e) + ") — пропущено");
+        continue;
+      }
+      m |= 1u << k;
+    }
+    return m;
+  }
+  std::vector<std::string> strs(std::string_view key) {
+    std::vector<std::string> out;
+    const Value* a = arr(key);
+    if (!a) return out;
+    const auto& items = a->items();
+    for (size_t i = 0; i < items.size(); i++) {
+      if (items[i].isStr()) out.push_back(items[i].asStr());
+      else warn(std::string(key) + "[" + std::to_string(i) + "]", "ожидалась строка — значение пропущено");
+    }
+    return out;
+  }
+
   std::string bytes(std::string_view key) {
     const Value* x = get(key);
     if (!x || x->isNull()) return {};
@@ -1197,6 +1390,7 @@ void decMeta(Rec& r, Meta& m) {
   m.basemap = r.str("basemap", m.basemap);
   m.mapObjects = r.flag("mapObjects", false);
   m.content = r.intv("content", 0);
+  m.rng = u32(std::clamp<i64>(r.integer("rng", 0), 0, i64(0xFFFFFFFFu)));
   m.notes = r.str("notes");
 }
 
@@ -1211,6 +1405,7 @@ void decSettings(Rec& r, Settings& s) {
   s.rebellionRoll = r.flag("rebellionRoll", s.rebellionRoll);
   s.autosaveFolder = r.flag("autosaveFolder", s.autosaveFolder);
   s.autosaveSec = r.intv("autosaveSec", s.autosaveSec);
+  s.freeFleets = r.flag("freeFleets", s.freeFleets);
 }
 
 void decCatalogs(Rec& r, Catalogs& c) {
@@ -1255,7 +1450,94 @@ void decCatalogs(Rec& r, Catalogs& c) {
     x.name = e.str("name");
     x.rarity = Rarity(e.enumv("rarity", en(kRarityE), 0));
     x.desc = e.str("desc");
+    x.group = e.ref("group", Seq::RelicGroup);
+    x.entity = e.str("entity");
+    x.image = e.bytes("image");
     c.relics.push_back(std::move(x));
+  });
+  c.relicGroups.clear();
+  r.list("relicGroups", [&](Rec& e) {
+    RelicGroup g;
+    g.id = e.id(Seq::RelicGroup);
+    if (g.id) e.setBase("relicGroups." + refStr(Seq::RelicGroup, g.id));
+    g.name = e.str("name");
+    g.parent = e.ref("parent", Seq::RelicGroup);
+    g.key = e.str("key");
+    c.relicGroups.push_back(std::move(g));
+  });
+  c.classes.clear();
+  r.list("classes", [&](Rec& e) {
+    HeroClass k;
+    k.id = e.id(Seq::HeroClass);
+    if (k.id) e.setBase("classes." + refStr(Seq::HeroClass, k.id));
+    k.name = e.str("name");
+    k.desc = e.str("desc");
+    k.icon = e.str("icon", k.icon);
+    k.color = e.color("color", k.color);
+    k.tierPoints = e.intv("tierPoints", 5);
+    e.list("talents", [&](Rec& q) {
+      Talent t;
+      t.id = q.ref("id", Seq::Talent);
+      t.name = q.str("name");
+      t.desc = q.str("desc");
+      t.icon = q.str("icon", t.icon);
+      t.row = q.intv("row", 0);
+      t.col = q.intv("col", 0);
+      t.cost = q.intv("cost", 1);
+      t.prereq = q.ref("prereq", Seq::Talent);
+      t.modifiers = q.refs("modifiers", Seq::Modifier);
+      k.talents.push_back(std::move(t));
+    });
+    c.classes.push_back(std::move(k));
+  });
+  c.archSites.clear();
+  r.list("archSites", [&](Rec& e) {
+    ArchSite s;
+    s.id = e.id(Seq::ArchSite);
+    if (s.id) e.setBase("archSites." + refStr(Seq::ArchSite, s.id));
+    s.key = e.str("key");
+    s.name = e.str("name");
+    s.icon = e.str("icon", s.icon);
+    if (const Value* rw = e.arr("rewards")) {
+      const auto& items = rw->items();
+      for (size_t i = 0; i < items.size() && i < size_t(kArchSlots); i++) {
+        if (!items[i].isArr()) {
+          e.warn("rewards[" + std::to_string(i) + "]", "ожидался массив сундуков — пропущен");
+          continue;
+        }
+        for (const Value& v : items[i].items()) {
+          auto id = parseRef(v, Seq::Chest);
+          if (id && *id) s.rewards[i].push_back(*id);
+          else e.warn("rewards[" + std::to_string(i) + "]", "неверная ссылка " + show(v) + " — удалена");
+        }
+      }
+      if (items.size() > size_t(kArchSlots)) e.warn("rewards", "больше четырёх списков — лишние отброшены");
+    }
+    c.archSites.push_back(std::move(s));
+  });
+  c.chests.clear();
+  r.list("chests", [&](Rec& e) {
+    Chest ch;
+    ch.id = e.id(Seq::Chest);
+    if (ch.id) e.setBase("chests." + refStr(Seq::Chest, ch.id));
+    ch.key = e.str("key");
+    ch.name = e.str("name");
+    ch.icon = e.str("icon", ch.icon);
+    ch.desc = e.str("desc");
+    e.list("items", [&](Rec& q) {
+      ChestItem it;
+      it.kind = ChestItemKind(q.enumv("kind", en(schema::kChestItemKinds), 0));
+      it.amount = q.num("amount", 0);
+      it.res = q.ref("res", Seq::Resource);
+      it.group = q.ref("group", Seq::ResGroup);
+      it.exclude = q.refs("exclude", Seq::Resource);
+      it.essence = q.ref("essence", Seq::Essence);
+      it.relicGroup = q.ref("relicGroup", Seq::RelicGroup);
+      it.rarities = q.mask("rarities", en(kRarityE));
+      it.chests = q.refs("chests", Seq::Chest);
+      ch.items.push_back(std::move(it));
+    });
+    c.chests.push_back(std::move(ch));
   });
   c.specials.clear();
   r.list("specials", [&](Rec& e) {
@@ -1316,6 +1598,9 @@ void decConstants(Rec& r, Constants& c) {
     k.desc = e.str("desc");
     k.num = e.num("num", 0);
     k.res = e.resMap("res");
+    k.ess = e.resMap("ess", Seq::Essence);
+    k.minRes = e.resMap("minRes");
+    k.minEss = e.resMap("minEss", Seq::Essence);
     if (const Value* v = e.arr("values")) {
       const auto& items = v->items();
       for (size_t i = 0; i < items.size(); i++) {
@@ -1498,8 +1783,10 @@ void decProvince(Rec& r, Province& p) {
       b.payer = p.owner;
       e.warnHere("уплаченная стоимость строительства не записана — при отмене стоимость не вернётся");
     }
+    b.paidEss = e.resMap("paidEss", Seq::Essence);
     b.idle = e.flag("idle", false);
     b.cycle = e.intv("cycle", 0);
+    b.relics = e.refs("relics", Seq::Relic);
     p.buildings.push_back(b);
   });
   p.modifiers = r.refs("modifiers", Seq::Modifier);
@@ -1514,6 +1801,22 @@ void decProvince(Rec& r, Province& p) {
     s.count = e.integer("count", 0);
     p.slaves.push_back(s);
   });
+  if (const Value* a = r.arr("arch")) {
+    const auto& items = a->items();
+    if (items.size() > size_t(kArchSlots)) r.warn("arch", "больше четырёх археологических слотов — лишние отброшены");
+    size_t i = 0;
+    r.list("arch", [&](Rec& e) {
+      ArchSlot s;
+      s.site = e.ref("site", Seq::ArchSite);
+      s.open = e.flag("open", false);
+      s.stage = e.intv("stage", 0);
+      s.chest = e.ref("chest", Seq::Chest);
+      if (i < size_t(kArchSlots)) p.arch[i] = s;
+      i++;
+    });
+  }
+  p.hiddenRelic = r.ref("hiddenRelic", Seq::Relic);
+  p.hiddenBy = r.ref("hiddenBy", Seq::Faction);
   p.notes = r.str("notes");
   p.entity = r.str("entity");
 }
@@ -1563,6 +1866,8 @@ void decFaction(Rec& r, Faction& f) {
     a.essence = e.resMap("essence", Seq::Essence);
     a.essUpkeep = e.resMap("essUpkeep", Seq::Essence);
     a.special = e.ref("special", Seq::Special);
+    a.merc = e.flag("merc", false);
+    a.hire = e.num("hire", 0);
     f.army.push_back(std::move(a));
   });
   r.list("fleet", [&](Rec& e) {
@@ -1572,6 +1877,7 @@ void decFaction(Rec& r, Faction& f) {
     a.type = ShipType(e.enumv("type", en(schema::kShipTypes), int(ShipType::Frigate)));
     a.total = countOf(e, "total");
     a.upkeep = e.num("upkeep", 0);
+    a.keyRes = e.ref("keyRes", Seq::Resource);
     f.fleet.push_back(std::move(a));
   });
   f.res = r.resMap("res");
@@ -1616,9 +1922,28 @@ void decFaction(Rec& r, Faction& f) {
       s.studied = v.get("studied").isBool() && v.get("studied").asBool();
       s.research = v.get("research").isBool() && v.get("research").asBool();
       s.progress = v.get("progress").isNum() ? int(std::clamp(std::nearbyint(v.get("progress").asNum()), 0.0, 1e6)) : 0;
+      if (v.get("paid").isObj())
+        for (auto& [rk, rv] : v.get("paid").members()) {
+          auto rid = parseRef(Value(rk), Seq::Resource);
+          if (rid && *rid && rv.isNum()) s.paid[*rid] = rv.asNum();
+        }
+      for (auto& [mk, mv] : v.members())
+        if (mk != "studied" && mk != "research" && mk != "progress" && mk != "paid") r.warn("techs." + k + "." + mk, "неизвестное поле отброшено");
       f.techs[*id] = s;
     }
   }
+  r.list("archGroups", [&](Rec& e) {
+    ArchGroup g;
+    g.id = e.ref("id", Seq::ArchGroup);
+    g.name = e.str("name");
+    g.exp = e.intv("exp", 0);
+    g.modifiers = e.refs("modifiers", Seq::Modifier);
+    g.modTurns = modTurnsOf(e, "modTurns");
+    g.busy = e.intv("busy", 0);
+    g.danger = e.flag("danger", false);
+    f.archGroups.push_back(std::move(g));
+  });
+  f.relics = r.refs("relics", Seq::Relic);
   f.notes = r.str("notes");
   f.entity = r.str("entity");
 }
@@ -1635,6 +1960,9 @@ void decCharacter(Rec& r, Character& c) {
   c.captor = r.ref("captor", Seq::Faction);
   c.burial = r.ref("burial", Seq::Province);
   c.inventory = r.refs("inventory", Seq::Relic);
+  c.level = r.intv("level", 1);
+  c.heroClass = r.ref("heroClass", Seq::HeroClass);
+  c.talents = r.refs("talents", Seq::Talent);
   c.notes = r.str("notes");
   c.entity = r.str("entity");
 }
@@ -1658,6 +1986,8 @@ void decModifier(Rec& r, Modifier& m) {
   m.key = r.str("key");
   m.kind = ModKind(r.enumv("kind", en(schema::kModKinds), 0));
   m.duration = r.intv("duration", 0);
+  m.essGen = r.resMap("essGen", Seq::Essence);
+  m.resGen = r.resMap("resGen");
 }
 
 void decBuilding(Rec& r, Building& b) {
@@ -1683,6 +2013,8 @@ void decBuilding(Rec& r, Building& b) {
       l.desc = e.str("desc");
       l.produce = e.resMap("produce");
       l.essence = e.resMap("essence", Seq::Essence);
+      l.essCost = e.resMap("essCost", Seq::Essence);
+      l.ships = e.mask("ships", en(schema::kShipTypes));
       b.levels.push_back(std::move(l));
     });
   }
@@ -1704,6 +2036,19 @@ void decBuilding(Rec& r, Building& b) {
   b.essenceGen = r.flag("essenceGen", false);
   b.specialAccess = r.flag("specialAccess", false);
   b.specials = r.refs("specials", Seq::Special);
+  b.relicStore = r.flag("relicStore", false);
+  b.healing = r.flag("healing", false);
+  b.plague = r.flag("plague", false);
+  b.shipyard = r.flag("shipyard", false);
+  b.mercenary = r.flag("mercenary", false);
+  b.coastal = r.flag("coastal", false);
+  r.list("stateReqs", [&](Rec& e) {
+    StateReq q;
+    q.building = e.ref("building", Seq::Building);
+    q.per = e.intv("per", 4);
+    b.stateReqs.push_back(q);
+  });
+  b.key = r.str("key");
 }
 
 void decTech(Rec& r, Tech& t) {
@@ -1717,6 +2062,10 @@ void decTech(Rec& r, Tech& t) {
   t.research = r.flag("research", false);
   t.progress = r.intv("progress", 0);
   t.pos = r.pos("pos");
+  t.cost = r.resMap("cost");
+  t.paid = r.resMap("paid");
+  t.needKeys = r.strs("needKeys");
+  t.key = r.str("key");
 }
 
 void decArmy(Rec& r, Army& a) {
@@ -1739,6 +2088,8 @@ void decArmy(Rec& r, Army& a) {
   a.loyalty = r.num("loyalty", 100);
   a.modifiers = r.refs("modifiers", Seq::Modifier);
   a.modTurns = modTurnsOf(r, "modTurns");
+  a.carrier = r.ref("carrier", Seq::Army);
+  a.cargo = r.ref("cargo", Seq::Army);
 }
 
 void decRoute(Rec& r, Route& x) {

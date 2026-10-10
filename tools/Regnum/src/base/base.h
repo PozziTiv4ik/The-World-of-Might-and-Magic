@@ -158,6 +158,11 @@ std::string fmtInt(i64 v);
 std::string fmtSigned(double v, int digits = 0);      // +12, −5, 0
 std::string fmtPct(double v, int digits = 0, bool sign = false);
 std::string fmtShort(double v);                       // 12,5 тыс., 3,1 млн
+// Золото: 1 единица — 1 тыс. золотых (ТЗ «Доработки №1», п.12), поэтому подпись «тыс.»: «12,5 тыс.»; крупно — «3,2 млн»
+// (3200 единиц = 3,2 млн золотых), «1,1 млрд».
+std::string fmtGold(double v, int digits = 3);
+std::string fmtGoldSigned(double v, int digits = 3);
+std::string fmtGoldShort(double v);
 const char* plural(i64 n, const char* one, const char* few, const char* many);
 std::string nTurns(i64 n);                            // «3 хода»
 std::optional<double> parseNum(std::string_view s);   // принимает пробелы, запятую, «−»

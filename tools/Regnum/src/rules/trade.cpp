@@ -173,7 +173,7 @@ Id imposeTribute(Tx& tx, DealKind kind, Id receiver, Id payer, double amountPerT
   Id id = conclude(tx, std::move(d), false);
   addLog(tx, LogKind::Diplomacy,
          facName(tx.w(), payer) + " выплачивает " + facName(tx.w(), receiver) + (kind == DealKind::Tribute ? " дань: " : " репарации: ") +
-             amount(amountPerTurn) + " золота за ход, " + nTurns(turns),
+             amount(amountPerTurn) + " тыс. золота за ход, " + nTurns(turns),
          LogRefs{0, 0, {receiver, payer}});
   return id;
 }

@@ -57,24 +57,25 @@ TEST(rules_mech_new_world_content) {
   CHECK_EQ(pos[5].name, std::string("Хранитель знаний"));
   CHECK_EQ(pos[9].name, std::string("Верховный друид"));
   CHECK_EQ(w.catalogs->essences.size(), size_t(18));
-  CHECK_EQ(w.catalogs->religions.size(), size_t(61));
+  CHECK_EQ(w.catalogs->religions.size(), size_t(70));
   CHECK_EQ(w.catalogs->resGroups.size(), content::baseGroups().size());
-  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::OreCommon)).size(), size_t(8));
-  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::OreSpecial)).size(), size_t(7));
-  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Ore)).size(), size_t(15));   // группа — с подгруппами
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::OreCommon)).size(), size_t(10));
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::OreSpecial)).size(), size_t(8));
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Ore)).size(), size_t(18));   // группа — с подгруппами
   CHECK_EQ(resourcesIn(w, grp(w, schema::grp::MountsGround)).size(), size_t(23));
-  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::MountsFlying)).size(), size_t(12));
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::MountsFlying)).size(), size_t(13));
   CHECK_EQ(resourcesIn(w, grp(w, schema::grp::WarBeasts)).size(), size_t(15));
   CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Monsters)).size(), size_t(31));
-  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Beasts)).size(), size_t(81));
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Beasts)).size(), size_t(87));
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::SeaMonsters)).size(), size_t(5));
   CHECK_EQ(provisionResources(w).size(), size_t(17));
-  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Materials)).size(), size_t(29));
+  CHECK_EQ(resourcesIn(w, grp(w, schema::grp::Materials)).size(), size_t(34));
   // Трупы и демоническая энергия — сразу в справочнике (начальные запасы задаются без первого начисления).
   CHECK(w.catalogs->resourceId(schema::kResCorpses) && w.catalogs->resourceId(schema::kResEnergy));
   const Id parts = w.catalogs->resourceId(schema::kResMechParts);
   CHECK(parts && w.resource(parts)->name == "Запчасти механизмов" && w.catalogs->resourceIn(parts, grp(w, schema::grp::MatIndustrial)));
   // «Драконы Бездны» и «Цитадель Бездны» (общее дерево).
-  CHECK_EQ(w.catalogs->specials.size(), size_t(1));
+  CHECK_EQ(w.catalogs->specials.size(), size_t(10));   // «Драконы Бездны» и 9 особых отрядов ТЗ «Доработки №4»
   const SpecialUnit& d = w.catalogs->specials[0];
   CHECK_EQ(d.name, std::string("Драконы Бездны"));
   CHECK(d.type == UnitType::Monsters);
@@ -136,7 +137,7 @@ TEST(rules_mech_key_resource_rules) {
   CHECK(keyAllowed(w, UnitType::Machines, parts));
   CHECK(!keyAllowed(w, UnitType::Machines, res(w, "Сталь")));
   CHECK_EQ(keyResources(w, UnitType::LightCav).size(), size_t(23));
-  CHECK_EQ(keyResources(w, UnitType::Beasts).size(), size_t(50));
+  CHECK_EQ(keyResources(w, UnitType::Beasts).size(), size_t(51));   // без чудовищ и морских чудовищ
   CHECK(keyResources(w, UnitType::LightInf).empty());
   CHECK(!schema::needsKeyResource(UnitType::Flying));
 }

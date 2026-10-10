@@ -58,7 +58,7 @@ class SketchTool : public MapTool {
 
   void drawOverlay(App& a, gfx::Canvas& c, const map::View& v) override {
     Color line = lineColor(), fill = line.alpha(0.17f);
-    sk_.draw(a, c, v, line, sk_.closed ? fill : Color(0, 0, 0, 0));
+    sk_.draw(a, c, v, line, sk_.closed ? fill : Color(0, 0, 0, 0), [&](const Pts& poly) { fillSketch(a, c, v, poly, fill); });
     if (a.ui.cursorMap && !(needsTarget() && !targetOk(a) && !sk_.active())) cursorBadge(c, v.toScreen(*a.ui.cursorMap), badge(), line);
     options(a);
   }
@@ -74,6 +74,8 @@ class SketchTool : public MapTool {
   // Дополнительные элементы панели (до счётчика и кнопок) и их ширина.
   virtual float extraW(App&) { return 0; }
   virtual void extra(App&) {}
+  // Заливка предпросмотра контура (экранные точки): по умолчанию — весь многоугольник.
+  virtual void fillSketch(App&, gfx::Canvas& c, const map::View&, const Pts& poly, Color fill) { fillPoly(c, poly, fill); }
 
   bool targetOk(App& a) const {
     Id p = selectedProvince(a);
@@ -106,8 +108,10 @@ class SketchTool : public MapTool {
 };
 
 // ---------------------------------------------------------------- новая провинция
-// ТЗ «Фиксы», п.17: два инструмента — сухопутная и морская провинция. Контур забирает весь рельеф своего вида
-// внутри (сушу — в том числе участки, разделённые морем); берег «прилипает».
+// ТЗ «Фиксы», п.17: два инструмента — сухопутная и морская провинция. Контур забирает свободный рельеф своего
+// вида внутри (сушу — в том числе участки, разделённые морем); берег «прилипает». ТЗ «Доработки №1», п.1:
+// существующие провинции не обрезаются — граница новой идёт по их границам; предпросмотр заливает только то,
+// что станет провинцией.
 class NewProvinceTool final : public SketchTool {
  public:
   explicit NewProvinceTool(Terrain t) : ter_(t) {}
@@ -123,24 +127,47 @@ class NewProvinceTool final : public SketchTool {
   float extraW(App&) override { return textW(terrainName(ter_), ui::Font::Strong) + 34 + 6; }
   void extra(App& a) override {
     ui::tag(terrainName(ter_), ter_ == Terrain::Sea ? ui::Tone::Info : ui::Tone::Success, ter_ == Terrain::Sea ? "sea" : "land");
-    ui::tooltip(ter_ == Terrain::Sea ? "Морская провинция: всё море внутри контура" : "Сухопутная провинция: вся суша внутри контура");
+    ui::tooltip(ter_ == Terrain::Sea ? "Морская провинция: свободное море внутри контура" : "Сухопутная провинция: свободная суша внутри контура");
     a.markUi("tool.options.terrain");
+  }
+
+  // Свободные грани своего рельефа внутри контура (обрезка по контуру). Дыры грани вдали от контура (острова
+  // в море) на заливку внутри отсечения не влияют и пропускаются.
+  void fillSketch(App& a, gfx::Canvas& c, const map::View& v, const Pts& poly, Color fill) override {
+    if (poly.size() < 3) return;
+    Box2 box;
+    for (gfx::Pt p : poly) box.add(v.toMap(p.x, p.y));
+    auto fs = geo::faces(a.world());
+    c.save();
+    c.clipPath(polyPath(poly, true), gfx::FillRule::EvenOdd);
+    for (const geo::Face& f : fs->faces) {
+      if (f.province || f.terrain != ter_ || !f.box.intersects(box)) continue;
+      gfx::Path path;
+      for (size_t i = 0; i < f.rings.size(); i++) {
+        const auto& ring = f.rings[i];
+        if (ring.size() < 3 || (i > 0 && !geo::bounds(ring).intersects(box))) continue;
+        for (size_t k = 0; k < ring.size(); k++) {
+          const gfx::Pt q = v.toScreen(ring[k]);
+          if (k == 0) path.moveTo(q.x, q.y);
+          else path.lineTo(q.x, q.y);
+        }
+        path.close();
+      }
+      c.fillPath(path, fill, gfx::FillRule::EvenOdd);
+    }
+    c.restore();
   }
 
   bool commit(App& a, const std::vector<Vec2>& pts) override {
     Id nid = 0;
     double snap = snapTol(a);
-    std::vector<std::string> removed;
     bool ok = a.act(ter_ == Terrain::Sea ? "Новая морская провинция" : "Новая провинция", [&](Tx& tx) {
-      rules::AreaEdit r = rules::createProvince(tx, pts, ter_, snap);  // поглощённые целиком провинции удаляются
-      nid = r.province;
-      removed = std::move(r.removed);
+      nid = rules::createProvince(tx, pts, ter_, snap).province;  // соседи не меняются: никто не остаётся без области
       std::string name = newProvinceName(tx.w());
       tx.province(nid).name = name;
       rules::addLog(tx, LogKind::Province, "Провинция «" + name + "» добавлена на карту", rules::LogRefs{nid, 0, {}});
     });
     if (ok) a.select(SelType::Province, nid);
-    if (ok) toastRemoved(a, removed);
     return ok;
   }
 };

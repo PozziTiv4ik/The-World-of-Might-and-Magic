@@ -534,7 +534,7 @@ TEST(rules_calc_deployed_and_rows) {
   Id r1 = 0, s1 = 0;
   f.tx([&](Tx& tx) {
     r1 = addArmyRow(tx, f.A, UnitType::LightInf, "", 100, 1);
-    s1 = addFleetRow(tx, f.A, ShipType::Galleon, "", 8, 1);
+    s1 = addFleetRow(tx, f.A, ShipType::Frigate, "", 8, 1);
     tx.province(f.p[0]).owner = f.A;
     Id a1 = createArmy(tx, ArmyKind::Army, f.A, center(1));
     setUnits(tx, a1, f.A, r1, 30);

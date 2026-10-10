@@ -1,6 +1,8 @@
 // Производительность geo на картах масштаба 8000 × 4500:
 //  а) берег ~58 тыс. точек (материк 20 тыс. + ~1500 островов) — initFromCoast, buildFaces, validate, операции;
 //  б) разбиение 46 × 46 провинций с извилистыми границами (~2100 граней, ~4300 дуг, ~41 тыс. точек) — buildFaces.
+#include <map>
+
 #include "tests/test_geo_util.h"
 
 using namespace rg;
@@ -226,11 +228,50 @@ TEST(geo_perf_grid_partition) {
   CHECK(route.size() >= size_t(N));
   CHECK_EQ(route.front(), fs->provinceAt({10, 10}));
   CHECK_EQ(route.back(), fs->provinceAt({W - 10, H - 10}));
-  // операция на плотном разбиении: новая провинция поверх 9 ячеек
+  // операция на плотном разбиении: расширение ячейки поверх соседних; новая провинция там же — отказ (вся суша занята)
+  const std::vector<Vec2> poly{{1000, 1000}, {1500, 1050}, {1450, 1500}, {980, 1480}};
+  const Id cellAt = fs->provinceAt({1250, 1250});
   double t0 = nowSeconds();
-  s.transact("p", [&](Tx& tx) { createProvince(tx, {{1000, 1000}, {1500, 1050}, {1450, 1500}, {980, 1480}}, Terrain::Land); });
+  s.transact("p", [&](Tx& tx) { addArea(tx, cellAt, poly); });
   double tCreate = nowSeconds() - t0;
   GEO_CHECK_WORLD(s.world(), W, H);
+  {
+    World before = s.world();
+    std::string err;
+    try {
+      s.transact("new", [&](Tx& tx) { createProvince(tx, poly, Terrain::Land); });
+    } catch (const UserError& e) {
+      err = e.what();
+    }
+    CHECK_MSG(err.find("нет свободной суши") != std::string::npos, err);
+    CHECK_EQ(World::diff(before, s.world()), 0u);
+  }
+  // освобождённый блок 3 × 3 ячеек: новая провинция по контуру с запасом получает ровно его, границы — соседей
+  {
+    const int i0 = 30, j0 = 30;
+    double freed = 0;
+    auto fs1 = buildFaces(s.world());
+    std::vector<Id> block;
+    for (int j = j0; j < j0 + 3; j++)
+      for (int i = i0; i < i0 + 3; i++) {
+        Id p = Id(j * N + i + 1);
+        block.push_back(p);
+        freed += fs1->shape(p)->area;
+      }
+    s.transact("free", [&](Tx& tx) { for (Id p : block) unassign(tx, p); });
+    const double x0 = i0 * cw - 0.6 * cw, x1 = (i0 + 3) * cw + 0.6 * cw, y0 = j0 * ch - 0.6 * ch, y1 = (j0 + 3) * ch + 0.6 * ch;
+    std::map<Id, double> around;
+    auto fs2 = buildFaces(s.world());
+    for (auto& [id, sh] : fs2->provinces) around[id] = sh.area;
+    t0 = nowSeconds();
+    Id np = s.transact("fill-block", [&](Tx& tx) { return createProvince(tx, {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, Terrain::Land); });
+    double tBlock = nowSeconds() - t0;
+    GEO_CHECK_WORLD(s.world(), W, H);
+    auto fs3 = buildFaces(s.world());
+    CHECK_NEAR(fs3->shape(np)->area, freed, 1e-6 * freed);
+    for (auto& [id, a] : around) CHECK_NEAR(fs3->shape(id)->area, a, 1e-9 * a);
+    std::printf("  grid: new province into a freed 3x3 block %.0f ms\n", tBlock * 1e3);
+  }
   std::printf("  grid: %zu points, %u arcs, %zu faces | buildFaces %.1f ms (labels in 1 thread %.1f ms), validate %.1f ms, "
               "create %.0f ms, route %zu provinces %.2f ms\n",
               pts, w.edges.size(), fs->faces.size(), tFaces * 1e3, tLabels * 1e3, tValidate * 1e3, tCreate * 1e3, route.size(),

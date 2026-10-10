@@ -4,7 +4,7 @@
 type: tool_documentation
 status: active
 canon_level: support
-updated_real_date: 2026-10-07
+updated_real_date: 2026-10-10
 ---
 
 Regnum — нативный редактор мира «Меча и Магии»: карта провинций, государства, гильдии, войска, экономика и ходы. Документ — контракт для всех, кто пишет код редактора (людей и агентов).
@@ -32,9 +32,9 @@ tools/Regnum/
     codec/  zlib (inflate/deflate, crc32), png, jpeg, zip, base64
     gfx/    path.h, image, raster (AA), stroke, canvas, font (TrueType), icons, emblems, flag
     platform/ platform.h, win32.cpp, x11.cpp, cocoa.cpp, headless.cpp
-    core/   world.h (модель, транзакции, хранилище), schema (перечисления), content (базовые записи мира), io (JSON, папка проекта, zip-архив, снимки ходов)
+    core/   world.h (модель, транзакции, хранилище), schema (перечисления), content (базовые записи мира), arch (таблицы археологии), io (JSON, папка проекта, zip-архив, снимки ходов)
     geo/    geom, grid, topo (грани плоского графа), ops (операции над провинциями)
-    rules/  mods, builtins, calc, entities, catalog, population, forces, military, capture, heroes, rebellion, diplomacy, truce, trade, build, tech, guilds, routes, turn, log, areas, mapobjects
+    rules/  mods, builtins, calc, entities, catalog, population, forces, military, capture, heroes, rebellion, diplomacy, truce, trade, build, tech, guilds, routes, turn, log, areas, mapobjects, plague, archaeology, naval, talents
     map/    art, art_render, art_scene, art_extract (карта кодом: объекты, отрисовка, сцена мира, разбор), basemap, mapview, tiles, labels, overlay, marks, export, demo_world
     ui/     ui.h — собственный immediate-mode интерфейс, тема, виджеты, таблицы, всплывающие окна
     app/    main.cpp, приложение, экраны, панели, диалоги, редакторы деревьев, проект
@@ -170,7 +170,7 @@ std::vector<Issue> validate(const World&);            // пересечения,
 `geo/ops.h` — все операции внутри транзакции; ошибка — `fail("…")`:
 ```cpp
 void initFromCoast(Tx&, const Coast&);                          // рамка + береговые кольца; всё не назначено
-Id createProvince(Tx&, const std::vector<Vec2>& poly, Terrain t /*None = по первой точке*/);   // новая провинция из многоугольника, соседи уменьшаются; берег «прилипает»
+Id createProvince(Tx&, const std::vector<Vec2>& poly, Terrain t /*None = по первой точке*/);   // новая провинция из свободной площади внутри многоугольника: соседи не режутся, граница идёт по их границе; узкие щели у соседей поглощаются; берег «прилипает»
 void addArea(Tx&, Id province, const std::vector<Vec2>& poly);  // расширить (соседи уменьшаются)
 void removeArea(Tx&, Id province, const std::vector<Vec2>& poly);  // вырезать в «не назначено»
 Id fillAt(Tx&, Vec2 p, Id province /*0 = новая*/);              // назначить грань целиком (остров одним щелчком)
@@ -233,6 +233,8 @@ std::shared_ptr<const Calc> calc(const World&);   // кеш по версии м
 
 ТЗ 2026-10-07: `catalog.cpp` — группы ресурсов (`resourcesIn` — с подгруппами), реликвии и инвентарь, особые отряды и доступ к ним (`specialAccess`, `addSpecialRow`, `syncSpecialRows`), ключевой ресурс и цены строк армии (`setRowType`, `setRowKey`, `keyResources`, `setRowExtra`, `setRowEssence`, `setRowEssUpkeep`), запасы эссенций; `forces.cpp` — найм с ключевым и дополнительными ресурсами и эссенциями (звери, чудовища, механизмы и элементали — без людей), верность гарнизона; `military.cpp` — герои гарнизона; `rebellion.cpp` — мятеж гарнизона и переход гарнизона перед штурмом; `build.cpp` — культовые постройки, требования к технологиям и правила общего/уникального дерева, мгновенное завершение и изначальные постройки, постройки преобразования и их возможности (`setBuildingRole`, `setRecipe`, `setLevelEssence`, `setBuildingSpecial`); `tech.cpp` — общее дерево (`techState`, изучение за фракцию); `calc.cpp` — провизия по группе (поровну, недостача), план построек преобразования (`FactionCalc::conversions` — его же исполняет `endTurn`), эссенции (генерация, содержание элементалей).
 
+ТЗ «Доработки №1–4» (2026-10-10): `core/arch.*` — таблицы археологии (слоты и шансы мест с целочисленным выравниванием, этапы и награды, уровни групп, бедствия и их войска, раскопки, базовые сундуки и списки наград, `rollSlots`); `plague.cpp` — чума, иммунитет, лечение и заражение постройками (распространение при естественном окончании — в `endTurn`); `archaeology.cpp` — археологические группы, поиск и исследование мест, трагедии и бедствия, раскопки, сундуки, тайник реликвий, режим правки, справочники мест и сундуков (`ArchReport` — итог события для окна); `naval.cpp` — вместимость флота, посадка и высадка, обмен отрядами, возврат группы союзного войска, флот у верфи; `talents.cpp` — классы героев, дерево талантов, изучение, лич; в `catalog.cpp` — места реликвий (`RelicPlace`, `moveRelic`; находки археологов героям только из владений государства), хранилища построек, группы реликвий; `forces.cpp` — наёмники, верфи и морские чудовища; `build.cpp` — одна стройка в провинции, цена в эссенциях, требования «на государство», приморские постройки, возможности построек (`BuildingFlag`); `tech.cpp` — стоимость исследования и требуемые постройки по ключу; `military.cpp` — войска без государства (фракция `FactionKind::Wild`, враждебна всем через `World::relation`); `mods.cpp` — показатели археологических групп (`ArchStats`), эффекты модификаторов героев войска; `calc.cpp` — генерация эссенций и ресурсов модификаторами, содержание археологических групп; `builtins.cpp` — «Влияние совета» (`AutoMod::scale`), «Ценности археологии», константы с базовой стоимостью.
+
 ### 5.7 core/io
 
 Чтение и запись папки проекта (раскладка — FORMAT.md), нормализация (значения по умолчанию, пределы, висячие ссылки → предупреждения), архив `.regnum` (zip той же папки), снимки ходов `history/turn-NNNN-SSSSSS.json.gz` (начало и конец хода, ветви после возврата; новые — в памяти до сохранения), резервные копии `.regnum-backup/` (ручные и автосохранения — разные очереди), обнаружение внешних изменений файлов и архива (по размеру, времени и хешу), список недавних проектов и автосохранение в `userDataDir`. Сохраняются только изменённые таблицы (`Store::dirtyTables`). JSON — с отсортированными ключами и стабильным порядком для аккуратных диффов в Git.
@@ -269,6 +271,8 @@ std::shared_ptr<const Calc> calc(const World&);   // кеш по версии м
 Реестры `app.h`: TabReg (вкладки выделения: в панели — значками, на странице — пунктами навигации; `wide` — во всю ширину страницы), HeaderReg (шапка выделения), QuickReg (самое нужное о выделении в нижней строке), SectionReg (разделы на месте карты — верх правой ленты: каталог и страницы сущностей или редакторы группы), DrawerReg (панели справа от карты — низ правой ленты), EditorReg (редакторы на месте карты; `group` — раздел, в навигации которого стоит редактор), ToolReg (инструменты карты), CommandReg (команды и сочетания), DialogReg (модальные окна по ID). Общие виджеты предметной области — `app/widgets.h`. Панели: `app/panels/*` (провинция, фракции, войска, персонажи, хроника, торговля, постройки, технологии, маршрут, объекты карты), диалоги `app/dialogs/*`, редакторы `app/editors/*`, инструменты `app/tools*.cpp`.
 
 Сквозные окна, которые открываются из разных мест, — `app/flows.h` (`flow::`): штурм гарнизона и захват провинции (`dialogs/siege.cpp`, `dialogs/capture.cpp`), действия мятежников после боя (`rebelAftermath`), «Судьба героев» (`dialogs/hero_fate.cpp`), мятеж (`panels/army_inspector.cpp`), перемирие (`dialogs/truce.cpp`), вассалитет после объявления войны (`dialogs/vassal.cpp`), события хода (`app/turn_events.cpp`). Каждое принимает `done` и вызывает его на любом пути (решение, отказ, закрытие), поэтому окна выстраиваются в очередь. Связь с каноном проекта (карточки персонажей и локаций по ID и названию, заметки только для чтения, портрет) — `app/canon.h`.
+
+Доработки 2026-10-10: вкладки «Археология» провинции и государства (`panels/province_arch.cpp`, `panels/faction_arch.cpp`, общие слоты — `panels/arch_common.*`, окна итога и «божественного вмешательства» — `dialogs/arch_result.cpp`), справочники мест, сундуков и классов героев (`editors/catalogs_arch.cpp`, `editors/catalogs_classes.cpp`, дерево талантов — `app/talent_tree.*`), вкладка героя «Таланты» и лич (`panels/character_talents.cpp`), хранилище реликвий постройки (`panels/relic_store.cpp`), кнопки лечения и заражения (`panels/construction_roles.cpp`), наёмники (`panels/military_merc.cpp`), флот у верфи и войско на борту (`panels/military_naval.cpp`), обмен отрядами (`dialogs/exchange.cpp`), инструмент высадки (`tools_landing.cpp`, `ToolId::Landing`; `ToolDef::hidden/blocked` — инструмент без значка на ленте и недоступный с причиной). Золото подписывается «тыс.» (`fmtGold`, `fmtGoldSigned`, `fmtGoldShort` в `base`).
 
 Режимы правки карты взаимоисключающие: «Правка границ» (`UiState::editBorders`, E; `ToolDef::editMode`) и «Правка карты» (`UiState::editMap`, T; `ToolDef::mapMode`). Инструменты правки карты — `app/tools_map_*.cpp` (объекты, знаки и кисть, озеро, река, стена, суша и море контуром, берег), общие помощники — `app/tools_map.h` (`mapedit::act` — перенос объектов в мир и правка одной транзакцией, порядок нового знака по соседям), инспектор — `app/panels/map_inspector.cpp` (`SelType::Symbol`, `SelType::Shape`; несколько знаков — `UiState::symbolGroup`).
 

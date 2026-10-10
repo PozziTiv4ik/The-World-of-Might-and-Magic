@@ -61,7 +61,7 @@ TurnReport endTurn(Tx& tx) {
     double now = f.treasury();
     if (now < 0)
       log(LogKind::Economy,
-          was >= 0 ? "Казна " + facName(tx.w(), id) + " ушла в долг: " + fmtNum(now, 2) : "Долг казны " + facName(tx.w(), id) + ": " + fmtNum(now, 2),
+          was >= 0 ? "Казна " + facName(tx.w(), id) + " ушла в долг: " + fmtGold(now, 2) : "Долг казны " + facName(tx.w(), id) + ": " + fmtGold(now, 2),
           LogRefs{0, 0, {id}});
   }
 
@@ -173,6 +173,7 @@ TurnReport endTurn(Tx& tx) {
         pb.left = 0;
         pb.constructing = false;
         pb.paid.clear();  // уплаченное нужно только для возврата при отмене
+        pb.paidEss.clear();
         pb.payer = 0;
         done.push_back({pb.building, pb.level});
       }
@@ -207,6 +208,7 @@ TurnReport endTurn(Tx& tx) {
       t.progress = std::max(1, t.turns);
       t.studied = true;
       t.research = false;
+      t.paid.clear();
       studied++;
       log(LogKind::Tech, facName(tx.w(), faction) + ": изучена технология " + techName(tx.w(), tid), LogRefs{0, 0, {faction}});
     }
@@ -237,6 +239,7 @@ TurnReport endTurn(Tx& tx) {
         s.progress = turns;
         s.studied = true;
         s.research = false;
+        s.paid.clear();
         studied++;
         log(LogKind::Tech, facName(tx.w(), fid) + ": изучена общая технология " + techName(tx.w(), tid), LogRefs{0, 0, {fid}});
       }
@@ -416,7 +419,9 @@ TurnReport endTurn(Tx& tx) {
         i64 galleons = 0;
         for (const GarrisonEntry& g : f0->tradeFleet)
           if (const FleetRow* r = f0->fleetRow(g.row); r && r->type == ShipType::Galleon) galleons += g.count;
-        i64 lost = i64(std::ceil(double(galleons) * schema::kPirateLossPct / 100.0 - 1e-9));
+        // Меньше 100 галеонов в торговле — пираты забирают 20 галеонов (не больше, чем есть), иначе 5 % (ТЗ «Доработки №3», п.10).
+        i64 lost = galleons < schema::kPirateFlatBelow ? std::min(galleons, schema::kPirateFlatLoss)
+                                                        : i64(std::ceil(double(galleons) * schema::kPirateLossPct / 100.0 - 1e-9));
         if (lost > 0) {
           i64 left = lost;
           Faction& f = tx.faction(id);
@@ -473,20 +478,17 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 14. Сроки модификаторов: −1 ход; истёкшие снимаются.
+  // 14. Сроки модификаторов: −1 ход; истёкшие снимаются. Снятие модификатора может поставить новый со своим сроком
+  // («Чума» → «Временный иммунитет»), поэтому сроки уменьшаются до снятия.
   {
     auto expire = [&](ModTarget t, Id id, const ModTurns& turns, const std::string& where, LogRefs refs) {
-      if (turns.empty()) return;
+      std::vector<std::string> goneKeys;
+      if (turns.empty()) return goneKeys;
       ModTurns next;
       std::vector<Id> gone;
       for (auto& [m, n] : turns) {
         if (n - 1 <= 0) gone.push_back(m);
         else next[m] = n - 1;
-      }
-      for (Id m : gone) {
-        const std::string name = modName(tx.w(), m);
-        dropModifier(tx, t, id, m);
-        log(LogKind::Note, "Истёк модификатор " + name + where, refs);
       }
       switch (t) {
         case ModTarget::Province: tx.province(id).modTurns = next; break;
@@ -494,10 +496,52 @@ TurnReport endTurn(Tx& tx) {
         case ModTarget::Army: tx.army(id).modTurns = next; break;
         case ModTarget::Character: tx.character(id).modTurns = next; break;
       }
+      for (Id m : gone) {
+        const std::string name = modName(tx.w(), m);
+        if (const Modifier* x = tx.w().modifier(m)) goneKeys.push_back(x->key);
+        dropModifier(tx, t, id, m);
+        log(LogKind::Note, "Истёк модификатор " + name + where, refs);
+      }
+      return goneKeys;
     };
+    std::vector<Id> plagueEnded;   // чума закончилась сама — распространяется на соседей (ТЗ «Доработки №3», п.4)
     for (Id pid : idsWhere(tx.w().provinces, [](const Province& p) { return !p.modTurns.empty(); })) {
       const Province& p = *tx.w().province(pid);
-      expire(ModTarget::Province, pid, p.modTurns, " в провинции " + provName(tx.w(), pid), LogRefs{pid, 0, p.owner ? std::vector<Id>{p.owner} : std::vector<Id>{}});
+      const auto keys =
+          expire(ModTarget::Province, pid, p.modTurns, " в провинции " + provName(tx.w(), pid), LogRefs{pid, 0, p.owner ? std::vector<Id>{p.owner} : std::vector<Id>{}});
+      if (std::find(keys.begin(), keys.end(), schema::mod::Plague) != keys.end()) plagueEnded.push_back(pid);
+    }
+    for (Id pid : plagueEnded) {
+      std::vector<std::string> hit;
+      for (Id n : neighborsOf(tx, pid)) {
+        const Province* np = tx.w().province(n);
+        if (!np || np->sea) continue;
+        if (infectPlague(tx, n)) hit.push_back(provName(tx.w(), n));
+      }
+      const Province* p = tx.w().province(pid);
+      log(LogKind::Province,
+          "Распространение чумы из провинции " + provName(tx.w(), pid) + (hit.empty() ? std::string(": соседние провинции не заразились") : ": " + join(hit, ", ")),
+          LogRefs{pid, 0, p && p->owner ? std::vector<Id>{p->owner} : std::vector<Id>{}});
+    }
+    // Модификаторы археологических групп («Ранение в ходе исследования», «Заражение чумой»).
+    for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) {
+           return std::any_of(f.archGroups.begin(), f.archGroups.end(), [](const ArchGroup& g) { return !g.modTurns.empty(); });
+         })) {
+      std::vector<std::string> notes;
+      for (ArchGroup& g : tx.faction(fid).archGroups) {
+        if (g.modTurns.empty()) continue;
+        ModTurns next;
+        for (auto& [m, n] : g.modTurns) {
+          if (n - 1 > 0) {
+            next[m] = n - 1;
+            continue;
+          }
+          eraseValue(g.modifiers, m);
+          notes.push_back(modName(tx.w(), m) + " у группы " + q(g.name));
+        }
+        g.modTurns = std::move(next);
+      }
+      for (const std::string& s : notes) log(LogKind::Archaeology, "Истёк модификатор " + s, LogRefs{0, 0, {fid}});
     }
     for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) { return !f.modTurns.empty(); }))
       expire(ModTarget::Faction, fid, tx.w().faction(fid)->modTurns, " у " + facName(tx.w(), fid), LogRefs{0, 0, {fid}});

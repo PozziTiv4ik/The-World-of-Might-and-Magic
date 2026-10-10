@@ -265,11 +265,11 @@ void colonize(Tx& tx, Id province, Id state) {
   const double cost = std::max(0.0, constantOf(tx.w(), schema::cst::ColonizationCost).num);
   const Faction& f = *tx.w().faction(state);
   if (cost > 0 && f.treasury() + 1e-9 < cost)
-    fail("Недостаточно золота у " + facName(tx.w(), state) + ": колонизация стоит " + amount(cost) + ", в казне " + amount(f.treasury()));
+    fail("Недостаточно золота у " + facName(tx.w(), state) + ": колонизация стоит " + amount(cost) + " тыс., в казне " + amount(f.treasury()) + " тыс.");
   setProvinceOwner(tx, province, state);
   if (cost > 0) addStock(tx.faction(state), kGold, -cost);
   addLog(tx, LogKind::Province,
-         facName(tx.w(), state) + " колонизирует провинцию " + provName(tx.w(), province) + (cost > 0 ? ": " + amount(cost) + " золота" : std::string()),
+         facName(tx.w(), state) + " колонизирует провинцию " + provName(tx.w(), province) + (cost > 0 ? ": " + amount(cost) + " тыс. золота" : std::string()),
          LogRefs{province, 0, {state}});
 }
 

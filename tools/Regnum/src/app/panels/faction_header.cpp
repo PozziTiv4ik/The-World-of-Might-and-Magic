@@ -38,12 +38,12 @@ void treasuryPill(App& a, double treasury, double net, float width) {
   float x = r.x + 9;
   ui::draw::icon("coins", RectF{x, r.cy() - 8, 16, 16}, t.accent);
   x += 22;
-  std::string v = money(treasury);
+  std::string v = fmtGold(treasury);
   float vw = ui::measure(v, ui::Font::Strong);
   ui::draw::text(v, RectF{x, r.y, vw + 2, r.h}, ui::Font::Strong, treasury < 0 ? t.danger : t.text);
   x += vw + 6;
   if (std::fabs(net) >= 0.0005) {
-    std::string d = moneySigned(net);
+    std::string d = fmtGoldSigned(net);
     ui::draw::text(d, RectF{x, r.y + 1, r.right() - x - 6, r.h}, ui::Font::Caption, net > 0 ? t.success : t.danger);
   }
   a.markUi("faction.treasury", r);
@@ -162,7 +162,7 @@ void drawHeader(App& a, Id id) {
   {
     const Character* ruler = w.character(f->ruler);
     double net = fc ? fc->net : 0;
-    std::string tre = money(f->treasury()), delta = std::fabs(net) >= 0.0005 ? moneySigned(net) : std::string();
+    std::string tre = fmtGold(f->treasury()), delta = std::fabs(net) >= 0.0005 ? fmtGoldSigned(net) : std::string();
     float pillW = 9 + 22 + ui::measure(tre, ui::Font::Strong) + (delta.empty() ? 4 : 6 + ui::measure(delta, ui::Font::Caption)) + 12;
     ui::Row row({ui::px(42), ui::fr(1), ui::px(std::ceil(pillW))}, 40, 8);
     std::string rulerName = ruler ? (ruler->name.empty() ? std::string("Без имени") : ruler->name) : std::string("?");

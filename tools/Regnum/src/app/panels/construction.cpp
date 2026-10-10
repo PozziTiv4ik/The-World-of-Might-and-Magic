@@ -8,6 +8,9 @@
 
 namespace rg::app {
 
+// Хранилище реликвий достроенной постройки (ТЗ «Доработки №1», п.9) — panels/relic_store.cpp.
+void relicStoreBlock(App& a, Id province, Id building);
+
 namespace {
 
 using platform::Key;
@@ -218,7 +221,12 @@ void drawBuildings(App& a, Id pid) {
   for (const ProvBuilding& pb : list) (pb.constructing ? constructing : built)++;
   bool over = used > slots;
   const std::string block = landBlock(w, *p0, owner);
-  bool canBuild = !ro && owner && used < slots && block.empty();
+  // В провинции одновременно строится только одна постройка (ТЗ «Доработки №1», п.13).
+  const ProvBuilding* busy = nullptr;
+  for (const ProvBuilding& pb : list)
+    if (pb.constructing && !busy) busy = &pb;
+  const Building* busyB = busy ? w.building(busy->building) : nullptr;
+  bool canBuild = !ro && owner && used < slots && block.empty() && !busy;
 
   // Показатели
   {
@@ -254,6 +262,7 @@ void drawBuildings(App& a, Id pid) {
     else if (!owner) why = "У провинции нет владельца-государства";
     else if (!block.empty()) why = block;
     else if (used >= slots) why = "Нет свободных слотов";
+    else if (busy) why = "Уже строится «" + (busyB ? busyB->name : std::string("постройка")) + "»: одновременно — одна постройка";
     if (ui::button("Построить", {.variant = ui::Variant::Primary, .icon = "build", .fill = true, .disabled = !canBuild,
                                  .tooltip = why.empty() ? std::string_view("Выбрать постройку из дерева государства") : std::string_view(why)}))
       a.openDialog(buildPickerDialog(pid));
@@ -340,12 +349,14 @@ void drawBuildings(App& a, Id pid) {
               bld::produceChips(b->levels[size_t(pb.level - 1)].produce);
             }
             extras(a, *b, pb.builtLevel(), owner);
+            bld::roleActions(a, pid, pb, *b);
           }
           if (ui::iconButton("trash", "Снести постройку", {.disabled = ro, .tone = ui::Tone::Danger})) askDemolish(a, pid, pb.building, name);
           a.markUi("prov.demolish." + std::to_string(pb.building));
         }
         // Преобразование ресурсов (ТЗ «Доработки», п.3).
         if (b->convert) converter(a, pid, pb, *b, owner, ownerId ? calc->faction(ownerId) : nullptr, ro);
+        if (b->relicStore) relicStoreBlock(a, pid, pb.building);
         // Улучшение: стоимость и срок следующего уровня
         if (pb.level < maxL) {
           const rules::BuildOption* o = optionOf(pb.building);
@@ -370,6 +381,7 @@ void drawBuildings(App& a, Id pid) {
               ui::label(nTurns(o ? o->turns : bld::levelTurns(*b, pb.level + 1)), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "hourglass"});
             }
             if (o) bld::costChips(o->cost, owner);
+            if (o) bld::essCostChips(o->essCost, owner);
             if (o && !o->can && !o->reasons.empty())
               ui::label(o->reasons.front(), {.font = ui::Font::Small, .ink = ui::Ink::Danger, .wrap = true});
             if (!why.empty()) {

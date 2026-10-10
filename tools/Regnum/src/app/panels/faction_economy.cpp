@@ -19,18 +19,19 @@ namespace {
 
 using namespace fac;
 
-// Золото до тысячных: лишние нули не пишутся.
+// Золото до тысячных: лишние нули не пишутся; 1 единица = 1 тыс. золотых — подпись «тыс.» (ТЗ «Доработки №1», п.12).
 std::string gold(double v) { return fmtNum(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
 std::string goldSigned(double v) { return fmtSigned(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
+std::string goldK(double v) { return gold(v) + " тыс."; }
 
 // Строка суммы (как fac::moneyRow, но до тысячных).
 void goldRow(const char* icon, Color iconColor, std::string_view label, double value, std::string_view tip, bool sign = false,
              ui::Ink valueInk = ui::Ink::Normal) {
   ui::IdScope s(label);
-  ui::Row row({ui::px(18), ui::fr(1), ui::px(108)}, 26, 8);
+  ui::Row row({ui::px(18), ui::fr(1), ui::px(120)}, 26, 8);
   ui::iconColored(icon, iconColor, 16);
   ui::label(label, {.ink = ui::Ink::Dim, .tooltip = tip});
-  std::string v = sign ? goldSigned(value) : gold(value);
+  std::string v = std::fabs(value) < 5e-4 ? std::string("0") : (sign ? goldSigned(value) : gold(value)) + " тыс.";
   ui::label(v, {.font = ui::Font::Strong, .ink = std::fabs(value) < 5e-4 ? ui::Ink::Muted : valueInk, .align = ui::Align::Right});
 }
 
@@ -41,7 +42,7 @@ void moneyCards(const Faction& f, const rules::FactionCalc& fc) {
   {
     Color cProv = t.accent, cGuildTax = t.info, cHq = t.success, cTrade = Color::mix(t.info, t.success, 0.5f), cTrib = t.warning;
     Color cSlaves = Color::mix(t.warning, t.danger, 0.4f), cFleet = Color::mix(t.info, t.accent, 0.5f), cRoutes = Color::mix(t.success, t.accent, 0.5f);
-    if (ui::Section s("Доходы", "income", {.badge = gold(fc.incTotal)}); s) {
+    if (ui::Section s("Доходы", "income", {.badge = goldK(fc.incTotal)}); s) {
       ui::IdScope sc("income");
       Share parts[] = {{fc.incProvinces, cProv}, {fc.incGuildTax, cGuildTax}, {fc.incGuilds, cHq}, {fc.incTrade, cTrade}, {fc.incTribute, cTrib},
                        {fc.incSlaves, cSlaves}, {fc.incTradeFleet, cFleet}, {fc.incRoutes, cRoutes}};
@@ -74,10 +75,11 @@ void moneyCards(const Faction& f, const rules::FactionCalc& fc) {
   // Расходы
   {
     Color cArmy = t.danger, cFleet = t.info, cSpec = t.accent, cTrade = Color::mix(t.info, t.success, 0.5f), cTrib = t.warning;
-    Color cSlaves = Color::mix(t.warning, t.danger, 0.4f);
-    if (ui::Section s("Расходы", "expense", {.badge = gold(fc.expTotal)}); s) {
+    Color cSlaves = Color::mix(t.warning, t.danger, 0.4f), cArch = Color::hex(0xd4a64a);
+    if (ui::Section s("Расходы", "expense", {.badge = goldK(fc.expTotal)}); s) {
       ui::IdScope sc("expense");
-      Share parts[] = {{fc.expArmy, cArmy}, {fc.expFleet, cFleet}, {fc.expSpecialists, cSpec}, {fc.expTrade, cTrade}, {fc.expTribute, cTrib}, {fc.expSlaves, cSlaves}};
+      Share parts[] = {{fc.expArmy, cArmy},     {fc.expFleet, cFleet},     {fc.expSpecialists, cSpec}, {fc.expTrade, cTrade},
+                       {fc.expTribute, cTrib}, {fc.expSlaves, cSlaves}, {fc.expArch, cArch}};
       shareBar(parts);
       ui::spacer(2);
       goldRow("army", cArmy, "Содержание войск", fc.expArmy,
@@ -87,6 +89,10 @@ void moneyCards(const Faction& f, const rules::FactionCalc& fc) {
       goldRow("council", cSpec, "Специалисты", fc.expSpecialists, "Σ содержания правителя, советников (любой фракции) и героев фракции; каждый учитывается один раз");
       if ((state && fc.slaves > 0) || fc.expSlaves != 0)
         goldRow("shackles", cSlaves, "Содержание рабов", fc.expSlaves, "0,001 золота за раба в ход");
+      // Археологические группы (ТЗ «Доработки №2», п.2): содержание по уровню с модификаторами групп и государства.
+      if ((state && !f.archGroups.empty()) || fc.expArch != 0)
+        goldRow("pickaxe", cArch, "Археологические группы", fc.expArch,
+                "Σ по группам: содержание уровня (0,1…0,5) × (1 + Σ «содержание археологических групп» / 100)");
       goldRow("trade", cTrade, "Торговля", fc.expTrade, "Выплаты золота по торговым сделкам «каждый ход»");
       goldRow("tribute", cTrib, "Дань и репарации", fc.expTribute, "Выплаты золота получателям дани и репараций");
       ui::separator();
@@ -369,6 +375,7 @@ void resourceTable(App& a, const World& w, const Faction& f, const rules::Factio
     no.max = 1e12;
     no.step = r == kGold ? 10 : 1;
     no.digits = 3;                      // золото и ресурсы — до тысячных
+    no.unit = r == kGold ? "тыс." : nullptr;
     no.disabled = ro;
     no.tooltip = r == kGold ? "Казна" : "Запас ресурса";
     if (ui::numberField("stock", stock, no))
@@ -523,7 +530,7 @@ void essenceSection(App& a, const World& w, const Faction& f, const rules::Facti
   const bool wide = ui::avail().w >= 520;
   ui::Column wideCols[] = {{"Эссенция", nullptr, ui::fr(1, 140)},
                            {"Запас", nullptr, ui::px(110), ui::Align::Left, false, "Запас эссенции; содержание элементалей может увести его в долг"},
-                           {{}, "building", ui::px(84), ui::Align::Right, false, "Генерация построек за ход"},
+                           {{}, "building", ui::px(84), ui::Align::Right, false, "Генерация за ход: постройки и модификаторы"},
                            {{}, "u-elementals", ui::px(84), ui::Align::Right, false, "Содержание элементалей за ход"},
                            {{}, "trend-up", ui::px(92), ui::Align::Right, false, "Итого за ход"}};
   ui::Column narrowCols[] = {{"Эссенция", nullptr, ui::fr(1, 90)},
@@ -721,10 +728,10 @@ void tributeSection(App& a, const World& w, Id id, bool ro) {
       a.markUi("tribute.cancel." + std::to_string(d.id));
     }
     {
-      ui::Row row({ui::fr(1), ui::px(104)}, 26, 8);
+      ui::Row row({ui::fr(1), ui::px(136)}, 26, 8);
       if (of) w::factionChip(other);   // в ячейке: естественная ширина, длинное название — с многоточием
       else ui::label("—", {.ink = ui::Ink::Muted});
-      ui::label((r.receive ? "+" : "−") + gold(r.amount) + " / ход", {.font = ui::Font::Strong, .ink = r.receive ? ui::Ink::Success : ui::Ink::Danger,
+      ui::label((r.receive ? "+" : "−") + goldK(r.amount) + " / ход", {.font = ui::Font::Strong, .ink = r.receive ? ui::Ink::Success : ui::Ink::Danger,
                                                                            .align = ui::Align::Right, .tooltip = "Золото за ход"});
     }
     double k = r.turns > 0 ? double(r.left) / double(r.turns) : 0;
@@ -750,11 +757,11 @@ void drawEconomy(App& a, Id id) {
   if (!fc) return;
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
-    ui::stat(gold(f->treasury()), f->treasury() < 0 ? "Казна в долгу" : "Казна",
+    ui::stat(goldK(f->treasury()), f->treasury() < 0 ? "Казна в долгу" : "Казна",
              {.icon = "treasury", .tone = f->treasury() < 0 ? ui::Tone::Danger : ui::Tone::Accent,
               .tooltip = "Текущая казна; при завершении хода прибавляется чистый доход"});
     a.markUi("economy.treasury");
-    ui::stat(goldSigned(fc->net), "Чистый доход", {.icon = fc->net >= 0 ? "trend-up" : "trend-down",
+    ui::stat(goldSigned(fc->net) + " тыс.", "Чистый доход", {.icon = fc->net >= 0 ? "trend-up" : "trend-down",
                                                     .tone = fc->net >= 0 ? ui::Tone::Success : ui::Tone::Danger,
                                                     .tooltip = "Доходы − расходы за ход; прибавляется к казне при завершении хода"});
   }

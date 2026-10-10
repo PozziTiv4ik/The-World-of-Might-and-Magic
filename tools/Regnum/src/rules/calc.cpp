@@ -16,6 +16,14 @@ std::vector<std::pair<Id, i64>> sortedRaces(const std::map<Id, i64>& m) {
   return r;
 }
 
+// Генерация модификатора за ход (эссенции и ресурсы).
+void addGen(const World& w, const Modifier& m, std::map<Id, double>& ess, std::map<Id, double>& res, double k = 1) {
+  for (auto& [e, v] : modEssGen(w, m))
+    if (std::isfinite(v) && v != 0 && w.essence(e)) ess[e] += v * k;
+  for (auto& [r, v] : modResGen(w, m))
+    if (std::isfinite(v) && v != 0 && w.resource(r)) res[r] += v * k;
+}
+
 void calcProvince(const World& w, const SourceIndex& si, const Province& p, int routes, double routeBonus, ProvinceCalc& pc) {
   pc.id = p.id;
   pc.sea = p.sea;
@@ -146,7 +154,18 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
       if (b->essenceGen)
         for (auto& [e, v] : L.essence)
           if (std::isfinite(v) && v > 0 && w.essence(e)) pc.essence[e] += v;
+      // Генерация модификаторов действующего уровня постройки.
+      for (Id m : L.modifiers)
+        if (const Modifier* x = w.modifier(m)) addGen(w, *x, pc.essence, pc.produce);
     }
+  // Генерация модификаторов провинции (её список и автоматические: «Ценности археологии») — владельцу
+  // (ТЗ «Доработки №1», п.5).
+  if (owner) {
+    for (Id m : p.modifiers)
+      if (const Modifier* x = w.modifier(m)) addGen(w, *x, pc.essence, pc.produce);
+    for (const AutoMod& a : autoProvinceModifiers(w, p.id))
+      if (a.m) addGen(w, *a.m, pc.essence, pc.produce);
+  }
 }
 
 // Поровну между запасами (наполнение): каждый отдаёт need / k, исчерпанный — всё, остаток делится между остальными.
@@ -346,9 +365,10 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
   // Специалисты: содержание различных персонажей с ролью у фракции — правитель, места совета (персонаж любой
   // фракции), герои самой фракции. Персонаж без роли не оплачивается; занимающий несколько ролей — один раз;
   // мёртвый или пленный герой недоступен государству (ТЗ «Модификаторы», 1.6 и 1.12) и не оплачивается.
-  std::unordered_map<Id, std::vector<Id>> heroesOf;
+  std::unordered_map<Id, std::vector<Id>> heroesOf, charsOf;
   w.characters.each([&](const Character& ch) {
     if (ch.hero && ch.faction) heroesOf[ch.faction].push_back(ch.id);
+    if (ch.faction) charsOf[ch.faction].push_back(ch.id);
   });
   w.factions.each([&](const Faction& f) {
     std::vector<Id> paid;
@@ -437,6 +457,35 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     // Рабы: содержание 0,001 золота за раба.
     for (const SlaveGroup& s : f.slaves) fc.slaves += std::max<i64>(0, s.count);
     fc.expSlaves = double(fc.slaves) * schema::kSlaveUpkeep;
+    // Археологические группы: содержание по уровню с модификаторами (ТЗ «Доработки №2», п.2).
+    for (const ArchGroup& g : f.archGroups) fc.expArch += archStatsWith(w, g, fc.fx).upkeep;
+
+    // Генерация модификаторов государства (его список, изученные технологии, автоматические) и его героев
+    // (модификаторы и таланты; мёртвые и пленные — нет) — ТЗ «Доработки №1», п.5–7.
+    {
+      std::map<Id, double> gEss, gRes;
+      auto genOf = [&](Id m, double k = 1) {
+        if (const Modifier* x = w.modifier(m)) addGen(w, *x, gEss, gRes, k);
+      };
+      for (Id m : f.modifiers) genOf(m);
+      if (auto* ts = si.of(f.id))
+        for (const Tech* t : *ts)
+          for (Id m : t->modifiers) genOf(m);
+      if (auto* as = si.autosOf(f.id))
+        for (const AutoMod& a : *as)
+          if (a.m) addGen(w, *a.m, gEss, gRes);
+      if (auto hit = charsOf.find(f.id); hit != charsOf.end())
+        for (Id ch : hit->second) {
+          if (!heroAvailable(w, ch)) continue;
+          for (Id m : w.character(ch)->modifiers) genOf(m);
+          for (Id m : talentModifiers(w, ch)) genOf(m);
+        }
+      for (auto& [e, v] : gEss) fc.essences[e].generation += v;
+      for (auto& [r, v] : gRes) {
+        if (r == kGold) fc.incProvinces += v;
+        fc.resources[r].production += v;
+      }
+    }
 
     // Итоги (ТЗ 1.e.i, 1.g.ii.2.a). Модификатор дохода действует на собственный доход фракции (налоги, штабы,
     // добыча золота, рабы на работах, торговый флот, маршруты гильдии); выплаты по сделкам, дань и репарации
@@ -445,7 +494,7 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     fc.incGross = own + fc.incTrade + fc.incTribute;
     fc.incomePct = fc.fx[Fx::IncomePct];
     fc.incTotal = own * std::max(0.0, 1.0 + fc.incomePct / 100.0) + fc.incTrade + fc.incTribute;
-    fc.expTotal = fc.expArmy + fc.expFleet + fc.expSpecialists + fc.expTrade + fc.expTribute + fc.expSlaves;
+    fc.expTotal = fc.expArmy + fc.expFleet + fc.expSpecialists + fc.expTrade + fc.expTribute + fc.expSlaves + fc.expArch;
     fc.net = fc.incTotal - fc.expTotal;
 
     // Ресурсы: все позиции справочника и запасы фракции.

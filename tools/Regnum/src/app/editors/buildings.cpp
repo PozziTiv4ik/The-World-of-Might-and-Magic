@@ -1,9 +1,11 @@
 // Regnum — полноэкранный редактор дерева построек (ТЗ 1.h.i–ii, 1.f.ii): общее дерево (одинаковое для всех
 // государств) или уникальные постройки государства. Дорожки категорий (военные, экономические, промышленные,
-// жилые, религиозные, культовые), карточки построек, требования к другим постройкам (связи, уровень) и к
-// технологиям, панель свойств: особые возможности (преобразование ресурсов по рецепту, генерация эссенции,
-// доступ к особым отрядам), уровни — срок, стоимость по ресурсам, ресурсы и эссенции за ход, модификаторы (окно
-// выбора с созданием нового), описание. ТЗ «Доработки», п.2–5, 7, «Ввод новых механик», п.4–5.
+// жилые и сельско-хозяйственные, религиозные, культовые), карточки построек, требования к другим постройкам (связи,
+// уровень), «на государство» (соборы) и к технологиям, панель свойств: особые возможности (преобразование ресурсов по
+// рецепту, генерация эссенции, доступ к особым отрядам, хранилище реликвий, целительство, чума, верфь, гильдия
+// наёмников, только приморская), уровни — срок, стоимость ресурсами и эссенциями, корабли верфи, ресурсы и эссенции за
+// ход, модификаторы (окно выбора с созданием нового), описание. ТЗ «Доработки», п.2–5, 7, «Ввод новых механик», п.4–5,
+// «Доработки №1–4». Встроенная постройка (с ключом правил) отмечена замком.
 #include <unordered_map>
 #include <unordered_set>
 
@@ -55,8 +57,43 @@ void costChips(const std::map<Id, double>& cost, const Faction* payer, bool show
     std::string tip = (c ? c->name : std::string("Ресурс"));
     if (payer) tip += ": нужно " + fmtNum(v, 3) + ", есть " + fmtNum(std::max(0.0, payer->stock(res)), 3);
     ui::iconColored(w::resourceIcon(w, res), lack ? ui::theme().danger : w::resourceColor(w, res), 16, tip);
+    ui::label(fmtNum(v, 3) + (res == kGold ? " тыс." : ""), {.font = ui::Font::Strong, .ink = lack ? ui::Ink::Danger : ui::Ink::Normal, .tooltip = tip});
+  }
+}
+
+void essCostChips(const std::map<Id, double>& cost, const Faction* payer) {
+  const World& w = app().world();
+  if (cost.empty()) return;
+  ui::IdScope scope("esscost");
+  ui::HStack row(20, ui::Align::Left, 4);
+  bool first = true;
+  for (auto& [e, v] : cost) {
+    ui::IdScope s{i64(e)};
+    if (!first) ui::spacer(10);
+    first = false;
+    const CatalogItem* c = w.essence(e);
+    const bool lack = payer && payer->essence(e) + 1e-9 < v;
+    std::string tip = c ? c->name : std::string("Эссенция");
+    if (payer) tip += ": нужно " + fmtNum(v, 3) + ", есть " + fmtNum(std::max(0.0, payer->essence(e)), 3);
+    ui::iconColored("essence", lack ? ui::theme().danger : w::essenceColor(w, e), 16, tip);
     ui::label(fmtNum(v, 3), {.font = ui::Font::Strong, .ink = lack ? ui::Ink::Danger : ui::Ink::Normal, .tooltip = tip});
   }
+}
+
+std::string essenceCostText(const World& w, const std::map<Id, double>& cost) {
+  std::vector<std::string> p;
+  for (auto& [e, v] : cost) {
+    const CatalogItem* c = w.essence(e);
+    p.push_back((c ? c->name : std::string("Эссенция")) + " " + fmtNum(v, 3));
+  }
+  return join(p, ", ");
+}
+
+std::string shipsText(u32 ships) {
+  std::vector<std::string> p;
+  for (int t = 0; t < int(ShipType::Count); t++)
+    if ((ships >> t) & 1u) p.push_back(schema::shipType(ShipType(t)).name);
+  return p.empty() ? std::string("—") : join(p, ", ");
 }
 
 void produceChips(const std::map<Id, double>& produce) {
@@ -69,9 +106,10 @@ void produceChips(const std::map<Id, double>& produce) {
     ui::IdScope s{i64(res)};
     ui::spacer(6);
     const CatalogItem* c = w.resource(res);
-    std::string tip = (c ? c->name : std::string("Ресурс")) + ": +" + fmtNum(v, 3) + " за ход";
+    const std::string unit = res == kGold ? " тыс." : "";
+    std::string tip = (c ? c->name : std::string("Ресурс")) + ": +" + fmtNum(v, 3) + unit + " за ход";
     ui::iconColored(w::resourceIcon(w, res), w::resourceColor(w, res), 16, tip);
-    ui::label("+" + fmtNum(v, 3), {.font = ui::Font::Strong, .ink = ui::Ink::Success, .tooltip = tip});
+    ui::label("+" + fmtNum(v, 3) + unit, {.font = ui::Font::Strong, .ink = ui::Ink::Success, .tooltip = tip});
   }
 }
 
@@ -79,7 +117,7 @@ std::string produceText(const World& w, const std::map<Id, double>& produce) {
   std::vector<std::string> p;
   for (auto& [res, v] : produce) {
     const CatalogItem* c = w.resource(res);
-    p.push_back("+" + fmtNum(v, 3) + " " + (c ? utf8::lower(c->name) : std::string("ресурс")));
+    p.push_back("+" + fmtNum(v, 3) + (res == kGold ? std::string(" тыс. золота") : " " + (c ? utf8::lower(c->name) : std::string("ресурс"))));
   }
   return join(p, ", ");
 }
@@ -94,7 +132,7 @@ std::string costText(const World& w, const std::map<Id, double>& cost) {
   std::vector<std::string> p;
   for (auto& [res, v] : cost) {
     const CatalogItem* c = w.resource(res);
-    p.push_back((c ? c->name : std::string("Ресурс")) + " " + fmtNum(v, 3));
+    p.push_back((c ? c->name : std::string("Ресурс")) + " " + fmtNum(v, 3) + (res == kGold ? " тыс." : ""));
   }
   return join(p, ", ");
 }
@@ -230,8 +268,11 @@ struct BN {
   bool match = true;
   // Особые возможности.
   bool convert = false, essenceGen = false, specialAccess = false;
+  bool relicStore = false, healing = false, plague = false, shipyard = false, mercenary = false, coastal = false;
   Recipe recipe;
   std::vector<Id> specials;
+  std::vector<StateReq> stateReqs;  // требования «на государство» (соборы)
+  std::string key;                  // встроенная постройка (правила узнают её по ключу)
   Id cultAt = 0;                   // культовая: провинция, где она уже есть или строится (0 — нигде)
 };
 
@@ -483,6 +524,8 @@ struct Card {
   bool sel = false, hover = false, dim = false, drop = false, dropBad = false, outHot = false, inHot = false, hasIn = false, hasOut = false, ghost = false;
 };
 constexpr u32 kEssenceInk = 0x9b7bff;   // значок генерации эссенции на карточке
+constexpr u32 kRelicInk = 0xa45cff;     // хранилище реликвий
+constexpr u32 kPlagueInk = 0x9aac3a;    // здание чумы
 struct EdgeD {
   Curve k;
   Color col;
@@ -557,9 +600,16 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
       icon(c, name, RectF{fx, fy, 13, 13}, col);
       fx += 18;
     };
+    if (!b.key.empty()) feat("lock", k.textMuted);
     if (b.convert) feat("convert", k.info);
     if (b.essenceGen) feat("essence", Color::hex(kEssenceInk));
     if (b.specialAccess) feat("special-unit", k.accent);
+    if (b.relicStore) feat("relic", Color::hex(kRelicInk));
+    if (b.healing) feat("heal", k.success);
+    if (b.plague) feat("plague", Color::hex(kPlagueInk));
+    if (b.shipyard) feat("shipyard", k.info);
+    if (b.mercenary) feat("mercenary", k.accent);
+    if (b.coastal) feat("anchor", k.textMuted);
     if (!b.techs.empty()) {
       icon(c, "tech-tree", RectF{fx, fy, 13, 13}, k.textMuted);
       std::string n = std::to_string(b.techs.size());
@@ -697,6 +747,8 @@ const IconChoice kIcons[] = {
     {"b-religious", "Религиозная"}, {"b-cult", "Культовая"},  {"sun", "Святилище"},       {"moon", "Обитель"},
     {"convert", "Преобразование"}, {"essence", "Эссенция"},   {"special-unit", "Особые войска"}, {"flame", "Горнило"},
     {"skull", "Склеп"},          {"eye", "Око"},              {"relic", "Сокровищница"},   {"star", "Чудо света"},
+    {"shipyard", "Стапель"},     {"mercenary", "Наёмники"},   {"heal", "Целители"},        {"plague", "Чумной двор"},
+    {"chest", "Хранилище"},      {"shovel", "Раскопки"},      {"talent", "Академия"},      {"lich", "Некрополь"},
 };
 
 // «Даёт за ход» (ТЗ «Виды государств», п.4, 8): ресурсы, которые достроенный уровень даёт владельцу каждый ход, —
@@ -811,6 +863,68 @@ void levelEssence(App& a, const BN& b, int li, bool ro) {
     a.act("Эссенция за ход", [&](Tx& tx) { rules::setLevelEssence(tx, bid, level, e, 1); });
   }
   a.markUi(mark + ".addess");
+}
+
+// Цена уровня в эссенциях (ТЗ «Доработки №4», п.5, 7: соборы, постройки доступа): списывается с запасов государства
+// вместе со стоимостью ресурсами (rules::setLevelEssCost; 0 — убрать).
+void levelEssCost(App& a, const BN& b, int li, bool ro) {
+  const World& w = a.world();
+  const std::map<Id, double> ess = b.levels[size_t(li)].essCost;
+  const Id bid = b.id;
+  const int level = li + 1;
+  const std::string mark = "bt.level." + std::to_string(li);
+  ui::IdScope es("esscost");
+  if (!ess.empty() || !ro) ui::caption("Цена в эссенциях");
+  for (auto [e, amount] : ess) {
+    ui::IdScope rs{i64(e)};
+    ui::Row row({ui::px(16), ui::fr(1), ui::px(96), ui::px(30)}, 30, 6);
+    const CatalogItem* c = w.essence(e);
+    ui::iconColored("essence", w::essenceColor(w, e), 16);
+    ui::label(c && !c->name.empty() ? c->name : std::string("Эссенция"));
+    double v = amount;
+    if (ui::numberField("amount", v, {.min = 0.001, .max = 1e9, .step = 10, .digits = 3, .tooltip = "Эссенции за уровень"}))
+      a.act("Цена в эссенции", [&](Tx& tx) { rules::setLevelEssCost(tx, bid, level, e, v); },
+            {.coalesce = "bt-esscost:" + std::to_string(bid) + ":" + std::to_string(li) + ":" + std::to_string(e)});
+    a.markUi(mark + ".esscost." + std::to_string(e));
+    if (ui::iconButton("close", "Убрать эссенцию из цены", {.disabled = ro})) {
+      const Id x = e;
+      a.act("Убрать эссенцию из цены", [&](Tx& tx) { rules::setLevelEssCost(tx, bid, level, x, 0); });
+    }
+  }
+  if (ro) return;
+  std::vector<const CatalogItem*> cand;
+  for (const CatalogItem& c : w.catalogs->essences)
+    if (!ess.count(c.id)) cand.push_back(&c);
+  if (cand.empty()) return;
+  std::vector<ui::Option> opts;
+  for (const CatalogItem* c : cand)
+    opts.push_back(ui::Option{c->name.empty() ? std::string_view("Без названия") : std::string_view(c->name), "essence", c->color});
+  int idx = -1;
+  if (ui::combo("add", idx, opts, {.placeholder = "Эссенция в цене", .search = 1, .icon = "plus"}) && idx >= 0 && idx < int(cand.size())) {
+    const Id e = cand[size_t(idx)]->id;
+    a.act("Цена в эссенции", [&](Tx& tx) { rules::setLevelEssCost(tx, bid, level, e, 100); });
+  }
+  a.markUi(mark + ".addesscost");
+}
+
+// Верфь (ТЗ «Доработки №3», п.2): какие типы кораблей открывает уровень (rules::setLevelShips) — значки-переключатели.
+void levelShips(App& a, const BN& b, int li, bool ro) {
+  const u32 ships = b.levels[size_t(li)].ships;
+  const Id bid = b.id;
+  const int level = li + 1;
+  ui::IdScope ss("ships");
+  ui::caption("Открывает корабли");
+  ui::HStack hs(30, ui::Align::Left, 4);
+  for (int t = 0; t < int(ShipType::Count); t++) {
+    ui::IdScope s(t);
+    const bool on = (ships >> t) & 1u;
+    const schema::EnumInfo& si = schema::shipType(ShipType(t));
+    if (ui::iconButton(si.icon, std::string(si.name) + (on ? " — открыт" : " — закрыт"), {.variant = ui::Variant::Secondary, .toggled = on, .disabled = ro})) {
+      const u32 nv = on ? ships & ~(1u << t) : ships | (1u << t);
+      a.act(on ? "Верфь: закрыть тип кораблей" : "Верфь: открыть тип кораблей", [&](Tx& tx) { rules::setLevelShips(tx, bid, level, nv); });
+    }
+    a.markUi("bt.level." + std::to_string(li) + ".ship." + std::to_string(t));
+  }
 }
 
 // ---------------------------------------------------------------- окно модификаторов уровня (ТЗ «Доработки», п.8)
@@ -1039,7 +1153,7 @@ void levelCard(App& a, const BN& b, int li, bool ro) {
       });
     }
     double v = amount;
-    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 10, .digits = 3}))
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 10, .digits = 3, .unit = res == kGold ? "тыс." : nullptr}))
       a.act("Стоимость уровня", [&](Tx& tx) { tx.building(b.id).levels[size_t(li)].cost[res] = std::max(0.0, v); },
             {.coalesce = "bt-cost:" + std::to_string(b.id) + ":" + std::to_string(li) + ":" + std::to_string(res)});
     a.markUi("bt.level." + std::to_string(li) + ".cost." + std::to_string(res));
@@ -1064,6 +1178,8 @@ void levelCard(App& a, const BN& b, int li, bool ro) {
     }
     a.markUi("bt.level." + std::to_string(li) + ".addcost");
   }
+  levelEssCost(a, b, li, ro);
+  if (b.shipyard) levelShips(a, b, li, ro);
   levelProduce(a, b, li, ro);
   if (b.essenceGen) levelEssence(a, b, li, ro);
   // Модификаторы уровня: фишки (щелчок — редактор модификаторов, крестик — убрать) и окно выбора.
@@ -1380,7 +1496,8 @@ void specialsEditor(App& a, const BN& b, bool ro) {
 // Особые возможности постройки: преобразование ресурсов, генерация эссенции, доступ к особым отрядам
 // (rules::setBuildingRole; выключение снимает их данные — Ctrl+Z возвращает).
 void rolesSection(App& a, const BN& b, bool ro) {
-  const int on = int(b.convert) + int(b.essenceGen) + int(b.specialAccess);
+  const int on = int(b.convert) + int(b.essenceGen) + int(b.specialAccess) + int(b.relicStore) + int(b.healing) + int(b.plague) + int(b.shipyard) +
+                 int(b.mercenary) + int(b.coastal);
   ui::Section s("Особые возможности", "sparkles", {.badge = on ? std::to_string(on) : std::string()});
   a.markUi("bt.side.roles");
   if (!s) return;
@@ -1396,6 +1513,16 @@ void rolesSection(App& a, const BN& b, bool ro) {
       a.markUi(mark);
     }
   };
+  // Возможности ТЗ «Доработки №1–3» (rules::setBuildingFlag; выключение снимает их данные — Ctrl+Z возвращает).
+  auto flag = [&](rules::BuildingFlag f, const char* icon, Color col, const char* label, bool cur, const char* mark, const char* tip) {
+    ui::IdScope rs(mark);
+    ui::Row row({ui::px(20), ui::fr(1)}, 30, 8);
+    ui::iconColored(icon, cur ? col : ui::theme().textMuted, 18, tip);
+    bool v = cur;
+    if (ui::toggle(label, v, ro) && v != cur)
+      a.act(std::string(v ? "Включить: " : "Выключить: ") + utf8::lower(label), [&](Tx& tx) { rules::setBuildingFlag(tx, bid, f, v); });
+    a.markUi(mark);
+  };
   role(rules::BuildingRole::Convert, "convert", "Преобразование ресурсов", b.convert, "bt.role.convert",
        "До трёх ресурсов на входе превращаются в один на выходе за цикл; в провинции — «Работает» или «Простаивает»");
   if (b.convert) {
@@ -1409,6 +1536,74 @@ void rolesSection(App& a, const BN& b, bool ro) {
     ui::Indent in(28);
     specialsEditor(a, b, ro);
   }
+  const ui::Theme& th = ui::theme();
+  flag(rules::BuildingFlag::RelicStore, "relic", Color::hex(kRelicInk), "Хранилище реликвий", b.relicStore, "bt.flag.relics",
+       "В постройку можно положить реликвии государства и его героев");
+  flag(rules::BuildingFlag::Healing, "heal", th.success, "Здание целительства", b.healing, "bt.flag.healing",
+       "«Вылечить провинцию» от чумы за 500 любой эссенции");
+  flag(rules::BuildingFlag::Plague, "plague", Color::hex(kPlagueInk), "Здание чумы", b.plague, "bt.flag.plague",
+       "Чума в провинции даёт прирост населения +2,5 %; «Заразить чумой» за 2500 эссенции чумы");
+  flag(rules::BuildingFlag::Shipyard, "shipyard", th.info, "Верфь", b.shipyard, "bt.flag.shipyard", "Уровни открывают найм типов кораблей");
+  flag(rules::BuildingFlag::Mercenary, "mercenary", th.accent, "Гильдия наёмников", b.mercenary, "bt.flag.merc",
+       "Каждая такая постройка поднимает лимит наёмников государства");
+  flag(rules::BuildingFlag::Coastal, "anchor", th.textDim, "Только в приморской провинции", b.coastal, "bt.flag.coastal",
+       "Строится только в провинции, граничащей с морем");
+}
+
+// Требования «на государство» (соборы, ТЗ «Доработки №4», п.7): на каждую новую такую постройку в провинциях
+// государства должно быть достроено ещё per построек req (rules::setStateReq).
+void stateReqSection(App& a, const BN& b, bool ro) {
+  const World& w = a.world();
+  ui::Section s("Требует в государстве", "crown",
+                {.defaultOpen = !b.stateReqs.empty(), .badge = b.stateReqs.empty() ? std::string() : std::to_string(b.stateReqs.size())});
+  a.markUi("bt.side.statereqs");
+  if (!s) return;
+  const Id bid = b.id;
+  for (const StateReq& sr : b.stateReqs) {
+    const Building* rb = w.building(sr.building);
+    if (!rb) continue;
+    const Id rid = sr.building;
+    ui::IdScope s2{i64(rid)};
+    ui::Row row({ui::px(76), ui::fr(1), ui::px(30)}, 30, 6);
+    int per = sr.per;
+    if (ui::numberField("per", per, {.min = 1, .max = 100, .icon = "hash", .disabled = ro,
+                                     .tooltip = "На каждую новую — столько достроенных построек в провинциях государства"}))
+      a.act("Требование на государство", [&](Tx& tx) { rules::setStateReq(tx, bid, rid, clamp(per, 1, 100)); },
+            {.coalesce = "bt-sreq:" + std::to_string(bid) + ":" + std::to_string(rid)});
+    a.markUi("bt.sreq." + std::to_string(rid) + ".per");
+    if (ui::chip(bname(*rb), {.icon = bld::iconOf(*rb), .color = bld::catColor(rb->cat), .clickable = true, .tooltip = "Показать"}) == ui::ChipAction::Click)
+      openBuildingTree(a, rb->owner, rid);
+    if (ui::iconButton("close", "Убрать требование", {.disabled = ro})) a.act("Убрать требование на государство", [&](Tx& tx) { rules::setStateReq(tx, bid, rid, 0); });
+    a.markUi("bt.sreq." + std::to_string(rid) + ".remove");
+  }
+  if (ro) return;
+  struct Cand {
+    Id id = 0;
+    std::string label;
+    const char* icon = nullptr;
+    BuildingCat cat = BuildingCat::Economic;
+  };
+  std::vector<Cand> cand;
+  w.buildings.each([&](const Building& x) {
+    if (x.id == bid || (x.owner != 0 && x.owner != b.owner)) return;
+    for (const StateReq& r : b.stateReqs)
+      if (r.building == x.id) return;
+    cand.push_back(Cand{x.id, bname(x), bld::iconOf(x), x.cat});
+  });
+  if (cand.empty()) return;
+  std::stable_sort(cand.begin(), cand.end(), [](const Cand& x, const Cand& y) {
+    if (x.cat != y.cat) return x.cat < y.cat;
+    return compareRu(x.label, y.label) < 0;
+  });
+  std::vector<ui::Option> opts;
+  for (const Cand& c : cand) opts.push_back(ui::Option{c.label, c.icon, Color(0, 0, 0, 0), bld::catName(c.cat)});
+  int idx = -1;
+  if (ui::combo("addsreq", idx, std::span<const ui::Option>(opts), {.placeholder = "Добавить требование", .search = 1, .icon = "plus"}) && idx >= 0 &&
+      idx < int(cand.size())) {
+    const Id rid = cand[size_t(idx)].id;
+    a.act("Требование на государство", [&](Tx& tx) { rules::setStateReq(tx, bid, rid, 4); });
+  }
+  a.markUi("bt.side.addsreq");
 }
 
 void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
@@ -1418,6 +1613,10 @@ void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
     ui::HStack hs(28, ui::Align::Left, 6);
     ui::tag(bld::catName(b.cat), ui::Tone::Neutral, bld::catIcon(b.cat));
     if (b.owner) ui::tag("Уникальная", ui::Tone::Accent, "crown");
+    if (!b.key.empty()) {
+      ui::icon("lock", ui::Ink::Muted, 16, "Встроенная постройка: на неё опираются правила");
+      a.markUi("bt.side.builtin");
+    }
     ui::flex();
     if (ui::iconButton("target", "Показать на схеме")) ed.revealSel = true;
     if (ui::iconButton("trash", "Удалить постройку", {.disabled = ro, .shortcut = {Key::Delete, 0}, .tone = ui::Tone::Danger})) askDelete(a, b);
@@ -1491,6 +1690,7 @@ void sideBuilding(App& a, Ed& ed, const std::vector<BN>& bs, const BN& b) {
     ui::label(t, {.font = ui::Font::Small, .ink = ui::Ink::Dim, .icon = "province"});
   }
   reqSection(a, ed, bs, b, ro);
+  if (!b.stateReqs.empty() || !ro) stateReqSection(a, b, ro);
   techSection(a, b, ro);
   rolesSection(a, b, ro);
   // Уровни (ТЗ 1.f.ii: постройки имеют несколько уровней и улучшаются)
@@ -1672,8 +1872,16 @@ void drawBuildingTree(App& a, Id owner) {
     n.convert = b.convert;
     n.essenceGen = b.essenceGen;
     n.specialAccess = b.specialAccess;
+    n.relicStore = b.relicStore;
+    n.healing = b.healing;
+    n.plague = b.plague;
+    n.shipyard = b.shipyard;
+    n.mercenary = b.mercenary;
+    n.coastal = b.coastal;
     n.recipe = b.recipe;
     n.specials = b.specials;
+    n.stateReqs = b.stateReqs;
+    n.key = b.key;
     n.match = ed.query.empty() || utf8::matches(b.name, ed.query) || utf8::matches(b.desc, ed.query);
     idx[b.id] = bs.size();
     bs.push_back(std::move(n));
@@ -2125,15 +2333,44 @@ void drawBuildingTree(App& a, Id owner) {
       }
       std::string cnt = std::to_string(L.count[c]);
       float cy = std::round((vy0 + vy1) * 0.5f);
-      bool compact = vy1 - vy0 < 46;
+      // Длинное название («Жилые и сельско-хозяйственные») — в несколько строк: перенос после пробела или дефиса.
+      const std::string name = bld::catName(BuildingCat(c));
+      const float nameW = gut.w - 22;
+      std::vector<std::string> lines;
+      {
+        std::string cur, word;
+        auto flush = [&](bool last) {
+          const std::string cand = cur.empty() ? word : cur + word;
+          if (!cur.empty() && ui::measure(trim(cand), ui::Font::Strong) > nameW) {
+            lines.push_back(trim(cur));
+            cur = word;
+          } else {
+            cur = cand;
+          }
+          word.clear();
+          if (last && !trim(cur).empty()) lines.push_back(trim(cur));
+        };
+        for (char ch : name) {
+          word += ch;
+          if (ch == ' ' || ch == '-') flush(false);
+        }
+        flush(true);
+        if (lines.size() > 3) lines.resize(3);   // последняя строка — с многоточием
+      }
+      const float textH = 17 * float(lines.size());
+      bool compact = vy1 - vy0 < (lines.size() <= 1 ? 46.f : 30 + 3 + textH + 12);
       if (compact) {
         ui::draw::icon(bld::catIcon(BuildingCat(c)), RectF{gut.x + 14, cy - 9, 18, 18}, cc);
-        ui::draw::text(bld::catName(BuildingCat(c)), RectF{gut.x + 38, cy - 9, gut.w - 46, 18}, ui::Font::Small, th.textDim);
+        const RectF nr{gut.x + 38, cy - 9, gut.w - 46, 18};
+        ui::draw::text(name, nr, ui::Font::Small, th.textDim);
+        if (ui::measure(name, ui::Font::Small) > nr.w) ui::hoverTip("##lane" + std::to_string(c), nr, name);   // обрезано — полностью в подсказке
       } else {
-        ui::draw::rect(RectF{gut.x + 14, cy - 23, 30, 30}, cc.alpha(0.16f), 8);
-        ui::draw::icon(bld::catIcon(BuildingCat(c)), RectF{gut.x + 20, cy - 17, 18, 18}, cc);
-        ui::draw::text(cnt, RectF{gut.x + 52, cy - 23, gut.w - 60, 30}, ui::Font::Number, th.text);
-        ui::draw::text(bld::catName(BuildingCat(c)), RectF{gut.x + 14, cy + 10, gut.w - 22, 18}, ui::Font::Strong, th.text);
+        const float top = std::round(cy - (30 + 3 + textH) * 0.5f);
+        ui::draw::rect(RectF{gut.x + 14, top, 30, 30}, cc.alpha(0.16f), 8);
+        ui::draw::icon(bld::catIcon(BuildingCat(c)), RectF{gut.x + 20, top + 6, 18, 18}, cc);
+        ui::draw::text(cnt, RectF{gut.x + 52, top, gut.w - 60, 30}, ui::Font::Number, th.text);
+        for (size_t li = 0; li < lines.size(); li++)
+          ui::draw::text(lines[li], RectF{gut.x + 14, top + 33 + 17 * float(li), nameW, 18}, ui::Font::Strong, th.text);
       }
     }
     ui::draw::popClip();
@@ -2238,9 +2475,21 @@ void drawBuildingTree(App& a, Id owner) {
       if (b->convert) tip.lines.push_back({"convert", "Преобразование: " + bld::recipeText(w, b->recipe), th.info, true});
       if (b->specialAccess && !b->specials.empty())
         tip.lines.push_back({"special-unit", "Особые отряды: " + bld::specialsText(w, b->specials), th.accent, true});
+      if (!b->key.empty()) tip.lines.push_back({"lock", "Встроенная постройка", th.textMuted});
+      if (b->relicStore) tip.lines.push_back({"relic", "Хранилище реликвий", Color::hex(kRelicInk)});
+      if (b->healing) tip.lines.push_back({"heal", "Здание целительства", th.success});
+      if (b->plague) tip.lines.push_back({"plague", "Здание чумы", Color::hex(kPlagueInk)});
+      if (b->mercenary) tip.lines.push_back({"mercenary", "Гильдия наёмников", th.accent});
+      if (b->coastal) tip.lines.push_back({"anchor", "Только в приморской провинции", th.textDim});
+      for (const StateReq& sr : b->stateReqs)
+        if (const Building* rb = w.building(sr.building))
+          tip.lines.push_back({"crown", "На каждую — ещё " + std::to_string(sr.per) + " «" + bname(*rb) + "» в государстве", th.warning, true});
       for (size_t li = 0; li < b->levels.size() && li < 6; li++) {
         const BuildingLevel& lv = b->levels[li];
-        tip.lines.push_back({"slots", roman(int(li) + 1) + " · " + nTurns(std::max(1, lv.turns)) + " · " + bld::costText(w, lv.cost), Color(0, 0, 0, 0), true});
+        std::string price = bld::costText(w, lv.cost);
+        if (!lv.essCost.empty()) price += ", " + bld::essenceCostText(w, lv.essCost);
+        tip.lines.push_back({"slots", roman(int(li) + 1) + " · " + nTurns(std::max(1, lv.turns)) + " · " + price, Color(0, 0, 0, 0), true});
+        if (b->shipyard && lv.ships) tip.lines.push_back({"shipyard", "Корабли: " + bld::shipsText(lv.ships), th.info, true});
         if (!lv.produce.empty()) tip.lines.push_back({"repeat", "За ход: " + bld::produceText(w, lv.produce), th.success});
         if (b->essenceGen && !lv.essence.empty()) tip.lines.push_back({"essence", "Эссенция за ход: " + bld::essenceText(w, lv.essence), Color::hex(kEssenceInk)});
         for (Id mid : lv.modifiers)
