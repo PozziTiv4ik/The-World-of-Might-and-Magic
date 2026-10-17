@@ -1,23 +1,15 @@
-// Regnum — окно справочников: общее для вкладок (catalogs.cpp — окно, вкладки и простые справочники;
-// catalogs_resources.cpp — ресурсы деревом групп; catalogs_relics.cpp — реликвии деревом групп; catalogs_specials.cpp —
+// Regnum — окно справочников: общее для вкладок (catalogs.cpp — окно, вкладки и простые справочники; catalogs_common.cpp —
+// состояние, оформление и действия с записями; catalogs_usage.cpp — где используются записи; catalogs_resources.cpp — ресурсы деревом групп; catalogs_relics.cpp — реликвии деревом групп; catalogs_specials.cpp —
 // особые отряды; catalogs_classes.cpp — классы героев и деревья талантов; catalogs_arch.cpp — археологические места и
 // сундуки сокровищ). Только для этих файлов.
 #pragma once
 #include <unordered_map>
 
 #include "app/app_internal.h"
+#include "app/editors/edkit.h"
 #include "app/widgets.h"
 
 namespace rg::app {
-
-namespace edkit {   // общие элементы редакторов (editors/modifiers.cpp)
-bool iconPicker(std::string_view id, std::string& icon, bool allowNone, bool disabled, std::string_view tip);
-const char* iconTitle(std::string_view icon);
-void goTo(App& a, Selection s);
-void chipsBegin();
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
-void chipsEnd();
-}  // namespace edkit
 
 namespace cat {
 
@@ -38,6 +30,7 @@ struct State {
   std::array<Id, kTabCount> sel{};         // выбранная запись вкладки (кроме ресурсов)
   bool focusSearch = false;
   Id focusName = 0;                        // запись, чьё название получит фокус (после добавления)
+  bool revealSel = false;                  // показать выбранную строку (переименование в списке по алфавиту)
   // ---- ресурсы
   ResSel res;
   ResSel scrollTo;                         // показать строку (прокрутка к ней)
@@ -57,8 +50,11 @@ struct State {
   Id editRelGroup = 0, focusRelGroup = 0, pendingRelGroup = 0;   // правка названия группы на месте
   std::unordered_map<Id, bool> relOpen;    // раскрытие групп реликвий (нет записи — раскрыта)
   bool relNoGroupOpen = true;
+  Id relState = 0, relHero = 0;            // карточка копируемой реликвии: государство и герой, чьё количество правится
   // ---- классы героев
-  Id talent = 0;                           // выбранный талант дерева класса sel[kClasses]
+  Id subclass = 0;                         // выбранный подкласс класса sel[kClasses] (его дерево)
+  Id focusSub = 0;                         // в следующем кадре — фокус в поле названия подкласса
+  Id talent = 0;                           // выбранный талант дерева подкласса
   Id focusTalent = 0;                      // в следующем кадре — фокус в поле названия таланта
 };
 State& state(App& a);
@@ -74,6 +70,7 @@ struct ListDef {
   bool colored;          // цвет используется на карте и в фишках
 };
 const ListDef& listDef(rules::CatalogList l);
+const ListDef* defOfTab(int tab);   // простой справочник вкладки; nullptr — вкладка со своим видом
 // Встроенная запись («Золото», трупы, энергия, запчасти механизмов): не удаляется.
 bool locked(rules::CatalogList l, const CatalogItem& c);
 // Значок записи: ресурс — свой (золото — монеты), эссенция — капля, иначе — значок справочника.
@@ -126,17 +123,28 @@ const Use& useOf(const UseMap& m, Id item);
 std::string usageText(rules::CatalogList list, const Use& u);
 
 // ---------------------------------------------------------------- общее оформление
-std::string orName(const std::string& s, const char* fallback = "Без названия");
+using w::legible;   // очень тёмный цвет записи («Черные Драконы») — светлее, чтобы значок был виден
+using w::orName;
 std::string nb(i64 n, const char* one, const char* few, const char* many);   // «3 ресурса»
-// Поток фишек с переносом строк (edkit::chipsBegin/chipsEnd).
-struct ChipFlow {
-  ChipFlow() { edkit::chipsBegin(); }
-  ~ChipFlow() { edkit::chipsEnd(); }
-  ChipFlow(const ChipFlow&) = delete;
-  ChipFlow& operator=(const ChipFlow&) = delete;
-};
-// Цвет записи для значка на тёмном фоне: очень тёмный («Черные Драконы») — светлее, чтобы значок был виден.
-Color legible(Color c);
+// ---------------------------------------------------------------- деревья групп (ресурсы, реликвии)
+constexpr float kTreeIndent = 20, kTreeChevW = 18;   // отступ уровня и ширина стрелки раскрытия
+// Направляющие дерева: тонкие вертикальные линии уровней слева от строки.
+void treeGuides(RectF cell, int depth);
+// Плашка с числом (как в строках списков) и её ширина.
+void countPill(RectF r, std::string_view text, bool selected);
+float countPillW(std::string_view text);
+// Значок «папка с плюсом»: кнопка новой подгруппы.
+bool newSubButton(bool disabled);
+
+// Кнопка «Новый …» вкладки (основная, Insert; метка catalogs.add). true — нажата.
+bool newButton(App& a, std::string_view label, std::string_view tip = {});
+// Кнопка «Удалить: what» карточки записи (опасная, на всю ширину; метка catalogs.delete). true — нажата.
+bool deleteButton(App& a, std::string_view what);
+// Выбор держится на видимой строке: выбранной нет среди rows — первая строка (строк нет — 0).
+template <class Rows, class IdOf>
+void keepSelection(Id& sel, const Rows& rows, IdOf idOf) {
+  if (std::none_of(rows.begin(), rows.end(), [&](const auto& r) { return idOf(r) == sel; })) sel = rows.empty() ? 0 : idOf(rows.front());
+}
 // Плитка значка цвета записи: мягкая подложка, обводка, значок (glow — свечение цветом, для редкости).
 void tile(RectF r, const char* icon, Color tint, float radius, bool glow = false);
 // Шапка карточки: плитка 52 × 52, подпись вида и название.

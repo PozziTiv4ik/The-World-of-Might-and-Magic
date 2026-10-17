@@ -12,20 +12,12 @@
 #include "tests/test_map_view_util.h"
 
 using namespace rg;
+using mvtest::makeArmy;
 
 namespace {
 
 constexpr int W = 1600, H = 900;
 constexpr float DPI = 1.25f;
-
-Army makeArmy(Id id, Vec2 pos, Id faction, i64 units, ArmyKind kind = ArmyKind::Army) {
-  Army a;
-  a.id = id;
-  a.kind = kind;
-  a.pos = pos;
-  a.groups.push_back(ArmyGroup{faction, {ArmyUnit{1, units}}, {}});
-  return a;
-}
 
 // Состав отметок раскладки: объект → номер отметки.
 std::map<Id, size_t> groupsOf(const map::detail::MarkLayout& L) {

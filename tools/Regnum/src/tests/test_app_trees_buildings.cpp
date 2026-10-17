@@ -1,5 +1,6 @@
-// Сценарии дерева построек (ТЗ 1.h.i–ii, 1.f.ii): общее дерево и уникальные постройки государства, дорожки
-// категорий, уровни (срок, стоимость, модификаторы), требования (цикл запрещён), вход из ленты и вкладки государства.
+// Сценарии дерева построек (ТЗ 1.h.i–ii, 1.f.ii): общее дерево и уникальные постройки государства (дерево
+// государства показывает и общие), дорожки категорий, уровни (срок, стоимость, модификаторы; удаление уровня правит
+// требования других построек), требования (цикл запрещён), вход из ленты и вкладки государства.
 #include "app/editors/buildings.h"
 #include "tests/test_app_trees_util.h"
 
@@ -13,14 +14,6 @@ std::vector<Id> buildingsOf(const World& w, Id owner) {
   std::vector<Id> r;
   w.buildings.each([&](const Building& b) {
     if (b.owner == owner) r.push_back(b.id);
-  });
-  return r;
-}
-
-Id buildingByName(const World& w, const std::string& name) {
-  Id r = 0;
-  w.buildings.each([&](const Building& b) {
-    if (b.name == name) r = b.id;
   });
   return r;
 }
@@ -89,7 +82,6 @@ void denseBuildings(app::App& a) {
 }  // namespace
 
 TEST(app_trees_buildings_visual) {
-  HideTestRegs hide;
   Harness h("trees_buildings_visual", 1600, 1000);
   h.demo();
   h.dropToasts();
@@ -104,7 +96,7 @@ TEST(app_trees_buildings_visual) {
   CHECK_EQ(h->ui.editor, std::string("buildings"));
   CHECK(h.shot("trees_buildings"));
   // Выбор постройки: панель свойств с уровнями.
-  Id market = buildingByName(h->world(), "Рынок");
+  Id market = test::idByName(h->world().buildings, "Рынок");
   CHECK(market != 0);
   RectF nr = rectOf(h.a(), "bt.node." + std::to_string(market));
   h.click(nr.x + nr.w * 0.5f, nr.y + nr.h * 0.3f);
@@ -117,7 +109,6 @@ TEST(app_trees_buildings_visual) {
 }
 
 TEST(app_trees_buildings_edit) {
-  HideTestRegs hide;
   Harness h("trees_buildings_edit");
   h.demo();
   h.dropToasts();
@@ -135,10 +126,10 @@ TEST(app_trees_buildings_edit) {
   h.key(Key::Enter);
   h.settle();
   CHECK_EQ(h->world().building(b)->name, std::string("Мастерская"));
-  // Категория — шесть сегментов-значков (третий — промышленные).
+  // Категория — семь сегментов-значков (третий — промышленные, седьмой — инфраструктурные).
   RectF cat = rectOf(h.a(), "bt.side.cat");
   constexpr float kSegs = float(int(BuildingCat::Count));
-  CHECK_EQ(int(BuildingCat::Count), 6);
+  CHECK_EQ(int(BuildingCat::Count), 7);
   h.click(cat.x + cat.w * (2.5f / kSegs), cat.cy());
   h.settle();
   CHECK(h->world().building(b)->cat == BuildingCat::Industrial);
@@ -168,7 +159,7 @@ TEST(app_trees_buildings_edit) {
   h.settle();
   CHECK_EQ(h->world().building(b)->levels.size(), size_t(1));
   // Требование: от выхода «Кузницы» к «Мастерской».
-  Id forge = buildingByName(h->world(), "Кузница");
+  Id forge = test::idByName(h->world().buildings, "Кузница");
   CHECK(forge != 0);
   h.key(Key::F);
   h.settle();
@@ -185,7 +176,7 @@ TEST(app_trees_buildings_edit) {
   h.settle();
   CHECK(!needs(h->world(), forge, b));
   CHECK_EQ(h->store.version(), v);
-  CHECK(hasToast(h.a(), "цикл", app::ToastKind::Warning));
+  CHECK(hasToast(h, "цикл", app::ToastKind::Warning));
   h->toasts().clear();
   // Перетаскивание на другую дорожку меняет категорию (одно действие, отменяется).
   nb = rectOf(h.a(), "bt.node." + std::to_string(b));
@@ -211,8 +202,80 @@ TEST(app_trees_buildings_edit) {
   CHECK(h->world().building(forge) != nullptr);
 }
 
+// Удаление последнего уровня постройки проверяет только провинции, но не требования других построек
+// (app/editors/buildings.cpp, кнопка «Удалить уровень»). Требование «R уровня N» к удалённому уровню остаётся,
+// и зависящая постройка становится недоступной навсегда; после сохранения и повторного открытия нормализация
+// молча меняет требование на другой уровень (поведение мира меняется от перезагрузки).
+TEST(app_trees_buildings_delete_level_requirement) {
+  Harness h("audit_tbmt_req_level", 1440, 2400);
+  h.demo();
+  // Требование к последнему уровню постройки, этот уровень нигде не построен.
+  Id dep = 0, req = 0;
+  int lvl = 0;
+  h->world().buildings.each([&](const Building& b) {
+    for (const BuildingReq& r : b.requires_) {
+      const Building* rb = h->world().building(r.building);
+      if (dep || !rb || r.level < 2 || r.level != int(rb->levels.size())) continue;
+      bool built = false;
+      h->world().provinces.each([&](const Province& p) {
+        for (const ProvBuilding& pb : p.buildings) built = built || (pb.building == rb->id && pb.level >= r.level);
+      });
+      if (!built) {
+        dep = b.id;
+        req = rb->id;
+        lvl = r.level;
+      }
+    }
+  });
+  if (!dep) {   // создать такое требование самим: постройка с двумя уровнями (уровни помещаются на панели)
+    CHECK(h->act("Постройка", [&](Tx& tx) {
+      req = rules::createBuilding(tx, 0, "Аудит: требуемая");
+      tx.building(req).levels.push_back(BuildingLevel{});
+    }));
+    CHECK(req != 0);
+    lvl = int(h->world().building(req)->levels.size());
+    CHECK(h->act("Требование", [&](Tx& tx) {
+      // Уровень lvl нигде не построен и не строится.
+      for (Id pid : tx.w().provinces.ids())
+        for (const ProvBuilding& pb : tx.w().province(pid)->buildings)
+          if (pb.building == req && pb.level >= lvl) {
+            auto& v = tx.province(pid).buildings;
+            for (ProvBuilding& x : v)
+              if (x.building == req) {
+                x.level = lvl - 1;
+                x.constructing = false;
+                x.left = 0;
+              }
+          }
+      dep = rules::createBuilding(tx, 0, "Аудит: зависимая");
+      tx.building(dep).requires_.push_back(BuildingReq{req, lvl});
+    }));
+  }
+  CHECK(dep && req && lvl >= 2);
+  const Id owner = h->world().building(req)->owner;
+  app::openBuildingTree(h.a(), owner, req);
+  h.dropToasts();
+  h.settle();
+  h.settle();
+  CHECK(h.shot("audit_tbmt_req_level_side"));
+  std::string del = "bt.level." + std::to_string(lvl - 1) + ".delete";
+  const RectF* r = h->uiRect(del);
+  CHECK(r != nullptr);
+  if (!r) return;
+  h.click(r->cx(), r->cy());
+  h.settle();
+  CHECK(h->hasDialog("confirm"));
+  CHECK(h.clickUi("dialog.ok"));
+  h.settle();
+  CHECK_EQ(int(h->world().building(req)->levels.size()), lvl - 1);
+  int still = 0;
+  for (const BuildingReq& q : h->world().building(dep)->requires_)
+    if (q.building == req) still = q.level;
+  CHECK_MSG(still <= lvl - 1, "после удаления уровня " + std::to_string(lvl) + " постройка «" + h->world().building(dep)->name +
+                                     "» по-прежнему требует несуществующий уровень " + std::to_string(still));
+}
+
 TEST(app_trees_buildings_unique_and_entries) {
-  HideTestRegs hide;
   Harness h("trees_buildings_unique");
   h.demo();
   Id uniq = 0;
@@ -228,7 +291,7 @@ TEST(app_trees_buildings_unique_and_entries) {
   h.dropToasts();
   h.settle();
   CHECK(h.shot("trees_buildings_drawer"));
-  Id market = buildingByName(h->world(), "Рынок");
+  Id market = test::idByName(h->world().buildings, "Рынок");
   clickRect(h, "bt.node." + std::to_string(market), 0.5f, 0.3f);
   CHECK(h->uiRect("bt.side.name") != nullptr);
   // Уникальная постройка в общем дереве не показывается.
@@ -265,8 +328,55 @@ TEST(app_trees_buildings_unique_and_entries) {
   CHECK(!inOther);
 }
 
+// ТЗ 1.h.i: дерево построек государства = общее дерево + уникальные постройки. Ссылка «Дерево построек государства»
+// во вкладке «Постройки» провинции открывает дерево владельца, где видны ТОЛЬКО уникальные постройки
+// (app/editors/buildings.cpp drawBuildingTree: `if (b.owner != owner) return;`). У государства без уникальных
+// построек дерево пустое.
+TEST(app_trees_buildings_state_tree_shows_common) {
+  Harness h("audit_tbmt_state_tree", 1440, 900);
+  h.demo();
+  // Государство без уникальных построек.
+  Id state = 0;
+  h->world().factions.each([&](const Faction& f) {
+    if (state || !f.isState()) return;
+    bool uniq = false;
+    h->world().buildings.each([&](const Building& b) { uniq = uniq || b.owner == f.id; });
+    if (!uniq) state = f.id;
+  });
+  Id common = 0;
+  h->world().buildings.each([&](const Building& b) {
+    if (!common && b.owner == 0) common = b.id;
+  });
+  CHECK(common != 0);
+  if (!state) {   // в демонстрационном мире у всех есть уникальные — берём любое государство
+    h->world().factions.each([&](const Faction& f) {
+      if (!state && f.isState()) state = f.id;
+    });
+  }
+  CHECK(state != 0);
+  app::openBuildingTree(h.a(), state);
+  h.dropToasts();
+  h.settle();
+  h.settle();
+  CHECK(h.shot("audit_tbmt_state_tree"));
+  // Регрессия: дерево государства показывает и постройки общего дерева (только просмотр, со ссылкой на правку).
+  CHECK_MSG(h->uiRect("bt.common." + std::to_string(common)) != nullptr,
+            "дерево построек государства «" + h->world().faction(state)->name + "» не показывает постройки общего дерева");
+  CHECK(h->uiRect("bt.common.edit") != nullptr);
+  // Щелчок по постройке общего дерева открывает её в общем дереве.
+  CHECK(h.clickUi("bt.common." + std::to_string(common)));
+  h.settle();
+  CHECK(h->ui.editor == "buildings");
+  CHECK(h->uiRect("bt.common." + std::to_string(common)) == nullptr);   // общее дерево — без этого списка
+  // Вкладка государства «Постройки» — тоже общее дерево вместе с уникальными.
+  h->closeEditor();
+  h->select(app::SelType::Faction, state);
+  h->ui.tabOf[app::SelType::Faction] = "faction.buildings";
+  h.settle();
+  CHECK(h->uiRect("faction.buildings.commonItem." + std::to_string(common)) != nullptr);
+}
+
 TEST(app_trees_buildings_layout_external_icon) {
-  HideTestRegs hide;
   Harness h("trees_buildings_external", 1600, 1000);
   h.demo();
   h.dropToasts();
@@ -284,7 +394,7 @@ TEST(app_trees_buildings_layout_external_icon) {
     }
   undo(h);
   // Значок постройки — из набора (подписи по-русски).
-  Id market = buildingByName(h->world(), "Рынок");
+  Id market = test::idByName(h->world().buildings, "Рынок");
   clickRect(h, "bt.node." + std::to_string(market), 0.5f, 0.3f);
   clickRect(h, "bt.side.icon");
   CHECK(h->uiRect("bt.icon.castle") != nullptr);
@@ -293,22 +403,24 @@ TEST(app_trees_buildings_layout_external_icon) {
   undo(h);
   CHECK(h->world().building(market)->icon != "castle");
   // Уровень требования: «Банк» требует «Рынок» II — поле уровня в списке требований.
-  Id bank = buildingByName(h->world(), "Банк");
+  Id bank = test::idByName(h->world().buildings, "Банк");
+  CHECK(bank != 0 && !h->world().building(bank)->requires_.empty());
+  const Id bankMarket = h->world().building(bank)->requires_.front().building;   // «Рынок» демонстрационного мира
   h.key(Key::Escape);
   app::openBuildingTree(h.a(), 0, bank);
   h.settle();
-  RectF lv = rectOf(h.a(), "bt.req." + std::to_string(market) + ".level");
+  RectF lv = rectOf(h.a(), "bt.req." + std::to_string(bankMarket) + ".level");
   h.click(lv.right() - 39, lv.cy());   // «−» поля
   h.settle();
   int level = 0;
   for (const BuildingReq& r : h->world().building(bank)->requires_)
-    if (r.building == market) level = r.level;
+    if (r.building == bankMarket) level = r.level;
   CHECK_EQ(level, 1);
   undo(h);
   // Уникальная постройка требует общую («Казармы» II): плашка слева от карточки, щелчок — общее дерево.
   Id uniq = 0;
   Id owner = uniqueOwner(h->world(), &uniq);
-  Id barracks = buildingByName(h->world(), "Казармы");
+  Id barracks = test::idByName(h->world().buildings, "Казармы");
   CHECK(owner && uniq && barracks);
   CHECK(h->act("Требование", [&](Tx& tx) { tx.building(uniq).requires_.push_back(BuildingReq{barracks, 2}); }));
   h.key(Key::Escape);
@@ -335,7 +447,6 @@ TEST(app_trees_buildings_layout_external_icon) {
 }
 
 TEST(app_trees_buildings_faction_built) {
-  HideTestRegs hide;
   Harness h("trees_buildings_faction_built");
   h.demo();
   h.dropToasts();

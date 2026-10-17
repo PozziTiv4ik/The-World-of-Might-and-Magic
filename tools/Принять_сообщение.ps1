@@ -28,7 +28,7 @@ Assert-WmmaSingleLine $Title 'Title'
 
 if (-not [string]::IsNullOrWhiteSpace($TextPath)) {
     $resolvedTextPath = (Resolve-Path -LiteralPath $TextPath).Path
-    $Text = Get-Content -Raw -Encoding UTF8 -LiteralPath $resolvedTextPath
+    $Text = Read-WmmaText $resolvedTextPath
 }
 
 if ([string]::IsNullOrWhiteSpace($Text)) {
@@ -37,7 +37,7 @@ if ([string]::IsNullOrWhiteSpace($Text)) {
 $codeFence=Get-WmmaTextFence $Text
 
 $sourceReference = 'вручную через `tools/Принять_сообщение.ps1`'
-$messageHash=Get-WmmaHash ($Text.Replace("`r`n","`n").Trim())
+$messageHash=Get-WmmaMessageHash $Text
 if(-not $RequestId){$RequestId='MSG-'+$messageHash.Substring(0,24)}
 if($RequestId -notmatch '^[A-Za-z0-9-]+$'){throw 'Invalid request ID.'}
 $receipt=Get-WmmaReceipt $root $RequestId
@@ -90,7 +90,7 @@ ${codeFence}
 }
 
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
-$inbox = Get-Content -Raw -Encoding UTF8 -LiteralPath $inboxPath
+$inbox = Read-WmmaText $inboxPath
 if(@(Get-WmmaInboxEntries $inbox|Where-Object {(Get-WmmaEntryField $_.Value 'Request-ID') -ceq $RequestId}).Count -gt 0){
     Save-WmmaReceipt $root $receipt
     "Accepted message into inbox: $Title (recovered: $RequestId)";return
@@ -122,10 +122,7 @@ $inbox=$inbox.Substring(0,$newSection.body_start)+$replacement+$inbox.Substring(
 Write-WmmaText $inboxPath $inbox
 Save-WmmaReceipt $root $receipt
 
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
 
 "Accepted message into inbox: $Title"
 }

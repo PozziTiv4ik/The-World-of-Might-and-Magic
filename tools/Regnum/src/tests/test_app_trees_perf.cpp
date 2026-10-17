@@ -10,25 +10,7 @@ using namespace rg;
 using namespace rg::apptest;
 using namespace rg::apptest::trees;
 
-namespace {
-
-double frameMs(int n, const std::function<void(int)>& before) {
-  double total = 0;
-  for (int i = 0; i < n; i++) {
-    if (before) before(i);
-    hl::pump();
-    double t0 = nowSeconds();
-    hl::renderFrame();
-    total += nowSeconds() - t0;
-    hl::advance(1.0 / 60);
-  }
-  return total * 1000 / n;
-}
-
-}  // namespace
-
 TEST(app_trees_perf_frames) {
-  HideTestRegs hide;
   Harness h("trees_perf", 1600, 1000);
   h.demo();
   Id fid = 0;

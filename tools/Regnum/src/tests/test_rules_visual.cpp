@@ -1,19 +1,13 @@
 // Тесты rules: наглядные артефакты (PNG в каталоге тестов) — битва с отступлением, роспуск союза,
 // поиск свободного места, раскладка дерева технологий.
-#include "tests/test_geo_util.h"
 #include "tests/test_rules_util.h"
 
 using namespace rg;
 using namespace rg::rules;
 using namespace rg::rulestest;
+using geotest::circle;
 
 namespace {
-
-std::vector<Vec2> circle(Vec2 c, double r, int n = 40) {
-  std::vector<Vec2> p;
-  for (int i = 0; i < n; i++) p.push_back({c.x + r * std::cos(2 * kPi * i / n), c.y + r * std::sin(2 * kPi * i / n)});
-  return p;
-}
 
 // Карта: провинции цветом владельца, войска — круги цвета фракции (флот — кольцо), метки — точки.
 void drawMap(geotest::Raster& r, const World& w, const std::vector<std::pair<Vec2, Color>>& marks = {}) {

@@ -1,6 +1,7 @@
 // Сценарии инструментов контура и щелчка (ТЗ 1.a.i — добавление и удаление провинций): новая провинция
-// многоугольником через берег (граница прилипает к берегу), от руки (лассо), расширение и вырезание, заливка
-// острова, нож, объединение с соседней, удаление провинции; отмена каждого шага.
+// многоугольником через берег (граница прилипает к берегу), к соседней, самопересекающийся контур, поглощение
+// соседней провинции целиком и вырезание всей провинции (запись не остаётся без области), от руки (лассо),
+// расширение и вырезание, заливка острова, нож, объединение с соседней, удаление провинции; отмена каждого шага.
 #include "tests/test_app_tools_util.h"
 
 using namespace rg;
@@ -47,10 +48,31 @@ void clickAll(Harness& h, const std::vector<Vec2>& pts) {
   for (Vec2 p : pts) clickMap(h, p);
 }
 
+// Небольшая сухопутная провинция с владельцем, рамка которой (с запасом) целиком на суше.
+Id smallInlandOwned(const World& w, Box2& box, double inflate = 25) {
+  auto fs = geo::faces(w);
+  Id victim = 0;
+  double best = 1e18;
+  w.provinces.each([&](const Province& p) {
+    if (p.sea || !p.owner) return;
+    const geo::ProvinceShape* s = fs->shape(p.id);
+    if (!s) return;
+    Box2 b = s->box.inflated(inflate);
+    Vec2 cs[] = {{b.x0, b.y0}, {b.x1, b.y0}, {b.x1, b.y1}, {b.x0, b.y1}};
+    for (Vec2 c : cs)
+      if (fs->terrainAt(c) != Terrain::Land) return;
+    if (s->area < best) {
+      best = s->area;
+      victim = p.id;
+      box = b;
+    }
+  });
+  return victim;
+}
+
 }  // namespace
 
 TEST(app_tools_new_province_over_coast) {
-  ToolGuard guard;
   Harness h("tools_new_coast");
   freshWorld(h);
   auto fs = geo::faces(h->world());
@@ -127,7 +149,6 @@ TEST(app_tools_new_province_over_coast) {
 // петляет вдоль его границы — сосед не обрезается, новая провинция прилегает ровно по его границе (без щелей);
 // предпросмотр заливает только свободную сушу.
 TEST(app_tools_new_province_attaches_to_neighbor) {
-  ToolGuard guard;
   Harness h("tools_new_neighbor");
   freshWorld(h);
   auto fs0 = geo::faces(h->world());
@@ -174,10 +195,10 @@ TEST(app_tools_new_province_attaches_to_neighbor) {
   int k = 0;
   for (double y = L.y + 5 - 2 * s; y > y0 + 2 * s; y -= 2 * s, k++) path.push_back({bx + (k % 2 == 0 ? dev : -dev), y});
   std::vector<gfx::Pt> pts;
-  for (Vec2 p : path) pts.push_back(scr(h, p));
-  for (auto& p : pts) CHECK(freeAt(h, p));
+  for (Vec2 p : path) pts.push_back(screenOf(h, p));
+  for (auto& p : pts) CHECK(freeOnScreen(h, p.x, p.y, 12));
   // Пиксели до контура: внутри A (будет внутри контура) и на свободной суше внутри контура.
-  const gfx::Pt inA = scr(h, {bx - 15, L.y + 20}), inFree = scr(h, {bx + 35, L.y});
+  const gfx::Pt inA = screenOf(h, {bx - 15, L.y + 20}), inFree = screenOf(h, {bx + 35, L.y});
   moveMap(h, path.back());
   h.waitMap();
   h.frames(3);
@@ -219,8 +240,124 @@ TEST(app_tools_new_province_attaches_to_neighbor) {
   CHECK_NEAR(provArea(h->world(), a), areaA, 1e-9 * areaA);
 }
 
+// ---------------------------------------------------------------- ТЗ 1.a.i: самопересекающийся контур новой провинции
+TEST(app_tools_new_province_bowtie) {
+  Harness h("audit_tzprov2_bowtie", 1440, 900);
+  h.demo();
+  Box2 vb;
+  Id victim = smallInlandOwned(h->world(), vb, 0);
+  CHECK(victim != 0);
+  focus(h, vb.inflated(60));
+  h.key(Key::E);
+  h.key(Key::P);
+  CHECK(h->ui.tool == app::ToolId::NewProvince);
+  size_t n0 = h->world().provinces.size();
+  Vec2 c = vb.center();
+  double r = std::min(vb.w(), vb.h()) * 0.3;
+  clickMap(h, {c.x - r, c.y - r});
+  clickMap(h, {c.x + r, c.y + r});
+  clickMap(h, {c.x + r, c.y - r});
+  clickMap(h, {c.x - r, c.y + r});
+  h.key(Key::Enter);
+  h.settle();
+  size_t n1 = h->world().provinces.size();
+  auto fs = geo::faces(h->world());
+  int shapeless = 0;
+  h->world().provinces.each([&](const Province& p) {
+    if (!fs->shape(p.id)) shapeless++;
+  });
+  std::printf("  bowtie: provinces %zu -> %zu, shapeless %d, tool %d\n", n0, n1, shapeless, int(h->ui.tool));
+  CHECK(cleanShot(h, "audit_tzprov2_bowtie"));
+  CHECK(shapeless == 0);
+}
+
+// ---------------------------------------------------------------- ТЗ 1.a.i/iv: новая провинция поглощает соседнюю целиком
+TEST(app_tools_new_province_covers_neighbor) {
+  Harness h("audit_tzprov_ghost", 1440, 900);
+  h.demo();
+  const World& w0 = h->world();
+  auto fs = geo::faces(w0);
+  // Небольшая провинция с владельцем, рамка которой (с запасом) целиком на суше.
+  Id victim = 0;
+  Box2 vb;
+  double best = 1e18;
+  w0.provinces.each([&](const Province& p) {
+    if (p.sea || !p.owner) return;
+    const geo::ProvinceShape* s = fs->shape(p.id);
+    if (!s) return;
+    Box2 b = s->box.inflated(25);
+    Vec2 cs[] = {{b.x0, b.y0}, {b.x1, b.y0}, {b.x1, b.y1}, {b.x0, b.y1}};
+    for (Vec2 c : cs)
+      if (fs->terrainAt(c) != Terrain::Land) return;
+    if (s->area < best) {
+      best = s->area;
+      victim = p.id;
+      vb = b;
+    }
+  });
+  CHECK(victim != 0);
+  Id owner = w0.province(victim)->owner;
+  std::printf("  victim %lld «%s» area %.0f owner %lld\n", (long long)victim, w0.province(victim)->name.c_str(), best, (long long)owner);
+  focus(h, vb.inflated(40));
+  h.key(Key::E);
+  CHECK(h->ui.editBorders);
+  h.key(Key::P);
+  CHECK(h->ui.tool == app::ToolId::NewProvince);
+  clickMap(h, {vb.x0, vb.y0});
+  clickMap(h, {vb.x1, vb.y0});
+  clickMap(h, {vb.x1, vb.y1});
+  clickMap(h, {vb.x0, vb.y1});
+  h.key(Key::Enter);
+  h.settle();
+  const World& w1 = h->world();
+  auto fs1 = geo::faces(w1);
+  bool recordLeft = w1.province(victim) != nullptr;
+  bool hasShape = fs1->shape(victim) != nullptr;
+  auto calc = rules::calc(w1);
+  bool counted = false;
+  if (const rules::FactionCalc* fc = calc->faction(owner))
+    counted = std::find(fc->provinces.begin(), fc->provinces.end(), victim) != fc->provinces.end();
+  std::printf("  after cover: record %d shape %d counted for owner %d\n", int(recordLeft), int(hasShape), int(counted));
+  CHECK(cleanShot(h, "audit_tzprov_ghost_cover"));
+  CHECK_MSG(!(recordLeft && !hasShape), "провинция, целиком поглощённая новой, осталась в базе без области на карте (призрак)");
+  CHECK_MSG(!(recordLeft && !hasShape && counted), "призрачная провинция без области продолжает числиться за государством и давать доход");
+}
+
+// ---------------------------------------------------------------- ТЗ 1.a.i: «Вырезать» всю провинцию — запись остаётся без области
+TEST(app_tools_lasso_cut_whole_province) {
+  Harness h("audit_tzprov2_cut", 1440, 900);
+  h.demo();
+  Box2 vb;
+  Id victim = smallInlandOwned(h->world(), vb);
+  CHECK(victim != 0);
+  Id owner = h->world().province(victim)->owner;
+  focus(h, vb.inflated(40));
+  h.key(Key::E);
+  CHECK(h->ui.editBorders);
+  h->select(app::SelType::Province, victim);
+  h.settle();
+  h.key(Key::X);
+  CHECK(h->ui.tool == app::ToolId::RemoveArea);
+  clickMap(h, {vb.x0, vb.y0});
+  clickMap(h, {vb.x1, vb.y0});
+  clickMap(h, {vb.x1, vb.y1});
+  clickMap(h, {vb.x0, vb.y1});
+  h.key(Key::Enter);
+  h.settle();
+  const World& w1 = h->world();
+  auto fs1 = geo::faces(w1);
+  bool rec = w1.province(victim) != nullptr;
+  bool shape = fs1->shape(victim) != nullptr;
+  auto calc = rules::calc(w1);
+  bool counted = false;
+  if (const rules::FactionCalc* fc = calc->faction(owner))
+    counted = std::find(fc->provinces.begin(), fc->provinces.end(), victim) != fc->provinces.end();
+  std::printf("  after cutting whole province: record %d shape %d counted for owner %d\n", int(rec), int(shape), int(counted));
+  CHECK(cleanShot(h, "audit_tzprov2_cut_whole"));
+  CHECK_MSG(!(rec && !shape), "провинция, целиком вырезанная инструментом «Вырезать», осталась в базе без области на карте");
+}
+
 TEST(app_tools_lasso_add_remove_fill) {
-  ToolGuard guard;
   Harness h("tools_areas");
   freshWorld(h);
   auto fs0 = geo::faces(h->world());
@@ -235,7 +372,7 @@ TEST(app_tools_lasso_add_remove_fill) {
   std::vector<gfx::Pt> circle;
   for (int k = 0; k <= 40; k++) {
     double a = k * 2 * 3.14159265 / 40;
-    circle.push_back(scr(h, L + Vec2{std::cos(a), std::sin(a)} * R));
+    circle.push_back(screenOf(h, L + Vec2{std::cos(a), std::sin(a)} * R));
   }
   stroke(h, circle, false);
   CHECK(cleanShot(h, "tools_lasso"));
@@ -317,7 +454,6 @@ TEST(app_tools_lasso_add_remove_fill) {
 }
 
 TEST(app_tools_knife_merge_delete) {
-  ToolGuard guard;
   Harness h("tools_knife");
   h.demo();
   h.key(Key::E);
@@ -356,7 +492,7 @@ TEST(app_tools_knife_merge_delete) {
   clickMap(h, l);
   moveMap(h, r);
   CHECK(cleanShot(h, "tools_knife"));
-  gfx::Pt rs = scr(h, r);
+  gfx::Pt rs = screenOf(h, r);
   h.doubleClick(rs.x, rs.y);   // двойной щелчок — последняя точка и готово
   CHECK_EQ(h->world().provinces.size(), n0 + 1);
   Id part = h->ui.sel.id;

@@ -1,9 +1,10 @@
 // Regnum — справочник «Ресурсы» деревом групп (ТЗ «Добавления в справочники», п.3–4): строки групп (шеврон
 // свернуть/развернуть, папка, название с правкой на месте, число ресурсов с подгруппами, новая подгруппа и новый
 // ресурс в группе, удаление с переносом содержимого в родителя; у групп правил — замок), под ними — подгруппы с
-// отступом и ресурсы группы; ресурсы без группы — «Без группы» в конце (не настоящая группа). Раскрытие групп —
-// состояние окна (по умолчанию верхний уровень свёрнут), поиск раскрывает подходящие ветви, сортировка по столбцу
-// упорядочивает соседей внутри своих групп. Карточки ресурса (группа, цвет, значок, добыча, запасы, где используется)
+// отступом и ресурсы группы; ресурсы без группы — «Без группы» в конце (не настоящая группа). Группы, подгруппы и
+// ресурсы внутри групп — по названию, иерархия сохраняется (ТЗ «Доработки №4», п.13; новые записи и прежние миры —
+// тоже). Раскрытие групп — состояние окна (по умолчанию верхний уровень свёрнут), поиск раскрывает подходящие ветви,
+// сортировка по столбцу упорядочивает соседей внутри своих групп. Карточки ресурса (группа, цвет, значок, добыча, запасы, где используется)
 // и группы (название, родительская группа без циклов, подгруппы и ресурсы фишками, создание, удаление).
 #include <algorithm>
 #include <functional>
@@ -19,7 +20,7 @@ using rules::CatalogList;
 
 namespace {
 
-constexpr float kRowH = 42, kHeadH = 32, kIndent = 20, kChevW = 18;
+constexpr float kRowH = 42, kHeadH = 32, kIndent = kTreeIndent, kChevW = kTreeChevW;
 // Столбцы таблицы: название (дерево), цвет, значок, провинции, добыча, запасы, действия.
 enum Col : int { cName, cColor, cIcon, cProv, cProd, cStock, cActions };
 
@@ -73,6 +74,14 @@ const char* ruleReason(std::string_view key) {
 }
 std::string ruleTip(const ResGroup& g) { return std::string("Группа нужна правилам (") + ruleReason(g.key) + ") — удалить нельзя"; }
 
+// По названию: группы и ресурсы показываются по алфавиту внутри своего родителя.
+void byName(const World& w, std::vector<Id>& groups) {
+  std::stable_sort(groups.begin(), groups.end(), [&](Id x, Id y) { return compareRu(groupOf(w, x)->name, groupOf(w, y)->name) < 0; });
+}
+void byName(std::vector<const CatalogItem*>& items) {
+  std::stable_sort(items.begin(), items.end(), [](const CatalogItem* x, const CatalogItem* y) { return compareRu(x->name, y->name) < 0; });
+}
+
 Tree buildTree(const World& w, const State& st, const UseMap& use) {
   const Catalogs& c = *w.catalogs;
   const bool searching = !st.query.empty();
@@ -85,6 +94,8 @@ Tree buildTree(const World& w, const State& st, const UseMap& use) {
     Id g = groupOf(w, r.group) ? r.group : 0;
     for (int guard = 0; g && guard < 64; guard++, g = parentOf(w, g)) t.count[g]++;
   }
+  for (auto& [g, list] : kids) byName(w, list);
+  for (auto& [g, list] : items) byName(list);
   t.loose = items[0];
   // Поиск: ресурс подходит по своему названию или по названию группы-предка; группа видна, если подходит сама
   // (с содержимым) или в ней есть подходящее.
@@ -258,12 +269,11 @@ void askRemoveGroup(App& a, const World& w, Id gid) {
     if (direct) what.push_back(nb(direct, "ресурс", "ресурса", "ресурсов"));
     text += " " + join(what, " и ") + (parent ? " перейдут в группу «" + orName(groupOf(w, parent)->name) + "»." : " перейдут на верхний уровень (ресурсы — без группы).");
   }
-  text += " Действие можно отменить Ctrl+Z.";
-  a.confirm("Удалить группу ресурсов?", text, "Удалить", true, [gid, parent](App& x) {
-    if (!x.act("Удалить группу ресурсов", [&](Tx& tx) { rules::removeResGroup(tx, gid); })) return;
-    State& s = state(x);
-    if (s.res == ResSel{ResSel::Group, gid}) s.res = parent ? ResSel{ResSel::Group, parent} : ResSel{};
-  });
+  a.confirmAct("Удалить группу ресурсов?", text, "Удалить", "Удалить группу ресурсов", [gid](Tx& tx) { rules::removeResGroup(tx, gid); },
+               [gid, parent](App& x) {
+                 State& s = state(x);
+                 if (s.res == ResSel{ResSel::Group, gid}) s.res = parent ? ResSel{ResSel::Group, parent} : ResSel{};
+               });
 }
 
 // Выбор родительской группы: сама группа и её подгруппы недоступны (без циклов).
@@ -303,25 +313,6 @@ bool parentPicker(const World& w, Id gid, Id& parent, bool disabled) {
   return true;
 }
 
-// Значок «папка с плюсом»: кнопка новой подгруппы.
-bool newSubButton(bool disabled) {
-  const bool r = ui::iconButton("folder", "Новая подгруппа", {.size = ui::Size::Small, .disabled = disabled});
-  const RectF b = ui::lastItem().rect;
-  const ui::Theme& th = ui::theme();
-  const float cx = b.right() - 6, cy = b.bottom() - 6;
-  ui::draw::circle(cx, cy, 5.5f, th.surface2);
-  ui::draw::icon("plus", RectF{cx - 4.5f, cy - 4.5f, 9, 9}, disabled ? th.textMuted : th.accent);
-  return r;
-}
-
-// Плашка с числом (как в строках списков).
-void pill(RectF r, std::string_view text, bool selected) {
-  const ui::Theme& th = ui::theme();
-  ui::draw::rect(r, selected ? th.accent.alpha(0.22f) : th.surface3, r.h * 0.5f);
-  ui::draw::text(text, r, ui::Font::Caption, selected ? th.accent : th.textDim, ui::Align::Center);
-}
-float pillW(std::string_view text) { return std::max(22.f, std::ceil(ui::measure(text, ui::Font::Caption)) + 12); }
-
 // ---------------------------------------------------------------- строки таблицы
 struct Ctx {
   App& a;
@@ -334,15 +325,6 @@ struct Ctx {
   std::array<RectF, cActions + 1> cells{};   // ячейки строки группы (метки столбцов шапки для тестов)
 };
 
-// Направляющие дерева: тонкие вертикальные линии уровней слева от строки.
-void guides(RectF cell, int depth) {
-  const ui::Theme& th = ui::theme();
-  for (int k = 0; k < depth; k++) {
-    const float x = std::round(cell.x + float(k) * kIndent + kChevW * 0.5f) + 0.5f;
-    ui::draw::line(x, cell.y - 3, x, cell.bottom() + 3, th.border, 1);
-  }
-}
-
 void groupRow(Ctx& c, ui::Table& t, int i, bool selected, bool hovered) {
   const TRow& row = c.tree.rows[size_t(i)];
   const ui::Theme& th = ui::theme();
@@ -352,7 +334,7 @@ void groupRow(Ctx& c, ui::Table& t, int i, bool selected, bool hovered) {
   const std::string mark = none ? std::string("catalogs.nogroup") : "catalogs.group." + std::to_string(row.id);
   const RectF cell = t.cell();
   c.cells[cName] = cell;
-  guides(cell, row.depth);
+  treeGuides(cell, row.depth);
   const float x0 = cell.x + float(row.depth) * kIndent;
   // Шеврон: свернуть/развернуть.
   {
@@ -368,12 +350,12 @@ void groupRow(Ctx& c, ui::Table& t, int i, bool selected, bool hovered) {
   const RectF tl{x0 + kChevW, rr.cy() - 14, 28, 28};
   {
     const Color tint = none ? th.textMuted : th.accent;
-    ui::draw::rect(tl, tint.alpha(th.dark ? 0.16f : 0.13f), 7);
+    ui::draw::rect(tl, tint.alpha(0.16f), 7);
     ui::draw::icon(row.open ? "folder-open" : "folder", tl.inset(6), tint);
   }
   // Название: двойной щелчок по названию (или F2) — правка на месте, по остальной строке — свернуть/развернуть.
   const std::string cnt = std::to_string(row.count);
-  const float pw = pillW(cnt);
+  const float pw = countPillW(cnt);
   const float nx = tl.right() + 10;
   const RectF nameR{nx, rr.cy() - 15, std::max(40.f, cell.right() - nx - pw - 8), 30};
   // Правка начинается, когда кнопка отпущена: иначе отпускание отдаст фокус таблице.
@@ -404,7 +386,7 @@ void groupRow(Ctx& c, ui::Table& t, int i, bool selected, bool hovered) {
       else c.toggled = i;
     }
   }
-  pill(RectF{cell.right() - pw, rr.cy() - 9, pw, 18}, cnt, selected);
+  countPill(RectF{cell.right() - pw, rr.cy() - 9, pw, 18}, cnt, selected);
   c.a.markUi(mark, rr);
   // Пустые ячейки (цвет, значок, числа) и действия.
   for (int k = cColor; k < cActions; k++) c.cells[size_t(k)] = t.cell();
@@ -445,7 +427,7 @@ void resRow(Ctx& c, ui::Table& t, int i) {
   const Id id = r.id;
   const RectF rr = t.rowRect();
   const RectF cell = t.cell();
-  guides(cell, row.depth);
+  treeGuides(cell, row.depth);
   const float x0 = cell.x + float(row.depth) * kIndent + kChevW;
   ui::at(RectF{x0, rr.cy() - 14, 28, 28});
   swatch(CatalogList::Resources, r, 28);
@@ -493,14 +475,14 @@ void resRow(Ctx& c, ui::Table& t, int i) {
 
 // ---------------------------------------------------------------- карточки
 void resourceChips(State& st, const std::vector<const CatalogItem*>& list) {
-  ChipFlow cf;
+  ui::ChipFlow cf;
   for (const CatalogItem* r : list) {
     ui::IdScope s{i64(r->id) + 0x7100000LL};
     ui::ChipOpt co;
     co.icon = itemIcon(CatalogList::Resources, *r);
     co.clickable = true;
     co.tooltip = "Выбрать ресурс";
-    if (edkit::chip(orName(r->name), co) == ui::ChipAction::Click) {
+    if (ui::flowChip(orName(r->name), co) == ui::ChipAction::Click) {
       st.res = ResSel{ResSel::Resource, r->id};
       st.scrollTo = st.res;
     }
@@ -513,7 +495,7 @@ void pathChips(State& st, const World& w, Id g) {
   std::vector<Id> path;
   for (int guard = 0; g && guard < 64; guard++, g = parentOf(w, g)) path.insert(path.begin(), g);
   if (path.size() < 2) return;
-  ChipFlow cf;
+  ui::ChipFlow cf;
   for (Id x : path) {
     const ResGroup* rg = groupOf(w, x);
     ui::IdScope s{i64(x) + 0x7200000LL};
@@ -521,7 +503,7 @@ void pathChips(State& st, const World& w, Id g) {
     co.icon = "folder";
     co.clickable = true;
     co.tooltip = "Выбрать группу";
-    if (edkit::chip(orName(rg ? rg->name : std::string()), co) == ui::ChipAction::Click) {
+    if (ui::flowChip(orName(rg ? rg->name : std::string()), co) == ui::ChipAction::Click) {
       st.res = ResSel{ResSel::Group, x};
       st.scrollTo = st.res;
     }
@@ -529,7 +511,7 @@ void pathChips(State& st, const World& w, Id g) {
 }
 
 void resourceCard(App& a, State& st, const World& w, const CatalogItem& r, const Use& u) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Id id = r.id;
   ui::Scroll sc("card");
   cardHead(itemIcon(CatalogList::Resources, r), r.color, "Ресурс", orName(r.name));
@@ -580,16 +562,11 @@ void resourceCard(App& a, State& st, const World& w, const CatalogItem& r, const
   }
   usageSection(a, st, w, CatalogList::Resources, r, u);
   ui::spacer(4);
-  if (!locked(CatalogList::Resources, r)) {
-    ui::Disabled dis(ro);
-    if (ui::button("Удалить: " + orName(r.name, "ресурс"), {.variant = ui::Variant::Danger, .icon = "trash", .fill = true}))
-      askRemove(a, CatalogList::Resources, id);
-    a.markUi("catalogs.delete");
-  }
+  if (!locked(CatalogList::Resources, r) && deleteButton(a, orName(r.name, "ресурс"))) askRemove(a, CatalogList::Resources, id);
 }
 
 void groupCard(App& a, State& st, const World& w, const Tree& tree, const ResGroup& g) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Id gid = g.id;
   const ui::Theme& th = ui::theme();
   const Id parent = parentOf(w, gid);
@@ -621,10 +598,12 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const ResGro
     a.markUi("catalogs.groupCard.parent");
     if (parent) pathChips(st, w, parent);
   }
-  const std::vector<Id> subs = rules::childGroups(w, gid);
+  std::vector<Id> subs = rules::childGroups(w, gid);
+  byName(w, subs);
   std::vector<const CatalogItem*> direct;
   for (const CatalogItem& r : w.catalogs->resources)
     if (r.group == gid) direct.push_back(&r);
+  byName(direct);
   const int total = tree.count.count(gid) ? tree.count.at(gid) : 0;
   {
     ui::Row tiles({ui::fr(1), ui::fr(1)}, 60, 8);
@@ -641,7 +620,7 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const ResGro
   if (!subs.empty()) {
     ui::Section sec("Подгруппы", "folder", {.badge = std::to_string(subs.size())});
     if (sec) {
-      ChipFlow cf;
+      ui::ChipFlow cf;
       for (Id s : subs) {
         const ResGroup* x = groupOf(w, s);
         if (!x) continue;
@@ -651,7 +630,7 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const ResGro
         co.clickable = true;
         co.tooltip = "Выбрать подгруппу";
         const int n = tree.count.count(s) ? tree.count.at(s) : 0;
-        if (edkit::chip(orName(x->name) + " · " + std::to_string(n), co) == ui::ChipAction::Click) {
+        if (ui::flowChip(orName(x->name) + " · " + std::to_string(n), co) == ui::ChipAction::Click) {
           st.res = ResSel{ResSel::Group, s};
           revealGroup(st, w, gid);
           st.scrollTo = st.res;
@@ -676,7 +655,7 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const ResGro
 }
 
 void noGroupCard(App& a, State& st, const World& w, const Tree& tree) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const ui::Theme& th = ui::theme();
   ui::Scroll sc("card");
   cardHead("folder", th.textMuted, "Ресурсы", "Без группы");
@@ -695,7 +674,7 @@ void noGroupCard(App& a, State& st, const World& w, const Tree& tree) {
 
 // ================================================================ вкладка
 void drawResources(App& a, State& st) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   // Строка поиска и кнопок (мир до правок этого кадра).
   {
     const World w0 = a.world();
@@ -719,9 +698,7 @@ void drawResources(App& a, State& st) {
     if (ui::button("Новая группа", {.icon = "folder", .disabled = ro})) addGroupAct(a, st, w0, 0);
     a.markUi("catalogs.newGroup");
     const std::string tip = target ? "Новый ресурс в группе «" + orName(groupOf(w0, target)->name) + "»" : std::string("Новый ресурс без группы");
-    if (ui::button("Новый ресурс", {.variant = ui::Variant::Primary, .icon = "plus", .disabled = ro, .tooltip = tip, .shortcut = {Key::Insert, 0}}))
-      addResourceAct(a, st, w0, target);
-    a.markUi("catalogs.add");
+    if (newButton(a, "Новый ресурс", tip)) addResourceAct(a, st, w0, target);
   }
   ui::spacer(2);
   const World w = a.world();   // снимок кадра (после кнопок: новая запись уже в нём); правка посреди кадра заменяет мир

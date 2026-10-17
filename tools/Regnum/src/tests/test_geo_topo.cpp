@@ -6,30 +6,14 @@
 
 using namespace rg;
 using namespace rg::geo;
+using namespace rg::geotest;
 
 namespace {
-
-struct Lbl { Id p = 0; Terrain t = Terrain::Land; };
 
 World build(const std::function<void(Tx&)>& fn) {
   Store s;
   s.transact("build", [&](Tx& tx) { fn(tx); });
   return s.world();
-}
-
-Id addNode(Tx& tx, Vec2 p) { return tx.add(Node{0, p}).id; }
-
-Id addEdge(Tx& tx, Id a, Id b, std::vector<Vec2> pts, EdgeKind k, Lbl l, Lbl r) {
-  Edge e;
-  e.a = a;
-  e.b = b;
-  e.pts = std::move(pts);
-  e.kind = k;
-  e.pl = l.p;
-  e.tl = l.t;
-  e.pr = r.p;
-  e.tr = r.t;
-  return tx.add(e).id;
 }
 
 // Рамка против часовой (математически): внутренность слева.
@@ -42,31 +26,11 @@ void addFrame(Tx& tx, double W, double H, Lbl inner) {
   addEdge(tx, d, a, {}, EdgeKind::Frame, inner, out);
 }
 
-// Кольцо (против часовой) из двух дуг: слева — inside, справа — outside.
-void addRing(Tx& tx, const std::vector<Vec2>& ring, EdgeKind k, Lbl inside, Lbl outside) {
-  size_t h = ring.size() / 2;
-  Id n0 = addNode(tx, ring[0]), n1 = addNode(tx, ring[h]);
-  std::vector<Vec2> p1(ring.begin() + 1, ring.begin() + long(h)), p2(ring.begin() + long(h) + 1, ring.end());
-  addEdge(tx, n0, n1, p1, k, inside, outside);
-  addEdge(tx, n1, n0, p2, k, inside, outside);
-}
-
 std::vector<Vec2> square(Vec2 c, double r) { return {{c.x - r, c.y - r}, {c.x + r, c.y - r}, {c.x + r, c.y + r}, {c.x - r, c.y + r}}; }
-std::vector<Vec2> circle(Vec2 c, double r, int n) {
-  std::vector<Vec2> v;
-  for (int i = 0; i < n; i++) v.push_back({c.x + r * std::cos(2 * kPi * i / n), c.y + r * std::sin(2 * kPi * i / n)});
-  return v;
-}
-
-bool hasCode(const std::vector<Issue>& is, const std::string& code) {
-  for (auto& i : is)
-    if (i.code == code) return true;
-  return false;
-}
 
 }  // namespace
 
-TEST(geo_faces_frame_only) {
+TEST(geo_topo_faces_frame_only) {
   World w = build([](Tx& tx) { addFrame(tx, 100, 50, {0, Terrain::Sea}); });
   auto fs = buildFaces(w);
   CHECK_EQ(fs->faces.size(), size_t(1));
@@ -82,7 +46,7 @@ TEST(geo_faces_frame_only) {
 }
 
 // Вложенность: суша → «лагуна» (море внутри суши) → островок. Дыры — в наименьшей содержащей грани.
-TEST(geo_faces_nested_holes) {
+TEST(geo_topo_faces_nested_holes) {
   World w = build([](Tx& tx) {
     addFrame(tx, 1000, 1000, {0, Terrain::Sea});
     addRing(tx, circle({500, 500}, 400, 64), EdgeKind::Coast, {0, Terrain::Land}, {0, Terrain::Sea});
@@ -123,7 +87,7 @@ TEST(geo_faces_nested_holes) {
 }
 
 // Две дуги между одними узлами (линза), петля, висящая дуга внутри грани.
-TEST(geo_faces_parallel_arcs_and_loops) {
+TEST(geo_topo_faces_parallel_arcs_and_loops) {
   World w = build([](Tx& tx) {
     addFrame(tx, 400, 300, {0, Terrain::Land});
     Id a = addNode(tx, {100, 150}), b = addNode(tx, {200, 150});
@@ -154,7 +118,7 @@ TEST(geo_faces_parallel_arcs_and_loops) {
 }
 
 // Луч поиска проходит точно через вершины: результат согласован с прямой проверкой «точка в грани».
-TEST(geo_locate_vertices_on_ray) {
+TEST(geo_topo_locate_vertices_on_ray) {
   World w = build([](Tx& tx) {
     addFrame(tx, 100, 100, {0, Terrain::Sea});
     // ромб и треугольник с вершинами на y = 50
@@ -169,7 +133,7 @@ TEST(geo_locate_vertices_on_ray) {
   CHECK(fs->terrainAt({30, 50.1}) == Terrain::Sea);
 }
 
-TEST(geo_locate_matches_point_in_polygon) {
+TEST(geo_topo_locate_matches_point_in_polygon) {
   Store s;
   s.transact("init", [](Tx& tx) { initFromCoast(tx, geotest::sampleCoast()); });
   auto fs = buildFaces(s.world());
@@ -191,7 +155,7 @@ TEST(geo_locate_matches_point_in_polygon) {
   CHECK(checked > 19000);
 }
 
-TEST(geo_validate_detects_problems) {
+TEST(geo_topo_validate_detects_problems) {
   auto base = [](Tx& tx) { addFrame(tx, 100, 100, {0, Terrain::Land}); };
   // корректный
   CHECK(validate(build(base)).empty());
@@ -296,7 +260,52 @@ TEST(geo_validate_detects_problems) {
   CHECK(hasCode(validate(w10), "nan"));
 }
 
-TEST(geo_faces_cache_identity_and_threads) {
+// Дополнительные случаи проверки графа: дубль дуги с промежуточными точками, нет рамки, внутренняя грань «вне карты».
+TEST(geo_topo_validate_more) {
+  auto build = [](const std::function<void(Tx&)>& fn) {
+    Store s;
+    s.transact("b", [&](Tx& tx) { fn(tx); });
+    return s.world();
+  };
+  auto frame = [](Tx& tx, Terrain inner) {
+    Id a = tx.add(Node{0, {0, 0}}).id, b = tx.add(Node{0, {100, 0}}).id, c = tx.add(Node{0, {100, 100}}).id,
+       d = tx.add(Node{0, {0, 100}}).id;
+    Lbl in{0, inner}, out{0, Terrain::None};
+    addEdge(tx, a, b, {}, EdgeKind::Frame, in, out);
+    addEdge(tx, b, c, {}, EdgeKind::Frame, in, out);
+    addEdge(tx, c, d, {}, EdgeKind::Frame, in, out);
+    addEdge(tx, d, a, {}, EdgeKind::Frame, in, out);
+  };
+  // две одинаковые дуги с промежуточными точками (встречные)
+  auto w1 = build([&](Tx& tx) {
+    frame(tx, Terrain::Land);
+    Id a = tx.add(Node{0, {20, 20}}).id, b = tx.add(Node{0, {60, 20}}).id;
+    addEdge(tx, a, b, {{40, 40}, {50, 30}}, EdgeKind::Border, {}, {});
+    addEdge(tx, b, a, {{50, 30}, {40, 40}}, EdgeKind::Border, {}, {});
+  });
+  CHECK(hasCode(validate(w1), "overlap"));
+  // граф без рамки
+  auto w2 = build([&](Tx& tx) { addRing(tx, circle({50, 50}, 20, 12), EdgeKind::Coast, {0, Terrain::Land}, {0, Terrain::Sea}); });
+  CHECK(hasCode(validate(w2), "frame"));
+  // внутренняя грань помечена «вне карты»
+  auto w3 = build([&](Tx& tx) { frame(tx, Terrain::None); });
+  CHECK(hasCode(validate(w3), "terrain"));
+  // береговая дуга между сушей и сушей, рамка с двумя «внешними» сторонами
+  auto w4 = build([&](Tx& tx) {
+    frame(tx, Terrain::Land);
+    addRing(tx, circle({50, 50}, 20, 12), EdgeKind::Coast, {0, Terrain::Land}, {0, Terrain::Land});
+  });
+  CHECK(hasCode(validate(w4), "terrain"));
+  // пустой мир корректен
+  CHECK(validate(World{}).empty());
+  auto fs = buildFaces(World{});
+  CHECK(fs->faces.empty());
+  CHECK_EQ(fs->locate({1, 1}), -1);
+  CHECK(fs->provincesOnPolyline({{0, 0}, {10, 10}}).empty());
+  CHECK(fs->neighbors().empty());
+}
+
+TEST(geo_topo_faces_cache_identity_and_threads) {
   Store s;
   s.transact("init", [](Tx& tx) { initFromCoast(tx, geotest::sampleCoast()); });
   World w1 = s.world();
@@ -325,7 +334,7 @@ TEST(geo_faces_cache_identity_and_threads) {
 }
 
 // faces(tx.w()) посреди транзакции не подменяет грани зафиксированного мира, если граф затем ещё менялся.
-TEST(geo_faces_cache_mid_transaction) {
+TEST(geo_topo_faces_cache_mid_transaction) {
   Store s;
   s.transact("init", [](Tx& tx) { initFromCoast(tx, geotest::sampleCoast()); });
   Id a = 0, b = 0;

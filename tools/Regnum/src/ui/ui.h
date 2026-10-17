@@ -54,7 +54,6 @@ using platform::Key;
 // ================================================================ тема
 // Токены ARCHITECTURE.md §6. Менять только через setScheme/setUiScale.
 struct Theme {
-  bool dark = true;
   Color bg, surface1, surface2, surface3, border, borderStrong;
   Color text, textDim, textMuted;
   Color accent, accentHover, onAccent;
@@ -72,7 +71,7 @@ struct Theme {
   float controlH = 30, controlHSmall = 24;
   float iconSize = 18, iconSizeSmall = 16;
   float gap = 8;       // промежуток между элементами потока
-  float padCard = 12, padPanel = 16;
+  float padCard = 12;
   float focusRing = 2;
 };
 
@@ -238,7 +237,6 @@ template <class T> T& state(WidgetId id) {
 }
 // Плавное значение к target за duration секунд (ease-out). Первое обращение — сразу target.
 float animate(WidgetId id, float target, float duration = 0.12f);
-Color animateColor(WidgetId id, Color target, float duration = 0.12f);
 
 // ================================================================ раскладка
 // Поток контейнера — вертикальный: каждый виджет занимает следующий слот (ширина — по содержимому или вся,
@@ -737,6 +735,18 @@ struct ChipOpt {
   Color glow{0, 0, 0, 0};           // a > 0 — подсветка фишки этим цветом (рамка, фон, значок): редкость реликвии
 };
 ChipAction chip(std::string_view label, const ChipOpt& o = {});
+// Фишки с переносом строк (ряд HStack не переносит): внутри ChipFlow фишки flowChip встают слева направо по ширине
+// области (avail) и переносятся; после ChipFlow поток занимает их высоту. Вне ChipFlow flowChip — обычная chip.
+// minW > 0 — фишка не уже minW и в очень узкой области.
+//   { ui::ChipFlow f; for (...) if (ui::flowChip(name, {...}) == ui::ChipAction::Click) ...; }
+class ChipFlow {
+ public:
+  explicit ChipFlow(float minW = 0);
+  ~ChipFlow();
+  ChipFlow(const ChipFlow&) = delete;
+  ChipFlow& operator=(const ChipFlow&) = delete;
+};
+ChipAction flowChip(std::string_view label, const ChipOpt& o = {});
 
 struct ProgressOpt {
   Tone tone = Tone::Accent;
@@ -830,12 +840,15 @@ void tooltip(std::string_view text, Shortcut s = {});
 void hoverTip(std::string_view key, RectF r, std::string_view text);
 // Своё содержимое подсказки: if (ui::beginTooltip()) { ...; ui::endTooltip(); }
 bool beginTooltip(float width = 260);
+// Своё содержимое подсказки над r (как hoverTip — без перехвата наведения и щелчка): ячейка своей отрисовки.
+bool beginTooltipOver(std::string_view key, RectF r, float width = 260);
 void endTooltip();
+// Текст подсказки, запрошенной в прошлом кадре (пусто — подсказки нет): проверка подсказок в тестах.
+std::string tooltipText();
 
 enum class Side : u8 { Below, Above, Right, Left };
 void openPopup(std::string_view id);  // якорь — последний элемент
 void closePopup();                    // закрыть текущее (изнутри) всплывающее окно
-bool isPopupOpen(std::string_view id);
 struct PopupOpt {
   Side side = Side::Below;
   float width = 0;                    // 0 — по содержимому
@@ -877,7 +890,6 @@ void openModal(std::string_view id);
 bool beginModal(std::string_view id, const ModalOpt& o = {}, bool* open = nullptr);
 void endModal();
 void closeModal();                    // изнутри: закрыть текущее модальное окно
-bool isModalOpen(std::string_view id);
 bool anyModalOpen();
 // Подвал модального окна: линия-разделитель и ряд кнопок, прижатый вправо (порядок — как вызваны, слева направо).
 class ModalFooter {

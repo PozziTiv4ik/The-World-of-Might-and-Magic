@@ -8,7 +8,7 @@ using namespace detail;
 namespace {
 
 constexpr double R = schema::kObjectRadius;
-constexpr double kMinGap = schema::kInteractDist;   // фигурки не перекрываются; ближе — встреча (ТЗ «Фиксы», п.15)
+constexpr double kMinGap = schema::kInteractDist;   // фигурки не перекрываются; ближе — встреча
 constexpr double kSearchStep = R * 0.5;    // шаг спирали поиска свободного места
 constexpr double kSearchRadius = 1600;     // дальше не ищем
 
@@ -30,20 +30,6 @@ std::string detail::defaultArmyName(const World& w, ArmyKind kind, Id faction) {
 }
 
 namespace {
-
-std::vector<Id> factionsOf(const Army& a) {
-  std::vector<Id> r;
-  for (const ArmyGroup& g : a.groups)
-    if (!contains(r, g.faction)) r.push_back(g.faction);
-  return r;
-}
-
-i64 unitsOf(const Army& a) {
-  i64 n = 0;
-  for (const ArmyGroup& g : a.groups)
-    for (const ArmyUnit& u : g.units) n += u.count;
-  return n;
-}
 
 ArmyGroup* groupOf(Army& a, Id faction) {
   for (ArmyGroup& g : a.groups)
@@ -69,13 +55,9 @@ void addGroup(Army& a, const ArmyGroup& src) {
 
 // Где сейчас персонаж-герой (0 — нигде).
 Id heroArmy(const World& w, Id character, Id skip = 0) {
-  Id found = 0;
-  w.armies.each([&](const Army& a) {
-    if (found || a.id == skip) return;
-    for (const ArmyGroup& g : a.groups)
-      if (contains(g.heroes, character)) found = a.id;
+  return w.armies.firstId([&](const Army& a) {
+    return a.id != skip && std::any_of(a.groups.begin(), a.groups.end(), [&](const ArmyGroup& g) { return contains(g.heroes, character); });
   });
-  return found;
 }
 
 // Отношения между составами двух объектов.
@@ -227,7 +209,7 @@ Id createArmy(Tx& tx, ArmyKind kind, Id faction, Vec2 pos) {
   a.pos = pos;
   a.groups.push_back(ArmyGroup{faction, {}, {}});
   Id id = tx.add(std::move(a)).id;
-  // ТЗ «Модификаторы», 1.13–1.14: войскам государства нежити — «Армия нежити», демонов — «Армия демонов».
+  // Войскам государства нежити — «Армия нежити», демонов — «Армия демонов».
   if (const Faction* f = tx.w().faction(faction); f && f->isState()) {
     if (f->stateKind == StateKind::Undead) addModifier(tx, ModTarget::Army, id, ensureBuiltinMod(tx, schema::mod::UndeadArmy), 0);
     else if (f->stateKind == StateKind::Demonic) addModifier(tx, ModTarget::Army, id, ensureBuiltinMod(tx, schema::mod::DemonArmy), 0);
@@ -257,7 +239,7 @@ void setUnits(Tx& tx, Id army, Id faction, Id row, i64 count) {
   if (fleet) {
     const FleetRow* r = f.fleetRow(row);
     if (!r) fail("Такого судна нет в таблице флота " + facName(tx.w(), faction));
-    // Торговые галеоны во флоты на карте не входят (ТЗ «Доработки №3», п.6): они участвуют в торговле.
+    // Торговые галеоны во флоты на карте не входят: они участвуют в торговле.
     if (r->type == ShipType::Galleon && count > 0) fail("Торговые галеоны не присоединяются к флотам на карте — они участвуют в торговле");
     total = r->total;
   } else {
@@ -277,7 +259,7 @@ void setUnits(Tx& tx, Id army, Id faction, Id row, i64 count) {
       fail("В резерве недостаточно: нужно " + fmtInt(count - cur) + ", в резерве " + fmtInt(std::max<i64>(0, reserve)));
   }
   if (count == cur) return;
-  // Вместимость (ТЗ «Доработки №3», п.6): войско на борту — не больше вместимости флота; флот с войском на борту не
+  // Вместимость: войско на борту — не больше вместимости флота; флот с войском на борту не
   // теряет нужную вместимость (потери в бою — могут: тогда панель флота предупреждает о перегрузе).
   const i64 capBefore = fleet ? fleetCapacity(tx.w(), army) : 0;
   if (!fleet && count > cur && aboard(tx.w(), a)) {
@@ -364,11 +346,7 @@ void setGarrison(Tx& tx, Id province, Id row, i64 count) {
 }
 
 Id heroGarrison(const World& w, Id character) {
-  Id found = 0;
-  w.provinces.each([&](const Province& p) {
-    if (!found && contains(p.garrisonHeroes, character)) found = p.id;
-  });
-  return found;
+  return w.provinces.firstId([&](const Province& p) { return contains(p.garrisonHeroes, character); });
 }
 
 void setGarrisonHero(Tx& tx, Id province, Id character, bool on) {
@@ -415,6 +393,55 @@ void moveArmy(Tx& tx, Id army, Vec2 pos) {
   syncCargo(tx, army);   // флот везёт войско на борту
 }
 
+// ================================================================ правила игрока
+bool hasAction(const World& w, Id army) {
+  const Army* a = w.army(army);
+  return a && a->acted != w.turn();
+}
+
+Id provinceAtPos(const World& w, Vec2 pos) {
+  std::shared_ptr<const geo::FaceSet> fs = geo::faces(w);
+  return fs ? fs->provinceAt(pos) : 0;
+}
+
+bool provincesAdjacent(const World& w, Id a, Id b) {
+  if (!a || !b || a == b) return false;
+  bool yes = false;
+  w.edges.each([&](const Edge& e) {
+    if (!yes && ((e.pl == a && e.pr == b) || (e.pl == b && e.pr == a))) yes = true;
+  });
+  return yes;
+}
+
+bool moveSpendsAction(const World& w, Id army, Vec2 from, Vec2 to) {
+  if (!w.army(army)) return false;
+  const Id pa = provinceAtPos(w, from), pb = provinceAtPos(w, to);
+  return pa != pb;
+}
+
+bool canPlayerMove(const World& w, Id army, Vec2 pos, std::string* why) {
+  auto no = [&](std::string s) {
+    if (why) *why = std::move(s);
+    return false;
+  };
+  const Army* a = w.army(army);
+  if (!a) return no("Войско не найдено");
+  const Id from = provinceAtPos(w, a->pos), to = provinceAtPos(w, pos);
+  if (from == to) return true;
+  const char* what = a->isFleet() ? "Флот" : "Войско";
+  if (!hasAction(w, army)) return no(std::string(what) + " " + armyName(w, army) + " уже ходило в этом ходу — очки действий закончились до следующего хода");
+  if (from && to && !provincesAdjacent(w, from, to))
+    return no(std::string(what) + " за ход перемещается только в соседнюю провинцию");
+  if (!from || !to) return no(std::string(what) + " за ход перемещается только в соседнюю провинцию");
+  return true;
+}
+
+void spendAction(Tx& tx, Id army) {
+  const Army& a = needArmy(tx.w(), army);
+  const int turn = tx.w().turn();
+  if (a.acted != turn) tx.army(army).acted = turn;
+}
+
 // ================================================================ встречи
 Encounter encounter(const World& w, Id moving, Vec2 pos) {
   Encounter e;
@@ -443,7 +470,7 @@ Encounter encounter(const World& w, Id moving, Vec2 pos) {
   if (o.kind != m->kind) {
     e.type = EncounterType::Blocked;
     e.reason = m->isFleet() ? "Флот не взаимодействует с войском на суше" : "Войско не взаимодействует с флотом";
-    // Войско на флот своего государства (ТЗ «Доработки №3», п.6): посадка, а если на борту уже есть войско — обмен
+    // Войско на флот своего государства: посадка, а если на борту уже есть войско — обмен
     // отрядами с ним; флот, наведённый на войско, забирает его на борт (флот остаётся на месте). Нельзя — причина
     // (место посадки, вместимость).
     const bool pickUp = m->isFleet();
@@ -526,10 +553,10 @@ void formAllied(Tx& tx, Id target, Id source) {
   tx.eraseArmy(source);
   Army& m = tx.army(target);
   for (const ArmyGroup& g : s.groups) addGroup(m, g);
-  // Управление союзным объектом — у фракции цели (ТЗ «Доработки №4», п.9): её группа первая, главный полководец —
+  // Управление союзным объектом — у фракции цели: её группа первая, главный полководец —
   // её герой (свой не назначен — первый герой её группы).
   if (!m.commander && !m.groups[0].heroes.empty()) m.commander = m.groups[0].heroes.front();
-  if (!wasAllied && m.allied()) m.name = m.isFleet() ? "Союзный флот" : "Союзное войско";
+  if (!wasAllied && m.allied()) m.name = m.isFleet() ? kAlliedFleet : kAlliedArmy;
   std::vector<std::string> names;
   for (Id f : factionsOf(m)) names.push_back(facName(tx.w(), f));
   addLog(tx, m.isFleet() ? LogKind::Fleet : LogKind::Army,
@@ -545,7 +572,7 @@ std::vector<Id> dissolveAllied(Tx& tx, Id army) {
   keep.groups.resize(1);
   bool cmdMoved = a.commander && !contains(a.groups[0].heroes, a.commander);
   if (cmdMoved) keep.commander = 0;
-  if (keep.name == "Союзное войско" || keep.name == "Союзный флот") keep.name = defaultArmyName(tx.w(), a.kind, a.groups[0].faction);
+  if (isAlliedName(keep.name)) keep.name = defaultArmyName(tx.w(), a.kind, a.groups[0].faction);
   for (size_t i = 1; i < a.groups.size(); i++) {
     auto spot = pl.freeSpot(a.kind, a.pos, 0);
     if (!spot) fail("Рядом нет свободного места, чтобы распустить союз");
@@ -676,7 +703,7 @@ void splitBrokenAlliances(Tx& tx, Id a, Id b) {
 
 // ================================================================ битва
 namespace detail {
-// Трупы победителю (ТЗ «Виды государств», п.4): государство нежити — по числу погибших живых воинов побеждённой
+// Трупы победителю: государство нежити — по числу погибших живых воинов побеждённой
 // стороны, войско с некромантами — 10 % за каждого (не больше 100 %); вместе — не больше погибших.
 double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHeroes, i64 livingDead) {
   if (livingDead <= 0 || !tx.w().faction(winnerFaction)) return 0;
@@ -684,7 +711,7 @@ double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHero
   int necro = 0, lich = 0;
   for (Id h : winnerHeroes) {
     if (characterHas(tx.w(), h, schema::mod::Necromancer)) necro++;
-    if (characterHas(tx.w(), h, schema::mod::Lich)) lich++;   // лич — 50 % за каждого (ТЗ «Доработки №1», п.7)
+    if (characterHas(tx.w(), h, schema::mod::Lich)) lich++;   // лич — 50 % за каждого
   }
   share = std::min(1.0, share + std::min(1.0, schema::kNecromancerShare * necro + schema::kLichShare * lich));
   const double corpses = std::floor(double(livingDead) * share);
@@ -760,11 +787,9 @@ BattleOutcome resolveBattle(Tx& tx, const BattleResult& r) {
         }
       Faction& f = tx.faction(faction);
       if (A.isFleet()) {
-        for (FleetRow& fr : f.fleet)
-          if (fr.id == row) fr.total = std::max<i64>(0, fr.total - n);
+        if (FleetRow* fr = findById(f.fleet, row)) fr->total = std::max<i64>(0, fr->total - n);
       } else {
-        for (ArmyRow& ar : f.army)
-          if (ar.id == row) ar.total = std::max<i64>(0, ar.total - n);
+        if (ArmyRow* ar = findById(f.army, row)) ar->total = std::max<i64>(0, ar->total - n);
       }
     }
   }
@@ -782,7 +807,7 @@ BattleOutcome resolveBattle(Tx& tx, const BattleResult& r) {
     for (ArmyGroup& g : x.groups) g.units.erase(std::remove_if(g.units.begin(), g.units.end(), [](const ArmyUnit& u) { return u.count <= 0; }), g.units.end());
     for (const ArmyGroup& g : x.groups)
       if (g.units.empty() && x.commander && contains(g.heroes, x.commander)) x.commander = 0;
-    // Герои уничтоженного целиком объекта — в окно «Судьба героев» (ТЗ «Механика героев», п.1).
+    // Герои уничтоженного целиком объекта — в окно «Судьба героев».
     std::vector<Id> heroes;
     for (const ArmyGroup& g : x.groups)
       for (Id h : g.heroes) heroes.push_back(h);
@@ -792,7 +817,7 @@ BattleOutcome resolveBattle(Tx& tx, const BattleResult& r) {
       out.fallenHeroes.insert(out.fallenHeroes.end(), heroes.begin(), heroes.end());
     }
   }
-  // Уничтоженный флот: войско на борту гибнет вместе с ним, его герои — в «Судьбу героев» (ТЗ «Доработки №3», п.6).
+  // Уничтоженный флот: войско на борту гибнет вместе с ним, его герои — в «Судьбу героев».
   if (A.isFleet())
     for (Id id : destroyed) sinkCargo(tx, id, out.fallenHeroes);
   for (Id id : destroyed) tx.eraseArmy(id);
@@ -825,7 +850,6 @@ BattleOutcome resolveBattle(Tx& tx, const BattleResult& r) {
   out.province = pl.provinceAt(battlePos);
   if (leftW > 0) {
     out.winner = r.attackerWins ? A.leader() : D.leader();
-    out.loser = r.attackerWins ? D.leader() : A.leader();
     out.winnerArmy = tx.w().army(winner) ? winner : 0;
     std::vector<Id> wHeroes;
     for (const ArmyGroup& g : (r.attackerWins ? A : D).groups)
@@ -842,13 +866,12 @@ BattleOutcome resolveBattle(Tx& tx, const BattleResult& r) {
 
 // ================================================================ войска без государства
 Id wildFaction(const World& w) {
-  Id id = 0;
-  w.factions.each([&](const Faction& f) {
-    if (!id && f.isWild()) id = f.id;
-  });
-  return id;
+  return w.factions.firstId([](const Faction& f) { return f.isWild(); });
 }
 
+namespace {
+
+// Фракция «Без государства» (создаётся при первом обращении).
 Id ensureWildFaction(Tx& tx) {
   if (Id id = wildFaction(tx.w())) return id;
   Faction f;
@@ -861,6 +884,8 @@ Id ensureWildFaction(Tx& tx) {
   f.flag.emblemColor = Color::hex(0xd8d4c8);
   return tx.add(std::move(f)).id;
 }
+
+}  // namespace
 
 Id spawnWildArmy(Tx& tx, Vec2 near, const std::string& name, const std::vector<WildUnitSpec>& units) {
   if (units.empty()) fail("В войске нет отрядов");
@@ -876,9 +901,7 @@ Id spawnWildArmy(Tx& tx, Vec2 near, const std::string& name, const std::vector<W
   for (const WildUnitSpec& u : units) {
     if (u.count <= 0) continue;
     const Id row = addArmyRow(tx, wild, u.type, u.name, u.count, 0);
-    if (!u.race.empty())
-      for (ArmyRow& r : tx.faction(wild).army)
-        if (r.id == row) r.race = u.race;
+    if (!u.race.empty()) findById(tx.faction(wild).army, row)->race = u.race;
     g.units.push_back(ArmyUnit{row, u.count});
   }
   a.groups.push_back(std::move(g));

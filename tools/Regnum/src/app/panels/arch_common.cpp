@@ -171,17 +171,17 @@ Id groupMenu(App& a, const World& w, Id state, std::string_view id, std::string_
 
 void discover(App& a, Id state, Id group, Id province) {
   rules::ArchReport rep;
-  if (a.act("Найти археологическое место", [&](Tx& tx) { rep = rules::discoverSite(tx, state, group, province); })) showReport(a, rep);
+  if (a.play("Найти археологическое место", [&](Tx& tx) { rep = rules::discoverSite(tx, state, group, province); })) showReport(a, rep);
 }
 
 void explore(App& a, Id state, Id group, Id province, int slot) {
   rules::ArchReport rep;
-  if (a.act("Исследование археологического места", [&](Tx& tx) { rep = rules::exploreSite(tx, state, group, province, slot); })) showReport(a, rep);
+  if (a.play("Исследование археологического места", [&](Tx& tx) { rep = rules::exploreSite(tx, state, group, province, slot); })) showReport(a, rep);
 }
 
 void excavate(App& a, Id state, Id group, Id province) {
   rules::ArchReport rep;
-  if (a.act("Раскопки", [&](Tx& tx) { rep = rules::excavate(tx, state, group, province); })) showReport(a, rep);
+  if (a.play("Раскопки", [&](Tx& tx) { rep = rules::excavate(tx, state, group, province); })) showReport(a, rep);
 }
 
 void openStateArch(App& a, Id state) {

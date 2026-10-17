@@ -3,24 +3,13 @@
 
 #include "gfx/text.h"
 #include "tests/test.h"
+#include "tests/test_gfx_text_util.h"
 
 using namespace rg;
 using namespace rg::gfx;
+using namespace rg::texttest;
 
 namespace {
-
-bool fontsOk() {
-  static const bool ok = initFonts(nullptr);
-  return ok;
-}
-
-TextStyle style(FontFamily f = FontFamily::UI, FontWeight w = FontWeight::Regular, float size = 13) {
-  TextStyle s;
-  s.family = f;
-  s.weight = w;
-  s.size = size;
-  return s;
-}
 
 // Текст строки раскладки (по байтовому диапазону).
 std::string lineText(std::string_view t, const TextLine& ln) { return std::string(t.substr(ln.begin, ln.end - ln.begin)); }

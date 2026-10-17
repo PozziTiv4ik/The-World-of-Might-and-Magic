@@ -2,7 +2,7 @@
 // размер, положение, порядок наложения; несколько знаков — сводка и удаление; фигура (озеро, островок, стена,
 // река) — точки и острова, ширина и пунктир линии. Все правки — одной записью отмены (перетаскивание чисел
 // склеивается), первая правка переносит объекты базовой карты в мир.
-#include "app/tools_map.h"
+#include "app/tools/map/mapedit.h"
 
 namespace rg::app {
 
@@ -10,21 +10,7 @@ namespace {
 
 using platform::Key;
 
-struct KindItem {
-  SymbolKind kind;
-  u8 variant;
-  const char* label;
-  const char* tip;
-};
-constexpr KindItem kKinds[] = {
-    {SymbolKind::Mountain, 0, "Гора", "Гора со светлой вершиной"},
-    {SymbolKind::Mountain, 1, "Гора 2", "Гора с тёмной вершиной"},
-    {SymbolKind::Peak, 0, "Крупная", "Крупная гора"},
-    {SymbolKind::Castle, 0, "Замок", "Замок"},
-    {SymbolKind::Tower, 0, "Башня", "Башня"},
-};
-
-bool editable(const App& a) { return !a.readOnly() && a.ui.editMap; }
+bool editable(const App& a) { return a.canEdit() && a.ui.editMap; }   // правка карты — только администратор
 
 // ---------------------------------------------------------------- знак
 void symbolHeader(App& a, Id id) {
@@ -61,12 +47,12 @@ void symbolProps(App& a, Id id) {
   // Вид и рисунок.
   ui::caption("Вид");
   int idx = 0;
-  for (int i = 0; i < int(std::size(kKinds)); i++)
-    if (kKinds[i].kind == s->kind && kKinds[i].variant == s->v) idx = i;
+  for (int i = 0; i < int(std::size(mapedit::kSymbolKinds)); i++)
+    if (mapedit::kSymbolKinds[i].kind == s->kind && mapedit::kSymbolKinds[i].variant == s->v) idx = i;
   std::vector<ui::Segment> segs;
-  for (const KindItem& k : kKinds) segs.push_back(ui::Segment{nullptr, k.label, k.tip});
+  for (const mapedit::SymbolKindItem& k : mapedit::kSymbolKinds) segs.push_back(ui::Segment{nullptr, k.label, k.tip});
   if (ui::segmented("kind", idx, std::span<const ui::Segment>(segs))) {
-    const KindItem k = kKinds[idx];
+    const mapedit::SymbolKindItem k = mapedit::kSymbolKinds[idx];
     const float sc = s->s;
     mapedit::act(a, "Знак: вид", [&](Tx& tx) { rules::setSymbol(tx, id, k.kind, sc, k.variant); });
   }

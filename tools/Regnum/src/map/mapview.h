@@ -49,6 +49,7 @@ struct RenderOptions {
   Id hoverProvince = 0, hoverArmy = 0;
   bool editBorders = false;          // режим правки: все границы видны чётко, заливка приглушена
   std::vector<Id> hideArmies;        // объекты, которые сейчас перетаскиваются (рисует инструмент)
+  std::vector<Id> dimArmies;         // по возрастанию: объекты без очка действий (правила игрока) — приглушены, песочные часы
   bool labels = true;
   bool darkUi = true;                // для цвета рамки за краем карты и фона без background
   Color background{0, 0, 0, 0};      // фон окна за краем карты (a = 0 — по darkUi); у палитр цветокора — продолжение моря

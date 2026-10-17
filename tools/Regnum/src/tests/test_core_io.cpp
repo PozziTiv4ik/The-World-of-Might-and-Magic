@@ -1,5 +1,5 @@
-// Тесты core/io: папка проекта, архив, снимки ходов, резервные копии, внешние изменения,
-// автосохранение, недавние проекты, ошибки чтения.
+// Тесты core/io: папка проекта, архив, снимки ходов, резервные копии (общая очередь и очередь автосохранения),
+// внешние изменения, автосохранение, недавние проекты, ошибки чтения и записи.
 #include "base/json.h"
 #include "codec/zip.h"
 #include "codec/zlib.h"
@@ -7,26 +7,26 @@
 
 using namespace rg;
 using namespace rg::iotest;
+using test::errorOf;
 
 namespace {
 
-std::string read(const std::string& path) { return fs::readFile(path).value_or(std::string()); }
-void write(const std::string& path, const std::string& text) { CHECK(fs::writeFileAtomic(path, text)); }
-
-std::string errorOf(const std::function<void()>& fn) {
-  try {
-    fn();
-  } catch (const UserError& e) {
-    return e.what();
-  }
-  return {};
+// Снимок конца хода с номером seq для истории (addSnapshots).
+io::NewSnapshot numbered(const World& w, u64 seq, const std::string& label) {
+  io::NewSnapshot n;
+  n.info.turn = w.turn();
+  n.info.seq = seq;
+  n.info.kind = io::kSnapEnd;
+  n.info.at = nowIso();
+  n.info.label = label;
+  n.info.name = w.meta->name;
+  n.gz = io::pack(w, 6);
+  return n;
 }
-
-bool contains(const std::vector<std::string>& v, const std::string& s) { return std::find(v.begin(), v.end(), s) != v.end(); }
 
 }  // namespace
 
-TEST(io_rich_world_is_normal) {
+TEST(core_io_rich_world_is_normal) {
   World w = richWorld();
   World n = w;
   io::Warnings warns;
@@ -36,7 +36,7 @@ TEST(io_rich_world_is_normal) {
   CHECK_EQ(World::diff(w, n), 0u);
 }
 
-TEST(io_roundtrip_folder) {
+TEST(core_io_roundtrip_folder) {
   World w = richWorld();
   std::string dir = tempDir("roundtrip");
   io::FileState st;
@@ -69,7 +69,7 @@ TEST(io_roundtrip_folder) {
   CHECK(diffWorld(w, r2.world).empty());
 }
 
-TEST(io_file_format) {
+TEST(core_io_file_format) {
   World w = richWorld();
   std::string dir = tempDir("format");
   io::save(dir, w, TB_ALL);
@@ -124,7 +124,7 @@ TEST(io_file_format) {
   CHECK(cat.find("\"id\": \"rs900\"") != std::string::npos);
 }
 
-TEST(io_coordinates_rounded) {
+TEST(core_io_coordinates_rounded) {
   World base = richWorld();
   Tx tx(base);
   tx.node(1).p = {100.123456, 200.987654};
@@ -139,20 +139,18 @@ TEST(io_coordinates_rounded) {
   CHECK_EQ(r.world.army(1)->pos.y, 2.01);
 }
 
-TEST(io_roundtrip_bundle) {
+TEST(core_io_roundtrip_bundle) {
   World w = richWorld();
   std::string dir = tempDir("bundle");
   std::string path = fs::join(dir, "Арден.regnum");
   io::saveBundle(path, w);
   CHECK(io::isProject(path));
   CHECK(io::isBundlePath(path));
-  auto r = io::loadBundle(path);
+  auto r = io::load(path);
   CHECK(r.bundle);
   CHECK_MSG(r.warnings.empty(), warningsText(r.warnings));
   std::string d = diffWorld(w, r.world);
   CHECK_MSG(d.empty(), d);
-  auto r2 = io::load(path);
-  CHECK(diffWorld(w, r2.world).empty());
 
   // Архив — обычный zip той же раскладки, содержимое файлов совпадает с папкой.
   codec::ZipReader zr;
@@ -165,7 +163,7 @@ TEST(io_roundtrip_bundle) {
   CHECK_EQ(zr.entries()[0].name, std::string("world.json"));
 }
 
-TEST(io_bundle_nested_folder) {
+TEST(core_io_bundle_nested_folder) {
   // Архив, созданный упаковкой папки целиком: «Мир/world.json».
   World w = richWorld();
   codec::ZipWriter zw;
@@ -189,7 +187,7 @@ TEST(io_bundle_nested_folder) {
   CHECK_MSG(e.find("Не удалось открыть архив") != std::string::npos, e);
 }
 
-TEST(io_snapshot_document) {
+TEST(core_io_snapshot_document) {
   World w = richWorld();
   std::string js = io::toJson(w);
   auto r = io::fromJson(js);
@@ -210,7 +208,7 @@ TEST(io_snapshot_document) {
   CHECK_MSG(e.find("более новой версией") != std::string::npos, e);
 }
 
-TEST(io_dirty_save_writes_only_changed) {
+TEST(core_io_dirty_save_writes_only_changed) {
   std::string dir = tempDir("dirty");
   Store store;
   store.replace(richWorld(), "load");
@@ -223,7 +221,7 @@ TEST(io_dirty_save_writes_only_changed) {
   CHECK_EQ(store.dirtyTables(), u32(TB_PROVINCES));
   auto res = io::save(dir, store.world(), store.dirtyTables(), &st);
   CHECK_EQ(res.written.size(), size_t(1));
-  CHECK(contains(res.written, "data/provinces.json"));
+  CHECK(test::has(res.written, "data/provinces.json"));
   CHECK_EQ(res.backups.size(), size_t(1));
   CHECK_EQ(res.backups[0], std::string(".regnum-backup/data/provinces.000001.json"));
   CHECK_EQ(read(fs::join(dir, "data/factions.json")), factionsBefore);
@@ -244,10 +242,10 @@ TEST(io_dirty_save_writes_only_changed) {
   CHECK(fs::remove(fs::join(dir, "data/deals.json")));
   res = io::save(dir, store.world(), 0, &st);
   CHECK_EQ(res.written.size(), size_t(1));
-  CHECK(contains(res.written, "data/deals.json"));
+  CHECK(test::has(res.written, "data/deals.json"));
 }
 
-TEST(io_backups_rotation) {
+TEST(core_io_backups_rotation) {
   std::string dir = tempDir("backups");
   World w = richWorld();
   io::save(dir, w, TB_ALL);
@@ -280,7 +278,42 @@ TEST(io_backups_rotation) {
   CHECK(fs::isFile(fs::join(dir, ".regnum-backup/world.000001.json")));
 }
 
-TEST(io_load_errors) {
+TEST(core_io_backups_auto_queue) {
+  std::string dir = tempDir("backups_auto");
+  World w = richWorld();
+  io::save(dir, w, TB_ALL);
+  auto edit = [&](double v) {
+    Tx tx(w);
+    tx.province(1).contentment = v;
+    w = std::move(tx).finish();
+  };
+  edit(1);
+  io::save(dir, w, TB_PROVINCES);   // ручное: копия исходной версии — в общей очереди
+  edit(2);
+  io::SaveOptions so;
+  so.autoBackups = {};               // версия на диске записана вручную — её копия тоже в общей очереди
+  io::save(dir, w, TB_PROVINCES, nullptr, so);
+  so.autoBackups = {"data/provinces.json"};
+  for (int i = 3; i <= 12; i++) {
+    edit(i);
+    io::save(dir, w, TB_PROVINCES, nullptr, so);   // версии автосохранения — в своей очереди
+  }
+  auto manual = fs::list(fs::join(dir, ".regnum-backup/data"));
+  size_t files = 0;
+  for (auto& e : manual) files += e.dir ? 0 : 1;
+  CHECK_EQ(files, size_t(2));
+  CHECK_EQ(fs::list(fs::join(dir, ".regnum-backup/auto/data")).size(), size_t(io::kKeepBackups));
+  // Ручная версия (довольство 1) цела, хотя автосохранений было больше kKeepBackups.
+  bool kept = false;
+  for (auto& e : manual) {
+    if (e.dir) continue;
+    auto v = json::parse(fs::readFile(e.path).value_or("{}"));
+    kept = kept || v.arr("provinces")[0].num("contentment") == 1.0;
+  }
+  CHECK(kept);
+}
+
+TEST(core_io_load_errors) {
   std::string dir = tempDir("errors");
   std::string e = errorOf([&] { io::load(dir); });
   CHECK_MSG(e.find("нет файла world.json") != std::string::npos, e);
@@ -333,7 +366,7 @@ TEST(io_load_errors) {
   CHECK(r.fixedTables & TB_ROUTES);
 }
 
-TEST(io_external_changes) {
+TEST(core_io_external_changes) {
   std::string dir = tempDir("external");
   World w = richWorld();
   io::save(dir, w, TB_ALL);
@@ -390,7 +423,34 @@ TEST(io_external_changes) {
   CHECK(io::externalChanges(rb.files).empty());
 }
 
-TEST(io_snapshots_folder) {
+// Изменение другой программой сразу после чтения: тот же размер и то же время файла (грубая точность
+// времени файловой системы) — изменение всё равно обнаруживается по содержимому.
+TEST(core_io_external_change_same_size_and_time) {
+  std::string dir = tempDir("racy");
+  io::save(dir, richWorld(), TB_ALL);
+  auto r = io::load(dir);
+  std::string prov = fs::join(dir, "data/provinces.json");
+  std::error_code ec;
+  auto before = std::filesystem::last_write_time(fs::path(prov), ec);
+  CHECK(!ec);
+  std::string text = read(prov);
+  std::string edited = replaceAll(text, "Арденбург", "Арбенбург");  // та же длина в байтах
+  CHECK_EQ(edited.size(), text.size());
+  CHECK(edited != text);
+  write(prov, edited);
+  std::filesystem::last_write_time(fs::path(prov), before, ec);
+  CHECK(!ec);
+  CHECK_EQ(fs::mtime(prov).value_or(0), r.files.files["data/provinces.json"].mtime);
+  auto ch = io::externalChanges(r.files);
+  CHECK_EQ(ch.size(), size_t(1));
+  CHECK(!ch.empty() && ch[0].file == "data/provinces.json" && ch[0].kind == io::ChangeKind::Modified);
+  // Содержимое возвращено — изменений нет.
+  write(prov, text);
+  std::filesystem::last_write_time(fs::path(prov), before, ec);
+  CHECK(io::externalChanges(r.files).empty());
+}
+
+TEST(core_io_snapshots_folder) {
   std::string dir = tempDir("snapshots");
   World w = richWorld();
   io::save(dir, w, TB_ALL);
@@ -402,66 +462,66 @@ TEST(io_snapshots_folder) {
     tx.province(1).contentment = t * 10;
     World x = std::move(tx).finish();
     turns.push_back(x);
-    auto info = io::writeSnapshot(dir, x, "Конец хода " + std::to_string(t));
-    CHECK_EQ(info.turn, t);
-    CHECK(fs::isFile(fs::join(dir, info.file)));
+    io::addSnapshots(dir, {numbered(x, u64(t), "Конец хода " + std::to_string(t))}, u64(t));
   }
-  CHECK(fs::isFile(fs::join(dir, "history/turn-0002.json.gz")));
+  CHECK(fs::isFile(fs::join(dir, "history/turn-0002-000002.json.gz")));
   auto list = io::listSnapshots(dir);
   CHECK_EQ(list.size(), size_t(3));
   CHECK_EQ(list[0].turn, 1);
   CHECK_EQ(list[2].turn, 3);
   CHECK_EQ(list[1].label, std::string("Конец хода 2"));
   CHECK_EQ(list[1].name, w.meta->name);
-  CHECK_EQ(list[1].file, std::string("history/turn-0002.json.gz"));
+  CHECK_EQ(list[1].file, std::string("history/turn-0002-000002.json.gz"));
   CHECK(list[1].size > 0 && !list[1].at.empty());
 
-  auto s2 = io::loadSnapshot(dir, 2);
+  auto s2 = io::loadSnapshotFile(dir, list[1].file);
   CHECK_MSG(s2.warnings.empty(), warningsText(s2.warnings));
   CHECK(diffWorld(turns[1], s2.world).empty());
   CHECK_EQ(s2.world.province(1)->contentment, 20.0);
-  CHECK_THROWS(io::loadSnapshot(dir, 9));
+  CHECK_THROWS(io::loadSnapshotFile(dir, "history/turn-0009-000009.json.gz"));
 
-  // Тот же ход — замена.
+  // Снимок с тем же номером заменяет прежний; head 0 — ветвь прежняя.
   Tx tx(turns[1]);
   tx.province(1).contentment = 99;
-  io::writeSnapshot(dir, std::move(tx).finish(), "Повтор");
+  io::addSnapshots(dir, {numbered(std::move(tx).finish(), 2, "Повтор")}, 0);
   list = io::listSnapshots(dir);
   CHECK_EQ(list.size(), size_t(3));
   CHECK_EQ(list[1].label, std::string("Повтор"));
-  CHECK_EQ(io::loadSnapshot(dir, 2).world.province(1)->contentment, 99.0);
+  CHECK_EQ(io::loadSnapshotFile(dir, list[1].file).world.province(1)->contentment, 99.0);
+  CHECK_EQ(io::listHistory(dir).head, u64(3));
 
-  CHECK(io::removeSnapshot(dir, 1));
-  CHECK(!io::removeSnapshot(dir, 1));
+  // Снимок прежней версии без номера (turn-NNNN.json.gz) читается рядом с новыми.
+  CHECK(fs::writeFileAtomic(fs::join(dir, "history/turn-0004.json.gz"), io::pack(turns[2], 6)));
   list = io::listSnapshots(dir);
-  CHECK_EQ(list.size(), size_t(2));
-  CHECK_EQ(list[0].turn, 2);
-  CHECK(!fs::exists(fs::join(dir, "history/turn-0001.json.gz")));
+  CHECK_EQ(list.size(), size_t(4));
+  CHECK_EQ(list[3].turn, 4);
+  CHECK_EQ(list[3].seq, u64(0));
+  CHECK_EQ(io::loadSnapshotFile(dir, "history/turn-0004.json.gz").world.province(1)->contentment, 30.0);
 
   // Без index.json история восстанавливается по именам файлов.
   CHECK(fs::remove(fs::join(dir, "history/index.json")));
   list = io::listSnapshots(dir);
-  CHECK_EQ(list.size(), size_t(2));
-  CHECK_EQ(list[1].turn, 3);
-  CHECK(list[1].label.empty());
-  CHECK_EQ(io::loadSnapshot(dir, 3).world.province(1)->contentment, 30.0);
+  CHECK_EQ(list.size(), size_t(4));
+  CHECK_EQ(list[2].turn, 3);
+  CHECK_EQ(list[2].seq, u64(3));
+  CHECK(list[2].label.empty());
+  CHECK_EQ(io::loadSnapshotFile(dir, list[2].file).world.province(1)->contentment, 30.0);
 
   // Повреждённый снимок — понятная ошибка.
-  write(fs::join(dir, "history/turn-0003.json.gz"), "мусор");
-  std::string e = errorOf([&] { io::loadSnapshot(dir, 3); });
+  write(fs::join(dir, "history/turn-0003-000003.json.gz"), "мусор");
+  std::string e = errorOf([&] { io::loadSnapshotFile(dir, "history/turn-0003-000003.json.gz"); });
   CHECK_MSG(e.find("turn-0003") != std::string::npos, e);
 }
 
-TEST(io_snapshots_bundle_and_convert) {
+TEST(core_io_snapshots_bundle_and_convert) {
   std::string dir = tempDir("convert");
   std::string folder = fs::join(dir, "folder");
   World w = richWorld();
   io::save(folder, w, TB_ALL);
-  io::writeSnapshot(folder, w, "Седьмой");
   Tx tx(w);
   tx.meta().turn = 8;
   World w8 = std::move(tx).finish();
-  io::writeSnapshot(folder, w8, "Восьмой");
+  io::addSnapshots(folder, {numbered(w, 1, "Седьмой"), numbered(w8, 2, "Восьмой")}, 2);
 
   // Папка -> архив: мир и история.
   std::string bundle = fs::join(dir, "мир.regnum");
@@ -471,25 +531,25 @@ TEST(io_snapshots_bundle_and_convert) {
   auto list = io::listSnapshots(bundle);
   CHECK_EQ(list.size(), size_t(2));
   CHECK_EQ(list[1].label, std::string("Восьмой"));
-  CHECK(diffWorld(w8, io::loadSnapshot(bundle, 8).world).empty());
+  CHECK_EQ(io::listHistory(bundle).head, u64(2));
+  CHECK(diffWorld(w8, io::loadSnapshotFile(bundle, list[1].file).world).empty());
   CHECK(diffWorld(w, io::load(bundle).world).empty());
   CHECK_THROWS(io::convert(folder, bundle));  // уже существует
 
   // Снимок в архив: архив пересобирается, мир в нём не меняется.
   Tx t9(w);
   t9.meta().turn = 9;
-  io::writeSnapshot(bundle, std::move(t9).finish(), "Девятый");
+  io::addSnapshots(bundle, {numbered(std::move(t9).finish(), 3, "Девятый")}, 3);
   CHECK_EQ(io::listSnapshots(bundle).size(), size_t(3));
   CHECK(diffWorld(w, io::load(bundle).world).empty());
-  CHECK(io::removeSnapshot(bundle, 7));
-  CHECK_EQ(io::listSnapshots(bundle).size(), size_t(2));
 
   // Сохранение архива сохраняет его историю.
   Tx tn(w);
   tn.province(1).name = "Переименовано";
   World wn = std::move(tn).finish();
   io::saveBundle(bundle, wn);
-  CHECK_EQ(io::listSnapshots(bundle).size(), size_t(2));
+  CHECK_EQ(io::listSnapshots(bundle).size(), size_t(3));
+  CHECK_EQ(io::listHistory(bundle).head, u64(3));
   CHECK_EQ(io::load(bundle).world.province(1)->name, std::string("Переименовано"));
 
   // Архив -> папка.
@@ -497,9 +557,9 @@ TEST(io_snapshots_bundle_and_convert) {
   io::convert(bundle, back);
   CHECK(diffWorld(wn, io::load(back).world).empty());
   list = io::listSnapshots(back);
-  CHECK_EQ(list.size(), size_t(2));
-  CHECK_EQ(list[0].turn, 8);
-  CHECK(diffWorld(w8, io::loadSnapshot(back, 8).world).empty());
+  CHECK_EQ(list.size(), size_t(3));
+  CHECK_EQ(list[1].turn, 8);
+  CHECK(diffWorld(w8, io::loadSnapshotFile(back, list[1].file).world).empty());
   std::string e = errorOf([&] { io::convert(bundle, back); });
   CHECK_MSG(e.find("не пуста") != std::string::npos, e);
   io::convert(bundle, back, nullptr, true);
@@ -512,11 +572,11 @@ TEST(io_snapshots_bundle_and_convert) {
   CHECK_EQ(io::listSnapshots(b2).size(), size_t(2));
 }
 
-TEST(io_autosave) {
+TEST(core_io_autosave) {
   std::string dir = tempDir("autosave");
   CHECK(io::listAutosaves(dir).empty());
   std::string err;
-  CHECK(!io::loadAutosave(dir, &err).has_value());
+  CHECK(!io::loadAutosaveFor("", dir, &err).has_value());
   CHECK(!err.empty());
 
   World a = richWorld();
@@ -533,8 +593,6 @@ TEST(io_autosave) {
 
   auto list = io::listAutosaves(dir);
   CHECK_EQ(list.size(), size_t(2));
-  auto latest = io::loadAutosave(dir);
-  CHECK(latest.has_value());
   auto fa = io::loadAutosaveFor(projA, dir);
   CHECK(fa.has_value());
   CHECK(diffWorld(a, fa->world).empty());
@@ -559,7 +617,7 @@ TEST(io_autosave) {
   CHECK(io::listAutosaves(dir).empty());
 }
 
-TEST(io_recent_projects) {
+TEST(core_io_recent_projects) {
   std::string dir = tempDir("recent");
   CHECK(io::recentProjects(dir).empty());
   std::string p1 = fs::join(dir, "worlds/one");
@@ -585,7 +643,7 @@ TEST(io_recent_projects) {
   CHECK(io::recentProjects(dir).empty());
 }
 
-TEST(io_project_files) {
+TEST(core_io_project_files) {
   auto& files = io::projectFiles();
   CHECK_EQ(files.size(), size_t(16));
   CHECK_EQ(std::string(files.back().path), std::string("world.json"));
@@ -605,34 +663,7 @@ TEST(io_project_files) {
   CHECK_EQ(w.text(), std::string("data/provinces.json: p1.owner: нет фракции f9"));
 }
 
-// Изменение другой программой сразу после чтения: тот же размер и то же время файла (грубая точность
-// времени файловой системы) — изменение всё равно обнаруживается по содержимому.
-TEST(io_external_change_same_size_and_time) {
-  std::string dir = tempDir("racy");
-  io::save(dir, richWorld(), TB_ALL);
-  auto r = io::load(dir);
-  std::string prov = fs::join(dir, "data/provinces.json");
-  std::error_code ec;
-  auto before = std::filesystem::last_write_time(fs::path(prov), ec);
-  CHECK(!ec);
-  std::string text = read(prov);
-  std::string edited = replaceAll(text, "Арденбург", "Арбенбург");  // та же длина в байтах
-  CHECK_EQ(edited.size(), text.size());
-  CHECK(edited != text);
-  write(prov, edited);
-  std::filesystem::last_write_time(fs::path(prov), before, ec);
-  CHECK(!ec);
-  CHECK_EQ(fs::mtime(prov).value_or(0), r.files.files["data/provinces.json"].mtime);
-  auto ch = io::externalChanges(r.files);
-  CHECK_EQ(ch.size(), size_t(1));
-  CHECK(!ch.empty() && ch[0].file == "data/provinces.json" && ch[0].kind == io::ChangeKind::Modified);
-  // Содержимое возвращено — изменений нет.
-  write(prov, text);
-  std::filesystem::last_write_time(fs::path(prov), before, ec);
-  CHECK(io::externalChanges(r.files).empty());
-}
-
-TEST(io_save_errors) {
+TEST(core_io_save_errors) {
   std::string dir = tempDir("save_errors");
   std::string file = fs::join(dir, "файл.txt");
   write(file, "x");

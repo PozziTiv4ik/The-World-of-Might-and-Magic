@@ -1,5 +1,7 @@
 // Regnum — выдвижная панель «Войска»: все войска и флоты на карте (значок — портрет главного полководца в круге или
 // фигурка цвета фракции, численность), поиск, отбор по виду и фракции; щелчок выделяет объект и показывает его на карте.
+// Новые объекты любой фракции (инструменты карты) — правка мира: у игрока кнопок нет (его войска — во вкладках
+// государства).
 #include "app/panels/military.h"
 
 namespace rg::app::mil {
@@ -16,7 +18,7 @@ void drawDrawer(App& a) {
   const World& w = frameWorld(a);
   auto& st = ui::state<DrawerState>(ui::id("military-drawer"));
   if (st.faction && !w.faction(st.faction)) st.faction = 0;
-  {
+  if (a.admin()) {
     ui::Disabled dis(a.readOnly());
     ui::Row r({ui::fr(1), ui::fr(1)}, 30, 8);
     if (ui::button("Войско", {.icon = "tool-army", .fill = true, .tooltip = "Поставить новое войско на карту (A)"}))
@@ -71,7 +73,7 @@ void drawDrawer(App& a) {
   if (items.empty()) {
     if (w.armies.empty()) {
       ui::Disabled dis(a.readOnly());
-      if (ui::emptyState("army", "Войск и флотов на карте пока нет.", "Новое войско", "tool-army"))
+      if (ui::emptyState("army", "Войск и флотов на карте пока нет.", a.admin() ? "Новое войско" : "", "tool-army"))
         startPlacing(a, ArmyKind::Army, st.faction ? st.faction : lastPlaceFaction());
     } else {
       if (ui::emptyState("search", "Ничего не найдено.", "Сбросить отбор", "close")) st = DrawerState{};

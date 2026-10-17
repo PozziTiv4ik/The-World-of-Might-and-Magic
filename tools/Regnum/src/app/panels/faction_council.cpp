@@ -2,6 +2,8 @@
 // справочника или своя) и назначенный лорд (только доступные герои этого государства — ТЗ «Фиксы», п.9);
 // содержание советника правится в строке (поле персонажа, расход «специалисты», золото до тысячных); добавление и
 // удаление мест; модификатор совета («Децентрализация», «Слабый контроль», «Централизованная власть»).
+// Роли (ТЗ «Доработки №4», п.5): места, должности из справочника и назначения — игровые действия за это государство
+// (App::play); своя должность, новый персонаж и содержание советника — правка мира (администратор).
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -19,7 +21,8 @@ CouncilSeat& seatOf(Tx& tx, Id faction, Id seat) {
 }
 
 void addSeat(App& a, Id id) {
-  a.act("Место в совете", [&](Tx& tx) {
+  if (!a.canPlay(id)) return;
+  a.play("Место в совете", [&](Tx& tx) {
     const Faction& f = *tx.w().faction(id);
     // Первая свободная должность справочника.
     std::string pos;
@@ -34,8 +37,9 @@ void addSeat(App& a, Id id) {
   });
 }
 
-// Должность: пункты справочника, своя (текущая, если не из справочника) и «Своя должность…».
+// Должность: пункты справочника, своя (текущая, если не из справочника) и «Своя должность…» (правка мира).
 void positionPicker(App& a, const World& w, Id faction, const CouncilSeat& seat, bool ro) {
+  const bool custom0 = a.canEdit();
   const auto& cat = w.catalogs->positions;
   std::vector<std::string> labels;
   std::vector<Id> ids;
@@ -51,8 +55,10 @@ void positionPicker(App& a, const World& w, Id faction, const CouncilSeat& seat,
     labels.push_back(c.name.empty() ? std::string("Без названия") : c.name);
     ids.push_back(c.id);
   }
-  labels.push_back("Своя должность…");
-  ids.push_back(kCustom);
+  if (custom0) {
+    labels.push_back("Своя должность…");
+    ids.push_back(kCustom);
+  }
   std::vector<ui::Option> opts(labels.size());
   for (size_t i = 0; i < labels.size(); i++) {
     opts[i].label = labels[i];
@@ -72,14 +78,15 @@ void positionPicker(App& a, const World& w, Id faction, const CouncilSeat& seat,
     return;
   }
   std::string pos = labels[size_t(idx)];
-  if (pos != seat.position) a.act("Должность в совете", [&](Tx& tx) { seatOf(tx, faction, seatId).position = pos; });
+  if (pos != seat.position) a.play("Должность в совете", [&](Tx& tx) { seatOf(tx, faction, seatId).position = pos; });
 }
 
 void drawCouncil(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canPlay(id);   // назначения и места — игровые действия за это государство
+  const bool edit = a.canEdit();     // содержание советника — правка мира
   const int n = int(f->council.size());
   double total = 0;
   int vacant = 0;
@@ -153,7 +160,7 @@ void drawCouncil(App& a, Id id) {
     auto lord = [&] {
       // Только доступные герои этого государства (ТЗ «Фиксы», п.9).
       Id who = seat.character;
-      if (w::characterPicker("who", who, id, "Вакантно", true, ro)) a.act("Советник", [&](Tx& tx) { rules::setCouncilMember(tx, id, sid, who); });
+      if (w::characterPicker("who", who, id, "Вакантно", edit, ro)) a.play("Советник", [&](Tx& tx) { rules::setCouncilMember(tx, id, sid, who); });
       a.markUi("council.who." + std::to_string(i));
     };
     // Содержание советника — поле персонажа (расход «специалисты»); у вакантного места — прочерк.
@@ -164,15 +171,19 @@ void drawCouncil(App& a, Id id) {
       }
       double up = c->upkeep;
       const Id cid = c->id;
-      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = "тыс.", .icon = "coins", .disabled = ro,
+      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = "тыс.", .icon = "coins", .disabled = !edit,
                                          .tooltip = "Содержание советника за ход (расход «специалисты»)"}))
         a.act("Содержание советника", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "council.upkeep:" + std::to_string(cid)});
       a.markUi("council.upkeep." + std::to_string(i));
     };
     auto remove = [&] {
+      if (ro && !a.admin()) {   // чужое государство у игрока — без кнопок
+        ui::next(28, 30);
+        return;
+      }
       if (ui::iconButton("trash", "Убрать место из совета", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
         std::string what = seat.position.empty() ? std::string("Место") : "«" + seat.position + "»";
-        if (a.act("Убрать место из совета", [&](Tx& tx) {
+        if (a.play("Убрать место из совета", [&](Tx& tx) {
               auto& list = tx.faction(id).council;
               list.erase(std::remove_if(list.begin(), list.end(), [&](const CouncilSeat& x) { return x.id == sid; }), list.end());
             }))

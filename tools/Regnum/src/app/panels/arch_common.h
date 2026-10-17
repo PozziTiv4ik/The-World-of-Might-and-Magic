@@ -35,7 +35,8 @@ void treasureCell(const World& w, const ArchSlot& s, int slot, RectF r, bool rev
 // в этом кадре (0 — нет).
 Id groupMenu(App& a, const World& w, Id state, std::string_view id, std::string_view header, const std::function<double(Id)>& chance);
 
-// Задания групп: действие мира (отмена Ctrl+Z) и окно итога; группа в смертельной опасности — затем окно спасения.
+// Задания групп: игровое действие за государство (App::play, отмена Ctrl+Z) и окно итога; группа в смертельной
+// опасности — затем окно спасения.
 void discover(App& a, Id state, Id group, Id province);
 void explore(App& a, Id state, Id group, Id province, int slot);
 void excavate(App& a, Id state, Id group, Id province);

@@ -1,40 +1,23 @@
 // Сценарии новых вкладок окна справочников: девять вкладок в порядке a.openEditor("catalogs", N) (узкое окно —
 // значки), «Эссенции элементов» (запасы, строки войск, постройки генерации в «Где используется»), «Реликвии»
-// (редкость с подсветкой, уникальное название, владелец, правка на месте, удаление из инвентаря), «Особые отряды»
+// (редкость с подсветкой, уникальное название, владелец, правка на месте, удаление из инвентаря, группы,
+// изображение, связь с карточкой проекта, хранилище реликвий постройки в провинции), «Особые отряды»
 // (правка всей записи — строки армий повторяют её, тип элементалей, постройки доступа, удаление), должности и
 // 61 религия; снимки экрана.
+#include "app/common/canon.h"
 #include "tests/test_app_editors_util.h"
+#include "tests/test_app_faction_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
 using namespace rg::apptest::editors;
+namespace ed = rg::apptest::editors;
+namespace fc = rg::factest;
 
 namespace {
 
 const char* const kViews[] = {"resources", "races", "cultures", "religions", "governments", "positions", "essences", "relics", "specials"};
 
-Id essenceNamed(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->essences)
-    if (c.name == name) return c.id;
-  return 0;
-}
-Id resNamed(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->resources)
-    if (c.name == name) return c.id;
-  return 0;
-}
-Id specialNamed(const World& w, const std::string& name) {
-  for (const SpecialUnit& s : w.catalogs->specials)
-    if (s.name == name) return s.id;
-  return 0;
-}
-Id buildingNamed(const World& w, const std::string& name) {
-  Id r = 0;
-  w.buildings.each([&](const Building& b) {
-    if (!r && b.name == name) r = b.id;
-  });
-  return r;
-}
 // Персонажи государств (первые n).
 std::vector<Id> heroes(const World& w, size_t n) {
   std::vector<Id> out;
@@ -61,6 +44,33 @@ bool pickNone(Harness& h, const std::string& name) {
   for (int i = 0; i < 6; i++) h.key(Key::PageUp);
   h.key(Key::Enter);
   quick(h);
+  return true;
+}
+
+// Прокрутить таблицу к началу, затем вниз, пока не построится строка mark (таблица строит только видимые строки;
+// в справочнике реликвий — сотня базовых).
+bool scrollFind(Harness& h, const std::string& mark) {
+  if (h->uiRect(mark)) return true;
+  const RectF* t = h->uiRect("catalogs.table");
+  if (!t) return false;
+  const RectF tr = *t;
+  h.wheel(tr.cx(), tr.cy(), 1000);
+  ed::quick(h);
+  for (int i = 0; i < 120 && !h->uiRect(mark); i++) {
+    h.wheel(tr.cx(), tr.cy(), -4);
+    ed::quick(h);
+  }
+  return h->uiRect(mark) != nullptr;
+}
+
+// Щелчок по строке таблицы справочника у её левого края (не по полям строки).
+bool clickRow(Harness& h, const std::string& mark) {
+  if (!scrollFind(h, mark) || !ed::reveal(h, mark)) return false;
+  const RectF* r = h->uiRect(mark);
+  if (!r) return false;
+  const RectF x = *r;
+  h.click(x.x + 8, x.cy());
+  ed::quick(h);
   return true;
 }
 
@@ -149,9 +159,9 @@ TEST(app_catalogs_items_essences) {
   h.dropToasts();
   const World& w0 = h->world();
   CHECK_EQ(w0.catalogs->essences.size(), size_t(18));
-  const Id fire = essenceNamed(w0, "Эссенция пламени"), abyss = essenceNamed(w0, "Эссенция бездны");
+  const Id fire = test::idByName(w0.catalogs->essences, "Эссенция пламени"), abyss = test::idByName(w0.catalogs->essences, "Эссенция бездны");
   CHECK(fire && abyss);
-  auto [s1, s2] = twoStates(w0);
+  auto [s1, s2] = test::twoStates(w0);
   // Запасы двух государств, строка войск с эссенцией, постройка генерации.
   Id row = 0, gen = 0;
   CHECK(h->act("Эссенции", [&](Tx& tx) {
@@ -196,12 +206,14 @@ TEST(app_catalogs_items_relics) {
   h->openEditor("catalogs", 8);
   quick(h);
   CHECK(h->uiRect("catalogs.view.relics") != nullptr);
-  CHECK(h->world().catalogs->relics.empty());
+  // Базовые: 50 «Археологических находок» и 50 «Общих».
+  const size_t base = h->world().catalogs->relics.size();
+  CHECK(base >= 100);
   // Новая реликвия: название сразу в правке.
   CHECK(h.clickUi("catalogs.add"));
   quick(h);
-  CHECK_EQ(h->world().catalogs->relics.size(), size_t(1));
-  const Id crown = h->world().catalogs->relics[0].id;
+  CHECK_EQ(h->world().catalogs->relics.size(), base + 1);
+  const Id crown = h->world().catalogs->relics.back().id;
   h.retype("Корона Предвечных");
   h.key(Key::Enter);
   quick(h);
@@ -237,6 +249,12 @@ TEST(app_catalogs_items_relics) {
   h.key(Key::Enter);
   quick(h);
   CHECK(h->world().relic(second)->rarity == Rarity::Epochal);
+  // Новые реликвии — в группе выбранной (базовой находки археологов): героям находки напрямую не даются — без группы.
+  CHECK(h->act("Без группы", [&](Tx& tx) {
+    rules::setRelicGroup(tx, crown, 0);
+    rules::setRelicGroup(tx, second, 0);
+  }));
+  quick(h);
   // Владелец: персонаж из карточки, затем другой (реликвия переходит), затем «Свободна».
   const std::vector<Id> hs = heroes(h->world(), 2);
   CHECK_EQ(hs.size(), size_t(2));
@@ -245,8 +263,7 @@ TEST(app_catalogs_items_relics) {
   CHECK(pickInCombo(h, "catalogs.relicCard.holder", h->world().character(hs[1])->name));
   CHECK_EQ(rules::relicHolder(h->world(), second), hs[1]);
   {
-    const auto& inv0 = h->world().character(hs[0])->inventory;
-    CHECK(std::find(inv0.begin(), inv0.end(), second) == inv0.end());
+    CHECK_EQ(relicCount(h->world().character(hs[0])->inventory, second), i64(0));
   }
   CHECK(pickNone(h, "catalogs.relicCard.holder"));
   CHECK_EQ(rules::relicHolder(h->world(), second), Id(0));
@@ -271,8 +288,7 @@ TEST(app_catalogs_items_relics) {
   CHECK(confirmDialog(h));
   CHECK(h->world().relic(second) == nullptr);
   {
-    const auto& inv = h->world().character(hs[1])->inventory;
-    CHECK(std::find(inv.begin(), inv.end(), second) == inv.end());
+    CHECK_EQ(relicCount(h->world().character(hs[1])->inventory, second), i64(0));
   }
   h.key(Key::Z, ctrl());
   quick(h);
@@ -280,14 +296,155 @@ TEST(app_catalogs_items_relics) {
   CHECK_EQ(rules::relicHolder(h->world(), second), hs[1]);
 }
 
+// ---------------------------------------------------------------- справочник реликвий: группы, изображение, канон
+TEST(app_catalogs_items_relic_groups) {
+  Harness h("heroes2_relics", 1440, 900);
+  h.demo();
+  h.dropToasts();
+  const Id st = test::stateWithLand(h->world());
+  const Id hero = availableHero(h->world(), st);
+  const Id finds = h->world().catalogs->relicGroupId(schema::kRelicArchFinds);
+  CHECK(finds != 0);
+  Id arms = 0, blades = 0, crown = 0, blade = 0, shard = 0, orb = 0, cup = 0;
+  CHECK(h->act("Реликвии", [&](Tx& tx) {
+    arms = rules::addRelicGroup(tx, "Оружие");
+    blades = rules::addRelicGroup(tx, "Клинки", arms);
+    crown = rules::addRelic(tx, "Корона Предвечных", Rarity::Epochal);
+    blade = rules::addRelic(tx, "Клинок скорби", Rarity::Legendary);
+    orb = rules::addRelic(tx, "Сфера бурь", Rarity::Epic);
+    cup = rules::addRelic(tx, "Кубок пира", Rarity::Rare);
+    shard = rules::addRelic(tx, "Черепок Шантири", Rarity::Common);
+    rules::setRelicGroup(tx, blade, blades);
+    rules::setRelicGroup(tx, orb, arms);
+    rules::setRelicGroup(tx, shard, finds);
+    rules::setRelicImage(tx, blade, test::gemPng(255, 140, 40));
+    rules::setRelicImage(tx, orb, test::gemPng(160, 80, 255));
+    rules::giveRelic(tx, hero, blade);
+    rules::moveRelic(tx, shard, rules::RelicPlace{rules::RelicPlace::State, st, 0, st});
+  }));
+  h->openEditor("catalogs", 8);
+  ed::quick(h);
+  CHECK(h->uiRect("catalogs.view.relics") != nullptr);
+  // Группа «Археологические находки» — с замком (удалить нельзя).
+  CHECK(h->uiRect("catalogs.relicGroup." + std::to_string(finds)) != nullptr);
+  CHECK(h->uiRect("catalogs.relicGroup." + std::to_string(finds) + ".delete") == nullptr);
+  shotClean(h, "heroes2_relics");
+  // Новая группа: название сразу в правке.
+  CHECK(h.clickUi("catalogs.relicNewGroup"));
+  ed::quick(h);
+  h.retype("Посохи");
+  h.key(Key::Enter);
+  ed::quick(h);
+  Id staffs = 0;
+  for (const RelicGroup& g : h->world().catalogs->relicGroups)
+    if (g.name == "Посохи") staffs = g.id;
+  CHECK(staffs != 0);
+  // Реликвия «Кубок пира» — в группу «Посохи» (карточка).
+  CHECK(clickRow(h, "catalogs.relic." + std::to_string(cup)));
+  CHECK(ed::pickInCombo(h, "catalogs.relicCard.group", "Посохи"));
+  CHECK_EQ(h->world().relic(cup)->group, staffs);
+  // Связь с карточкой проекта по ID: описание и изображение — из карточки.
+  CHECK(clickRow(h, "catalogs.relic." + std::to_string(crown)));
+  CHECK(ed::enterValue(h, "canon.relic.entity", "ASSET-0037"));
+  CHECK_EQ(h->world().relic(crown)->entity, std::string("ASSET-0037"));
+  CHECK(!h->world().relic(crown)->desc.empty());
+  CHECK(!h->world().relic(crown)->image.empty());
+  // Поиск карточек реликвий — только предметы.
+  {
+    const auto list = app::canon::find(h.a(), app::canon::Kind::Relic, "амулет");
+    CHECK(!list.empty() && list[0].id == "ASSET-0037");
+    for (const auto& c : app::canon::find(h.a(), app::canon::Kind::Relic, "армия")) CHECK(c.assetKind == "item");
+  }
+  for (int i = 0; i < 20; i++) h.frames(2);   // изображение декодируется в фоне
+  shotClean(h, "heroes2_relic_card");
+  // Удаление группы «Оружие»: подгруппа и реликвия — на верхний уровень.
+  CHECK(clickRow(h, "catalogs.relicGroup." + std::to_string(arms)));
+  CHECK(ed::clickRevealed(h, "catalogs.relicGroup." + std::to_string(arms) + ".delete"));
+  CHECK(ed::confirmDialog(h));
+  CHECK(h->world().catalogs->relicGroup(arms) == nullptr);
+  CHECK(h->world().catalogs->relicGroup(blades)->parent == 0);
+  CHECK(h->world().relic(orb)->group == 0);
+}
+
+// Узкое окно: дерево реликвий и карточка под ним.
+TEST(app_catalogs_items_relics_narrow) {
+  Harness h("heroes2_relics_narrow", 1180, 820);
+  h.demo();
+  h.dropToasts();
+  CHECK(h->act("Реликвии", [&](Tx& tx) {
+    const Id g = rules::addRelicGroup(tx, "Регалии");
+    const Id crown = rules::addRelic(tx, "Корона Предвечных", Rarity::Epochal);
+    const Id orb = rules::addRelic(tx, "Сфера бурь", Rarity::Epic);
+    rules::addRelic(tx, "Медный амулет", Rarity::Common);
+    rules::setRelicGroup(tx, crown, g);
+    rules::setRelicGroup(tx, orb, g);
+    rules::setRelicImage(tx, orb, test::gemPng(160, 80, 255));
+  }));
+  h->openEditor("catalogs", 8);
+  ed::quick(h);
+  for (int i = 0; i < 10; i++) h.frames(2);
+  CHECK(h->uiRect("catalogs.relicCard.name") != nullptr);
+  shotClean(h, "heroes2_relics_narrow");
+}
+
+// ---------------------------------------------------------------- хранилище реликвий в провинции
+TEST(app_catalogs_items_relic_store) {
+  Harness h("heroes2_store", 1440, 1100);
+  h.demo();
+  h.waitMap();
+  const Id st = test::stateWithLand(h->world());
+  const Id hero = availableHero(h->world(), st);
+  Id pid = 0;
+  h->world().provinces.each([&](const Province& p) {
+    if (!pid && !p.sea && p.owner == st) pid = p.id;
+  });
+  CHECK(pid && hero);
+  Id store = 0, free = 0, mine = 0, held = 0;
+  CHECK(h->act("Хранилище", [&](Tx& tx) {
+    store = rules::createBuilding(tx, 0, "Сокровищница");
+    rules::setBuildingFlag(tx, store, rules::BuildingFlag::RelicStore, true);
+    Province& p = tx.province(pid);   // место для постройки
+    p.size = ProvSize::Large;
+    test::setCityPop(tx, pid, CityType::City);
+    rules::placeBuilding(tx, pid, store, 1);
+    free = rules::addRelic(tx, "Кубок королей", Rarity::Legendary);
+    mine = rules::addRelic(tx, "Знамя предков", Rarity::Rare);
+    held = rules::addRelic(tx, "Перстень мудреца", Rarity::Epic);
+    rules::setRelicImage(tx, free, test::gemPng(255, 190, 60));
+    rules::moveRelic(tx, mine, rules::RelicPlace{rules::RelicPlace::State, st, 0, st});
+    rules::giveRelic(tx, hero, held);
+  }));
+  h->ui.tabOf[app::SelType::Province] = "province.buildings";
+  h->select(app::SelType::Province, pid);
+  h.settle();
+  h.dropToasts();
+  const std::string mark = "prov.store." + std::to_string(store);
+  CHECK(fc::pickInCombo(h, mark + ".put", "Кубок"));
+  CHECK(rules::relicPlace(h->world(), free).kind == rules::RelicPlace::Building);
+  CHECK(fc::pickInCombo(h, mark + ".put", "Перстень"));
+  CHECK(rules::relicPlace(h->world(), held).kind == rules::RelicPlace::Building);
+  CHECK(h->world().character(hero)->inventory.empty());
+  CHECK(fc::pickInCombo(h, mark + ".put", "Знамя"));
+  CHECK_EQ(h->world().province(pid)->buildings.back().relics.size(), size_t(3));
+  CHECK(fc::ensureVisible(h, mark + ".relic." + std::to_string(free)));
+  h.dropToasts();
+  h.move(300, 600);   // без подсказки под указателем
+  h.settle();
+  CHECK(h.shot("heroes2_relic_store"));
+  // Вынуть — реликвия переходит государству-владельцу.
+  CHECK(fc::clickIn(h, mark + ".take." + std::to_string(held)));
+  h.settle();
+  CHECK(rules::relicPlace(h->world(), held).kind == rules::RelicPlace::State);
+}
+
 TEST(app_catalogs_items_specials) {
   Harness h("catalogs_specials");
   h.demo();
   h.dropToasts();
   const World& w0 = h->world();
-  const Id dragons = specialNamed(w0, "Драконы Бездны"), citadel = buildingNamed(w0, "Цитадель Бездны");
-  const Id black = resNamed(w0, "Черные Драконы"), steel = resNamed(w0, "Обсидиановая сталь");
-  const Id abyss = essenceNamed(w0, "Эссенция бездны"), fire = essenceNamed(w0, "Эссенция пламени");
+  const Id dragons = test::idByName(w0.catalogs->specials, "Драконы Бездны"), citadel = test::idByName(w0.buildings, "Цитадель Бездны");
+  const Id black = test::idByName(w0.catalogs->resources, "Черные Драконы"), steel = test::idByName(w0.catalogs->resources, "Обсидиановая сталь");
+  const Id abyss = test::idByName(w0.catalogs->essences, "Эссенция бездны"), fire = test::idByName(w0.catalogs->essences, "Эссенция пламени");
   CHECK(dragons && citadel && black && steel && abyss && fire);
   {
     const SpecialUnit* s = w0.special(dragons);
@@ -296,7 +453,7 @@ TEST(app_catalogs_items_specials) {
     CHECK(s && s->essence.count(abyss) && s->essence.at(abyss) == 1000);
   }
   // Государство с «Цитаделью Бездны» нанимает драконов.
-  auto [state, other] = twoStates(w0);
+  auto [state, other] = test::twoStates(w0);
   (void)other;
   Id row = 0;
   CHECK(h->act("Доступ к драконам", [&](Tx& tx) {
@@ -387,7 +544,7 @@ TEST(app_catalogs_items_log_clean) {
   h.demo();
   h.dropToasts();
   const World& w0 = h->world();
-  const Id dragons = specialNamed(w0, "Драконы Бездны"), fire = essenceNamed(w0, "Эссенция пламени"), abyss = essenceNamed(w0, "Эссенция бездны");
+  const Id dragons = test::idByName(w0.catalogs->specials, "Драконы Бездны"), fire = test::idByName(w0.catalogs->essences, "Эссенция пламени"), abyss = test::idByName(w0.catalogs->essences, "Эссенция бездны");
   const std::vector<Id> hs = heroes(w0, 1);
   CHECK(h->act("Данные", [&](Tx& tx) {
     const Id r1 = rules::addRelic(tx, "Корона Предвечных", Rarity::Legendary);

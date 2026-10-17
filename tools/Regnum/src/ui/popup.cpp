@@ -13,7 +13,7 @@ namespace {
 constexpr double kTipDelay = 0.35;
 constexpr double kTipWarm = 0.5;
 
-Color tipBg() { return C().th.dark ? Color::hex(0x272f3b) : Color::hex(0x2a2620); }
+Color tipBg() { return Color::hex(0x272f3b); }
 Color tipFg() { return Color::hex(0xf1ede4); }
 
 Window* findWindow(WidgetId id) {
@@ -25,7 +25,7 @@ void pushOverlayFrame(Window* w, RectF box) {
   Frame f;
   f.win = w;
   f.kind = Frame::PopupK;
-  f.surface = C().th.dark ? C().th.surface2.lighten(0.02f) : C().th.surface2;
+  f.surface = C().th.surface2.lighten(0.02f);
   f.box = box;
   f.x = box.x;
   f.y = box.y;
@@ -166,8 +166,8 @@ bool beginPopupId(WidgetId pid, const PopupOpt& o, bool menu) {
   float rad = 10;
   cmdShadow(r, rad, 28, t.shadow, 10);
   cmdShadow(r, rad, 3, t.shadow.alpha(0.6f), 1);
-  cmdRect(r, t.dark ? t.surface2.lighten(0.02f) : t.surface2, rad);
-  cmdStroke(r, t.dark ? t.borderStrong : t.border, rad, 1);
+  cmdRect(r, t.surface2.lighten(0.02f), rad);
+  cmdStroke(r, t.borderStrong, rad, 1);
   float bw = o.width > 0 ? o.width - 2 * pad : (measured ? float(cs.x) : 2000.f);
   pushOverlayFrame(win, RectF{r.x + pad, r.y + pad, bw, 1e7f});
   frame().gap = menu ? 0 : t.gap;
@@ -329,11 +329,16 @@ bool beginTooltip(float width) {
   w->alpha = a;
   const Theme& t = c.th;
   cmdShadow(r, 8, 16, t.shadow, 6);
-  cmdRect(r, t.dark ? t.surface2.lighten(0.03f) : t.surface2, 8);
-  cmdStroke(r, t.dark ? t.borderStrong : t.border, 8, 1);
+  cmdRect(r, t.surface2.lighten(0.03f), 8);
+  cmdStroke(r, t.borderStrong, 8, 1);
   pushOverlayFrame(w, RectF{r.x + 10, r.y + 10, width - 20, 1e7f});
   frame().gap = 4;
   return true;
+}
+
+std::string tooltipText() {
+  const Ctx& c = C();
+  return c.tipRequested ? c.tipText : std::string();
 }
 
 void endTooltip() {
@@ -462,8 +467,8 @@ static void buildToasts() {
     if (e.hovered && e.closeAt < 0) e.paused += c.dt;
     Color tc = toneColor(e.tone);
     cmdShadow(r, 10, 26, t.shadow, 10);
-    cmdRect(r, t.dark ? t.surface2.lighten(0.03f) : t.surface2, 10);
-    cmdStroke(r, t.dark ? t.borderStrong : t.border, 10, 1);
+    cmdRect(r, t.surface2.lighten(0.03f), 10);
+    cmdStroke(r, t.borderStrong, 10, 1);
     RectF ic{r.x + 14, r.y + 14, 22, 22};
     cmdRect(ic.expand(3), tc.alpha(0.16f), 8);
     cmdIcon(e.icon.empty() ? toastIcon(e.tone) : e.icon.c_str(), ic.inset(1), tc);
@@ -524,8 +529,6 @@ void closePopup() {
   int idx = popupIndex(c.win->id);
   if (idx >= 0) closePopupsFrom(idx);
 }
-
-bool isPopupOpen(std::string_view name) { return popupOpen(id(name)); }
 
 bool beginPopup(std::string_view name, const PopupOpt& o) { return beginPopupId(id(name), o, false); }
 
@@ -622,7 +625,7 @@ bool menuItem(std::string_view lbl, const MenuItemOpt& o) {
   // Наведение на обычный пункт закрывает открытое подменю этого меню.
   if (m.it.hovered && int(c.popups.size()) > level) closePopupsFrom(level);
   Color fg = disabled ? t.textMuted : (o.danger ? t.danger : t.text);
-  if (m.hot) cmdRect(m.r, o.danger ? t.danger.alpha(0.14f) : (t.dark ? t.surface3.lighten(0.04f) : t.surface3), 6);
+  if (m.hot) cmdRect(m.r, o.danger ? t.danger.alpha(0.14f) : t.surface3.lighten(0.04f), 6);
   float x = m.r.x + 10;
   if (o.checked) cmdIcon("check", RectF{x, m.r.cy() - 8, 16, 16}, disabled ? t.textMuted : t.accent);
   else if (o.icon) cmdIcon(o.icon, RectF{x, m.r.cy() - 8, 16, 16}, disabled ? t.textMuted : (o.danger ? t.danger : (m.hot ? t.text : t.textDim)));
@@ -677,7 +680,7 @@ bool beginSubmenu(std::string_view lbl, const char* icon) {
     openPopupAt(sub, m.r, wid, true);
     open = true;
   }
-  if (m.hot || open) cmdRect(m.r, t.dark ? t.surface3.lighten(0.04f) : t.surface3, 6);
+  if (m.hot || open) cmdRect(m.r, t.surface3.lighten(0.04f), 6);
   float x = m.r.x + 10;
   if (icon) cmdIcon(icon, RectF{x, m.r.cy() - 8, 16, 16}, m.hot || open ? t.text : t.textDim);
   x += 26;
@@ -761,11 +764,11 @@ bool beginModal(std::string_view name, const ModalOpt& o, bool* open) {
   if (tt < 1) c.animating = true;
   w->alpha = easeOut(tt);
   w->dy = 10 * (1 - easeOut(tt));
-  cmdShadow(r, t.radiusPanel, 60, Color(0, 0, 0, t.dark ? 150 : 60), 24);
-  cmdShadow(r, t.radiusPanel, 4, Color(0, 0, 0, t.dark ? 80 : 20), 1);
+  cmdShadow(r, t.radiusPanel, 60, Color(0, 0, 0, 150), 24);
+  cmdShadow(r, t.radiusPanel, 4, Color(0, 0, 0, 80), 1);
   cmdRect(r, t.surface1, t.radiusPanel);
-  cmdStroke(r, t.dark ? t.borderStrong.alpha(0.8f) : t.border, t.radiusPanel, 1);
-  if (t.dark) cmdStroke(r.inset(1), Color(255, 255, 255, 6), t.radiusPanel - 1, 1);
+  cmdStroke(r, t.borderStrong.alpha(0.8f), t.radiusPanel, 1);
+  cmdStroke(r.inset(1), Color(255, 255, 255, 6), t.radiusPanel - 1, 1);
   c.modalStack.push_back({mid, 0, open, o.dismissOnBackdrop, false});
   // Заголовок
   float pad = 24;
@@ -781,7 +784,7 @@ bool beginModal(std::string_view name, const ModalOpt& o, bool* open) {
     if (o.icon) {
       Color tc = toneColor(o.tone);
       RectF ic{x, top - 2, 36, 36};
-      cmdRect(ic, tc.alpha(t.dark ? 0.15f : 0.12f), 10);
+      cmdRect(ic, tc.alpha(0.15f), 10);
       cmdIcon(o.icon, ic.inset(8), tc);
       x += 48;
     }
@@ -863,7 +866,6 @@ void closeModal() {
   if (!c.modalStack.empty()) c.modalStack.back().closeReq = true;
 }
 
-bool isModalOpen(std::string_view name) { return modalIndex(id(name)) >= 0; }
 bool anyModalOpen() { return !C().modals.empty(); }
 
 ModalFooter::ModalFooter() {

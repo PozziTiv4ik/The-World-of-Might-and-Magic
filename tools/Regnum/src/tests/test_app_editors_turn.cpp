@@ -1,6 +1,6 @@
 // Сценарии итогов хода на двух страницах (ТЗ «Фиксы», п.16): основные игровые государства (Faction::mainState)
 // и остальные фракции — подтверждение завершения хода и отчёт о ходе; записи хроники по страницам.
-#include "app/dialogs/turn_ui.h"
+#include "app/turn/turn_ui.h"
 #include "tests/test_app_editors_util.h"
 
 using namespace rg;
@@ -12,7 +12,7 @@ TEST(app_editors_turn_pages) {
   Harness h("editors_turn_pages");
   h.demo();
   h.dropToasts();
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   Id guild = firstGuild(h->world());
   CHECK(A && B && guild);
   CHECK(h->act("Основное государство", [&](Tx& tx) { rules::setMainState(tx, A, true); }));

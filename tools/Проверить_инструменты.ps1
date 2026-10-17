@@ -1,5 +1,7 @@
 param(
-    [switch]$KeepTemp
+    # -KeepTemp is the former name of the same switch.
+    [Alias('KeepTemp')]
+    [switch]$KeepFixture
 )
 
 $ErrorActionPreference = 'Stop'
@@ -7,8 +9,8 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
+. (Join-Path $PSScriptRoot 'lib/Testing.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("wmma_tool_test_" + [guid]::NewGuid().ToString('N'))
@@ -35,7 +37,7 @@ function Assert-TextContains {
         [string]$Expected
     )
 
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $Path
+    $text = Read-WmmaText $Path
     if (-not $text.Contains($Expected)) {
         throw "Expected text was not found in $Path`: $Expected"
     }
@@ -47,7 +49,7 @@ function Assert-TextNotContains {
         [string]$Unexpected
     )
 
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $Path
+    $text = Read-WmmaText $Path
     if ($text.Contains($Unexpected)) {
         throw "Unexpected text was found in $Path`: $Unexpected"
     }
@@ -56,7 +58,7 @@ function Assert-TextNotContains {
 function Get-NextAcceptedDecisionId {
     param([string]$DecisionLogPath)
 
-    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionLogPath
+    $decisionLog = Read-WmmaText $DecisionLogPath
     $numbers = @(
         [regex]::Matches($decisionLog, '(?m)^###\s+DEC-(\d{3})\s*$') |
             ForEach-Object { [int]$_.Groups[1].Value }
@@ -77,11 +79,11 @@ function Ensure-ToolTestPendingDecision {
     )
 
     $testQuestion = 'Тестовое pending-решение для проверки инструментов'
-    $registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionRegistryPath) | ConvertFrom-Json
+    $registry = Read-WmmaJson $DecisionRegistryPath
     $existing = @(
         $registry.decisions |
             Where-Object {
-                ($_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*') -and
+                (Test-WmmaPendingDecision $_) -and
                 $_.question -eq $testQuestion
             }
     ) | Select-Object -First 1
@@ -108,11 +110,11 @@ function Ensure-ToolTestPendingDecision {
         exit $LASTEXITCODE
     }
 
-    $registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $DecisionRegistryPath) | ConvertFrom-Json
+    $registry = Read-WmmaJson $DecisionRegistryPath
     $created = @(
         $registry.decisions |
             Where-Object {
-                ($_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*') -and
+                (Test-WmmaPendingDecision $_) -and
                 $_.question -eq $testQuestion
             }
     ) | Select-Object -Last 1
@@ -122,26 +124,6 @@ function Ensure-ToolTestPendingDecision {
     }
 
     return $created.id
-}
-
-function Invoke-ExpectedFailure {
-    param(
-        [string]$Name,
-        [scriptblock]$Action
-    )
-
-    $failed = $false
-    try {
-        & $Action
-    } catch {
-        $failed = $true
-    }
-
-    if (-not $failed) {
-        throw "Expected failure did not happen: $Name"
-    }
-
-    $global:LASTEXITCODE = 0
 }
 
 try {
@@ -224,7 +206,7 @@ try {
             -SkipCheck
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'FRONT-TOOL-TEST'
-        $frontRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $frontRegistryPath) | ConvertFrom-Json
+        $frontRegistryAfter = Read-WmmaJson $frontRegistryPath
         if (@($frontRegistryAfter.fronts | Where-Object { $_.id -eq 'FRONT-TOOL-TEST' }).Count -ne 1) {
             throw 'Новый_фронт.ps1 did not add FRONT-TOOL-TEST to the front registry.'
         }
@@ -242,7 +224,7 @@ try {
 
         Assert-TextContains -Path $frontTrackerPath -Expected 'Тестовое состояние после обновления фронта'
         Assert-TextContains -Path $frontTrackerPath -Expected 'активен: тестовый таймер обновлен'
-        $frontRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $frontRegistryPath) | ConvertFrom-Json
+        $frontRegistryAfter = Read-WmmaJson $frontRegistryPath
         $updatedFront = @($frontRegistryAfter.active_fronts | Where-Object { $_.id -eq 'FRONT-TOOL-TEST' })[0]
         $updatedTimer = @($frontRegistryAfter.timers | Where-Object { $_.id -eq 'FRONT-TOOL-TEST' })[0]
         if ($updatedFront.state -ne 'Тестовое состояние после обновления фронта') {
@@ -264,7 +246,7 @@ try {
             -SkipCheck
 
         Assert-TextContains -Path $openQuestionsPath -Expected 'Тестовый вопрос инструментов'
-        $questionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
+        $questionRegistryAfter = Read-WmmaJson $questionRegistryPath
         if (@($questionRegistryAfter.questions | Where-Object { $_.text -eq 'Тестовый вопрос инструментов' }).Count -ne 1) {
             throw 'Новый_вопрос.ps1 did not add the test question to the question registry.'
         }
@@ -279,9 +261,9 @@ try {
     Assert-TextContains -Path $currentContextPath -Expected 'Тестовое pending-решение для проверки инструментов'
 
     Invoke-Step 'Закрыть pending-решение не портит файлы при неизвестном ID' {
-        $decisionRegistryBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath
-        $decisionLogBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
-        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $decisionRegistryBefore = Read-WmmaText $decisionRegistryPath
+        $decisionLogBefore = Read-WmmaText $decisionLogPath
+        $openQuestionsBefore = Read-WmmaText $openQuestionsPath
         $missingPendingId = 'DEC-PENDING-999'
         $registryBefore = $decisionRegistryBefore | ConvertFrom-Json
         $registryIds = @($registryBefore.decisions | ForEach-Object { $_.id })
@@ -293,7 +275,7 @@ try {
             throw 'Cannot find unused DEC-PENDING-* ID for failure test.'
         }
 
-        Invoke-ExpectedFailure -Name 'Закрыть_решение.ps1 with unknown pending decision ID' -Action {
+        Expect-Failure -Message 'Expected failure did not happen: Закрыть_решение.ps1 with unknown pending decision ID' -Action {
             & (Join-Path $toolsRoot 'Закрыть_решение.ps1') `
                 -PendingId $missingPendingId `
                 -AcceptedId 'DEC-999' `
@@ -302,9 +284,9 @@ try {
                 -SkipCheck
         }
 
-        $decisionRegistryAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath
-        $decisionLogAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
-        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $decisionRegistryAfter = Read-WmmaText $decisionRegistryPath
+        $decisionLogAfter = Read-WmmaText $decisionLogPath
+        $openQuestionsAfter = Read-WmmaText $openQuestionsPath
         if ($decisionRegistryAfter -ne $decisionRegistryBefore) {
             throw 'Закрыть_решение.ps1 changed decision registry before failing.'
         }
@@ -319,7 +301,7 @@ try {
     }
 
     Invoke-Step 'Закрыть pending-решение без порчи журнала' {
-        $decisionLogBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
+        $decisionLogBefore = Read-WmmaText $decisionLogPath
         $pendingId = $toolTestPendingId
         if ($decisionLogBefore -notmatch "(?m)^###\s+$([regex]::Escape($pendingId))\s*$") {
             throw "Tool test pending decision was not found for Закрыть_решение.ps1 test: $pendingId"
@@ -336,10 +318,10 @@ try {
             -Effect $effect `
             -SkipCheck
 
-        $decisionLogAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
-        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $currentContextAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentContextPath
-        $decisionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionRegistryPath) | ConvertFrom-Json
+        $decisionLogAfter = Read-WmmaText $decisionLogPath
+        $openQuestionsAfter = Read-WmmaText $openQuestionsPath
+        $currentContextAfter = Read-WmmaText $currentContextPath
+        $decisionRegistryAfter = Read-WmmaJson $decisionRegistryPath
         $acceptedRegistryDecision = @($decisionRegistryAfter.decisions | Where-Object { $_.id -eq $acceptedId })[0]
 
         Assert-TextContains -Path $decisionLogPath -Expected "### $acceptedId"
@@ -371,9 +353,9 @@ try {
     }
 
     Invoke-Step 'Закрыть вопрос не портит файлы при неизвестном ID' {
-        $questionRegistryBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath
-        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $closedQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        $questionRegistryBefore = Read-WmmaText $questionRegistryPath
+        $openQuestionsBefore = Read-WmmaText $openQuestionsPath
+        $closedQuestionsBefore = Read-WmmaText $closedQuestionsPath
 
         $missingQuestionId = 'Q-C3-999'
         $registryBefore = $questionRegistryBefore | ConvertFrom-Json
@@ -386,16 +368,16 @@ try {
             throw 'Cannot find unused Q-* ID for failure test.'
         }
 
-        Invoke-ExpectedFailure -Name 'Закрыть_вопрос.ps1 with unknown question ID' -Action {
+        Expect-Failure -Message 'Expected failure did not happen: Закрыть_вопрос.ps1 with unknown question ID' -Action {
             & (Join-Path $toolsRoot 'Закрыть_вопрос.ps1') `
                 -QuestionId $missingQuestionId `
                 -Resolution "Тестовое закрытие $missingQuestionId" `
                 -SkipCheck
         }
 
-        $questionRegistryAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath
-        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
+        $questionRegistryAfter = Read-WmmaText $questionRegistryPath
+        $openQuestionsAfter = Read-WmmaText $openQuestionsPath
+        $closedQuestionsAfter = Read-WmmaText $closedQuestionsPath
 
         if ($questionRegistryAfter -ne $questionRegistryBefore) {
             throw 'Закрыть_вопрос.ps1 changed the question registry before failing.'
@@ -411,7 +393,7 @@ try {
     }
 
     Invoke-Step 'Закрыть открытый вопрос без порчи истории' {
-        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $openQuestionsBefore = Read-WmmaText $openQuestionsPath
         $questionMatch = [regex]::Match($openQuestionsBefore, '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|(?:[^|]*\|){3}\s*(?:active|waiting|later)\s*\|\s*$')
         if (-not $questionMatch.Success) {
             throw 'No open Q-C*/Q-WORLD entry found for Закрыть_вопрос.ps1 test.'
@@ -427,9 +409,9 @@ try {
             -Resolution $resolution `
             -SkipCheck
 
-        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
-        $questionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
+        $openQuestionsAfter = Read-WmmaText $openQuestionsPath
+        $closedQuestionsAfter = Read-WmmaText $closedQuestionsPath
+        $questionRegistryAfter = Read-WmmaJson $questionRegistryPath
         $registryQuestion = @($questionRegistryAfter.questions | Where-Object { $_.id -eq $questionId })[0]
         $registryHistory = @($questionRegistryAfter.history | Where-Object { $_.id -eq $questionId -and $_.resolution -eq $resolution })
 
@@ -458,7 +440,7 @@ try {
     }
 
     Invoke-Step 'Параллельное закрытие вопросов не портит таблицы' {
-        $openQuestionsBefore = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
+        $openQuestionsBefore = Read-WmmaText $openQuestionsPath
         $questionIds = @(
             [regex]::Matches($openQuestionsBefore, '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|(?:[^|]*\|){3}\s*(?:active|waiting|later)\s*\|\s*$') |
                 ForEach-Object { $_.Groups[1].Value } |
@@ -496,9 +478,9 @@ try {
             Remove-Job -Job $jobs -Force -ErrorAction SilentlyContinue
         }
 
-        $openQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-        $closedQuestionsAfter = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
-        $questionRegistryAfter = (Get-Content -Raw -Encoding UTF8 -LiteralPath $questionRegistryPath) | ConvertFrom-Json
+        $openQuestionsAfter = Read-WmmaText $openQuestionsPath
+        $closedQuestionsAfter = Read-WmmaText $closedQuestionsPath
+        $questionRegistryAfter = Read-WmmaJson $questionRegistryPath
         foreach ($questionId in $questionIds) {
             if ($openQuestionsAfter -match "(?m)^\|\s*$([regex]::Escape($questionId))\s*\|") {
                 throw "Parallel close left question in open table: $questionId"
@@ -624,7 +606,7 @@ try {
 
     "`nTool check completed successfully in: $copyRoot"
 } finally {
-    if ($KeepTemp) {
+    if ($KeepFixture) {
         "`nTemp copy kept: $copyRoot"
     } elseif (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force

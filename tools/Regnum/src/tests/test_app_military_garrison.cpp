@@ -3,28 +3,11 @@
 // гарнизона −100…100 % и мятеж при отрицательной верности — мятежники штурмуют оставшийся гарнизон; полное восстание
 // гарнизона — захват; подсказка с полным названием отряда в выпадающем списке назначения.
 #include "tests/test_app_war_util.h"
-#include "ui/ui_internal.h"
 
 using namespace rg;
 using namespace rg::apptest;
 
 namespace {
-
-// Провинция государства без войск, гарнизона и оккупации, где у точки подписи можно поставить войско.
-Id calmProvince(Harness& h, Id state) {
-  const World& w = h->world();
-  auto fs = geo::faces(w);
-  Id found = 0;
-  w.provinces.each([&](const Province& p) {
-    if (found || p.sea || p.owner != state || p.occupied || !p.garrison.empty()) return;
-    const geo::ProvinceShape* sh = fs->shape(p.id);
-    if (!sh || !rules::validPosition(w, ArmyKind::Army, sh->label)) return;
-    bool busy = false;
-    w.armies.each([&](const Army& a) { busy = busy || app::mil::provinceUnder(w, a.pos) == p.id; });
-    if (!busy) found = p.id;
-  });
-  return found;
-}
 
 void openGarrison(Harness& h, Id pid) {
   h->ui.tabOf[app::SelType::Province] = "province.garrison";
@@ -41,22 +24,12 @@ i64 garrisonOf(const World& w, Id pid) {
   return n;
 }
 
-std::string tipAt(Harness& h, float x, float y) {
-  h.move(2, 2);
-  h.move(x, y);
-  hl::advance(0.5);
-  h.frames(4);
-  const ui::in::Ctx& c = ui::in::C();
-  return c.tipRequested ? c.tipText : std::string();
-}
-
 }  // namespace
 
 // Несколько строк отрядов (из пустого состояния, кнопкой в заголовке раздела и под таблицей), герои (добавить —
 // занят для войска — убрать), верность гарнизона, подсказка обрезанного названия в списке назначения.
 TEST(app_military_garrison_rows_heroes_loyalty) {
   Harness h("military_garrison_full", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
   const Id pid = calmProvince(h, hel);
@@ -169,7 +142,6 @@ TEST(app_military_garrison_rows_heroes_loyalty) {
 // верность 0 %; мятежники в провинции без войск прежнего государства штурмуют оставшийся гарнизон.
 TEST(app_military_garrison_mutiny) {
   Harness h("military_garrison_mutiny", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
   const Id pid = calmProvince(h, hel);
@@ -218,7 +190,6 @@ TEST(app_military_garrison_mutiny) {
 // (по своей верности), мятежники нападают на верную часть — окно битвы.
 TEST(app_military_garrison_mutiny_with_army) {
   Harness h("military_garrison_mutiny_army", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
   const Id pid = calmProvince(h, hel);

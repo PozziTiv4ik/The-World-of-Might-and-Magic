@@ -1,5 +1,6 @@
-// Тесты rules: войска и флот — размещение, отряды и резерв, гарнизоны, герои, встречи всех видов,
-// объединение, союзные войска, разделение, битвы с потерями и отступлением.
+// Тесты rules: войска и флот — размещение, отряды и резерв, гарнизоны (герои и верность гарнизона), герои, встречи всех
+// видов, войска без государства, объединение, союзные войска, разделение, битвы с потерями и отступлением, захват
+// провинции (разграбить, разорить, опустошить), штурм и трупы.
 #include <cstdio>
 
 #include "tests/test_rules_util.h"
@@ -13,16 +14,8 @@ namespace {
 constexpr double R = schema::kObjectRadius;
 constexpr double G = schema::kInteractDist;   // наименьший промежуток между объектами и расстояние встречи
 
-i64 unitsIn(const World& w, Id army, Id faction, Id row) {
-  const Army* a = w.army(army);
-  if (!a) return -1;
-  i64 n = 0;
-  for (auto& g : a->groups)
-    if (g.faction == faction)
-      for (auto& u : g.units)
-        if (u.row == row) n += u.count;
-  return n;
-}
+// Провинция, в которой стоит войско.
+Id provinceOf(const World& w, Id army) { return geo::faces(w)->provinceAt(w.army(army)->pos); }
 
 // Все объекты стоят на допустимых местах и не перекрываются.
 void checkPlacement(const World& w) {
@@ -133,6 +126,46 @@ TEST(rules_military_garrison) {
   CHECK_EQ(f.fc(f.A).army[0].reserve, 40);
 }
 
+TEST(rules_military_garrison_heroes_and_loyalty) {
+  Fix f;
+  Id race = 0, row = 0, hero = 0, other = 0, army = 0;
+  f.tx([&](Tx& tx) {
+    race = addRace(tx);
+    own(tx, f.p[0], f.A, race, 1000);
+    row = addArmyRow(tx, f.A, UnitType::LightInf, "Стража", 100, 0);
+    setGarrison(tx, f.p[0], row, 60);
+    hero = createCharacter(tx, f.A, "Капитан стражи");
+    other = createCharacter(tx, f.B, "Чужак");
+    army = createArmy(tx, ArmyKind::Army, f.A, center(1));
+    setUnits(tx, army, f.A, row, 10);
+  });
+  f.tx([&](Tx& tx) { setGarrisonHero(tx, f.p[0], hero, true); });
+  CHECK_EQ(heroGarrison(f.w(), hero), f.p[0]);
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setHero(tx, army, hero, true); }); }), "в гарнизоне"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setGarrisonHero(tx, f.p[0], other, true); }); }), "только герои"));
+  // Верность гарнизона меняется эффектами государства («Децентрализация» −5 за ход).
+  f.tx([&](Tx& tx) { setFx(tx, schema::mod::Decentralization, {{Fx::LoyaltyPerTurn, -5}}); });
+  CHECK_NEAR(garrisonLoyaltyDelta(f.w(), f.p[0]), -5, 1e-12);
+  f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK_NEAR(f.w().province(f.p[0])->garrisonLoyalty, 95, 1e-12);
+  // «Непреклонный лоялист» в гарнизоне: верность не падает и растёт на 5 %.
+  f.tx([&](Tx& tx) { addModifier(tx, ModTarget::Character, hero, ensureBuiltinMod(tx, schema::mod::Loyalist)); });
+  CHECK_NEAR(garrisonLoyaltyDelta(f.w(), f.p[0]), 5, 1e-12);
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setGarrisonLoyalty(tx, f.p[0], 50); }); }), "лоялист"));
+  // Мёртвый герой снимается с гарнизона.
+  f.tx([&](Tx& tx) { heroFate(tx, hero, Fate::Killed, 0, f.p[0]); });
+  CHECK(f.w().province(f.p[0])->garrisonHeroes.empty());
+  // Смена владельца снимает героев и верность.
+  f.tx([&](Tx& tx) {
+    Id h2 = createCharacter(tx, f.A, "Второй");
+    setGarrisonHero(tx, f.p[0], h2, true);
+    setGarrisonLoyalty(tx, f.p[0], -30);
+    setProvinceOwner(tx, f.p[0], f.B);
+  });
+  CHECK(f.w().province(f.p[0])->garrisonHeroes.empty());
+  CHECK_NEAR(f.w().province(f.p[0])->garrisonLoyalty, 100, 1e-12);
+}
+
 TEST(rules_military_heroes_commander) {
   Fix f;
   Id a1 = 0, a2 = 0, h1 = 0, h2 = 0, hb = 0, free = 0;
@@ -241,6 +274,25 @@ TEST(rules_military_encounter_types) {
   CHECK(e.type == EncounterType::Battle);
   CHECK_EQ(e.us, f.B);
   CHECK_EQ(e.them, f.A);
+}
+
+TEST(rules_military_wild_armies) {
+  Fix f;
+  Id wild = 0, mine = 0, row = 0;
+  f.tx([&](Tx& tx) {
+    tx.province(f.p[1]).owner = f.B;
+    wild = spawnWildArmy(tx, center(1), "Древние стражи", {{"Древние стражи", UnitType::HeavyInf, schema::kRaceMechanical, 5000}});
+    row = addArmyRow(tx, f.A, UnitType::LightInf, "", 100);
+    mine = createArmy(tx, ArmyKind::Army, f.A, center(5));
+    setUnits(tx, mine, f.A, row, 100);
+  });
+  const Id wf = wildFaction(f.w());
+  CHECK(wf != 0 && f.w().faction(wf)->isWild());
+  CHECK(f.w().relation(f.A, wf).s == RelStatus::War);
+  CHECK(encounter(f.w(), mine, f.w().army(wild)->pos).type == EncounterType::Battle);
+  CHECK(!canSiege(f.w(), wild, f.p[1]));
+  for (const RelationRow& r : relationsOf(f.w(), f.A)) CHECK(r.other != wf);
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setRelation(tx, f.A, wf, 50, RelStatus::Alliance); }); }), "без государства"));
 }
 
 TEST(rules_military_declare_war) {
@@ -539,6 +591,84 @@ TEST(rules_military_battle_allied) {
   CHECK(dist(bp, center(5)) >= G);
   CHECK(bp.y < center(5).y);  // отступил в сторону, откуда пришёл (север)
   checkPlacement(w);
+}
+
+TEST(rules_military_capture_plunder_raze_devastate) {
+  Fix f;
+  Id race = 0, row = 0, a0 = 0, a1 = 0, a2 = 0;
+  f.tx([&](Tx& tx) {
+    race = addRace(tx);
+    for (int i : {0, 1, 2}) {
+      own(tx, f.p[i], f.B, race, 10000);
+      tx.province(f.p[i]).baseTrade = 100;
+    }
+    own(tx, f.p[4], f.A, race, 10);
+    declareWar(tx, f.A, f.B);
+    row = addArmyRow(tx, f.A, UnitType::LightInf, "", 300, 1);
+    a0 = createArmy(tx, ArmyKind::Army, f.A, center(0));
+    a1 = createArmy(tx, ArmyKind::Army, f.A, center(1));
+    a2 = createArmy(tx, ArmyKind::Army, f.A, center(2));
+    for (Id a : {a0, a1, a2}) setUnits(tx, a, f.A, row, 10);
+  });
+  CaptureOptions o = captureOptions(f.w(), a0, f.p[0]);
+  CHECK(o.can[int(Capture::Plunder)]);
+  CHECK_NEAR(o.plunderGold, 100, 1e-9);   // V × N / 10 000
+  CHECK_NEAR(o.razeGold, 200, 1e-9);
+  f.tx([&](Tx& tx) { capture(tx, a0, f.p[0], Capture::Plunder); });
+  CHECK(f.w().province(f.p[0])->occupied && f.w().province(f.p[0])->occupier == f.A);
+  CHECK_NEAR(f.w().faction(f.A)->treasury(), 100, 1e-9);
+  CHECK(provinceHas(f.w(), f.p[0], schema::mod::Plundered));
+  CHECK_NEAR(f.w().relation(f.A, f.B).v, -30, 1e-9);
+  CHECK(!captureOptions(f.w(), a0, f.p[0]).can[int(Capture::Plunder)]);
+  // Разорить: золото вдвое, без оккупации, войско отходит в соседнюю свою или оккупированную провинцию.
+  f.tx([&](Tx& tx) { capture(tx, a1, f.p[1], Capture::Raze); });
+  CHECK(!f.w().province(f.p[1])->occupied);
+  CHECK(provinceHas(f.w(), f.p[1], schema::mod::Ravaged));
+  CHECK_NEAR(f.w().faction(f.A)->treasury(), 300, 1e-9);
+  CHECK_EQ(provinceOf(f.w(), a1), f.p[0]);   // отступило в оккупированную П0
+  CHECK_NEAR(f.w().relation(f.A, f.B).v, -40, 1e-9);
+  // Опустошить 10 %: рабы, гибель, без владельца, «Неправедное деяние» и «Мучения совести».
+  f.tx([&](Tx& tx) { capture(tx, a2, f.p[2], Capture::Devastate, 10); });
+  CHECK_EQ(popOf(f.w(), f.p[2]), 0);
+  CHECK_EQ(f.w().province(f.p[2])->owner, Id(0));
+  CHECK(provinceHas(f.w(), f.p[2], schema::mod::Devastated));
+  CHECK_EQ(f.w().faction(f.A)->slaves[0].count, 1000);
+  CHECK(armyHas(f.w(), a2, schema::mod::Unrighteous));
+  CHECK(armyHas(f.w(), a2, schema::mod::Conscience));
+  CHECK_NEAR(f.w().relation(f.A, f.B).v, -60, 1e-9);
+}
+
+TEST(rules_military_siege_and_corpses) {
+  Fix f;
+  Id race = 0, ra = 0, rb = 0, army = 0, necro = 0;
+  f.tx([&](Tx& tx) {
+    race = addRace(tx);
+    own(tx, f.p[0], f.B, race, 1000);
+    declareWar(tx, f.A, f.B);
+    rb = addArmyRow(tx, f.B, UnitType::LightInf, "", 100, 1);
+    setGarrison(tx, f.p[0], rb, 100);
+    ra = addArmyRow(tx, f.A, UnitType::HeavyInf, "", 200, 1);
+    army = createArmy(tx, ArmyKind::Army, f.A, center(0));
+    setUnits(tx, army, f.A, ra, 200);
+    necro = createCharacter(tx, f.A, "Некромант");
+    addModifier(tx, ModTarget::Character, necro, ensureBuiltinMod(tx, schema::mod::Necromancer));
+    setHero(tx, army, necro, true);
+  });
+  CHECK(canSiege(f.w(), army, f.p[0]));
+  SiegeResult s;
+  s.attacker = army;
+  s.province = f.p[0];
+  s.attackerWins = true;
+  s.attackerOrigin = center(1);
+  s.attackerLosses[{f.A, ra}] = 20;
+  s.garrisonLosses[rb] = 60;
+  BattleOutcome out;
+  f.tx([&](Tx& tx) { out = resolveSiege(tx, s); });
+  CHECK(f.w().province(f.p[0])->garrison.empty());
+  CHECK_EQ(f.w().faction(f.B)->armyRow(rb)->total, 40);
+  CHECK_EQ(out.winner, f.A);
+  CHECK_NEAR(out.corpses, 6, 1e-9);   // некромант: 10 % от 60 погибших живых
+  CHECK_NEAR(f.w().faction(f.A)->stock(resourceId(f.w(), schema::kResCorpses)), 6, 1e-9);
 }
 
 TEST(rules_military_find_free_spot) {

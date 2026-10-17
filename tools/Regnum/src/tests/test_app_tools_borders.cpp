@@ -1,6 +1,7 @@
-// Сценарии правки границ (ТЗ 1.a.ii, 1.a.iv): режим правки и закреплённые границы, перетаскивание общей точки
-// (одна провинция растёт, соседняя уменьшается, отмена одним шагом), недопустимое перемещение, вставка и удаление
-// точки (двойной щелчок, Delete, меню), сдвиг стрелками, скольжение стыка вдоль берега.
+// Сценарии правки границ (ТЗ 1.a.ii, 1.a.iv): режим правки и закреплённые границы (вне его Delete не удаляет
+// провинцию; у «галочки» правки свой значок; прошлый ход — только чтение), перетаскивание общей точки (одна провинция
+// растёт, соседняя уменьшается, отмена одним шагом), недопустимое перемещение, вставка и удаление точки (двойной
+// щелчок, Delete, меню), сдвиг стрелками, скольжение стыка вдоль берега, ручки выбранной провинции на малом окне.
 #include "tests/test_app_tools_util.h"
 
 using namespace rg;
@@ -50,7 +51,7 @@ std::optional<gfx::Pt> pointInside(Harness& h, gfx::Pt s, Id prov, float r0 = 40
     for (int k = 0; k < 16; k++) {
       double ang = k * 3.14159265 / 8;
       gfx::Pt q{float(s.x + r * std::cos(ang)), float(s.y + r * std::sin(ang))};
-      if (!freeAt(h, q)) continue;
+      if (!freeOnScreen(h, q.x, q.y, 12)) continue;
       if (h->map().provinceAt(q.x, q.y) != prov) continue;
       Vec2 m = h->map().view().toMap(q.x, q.y);
       if (geo::hitEdge(h->world(), m, h->map().view().toMapLen(14), 0)) continue;
@@ -63,7 +64,6 @@ std::optional<gfx::Pt> pointInside(Harness& h, gfx::Pt s, Id prov, float r0 = 40
 
 TEST(app_tools_borders_view_mode_fixed) {
   // Правка выключена (ТЗ 1.a.ii): инструменты правки недоступны, границы не меняются, щелчок — сведения.
-  ToolGuard guard;
   Harness h("tools_view_mode");
   h.demo();
   CHECK(!h->ui.editBorders);
@@ -77,7 +77,7 @@ TEST(app_tools_borders_view_mode_fixed) {
   CHECK(sp.has_value());
   focus(h, Box2{sp->p.x - 150, sp->p.y - 100, sp->p.x + 150, sp->p.y + 100});
   u64 v0 = h->store.version();
-  gfx::Pt s = scr(h, sp->p);
+  gfx::Pt s = screenOf(h, sp->p);
   h.drag(s.x, s.y, s.x + 40, s.y + 30);
   CHECK_EQ(h->store.version(), v0);   // границы закреплены
   auto in = pointInside(h, s, sp->a);
@@ -93,8 +93,85 @@ TEST(app_tools_borders_view_mode_fixed) {
     CHECK_MSG(h->uiRect(n) != nullptr, n);
 }
 
+// ---------------------------------------------------------------- ТЗ 1.a.ii: выключенная правка — Delete удаляет провинцию
+TEST(app_tools_borders_view_mode_delete_key) {
+  Harness h("audit_tzprov_viewdel", 1440, 900);
+  h.demo();
+  CHECK(!h->ui.editBorders);
+  auto vp = h.visibleProvince();
+  CHECK(vp.has_value());
+  h.click(vp->second.x, vp->second.y);
+  h.settle();
+  CHECK(h->ui.sel == (app::Selection{app::SelType::Province, vp->first}));
+  size_t n0 = h->world().provinces.size();
+  h.key(Key::Delete);
+  h.settle();
+  bool dlg = h->hasDialog();
+  std::printf("  dialog after Delete in view mode: %d\n", int(dlg));
+  if (dlg) {
+    CHECK(h.shot("audit_tzprov_view_mode_delete"));
+    h.key(Key::Enter);
+    h.settle();
+  }
+  std::printf("  provinces %zu -> %zu\n", n0, size_t(h->world().provinces.size()));
+  // Регрессия (ТЗ 1.a.ii): вне режима правки Delete не удаляет провинцию и не спрашивает об этом.
+  CHECK(!dlg);
+  CHECK_MSG(h->world().provinces.size() == n0, "при выключенной «Правке границ» клавиша Delete удаляет провинцию с карты");
+  // В режиме правки — подтверждение удаления.
+  h->setEditBorders(true);
+  h.settle();
+  h->select(app::SelType::Province, vp->first);
+  h.settle();
+  h.move(4, 4);
+  h.key(Key::Delete);
+  h.settle();
+  CHECK(h->hasDialog("confirm"));
+}
+
+// ---------------------------------------------------------------- ТЗ 1.a.ii: «галочка» правки и инструмент «Правка границ» — один и тот же значок
+TEST(app_tools_borders_toggle_icon) {
+  Harness h("audit_tzprov_toggle", 1440, 900);
+  h.demo();
+  h.key(Key::E);
+  h.settle();
+  CHECK(h->ui.editBorders);
+  CHECK(h->ui.tool == app::ToolId::EditBorders);
+  const app::ToolDef* bt = app::findTool(app::ToolId::EditBorders);
+  CHECK(bt != nullptr);
+  std::printf("  borders tool icon «%s», toggle icon when on «%s»\n", bt->icon, app::detail::bordersToggleIcon(true));
+  const RectF* a = h->uiRect("tool.borders");
+  const RectF* b = h->uiRect("tool.borders-tool");
+  CHECK(a && b);
+  CHECK(cleanShot(h, "audit_tzprov_edit_toggle"));
+  // Регрессия: у «галочки» режима правки свой значок (замок), отличный от инструмента и в обоих состояниях.
+  CHECK_MSG(std::string(bt->icon) != app::detail::bordersToggleIcon(true),
+            "включённая «галочка» правки границ и соседний инструмент «Правка границ провинции» показаны одинаковым значком");
+  CHECK(std::string(app::detail::bordersToggleIcon(true)) != app::detail::bordersToggleIcon(false));
+}
+
+// Просмотр прошлого хода — только чтение, но кнопка-«галочка» правки границ на панели инструментов включает
+// режим правки (команда E при этом недоступна): появляются инструменты правки, инструмент границ активен.
+TEST(app_tools_borders_readonly_past_turn) {
+  Harness h("audit_cr_ro_borders");
+  h.demo();
+  int t0 = h->store.world().turn();
+  CHECK(h->endTurnNow());
+  h.settle();
+  CHECK(h->viewTurn(t0));
+  h.settle();
+  CHECK(h->readOnly());
+  CHECK(!h->ui.editBorders);
+  CHECK(h->uiRect("tool.borders") != nullptr);
+  CHECK(h.clickUi("tool.borders"));
+  h.settle();
+  CHECK_MSG(!h->ui.editBorders, "в режиме только просмотра кнопка правки границ включила правку");
+  CHECK_MSG(h->ui.tool != app::ToolId::EditBorders, "в режиме только просмотра активен инструмент правки границ");
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("audit_cr_ro_borders"));
+}
+
 TEST(app_tools_borders_shared_drag) {
-  ToolGuard guard;
   Harness h("tools_borders");
   h.demo();
   const World w0 = h->world();
@@ -106,7 +183,7 @@ TEST(app_tools_borders_shared_drag) {
   h->select(app::SelType::Province, sp->a);
   h.frames(2);
   focus(h, Box2{sp->p.x - 120, sp->p.y - 80, sp->p.x + 120, sp->p.y + 80});
-  gfx::Pt s = scr(h, sp->p);
+  gfx::Pt s = screenOf(h, sp->p);
   auto in = pointInside(h, s, sp->a);
   CHECK(in.has_value());
   h.click(in->x, in->y);
@@ -130,7 +207,7 @@ TEST(app_tools_borders_shared_drag) {
   double a0 = provArea(h->world(), sp->a), b0 = provArea(h->world(), sp->b);
   // Живой предпросмотр: мир меняется во время перетаскивания.
   std::vector<gfx::Pt> path;
-  for (int i = 0; i <= 6; i++) path.push_back(scr(h, sp->p + (target - sp->p) * (i / 6.0)));
+  for (int i = 0; i <= 6; i++) path.push_back(screenOf(h, sp->p + (target - sp->p) * (i / 6.0)));
   stroke(h, path, false);
   CHECK(dist(geo::handlePos(h->world(), hd), sp->p) > step * 0.9);
   CHECK(cleanShot(h, "tools_borders_drag"));
@@ -156,7 +233,7 @@ TEST(app_tools_borders_shared_drag) {
   for (float dy = -220; dy <= 220; dy += 8)
     for (float dx = -320; dx <= 320; dx += 8) {
       gfx::Pt q{s.x + dx, s.y + dy};
-      if (!freeAt(h, q) || dx * dx + dy * dy >= bestD || dx * dx + dy * dy < 30 * 30) continue;
+      if (!freeOnScreen(h, q.x, q.y, 12) || dx * dx + dy * dy >= bestD || dx * dx + dy * dy < 30 * 30) continue;
       Vec2 m = v.toMap(q.x, q.y);
       if (geo::canMove(h->world(), hd, m)) continue;
       bestD = dx * dx + dy * dy;
@@ -165,11 +242,11 @@ TEST(app_tools_borders_shared_drag) {
     }
   CHECK(found);
   u64 v1 = h->store.version();
-  stroke(h, {s, scr(h, bad)}, false);
+  stroke(h, {s, screenOf(h, bad)}, false);
   CHECK_EQ(h->store.version(), v1);
   CHECK(hl::cursor() == platform::Cursor::NotAllowed);
   CHECK(cleanShot(h, "tools_borders_invalid"));
-  release(h, scr(h, bad));
+  release(h, screenOf(h, bad));
   CHECK_EQ(h->store.version(), v1);
   CHECK(geo::handlePos(h->world(), hd) == sp->p);
   CHECK(!h->toasts().empty());
@@ -177,7 +254,6 @@ TEST(app_tools_borders_shared_drag) {
 }
 
 TEST(app_tools_borders_insert_delete_nudge) {
-  ToolGuard guard;
   Harness h("tools_points");
   h.demo();
   auto sp = findShared(h->world());
@@ -191,7 +267,7 @@ TEST(app_tools_borders_insert_delete_nudge) {
   size_t n0 = h->world().edges.get(sp->edge)->pts.size();
   // Двойной щелчок по середине звена — новая точка (и она выбрана).
   Vec2 mid = (sp->p + sp->next) * 0.5;
-  gfx::Pt ms = scr(h, mid);
+  gfx::Pt ms = screenOf(h, mid);
   h.move(ms.x, ms.y);
   CHECK(hl::cursor() == platform::Cursor::Crosshair);
   CHECK(cleanShot(h, "tools_borders_insert_hover"));
@@ -211,7 +287,7 @@ TEST(app_tools_borders_insert_delete_nudge) {
   CHECK_EQ(h->world().edges.get(sp->edge)->pts.size(), n0);
 
   // Меню правой кнопки: удалить точку.
-  gfx::Pt s = scr(h, sp->p);
+  gfx::Pt s = screenOf(h, sp->p);
   h.click(s.x, s.y, platform::MouseRight);
   h.settle();
   CHECK(cleanShot(h, "tools_borders_menu"));
@@ -248,7 +324,6 @@ TEST(app_tools_borders_insert_delete_nudge) {
 }
 
 TEST(app_tools_borders_slide_junction) {
-  ToolGuard guard;
   Harness h("tools_slide");
   h.demo();
   const World& w = h->world();
@@ -290,13 +365,13 @@ TEST(app_tools_borders_slide_junction) {
   h.frames(2);
   focus(h, Box2{best->p.x - 60, best->p.y - 40, best->p.x + 60, best->p.y + 40});
   h.key(Key::B);
-  gfx::Pt s = scr(h, best->p);
+  gfx::Pt s = screenOf(h, best->p);
   h.move(s.x, s.y);
   CHECK(hl::cursor() == platform::Cursor::Move);
   double a0 = provArea(h->world(), best->prov);
   dragMap(h, best->p, best->along, 6, false);
   CHECK(cleanShot(h, "tools_borders_slide"));
-  release(h, scr(h, best->along));
+  release(h, screenOf(h, best->along));
   const Node* n = h->world().nodes.get(best->node);
   CHECK(n != nullptr);
   CHECK(dist(n->p, best->p) > 1);              // стык сдвинулся
@@ -307,4 +382,21 @@ TEST(app_tools_borders_slide_junction) {
   h.key(Key::Z, ctrl());
   CHECK(h->world().nodes.get(best->node)->p == best->p);
   CHECK_NEAR(provArea(h->world(), best->prov), a0, 1e-6);
+}
+
+// ---------------------------------------------------------------- ТЗ 1.a.iv: режим правки на небольшом окне — снимок ручек выбранной провинции
+TEST(app_tools_borders_small_window_shot) {
+  Harness h("audit_tzprov2_small", 1280, 720);
+  h.demo();
+  h.key(Key::E);
+  auto vp = h.visibleProvince();
+  CHECK(vp.has_value());
+  h.click(vp->second.x, vp->second.y);
+  h.settle();
+  CHECK(h->ui.sel.id == vp->first);
+  CHECK(h->ui.tool == app::ToolId::EditBorders);
+  CHECK(cleanShot(h, "audit_tzprov2_edit_small"));
+  const RectF* tb = h->uiRect("toolbar");
+  const RectF* lg = h->uiRect("legend");
+  if (tb && lg) std::printf("  toolbar %.0f,%.0f-%.0f,%.0f legend %.0f,%.0f-%.0f,%.0f\n", tb->x, tb->y, tb->right(), tb->bottom(), lg->x, lg->y, lg->right(), lg->bottom());
 }

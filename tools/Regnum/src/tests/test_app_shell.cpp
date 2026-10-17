@@ -1,14 +1,15 @@
 // Regnum — сценарии оболочки: закреплённые строки и ленты без зазоров и наложений, панели справа от карты,
 // страницы на месте карты (сущность, каталог, редакторы разделов), «Назад» и «К карте», параметры инструмента в
-// верхней строке. Снимки — .wmma/regnum-tests/app_shell_*.png.
+// верхней строке, клавиши в текстовом поле не запускают команды карты, палитра команд (прокрутка колесом, покой без
+// событий). Снимки — .wmma/regnum-tests/app_shell_*.png.
 #include "tests/test_app_faction_util.h"
 
-namespace rg {
-namespace {
-
-using namespace apptest;
+using namespace rg;
+using namespace rg::apptest;
 using app::SelType;
 using app::View;
+
+namespace {
 
 bool near(float a, float b) { return std::fabs(a - b) < 0.75f; }
 
@@ -26,18 +27,22 @@ Id firstFaction(const World& w, bool guild) {
   return id;
 }
 
-Id firstLand(const World& w) {
-  Id id = 0;
-  w.provinces.each([&](const Province& p) {
-    if (!id && !p.sea && p.owner) id = p.id;
-  });
-  return id;
+// Отпечаток области последнего кадра (логические пиксели).
+u64 regionHash(Harness& h, RectF r) {
+  const platform::Frame& f = hl::lastFrame();
+  u64 x = 1469598103934665603ull;
+  for (int y = int(r.y * f.scale); y < int(r.bottom() * f.scale) && y < f.h; y++)
+    for (int xx = int(r.x * f.scale); xx < int(r.right() * f.scale) && xx < f.w; xx++) {
+      x ^= f.row(y)[xx];
+      x *= 1099511628211ull;
+    }
+  (void)h;
+  return x;
 }
 
 }  // namespace
 
 TEST(app_shell_docked_layout) {
-  factest::HideTestRegs hide;
   Harness h("shell_layout");
   h.demo();
   h.dropToasts();
@@ -51,7 +56,7 @@ TEST(app_shell_docked_layout) {
   CHECK(h.shot("shell_map"));
 
   // Провинция — панель справа от карты, вплотную к ленте разделов.
-  Id pid = firstLand(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   CHECK(pid != 0);
   h->select(SelType::Province, pid);
   h.settle();
@@ -93,12 +98,11 @@ TEST(app_shell_docked_layout) {
 }
 
 TEST(app_shell_pages) {
-  factest::HideTestRegs hide;
   Harness h("shell_pages");
   h.demo();
   h.dropToasts();
   const World& w = h->world();
-  Id pid = firstLand(w);
+  Id pid = test::firstOwnedLand(w);
   Id owner = w.province(pid)->owner;
   h->select(SelType::Province, pid);
   h.settle();
@@ -192,7 +196,6 @@ TEST(app_shell_pages) {
 }
 
 TEST(app_shell_tool_options) {
-  factest::HideTestRegs hide;
   // Параметры инструмента — в середине верхней строки; в узком окне — строкой над картой.
   {
     Harness h("shell_tool_options");
@@ -218,11 +221,10 @@ TEST(app_shell_tool_options) {
 }
 
 TEST(app_shell_light_and_readonly) {
-  factest::HideTestRegs hide;
   Harness h("shell_light", 1440, 900, 1, kAltScheme);
   h.demo();
   h.dropToasts();
-  Id pid = firstLand(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   h->select(SelType::Province, pid);
   h.settle();
   CHECK(h.shot("shell_light"));
@@ -232,7 +234,6 @@ TEST(app_shell_light_and_readonly) {
 }
 
 TEST(app_shell_schemes) {
-  factest::HideTestRegs hide;
   // У каждого цветокора — своя палитра карты (тот же id); по умолчанию карта в исходных цветах.
   for (int i = 0; i < ui::schemeCount(); i++)
     CHECK_EQ(std::string(map::paletteId(app::detail::schemePalette(i))), std::string(ui::schemeInfo(i).id));
@@ -240,7 +241,7 @@ TEST(app_shell_schemes) {
   h.demo();
   h.dropToasts();
   CHECK(h->map().palette() == map::Palette::Source);
-  Id pid = firstLand(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   for (int i = 0; i < ui::schemeCount(); i++) {
     const std::string id = ui::schemeInfo(i).id;
     h->setScheme(i);
@@ -269,4 +270,93 @@ TEST(app_shell_schemes) {
   CHECK(h->map().palette() == map::Palette::Source);
 }
 
-}  // namespace rg
+// ---------------------------------------------------------------- клавиши в текстовом поле не запускают команды карты
+TEST(app_shell_textfield_keys_not_commands) {
+  Harness h("audit_tzprov2_keys", 1440, 1180);
+  h.demo();
+  auto vp = h.visibleProvince();
+  CHECK(vp.has_value());
+  h->ui.tabOf[app::SelType::Province] = "province.overview";
+  h.click(vp->second.x, vp->second.y);
+  h.settle();
+  CHECK(h->ui.sel.id == vp->first);
+  const RectF* r = h->uiRect("province.capital");
+  CHECK(r != nullptr);
+  if (!r) return;
+  h.click(r->cx(), r->cy());
+  h.settle();
+  CHECK(ui::wantsKeyboard());
+  int mode0 = int(h->ui.mapMode);
+  size_t n0 = h->world().provinces.size();
+  h.key(Key::Delete);
+  h.key(Key::E);
+  h.key(Key::P);
+  h.key(Key::M);
+  h.key(Key::D2);
+  h.settle();
+  std::printf("  dialog %d editBorders %d provinces %zu -> %zu\n", int(h->hasDialog()), int(h->ui.editBorders), n0, size_t(h->world().provinces.size()));
+  // Регрессия: клавиши без Ctrl в текстовом поле не запускают команды карты, инструменты и панели.
+  CHECK(!h->hasDialog());
+  CHECK(!h->ui.editBorders);
+  CHECK(h->ui.tool == app::ToolId::Select);
+  CHECK_EQ(h->world().provinces.size(), n0);
+  CHECK(h->ui.drawer.empty());
+  CHECK_EQ(int(h->ui.mapMode), mode0);
+}
+
+// Палитра команд (Ctrl+K): каждый кадр прокручивает список к подсвеченной строке (VirtualList::scrollToRow →
+// scrollToItem с requestRedraw) — колесо мыши не листает результаты, а окно перерисовывается без остановки.
+TEST(app_shell_palette_scroll_and_idle) {
+  Harness h("audit_cr_palette");
+  h.demo();
+  h.dropToasts();
+  h.settle();
+  h.waitMap();
+  h.settle();
+  bool idleBefore = !h->animating();
+  std::printf("  palette: animating before open = %d\n", int(!idleBefore));
+  h.key(Key::K, ctrl());
+  h.settle();
+  CHECK(h->hasDialog("palette"));
+  h.type("а");   // много провинций, персонажей и государств
+  h.settle();
+  const RectF* sr = h->uiRect("palette.search");
+  CHECK(sr != nullptr);
+  RectF list{sr->x, sr->bottom() + 8, sr->w, 360};
+  h.move(list.cx(), list.y + 120);
+  h.frames(10);
+  u64 before = regionHash(h, list);
+  CHECK(h.shot("audit_cr_palette_before"));
+  (void)before;
+  // Подсвеченная строка (золотая полоска слева) видна до прокрутки.
+  auto accentRows = [&] {
+    int n = 0;
+    for (float y = list.y; y < list.bottom(); y += 1) {
+      u32 p = h.pixel(list.x + 1, y);
+      int r = int((p >> 16) & 255), g = int((p >> 8) & 255), b = int(p & 255);
+      if (r > 190 && g > 130 && g < 190 && b < 110) n++;
+    }
+    return n;
+  };
+  int accBefore = accentRows();
+  // Колесо вниз на 12 щелчков (≈ 12 строк) без движения мыши: подсвеченная строка должна уйти из вида.
+  hl::wheel(list.cx(), list.y + 120, -12);
+  h.step();
+  h.frames(40);
+  int accAfter = accentRows();
+  CHECK(h.shot("audit_cr_palette_after_wheel"));
+  std::printf("  palette: accent bar pixels before=%d after wheel=%d\n", accBefore, accAfter);
+  CHECK(accBefore > 0);
+  CHECK_MSG(!(accBefore > 0 && accAfter > 0), "колесо мыши не уводит список палитры от подсвеченной строки (scrollToRow каждый кадр)");
+  // Простой: окно с палитрой не должно перерисовываться без событий. Мигание каретки в поле поиска длится 10 с
+  // после ввода — пропускаем его, затем дожидаемся конца анимаций.
+  hl::advance(11);
+  h.settle();
+  int busy = 0;
+  for (int i = 0; i < 30; i++) {
+    h.frame();
+    if (h->animating()) busy++;
+  }
+  std::printf("  palette: busy frames while idle = %d/30\n", busy);
+  CHECK_MSG(!idleBefore || busy == 0, "открытая палитра команд перерисовывает окно каждый кадр без событий (ui::requestRedraw в scrollToItem)");
+}

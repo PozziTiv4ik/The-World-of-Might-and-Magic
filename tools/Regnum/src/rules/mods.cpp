@@ -13,7 +13,7 @@ std::string amountOf(Id res, double v) { return res == kGold ? fmtGold(v) : amou
 std::string resName(const World& w, Id res) {
   const CatalogItem* c = w.resource(res);
   if (!c) return "ресурс #" + std::to_string(res);
-  return c->name.empty() ? "Без названия" : c->name;
+  return nameOr(c->name);
 }
 std::string facName(const World& w, Id f) { return q(w.factionName(f)); }
 std::string provName(const World& w, Id p) { return q(w.provinceName(p)); }
@@ -25,11 +25,11 @@ std::string armyName(const World& w, Id a) {
 }
 std::string buildingName(const World& w, Id b) {
   const Building* x = w.building(b);
-  return q(x ? (x->name.empty() ? "Без названия" : x->name) : "—");
+  return q(x ? nameOr(x->name) : "—");
 }
 std::string techName(const World& w, Id t) {
   const Tech* x = w.tech(t);
-  return q(x ? (x->name.empty() ? "Без названия" : x->name) : "—");
+  return q(x ? nameOr(x->name) : "—");
 }
 
 std::string uniqueName(const std::vector<std::string>& taken, const std::string& base) {
@@ -200,18 +200,31 @@ struct FxSum {
 
 }  // namespace
 
+}  // namespace detail
+
+Modifier provinceModView(const World& w, Id province, Id modifier) {
+  const Modifier* x = w.modifier(modifier);
+  if (!x) return Modifier{};
+  Modifier m = *x;
+  // «Здание чумы» в провинции меняет действие «Чумы»: прирост населения +2,5 %.
+  if (m.key == schema::mod::Plague && hasBuildingRole(w, province, BuildingFlag::Plague)) {
+    m.fx[size_t(Fx::PopGrowthPct)] = schema::kPlagueBuildingGrowth;
+    m.fxMask |= 1u << int(Fx::PopGrowthPct);
+    m.desc = "«Здание чумы» в провинции: чума даёт прирост населения.";
+  }
+  return m;
+}
+
+namespace detail {
+
 Effects provinceFx(const World& w, const SourceIndex& si, const Province& p) {
   FxSum s{w, FxSum::Level::Province, 0, {}};
   if (p.sea) return s.e;  // морские провинции не участвуют в расчётах
-  // «Здание чумы» в провинции меняет действие «Чумы»: прирост населения +2,5 % (ТЗ «Доработки №3», п.5).
-  const bool plagueBld = hasBuildingRole(w, p.id, BuildingFlag::Plague);
   for (Id m : p.modifiers) {
     const Modifier* x = w.modifier(m);
-    if (x && plagueBld && x->key == schema::mod::Plague) {
-      Modifier alt = *x;
-      alt.fx[size_t(Fx::PopGrowthPct)] = schema::kPlagueBuildingGrowth;
-      alt.fxMask |= 1u << int(Fx::PopGrowthPct);
-      s.addMod(EffectSource::Province, p.id, m, &alt);
+    if (x && x->key == schema::mod::Plague) {
+      const Modifier view = provinceModView(w, p.id, m);
+      s.addMod(EffectSource::Province, p.id, m, &view);
       continue;
     }
     s.add(EffectSource::Province, p.id, m);
@@ -259,7 +272,7 @@ Effects armyFx(const World& w, const Army& a, const Effects* leaderFx) {
 int slotsOf(const Province& p, const Effects& fx) {
   if (p.sea) return 0;
   int size = int(p.size) >= 0 && int(p.size) < 3 ? schema::kProvSizes[int(p.size)].value : 0;
-  int city = int(p.city) >= 0 && int(p.city) < 4 ? schema::kCityTypes[int(p.city)].value : 0;
+  const int city = schema::cityType(cityType(p)).value;
   long mods = std::lround(fx[Fx::Slots]);
   return int(std::max<long>(0, long(size) + long(city) + mods));
 }

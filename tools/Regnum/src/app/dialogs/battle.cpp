@@ -3,7 +3,8 @@
 // исходной позиции, «Применить итог» — rules::resolveBattle: потери вычитаются из отрядов и общей численности,
 // проигравший смещается от места боя, объект без отрядов исчезает. Перед боем мятежники переманивают неверную часть
 // войска прежнего государства (ТЗ «Мятеж», п.3); после — трупы, «Судьба героев» (ТЗ «Механика героев», п.1) и штурм
-// победившими мятежниками (ТЗ «Мятеж», п.2).
+// победившими мятежниками (ТЗ «Мятеж», п.2). Роли (ТЗ «Доработки №4», п.5): итог битвы вводит и применяет участник
+// (App::play; потери обеих сторон — по правилам окна), остальные видят окно только для чтения.
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -66,6 +67,8 @@ struct BattleDialog final : Dialog {
   std::shared_ptr<bool> retreatOk = std::make_shared<bool>(false);   // подтверждено «Отступить без потерь»
 
   const char* id() const override { return "battle"; }
+  // Решение за битву принимает участник: своя фракция в одном из объектов.
+  bool party(App& a, const World& w) const { return playsAny(a, w, attacker) || playsAny(a, w, defender); }
   Style style(App& a) override {
     // Место боя — провинция под защитником.
     const World& w = frameWorld(a);
@@ -120,7 +123,7 @@ struct BattleDialog final : Dialog {
       bool sel = winner == i;
       float hv = ui::animate(wid ^ 1, it.hovered ? 1.f : 0.f);
       float sk = ui::animate(wid ^ 2, sel ? 1.f : 0.f, 0.14f);
-      Color bg = Color::mix(th.surface3, th.accent.alpha(th.dark ? 0.16f : 0.14f), sk);
+      Color bg = Color::mix(th.surface3, th.accent.alpha(0.16f), sk);
       ui::draw::rect(h, bg, 10);
       if (hv > 0.01f && !sel) ui::draw::rect(h, th.hover.alpha(hv), 10);
       ui::draw::rectStroke(h, Color::mix(th.border, th.accent, sk), 10, 1 + sk * 0.75f);
@@ -134,7 +137,7 @@ struct BattleDialog final : Dialog {
         const char* why = "Нет отрядов";
         float bw = ui::measure(why, ui::Font::Small) + 30;
         RectF b{right - bw, h.cy() - 12, bw, 24};
-        ui::draw::rect(b, th.danger.alpha(th.dark ? 0.18f : 0.12f), 12);
+        ui::draw::rect(b, th.danger.alpha(0.18f), 12);
         ui::draw::icon("skull", RectF{b.x + 7, b.cy() - 7, 14, 14}, th.danger);
         ui::draw::text(why, RectF{b.x + 24, b.y, bw - 28, b.h}, ui::Font::Small, th.danger);
         right = b.x - 10;
@@ -162,7 +165,7 @@ struct BattleDialog final : Dialog {
   // потерями, итог.
   void sideCard(App& a, const World& w, const Army& ar, int role) {
     bool fleet = ar.isFleet();
-    bool ro = a.readOnly();
+    const bool ro = !party(a, w);
     ui::IdScope s(role == 0 ? "attacker" : "defender");
     {
       ui::Card card({.pad = 12, .tone = winner == role ? ui::Tone::Accent : ui::Tone::Neutral});
@@ -280,7 +283,7 @@ struct BattleDialog final : Dialog {
     std::string an = objectName(*A), dn = objectName(*D);
     std::string winName = r.attackerWins ? an : dn;
     rules::BattleOutcome out;
-    if (!a.act("Битва: " + an + " против " + dn, [&](Tx& tx) { out = rules::resolveBattle(tx, r); })) return;
+    if (!party(a, w) || !a.play("Битва: " + an + " против " + dn, [&](Tx& tx) { out = rules::resolveBattle(tx, r); })) return;
     Id win = r.attackerWins ? attacker : defender;
     if (a.world().army(win)) a.select(SelType::Army, win);
     else a.clearSelection();
@@ -346,7 +349,7 @@ struct BattleDialog final : Dialog {
     }
     a.markUi("battle.retreat");
     {
-      ui::Disabled dis(a.readOnly());
+      ui::Disabled dis(!party(a, w));
       if (ui::button("Применить итог", {.variant = ui::Variant::Primary, .icon = "check"})) {
         apply(a);
         if (decided) return false;
@@ -385,7 +388,8 @@ void openBattle(App& a, Id attacker, Id defender, Vec2 origin, std::function<voi
     const Vec2 tpos = t->pos;
     const ArmyKind kind = t->kind;
     bool gone = false;
-    if (a.act("Переход к мятежникам: " + objectName(*t), [&](Tx& tx) {
+    const bool party = playsAny(a, before, attacker) || playsAny(a, before, defender);   // часть игрового действия участника
+    if (party && a.play("Переход к мятежникам: " + objectName(*t), [&](Tx& tx) {
           rules::defect(tx, attacker, defender);
           if (!tx.w().army(defender)) {
             gone = true;

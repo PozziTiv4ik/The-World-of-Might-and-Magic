@@ -32,19 +32,13 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$registryPath = Join-Path $root '09_Реестры\Фронты.json'
-
 function Normalize-Cell {
     param([string]$Value)
 
     return (($Value.Trim() -replace '\r?\n', ' ') -replace '\|', '/')
 }
 
-if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Front registry is missing: 09_Реестры/Фронты.json. Restore the authoritative JSON registry from a verified backup."
-}
-
-$registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $registryPath) | ConvertFrom-Json
+$registry = Read-WmmaRegistry $root 'Фронты'
 $fronts = @($registry.fronts)
 if (-not ($fronts | Where-Object { $_.id -eq $FrontId } | Select-Object -First 1)) {
     throw "FRONT-ID is not found: $FrontId"
@@ -122,19 +116,8 @@ if (-not $changed) {
 }
 
 $registry.updated_real_date = Get-Date -Format 'yyyy-MM-dd'
-$json = ($registry | ConvertTo-Json -Depth 8).TrimEnd() + "`n"
-$encoding = [System.Text.UTF8Encoding]::new($false)
-[System.IO.File]::WriteAllText($registryPath, $json, $encoding)
-
-& (Join-Path $root 'tools\Собрать_фронты.ps1') -SkipCheck
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Write-WmmaRegistry $root 'Фронты' $registry
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_фронты' -SkipCheck:$SkipCheck
 
 "Updated front: $FrontId"
 }

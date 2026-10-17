@@ -2,7 +2,8 @@
 // (оккупация); захватить и разграбить (золото ТекущаяЦенность × Население / 10 000, «Разграбленная провинция»,
 // отношения −5); разорить (вдвое больше золота, «Разоренная провинция», войско отступает, отношения −10); опустошить
 // (0–75 % населения — в рабы, остальные гибнут, «Опустошенная провинция», войску — «Неправедное деяние» и «Мучения
-// совести», отношения −20). Доступность и причины — rules::captureOptions, решение — rules::capture.
+// совести», отношения −20). Доступность и причины — rules::captureOptions, решение — rules::capture. Роли (ТЗ «Доработки
+// №4», п.5): решение принимает участник (своё войско или владелец провинции; App::play).
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -51,6 +52,12 @@ struct CaptureDialog final : Dialog {
   }
   void dismissed(App& a) override { close(a); }
 
+  // Участник захвата: своя фракция в войске или владелец провинции.
+  bool party(App& a, const World& w) const {
+    const Province* p = w.province(province);
+    return playsAny(a, w, army) || (p && a.canPlay(p->owner));
+  }
+
   // Войско без «Армия нежити», «Армия демонов», «Безжалостная армия» мучается совестью.
   bool guilty(const World& w) const {
     return !rules::armyHas(w, army, schema::mod::UndeadArmy) && !rules::armyHas(w, army, schema::mod::DemonArmy) &&
@@ -63,7 +70,7 @@ struct CaptureDialog final : Dialog {
     const rules::CaptureOptions o = rules::captureOptions(w, army, province);
     const Id ar = army, pid = province;
     const int pct = slavesPct;
-    if (!a.act(std::string(kOptions[int(how)].button) + ": " + pn, [&](Tx& tx) { rules::capture(tx, ar, pid, how, pct); })) return;
+    if (!party(a, w) || !a.play(std::string(kOptions[int(how)].button) + ": " + pn, [&](Tx& tx) { rules::capture(tx, ar, pid, how, pct); })) return;
     switch (how) {
       case Capture::Occupy: a.toast("Провинция оккупирована: " + pn, ToastKind::Success, "occupied"); break;
       case Capture::Plunder: a.toast("Разграблено: +" + fmtGold(o.plunderGold) + " золота", ToastKind::Success, "coins"); break;
@@ -176,7 +183,7 @@ struct CaptureDialog final : Dialog {
     }
     a.markUi("capture.cancel");
     {
-      ui::Disabled dis(a.readOnly());
+      ui::Disabled dis(!party(a, w));
       const bool can = choice >= 0 && o.can[choice];
       const Capture how = can ? Capture(choice) : Capture::Occupy;
       if (ui::button(can ? kOptions[choice].button : "Захватить",

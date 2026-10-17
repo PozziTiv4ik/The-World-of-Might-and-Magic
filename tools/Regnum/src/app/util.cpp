@@ -189,22 +189,6 @@ std::optional<gfx::Image> loadImage(const std::string& path, int maxSide) {
   return img;
 }
 
-std::string findBasemapDir() {
-  std::vector<std::string> bases;
-  std::string exe = fs::exeDir();
-  bases.push_back(fs::join(exe, "assets/basemap"));
-  bases.push_back(fs::join(exe, "../assets/basemap"));
-  bases.push_back(fs::join(exe, "../../assets/basemap"));
-  bases.push_back(fs::join(exe, "../share/regnum/basemap"));
-  bases.push_back(fs::join(exe, "../Resources/basemap"));
-  std::string cwd = fs::absolute(".");
-  bases.push_back(fs::join(cwd, "tools/Regnum/assets/basemap"));
-  bases.push_back(fs::join(cwd, "assets/basemap"));
-  for (auto& b : bases)
-    if (fs::isFile(fs::join(b, "map.json"))) return fs::absolute(b);
-  return {};
-}
-
 // ---------------------------------------------------------------- выделение
 std::string entityName(const World& w, Selection s) {
   switch (s.type) {
@@ -378,6 +362,29 @@ Box2 selectionBox(const World& w, Selection s) {
     default: break;
   }
   return b;
+}
+
+u64 sessionTag(App& a) {
+  const Meta& m = *a.store.world().meta;
+  return hashMix(hash64(a.dataDir()), hash64(m.createdAt + "|" + m.basemap));
+}
+
+const char* toastIcon(ToastKind k) {
+  switch (k) {
+    case ToastKind::Success: return "check-circle";
+    case ToastKind::Warning: return "warning";
+    case ToastKind::Danger: return "error";
+    default: return "info";
+  }
+}
+
+ui::Tone toastTone(ToastKind k) {
+  switch (k) {
+    case ToastKind::Success: return ui::Tone::Success;
+    case ToastKind::Warning: return ui::Tone::Warning;
+    case ToastKind::Danger: return ui::Tone::Danger;
+    default: return ui::Tone::Info;
+  }
 }
 
 }  // namespace rg::app::detail

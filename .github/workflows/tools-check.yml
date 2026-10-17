@@ -1,15 +1,13 @@
 name: Tools Check
 
 # Сценарные наборы инструментов на копиях проекта (около 6 минут): только при изменении скриптов,
-# шаблонов, схем реестров или hooks; в остальное время — вручную (Run workflow).
+# схем реестров или hooks; в остальное время — вручную (Run workflow).
 on:
   push:
     branches: [main]
     paths:
       - 'tools/*.ps1'
       - 'tools/lib/**'
-      - 'tools/migrations/**'
-      - '09_Шаблоны/**'
       - '09_Реестры/Схемы/**'
       - '.githooks/**'
       - '.github/workflows/tools-check.yml'
@@ -17,8 +15,6 @@ on:
     paths:
       - 'tools/*.ps1'
       - 'tools/lib/**'
-      - 'tools/migrations/**'
-      - '09_Шаблоны/**'
       - '09_Реестры/Схемы/**'
       - '.githooks/**'
       - '.github/workflows/tools-check.yml'
@@ -43,7 +39,7 @@ jobs:
 
       - name: Check context and turn recovery
         shell: pwsh
-        run: .\tools\Проверить_систему_v2.ps1
+        run: .\tools\Проверить_сценарии_контекста.ps1
 
       - name: Check bounded connections and chronology
         shell: pwsh

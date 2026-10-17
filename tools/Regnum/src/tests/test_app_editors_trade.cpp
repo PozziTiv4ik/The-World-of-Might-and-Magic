@@ -26,12 +26,6 @@ void enterTab(Harness& h, const std::string& name, const std::string& value) {
   quick(h);
 }
 
-Id newestDeal(const World& w) {
-  Id id = 0;
-  w.deals.each([&](const Deal& d) { id = std::max(id, d.id); });
-  return id;
-}
-
 // Доступный персонаж государства (не правитель, не мёртв, не в плену).
 Id heroOf(const World& w, Id state) {
   Id r = 0;
@@ -49,7 +43,7 @@ TEST(app_editors_trade_province_and_captive) {
   h.demo();
   h.dropToasts();
   app::trade::startDraft(0, 0);
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   CHECK(A && B);
   // Герой Б — в плену у А.
   Id hero = heroOf(h->world(), B);
@@ -94,7 +88,7 @@ TEST(app_editors_trade_province_and_captive) {
   CHECK(h.clickUi("trade.conclude"));
   quick(h);
   const World& w1 = h->store.world();
-  Id did = newestDeal(w1);
+  Id did = test::newestDeal(w1);
   const Deal* d = w1.deal(did);
   CHECK(d && d->status == DealStatus::Done && d->items.size() == 3);
   // Провинция перешла к Б, пленник вернулся домой: без «Взят в плен», не в списке пленников А.
@@ -139,7 +133,7 @@ TEST(app_editors_trade_tribute_thousandths) {
   Harness h("editors_trade_tribute");
   h.demo();
   h.dropToasts();
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   h->openDialog("tribute", A);
   quick(h);
   CHECK(h->hasDialog("tribute"));
@@ -148,7 +142,7 @@ TEST(app_editors_trade_tribute_thousandths) {
   enterTab(h, "tribute.turns", "2");
   CHECK(h.clickUi("tribute.ok"));
   quick(h);
-  const Deal* d = h->store.world().deal(newestDeal(h->store.world()));
+  const Deal* d = h->store.world().deal(test::newestDeal(h->store.world()));
   CHECK(d && d->kind == DealKind::Tribute && d->items.size() == 1);
   CHECK_NEAR(d ? d->items[0].amount : 0, 0.125, 1e-12);
   // Карточка во вкладке фракции «Переговоры и торговля».

@@ -1,4 +1,4 @@
-// Regnum — перемирие (ТЗ «Механика войн», п.2) и вассалитет (ТЗ «Механика вассалитета»).
+// Regnum — перемирие и вассалитет.
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -6,8 +6,6 @@ namespace rg::rules {
 using namespace detail;
 
 namespace {
-
-constexpr i64 kMaxCount = 1000000000000000LL;
 
 // Пленный герой, которого держит государство holder.
 bool heldBy(const World& w, Id character, Id holder) {

@@ -280,8 +280,8 @@ Panel::Panel(std::string_view name, RectF r, const PanelOpt& o) {
     cmdRect(r, t.surface1, rad);
   }
   if (o.border) {
-    cmdStroke(r, t.dark ? t.border : t.border.alpha(0.9f), rad, 1);
-    if (t.dark) cmdStroke(r.inset(1), Color(255, 255, 255, 6), rad - 1, 1);
+    cmdStroke(r, t.border, rad, 1);
+    cmdStroke(r.inset(1), Color(255, 255, 255, 6), rad - 1, 1);
   }
   Frame f;
   f.win = w;
@@ -315,10 +315,9 @@ void cardBackground(Frame& f) {
 void cardPatch(const Frame& f, RectF r, bool hovered, Tone tone) {
   const Theme& t = C().th;
   float rad = t.radiusCard;
-  if (t.dark) cmdPatchShadow(f.marks[0], r, rad, 6, Color(0, 0, 0, 60), 2);
-  else cmdPatchShadow(f.marks[0], r, rad, 8, t.shadow.alpha(0.7f), 2);
+  cmdPatchShadow(f.marks[0], r, rad, 6, Color(0, 0, 0, 60), 2);
   cmdPatchRect(f.marks[1], r, t.surface2, rad);
-  Color bc = hovered ? t.borderStrong : (t.dark ? t.border.alpha(0.85f) : t.border);
+  Color bc = hovered ? t.borderStrong : t.border.alpha(0.85f);
   cmdPatchStroke(f.marks[2], r, bc, rad, 1);
   if (tone != Tone::Neutral) cmdRect4(RectF{r.x, r.y, 3, r.h}, toneColor(tone), rad, 0, 0, rad);
 }
@@ -810,6 +809,54 @@ Disabled::Disabled(bool on) : on_(on) {
 }
 Disabled::~Disabled() {
   if (on_ && C().disabled > 0) C().disabled--;
+}
+
+// ================================================================ ChipFlow
+namespace {
+struct ChipFlowState {
+  RectF area;
+  float x = 0, y = 0;
+  float minW = 0;
+  bool any = false;
+};
+std::vector<ChipFlowState>& chipFlows() {
+  static std::vector<ChipFlowState> v;
+  return v;
+}
+constexpr float kFlowChipH = 26, kFlowChipGap = 6;
+}  // namespace
+
+ChipFlow::ChipFlow(float minW) {
+  ChipFlowState f;
+  f.area = avail();
+  f.x = f.area.x;
+  f.y = f.area.y;
+  f.minW = minW;
+  chipFlows().push_back(f);
+}
+
+ChipFlow::~ChipFlow() {
+  if (chipFlows().empty()) return;
+  ChipFlowState f = chipFlows().back();
+  chipFlows().pop_back();
+  if (f.any) next(0, f.y + kFlowChipH - f.area.y);   // занять место в потоке
+}
+
+ChipAction flowChip(std::string_view label, const ChipOpt& o) {
+  if (chipFlows().empty()) return chip(label, o);
+  ChipFlowState& f = chipFlows().back();
+  // Ширина — как у chip: текст Small + поля, значок или точка, крестик.
+  bool lead = o.icon || o.color.a > 0;
+  float w = std::ceil(measure(displayText(label), Font::Small)) + 20 + (lead ? 16 : 0) + (o.removable ? 18 : 0);
+  w = std::min(w, f.minW > 0 ? std::max(f.minW, f.area.w) : f.area.w);
+  if (f.any && f.x + w > f.area.right() + 0.5f) {
+    f.x = f.area.x;
+    f.y += kFlowChipH + kFlowChipGap;
+  }
+  at(RectF{f.x, f.y, w, kFlowChipH});
+  f.x += w + kFlowChipGap;
+  f.any = true;
+  return chip(label, o);
 }
 
 // ================================================================ splitter

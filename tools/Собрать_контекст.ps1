@@ -45,5 +45,5 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     $world += @('','## Политика, война и экономика','','Текущие фронты, их состояние и следующие триггеры: `01_Кампания/06_Фронты_и_таймеры.md`. Активы принадлежат карточкам владельцев; точные численности не выводятся из иллюстраций и прежних ведомостей.','','## Исторические состояния','','Полный прежний документ: `01_Кампания/История/Состояние_мира_до_v2.md`. Его старые текущие формулировки не считаются сегодняшним состоянием.','')
     Write-WmmaText (Join-Path $root '01_Кампания/05_Состояние_мира.md') (($world -join "`n").TrimEnd()+"`n")
     'Current context, branch packets and historical navigation rebuilt.'
-    if(-not $SkipCheck){& (Join-Path $root 'tools/Проверить_контекст.ps1')}
+    if(-not $SkipCheck){Invoke-WmmaTool -Root $root -Name 'Проверить_контекст'}
 }

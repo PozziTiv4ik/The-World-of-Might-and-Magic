@@ -1,55 +1,13 @@
 // Сценарии вкладки «Население» инспектора провинции: добавление и правка рас (повтор расы отклоняется),
-// удаление строки, довольство двуполярным ползунком меняет вероятность восстания, культура, снимок вкладки.
-#include "tests/test_app_util.h"
+// удаление строки, довольство двуполярным ползунком меняет вероятность восстания, культура, снимок вкладки; прирост
+// населения небольшой группы при малом проценте не застревает на округлении.
+#include "tests/test_app_trees_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
+using namespace rg::apptest::trees;
 
 namespace {
-
-struct HideTestRegs {
-  std::vector<app::TabDef> tabs;
-  std::vector<app::HeaderDef> headers;
-  std::vector<app::DrawerDef> drawers;
-  template <class T>
-  static void strip(std::vector<T>& v) {
-    v.erase(std::remove_if(v.begin(), v.end(), [](const T& d) { return std::string_view(d.id).starts_with("test."); }), v.end());
-  }
-  HideTestRegs() {
-    auto& t = const_cast<std::vector<app::TabDef>&>(app::tabs());
-    auto& h = const_cast<std::vector<app::HeaderDef>&>(app::headers());
-    auto& d = const_cast<std::vector<app::DrawerDef>&>(app::drawers());
-    tabs = t;
-    headers = h;
-    drawers = d;
-    strip(t);
-    strip(h);
-    strip(d);
-  }
-  ~HideTestRegs() {
-    const_cast<std::vector<app::TabDef>&>(app::tabs()) = tabs;
-    const_cast<std::vector<app::HeaderDef>&>(app::headers()) = headers;
-    const_cast<std::vector<app::DrawerDef>&>(app::drawers()) = drawers;
-  }
-};
-
-const Province* prov(Harness& h, Id pid) { return h->world().province(pid); }
-
-Id openProvince(Harness& h, const char* tab) {
-  auto vp = h.visibleProvince();
-  CHECK(vp.has_value());
-  h->ui.tabOf[app::SelType::Province] = tab;
-  h.click(vp->second.x, vp->second.y);
-  h.settle();
-  CHECK(h->ui.sel == (app::Selection{app::SelType::Province, vp->first}));
-  return vp->first;
-}
-
-bool hasToast(Harness& h, std::string_view part) {
-  for (auto& t : h->toasts())
-    if (t.text.find(part) != std::string::npos) return true;
-  return false;
-}
 
 double rebellion(Harness& h, Id pid) { return rules::calc(h->world())->province(pid)->rebellion; }
 
@@ -62,10 +20,9 @@ Track track(const RectF& r) { return Track{r.x + 9, r.x + 9 + std::max(20.f, r.w
 }  // namespace
 
 TEST(app_province_races_add_edit) {
-  HideTestRegs hide;
   Harness h("province_races", 1440, 1200);
   h.demo();
-  Id pid = openProvince(h, "province.population");
+  Id pid = clickProvince(h, "province.population");
   size_t n0 = prov(h, pid)->races.size();
   CHECK(n0 >= 1);
   const RectF* hd = h->uiRect("province.races.header");
@@ -120,10 +77,9 @@ TEST(app_province_races_add_edit) {
 }
 
 TEST(app_province_contentment_changes_rebellion) {
-  HideTestRegs hide;
   Harness h("province_content", 1440, 1000);
   h.demo();
-  Id pid = openProvince(h, "province.population");
+  Id pid = clickProvince(h, "province.population");
   double c0 = prov(h, pid)->contentment;
   double r0 = rebellion(h, pid);
   double mods = rules::calc(h->world())->province(pid)->fx[Fx::RebellionPct];
@@ -154,17 +110,16 @@ TEST(app_province_contentment_changes_rebellion) {
 }
 
 TEST(app_province_culture_religion) {
-  HideTestRegs hide;
   Harness h("province_culture", 1440, 1200);
   h.demo();
-  Id pid = openProvince(h, "province.population");
+  Id pid = clickProvince(h, "province.population");
   const RectF* cu = h->uiRect("province.culture");
   CHECK(cu != nullptr);
-  // Первая культура справочника: PageUp («не указана»), ↓, Enter.
+  // Первая культура справочника: к началу списка («не указана») — несколько страниц вверх, ↓, Enter.
   Id want = h->world().catalogs->cultures.front().id;
   Id was = prov(h, pid)->culture;
   h.click(cu->cx(), cu->cy());
-  h.key(Key::PageUp);
+  for (int i = 0; i < 10; i++) h.key(Key::PageUp);
   h.key(Key::Down);
   h.key(Key::Enter);
   h.settle();
@@ -181,4 +136,35 @@ TEST(app_province_culture_religion) {
   h.key(Key::Enter);
   h.settle();
   CHECK_EQ(prov(h, pid)->religion, Id(0));
+}
+
+// ТЗ 1.g.ii.1.a: прирост населения «на указанный процент каждый ход». Численность каждой расы округляется
+// до целого на каждом ходу (rules/turn.cpp, шаг 6), поэтому небольшие группы при малом проценте не растут
+// и не убывают никогда: 40 × 1,01 = 40,4 → 40.
+TEST(app_province_population_growth_rounding) {
+  Harness h("audit_tbmt_pop");
+  h.demo();
+  BuildPick pk = pickBuild(h->world());
+  CHECK(pk.pid != 0);
+  Id race = h->world().catalogs->races.empty() ? 0 : h->world().catalogs->races.front().id;
+  CHECK(race != 0);
+  CHECK(h->act("Население", [&](Tx& tx) {
+    Province& p = tx.province(pk.pid);
+    p.races = {RacePop{race, 40}};
+    p.modifiers.clear();
+    Id m = rules::createModifier(tx, "Аудит: прирост");
+    Modifier& md = tx.modifier(m);
+    md.fxMask |= 1u << int(Fx::PopGrowthPct);
+    md.fx[size_t(int(Fx::PopGrowthPct))] = 1;
+    p.modifiers.push_back(m);
+  }));
+  double expect = 40 * (1 + rules::provinceEffects(h->world(), pk.pid)[Fx::PopGrowthPct] / 100.0);
+  for (int i = 0; i < 10; i++) {
+    CHECK(h->endTurnNow());
+    h->toasts().clear();
+  }
+  for (int i = 0; i < 9; i++) expect *= 1 + rules::provinceEffects(h->world(), pk.pid)[Fx::PopGrowthPct] / 100.0;
+  i64 pop = h->store.world().province(pk.pid)->races.front().pop;
+  CHECK_MSG(pop > 40, "за 10 ходов при приросте +" + fmtNum(rules::provinceEffects(h->world(), pk.pid)[Fx::PopGrowthPct], 2) +
+                             " % население 40 не изменилось (ожидалось около " + fmtNum(expect, 1) + ")");
 }

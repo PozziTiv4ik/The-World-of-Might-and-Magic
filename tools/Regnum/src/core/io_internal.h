@@ -20,28 +20,20 @@ struct FileDef {
 extern const FileDef kFiles[F_COUNT];
 int fileIndex(std::string_view rel);  // -1 — не файл таблиц
 
-// Прочитанное содержимое файлов до сборки мира.
+// Файл, в котором хранится таблица с битом bit (TableBit).
+FileId fileOfTable(u32 bit);
+
+// Прочитанное содержимое файлов до сборки мира: записи таблиц (RG_WORLD_TABLES) — std::vector<Province> provinces; …
 struct Parts {
   bool present[F_COUNT] = {};
   Meta meta;
   Settings settings;
   Catalogs catalogs;
-  std::vector<Node> nodes;
-  std::vector<Edge> edges;
-  std::vector<MapSymbol> symbols;
-  std::vector<MapShape> shapes;
-  std::vector<Province> provinces;
-  std::vector<Faction> factions;
-  std::vector<Character> characters;
   RelMap relations;
-  std::vector<Modifier> modifiers;
-  std::vector<Building> buildings;
-  std::vector<Tech> techs;
-  std::vector<Army> armies;
-  std::vector<Route> routes;
-  std::vector<Deal> deals;
-  std::vector<LogEntry> log;
   Constants constants;
+#define RG_PARTS_TABLE(T, field, ...) std::vector<T> field;
+  RG_WORLD_TABLES(RG_PARTS_TABLE)
+#undef RG_PARTS_TABLE
 };
 
 // Значение JSON одного файла.
@@ -61,5 +53,16 @@ json::Value parseFile(std::string_view text, const std::string& origin);
 
 std::string refStr(Seq s, Id id);                 // "p12"; 0 — пусто
 std::optional<Id> parseRef(const json::Value& v, Seq s);
+
+// Перечисление в JSON: таблица идентификаторов (schema::EnumInfo) и её длина.
+struct Enum {
+  const schema::EnumInfo* list;
+  int n;
+};
+template <size_t N> Enum en(const schema::EnumInfo (&a)[N]) { return {a, int(N)}; }
+// Перечисления без таблиц в schema (только идентификаторы для JSON).
+extern const schema::EnumInfo kTerrainE[3], kEdgeKindE[3], kArmyKindE[2], kDealSideE[2], kDealStatusE[3], kSymbolKindE[4],
+    kShapeKindE[4], kRarityE[5];
+std::string enumChoices(Enum e);   // «a, b, c» — для сообщений о неизвестном значении
 
 }  // namespace rg::io::detail

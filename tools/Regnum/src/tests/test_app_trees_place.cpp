@@ -11,18 +11,6 @@ using namespace rg::apptest::trees;
 
 namespace {
 
-Id resourceByName(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->resources)
-    if (c.name == name) return c.id;
-  return 0;
-}
-
-Id essenceByName(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->essences)
-    if (c.name == name) return c.id;
-  return 0;
-}
-
 void setGold(app::App& a, Id faction, double v) {
   CHECK(a.act("Казна", [&](Tx& tx) { tx.faction(faction).res[kGold] = v; }));
 }
@@ -54,7 +42,6 @@ Id threeLevels(app::App& a, const char* name, BuildingCat cat = BuildingCat::Eco
 }  // namespace
 
 TEST(app_trees_place_complete_and_ready) {
-  HideTestRegs hide;
   Harness h("trees_place", 1440, 1200);
   h.demo();
   h.dropToasts();
@@ -73,11 +60,11 @@ TEST(app_trees_place_complete_and_ready) {
   CHECK_NEAR(gold1, 10000 - price, 1e-6);
   openTab(h, sp.province);
   CHECK(h->uiRect("prov.complete." + std::to_string(fresh)) != nullptr);
-  shotTrees(h, "trees_place_constructing");
+  shotClean(h, "trees_place_constructing", 60);
   {
     RectF cr = rectOf(h.a(), "prov.complete." + std::to_string(fresh));
     h.click(cr.cx(), cr.cy());
-    CHECK(hasToast(h.a(), "Достроено", app::ToastKind::Success));
+    CHECK(hasToast(h, "Достроено", app::ToastKind::Success));
     h.settle(40);
   }
   const ProvBuilding* pb = provBuilding(h->world(), sp.province, fresh);
@@ -102,7 +89,7 @@ TEST(app_trees_place_complete_and_ready) {
   RectF lv = rectOf(h.a(), "build.placeLevel." + std::to_string(ready));
   h.click(lv.x + lv.w * (1.5f / 3), lv.cy());   // уровни I, II, III — второй
   h.settle(40);
-  shotTrees(h, "trees_place_picker");
+  shotClean(h, "trees_place_picker", 60);
   const double gold2 = h->world().faction(sp.state)->treasury();
   {
     RectF pr = rectOf(h.a(), "build.place." + std::to_string(ready));
@@ -150,7 +137,7 @@ TEST(app_trees_place_complete_and_ready) {
   clickQuick(h, "build.search");
   h.type("Храм Вечного");
   h.settle(40);
-  shotTrees(h, "trees_place_cult");
+  shotClean(h, "trees_place_cult", 60);
   v = h->store.version();
   clickQuick(h, "build.place." + std::to_string(cult));
   CHECK_EQ(h->store.version(), v);
@@ -163,16 +150,15 @@ TEST(app_trees_place_complete_and_ready) {
 }
 
 TEST(app_trees_place_converter) {
-  HideTestRegs hide;
   Harness h("trees_place_convert", 1440, 1200);
   h.demo();
   h.dropToasts();
   StateProv sp = stateWithFreeSlots(h->world(), 2);
   CHECK(sp.province != 0);
   // Ресурсы, которых провинции не добывают: шёлк и ртуть → магический порох за 2 хода.
-  const Id silk = resourceByName(h->world(), "Шелк"), mercury = resourceByName(h->world(), "Ртуть");
-  const Id powder = resourceByName(h->world(), "Магический порох");
-  const Id flame = essenceByName(h->world(), "Эссенция пламени");
+  const Id silk = test::idByName(h->world().catalogs->resources, "Шелк"), mercury = test::idByName(h->world().catalogs->resources, "Ртуть");
+  const Id powder = test::idByName(h->world().catalogs->resources, "Магический порох");
+  const Id flame = test::idByName(h->world().catalogs->essences, "Эссенция пламени");
   CHECK(silk && mercury && powder && flame);
   Id conv = 0, gen = 0;
   CHECK(h->act("Постройки", [&](Tx& tx) {
@@ -183,7 +169,7 @@ TEST(app_trees_place_converter) {
     r.in = {ResAmount{silk, 10}, ResAmount{mercury, 5}};
     r.out = ResAmount{powder, 3};
     r.turns = 2;
-    rules::setRecipe(tx, conv, r);
+    rules::setRecipe(tx, conv, 0, r);
     gen = rules::createBuilding(tx, 0, "Источник пламени");
     tx.building(gen).cat = BuildingCat::Religious;
     rules::setBuildingRole(tx, gen, rules::BuildingRole::Essence, true);
@@ -203,7 +189,7 @@ TEST(app_trees_place_converter) {
   // Генерация эссенции: что постройка даёт за ход.
   CHECK(h->uiRect("prov.essence." + std::to_string(gen)) != nullptr);
   CHECK_NEAR(rules::calc(h->world())->province(sp.province)->essence.at(flame), 4, 1e-12);
-  shotTrees(h, "trees_place_convert");
+  shotClean(h, "trees_place_convert", 60);
   // «Простаивает» — ничего не делает: шага в плане хода нет.
   RectF sw = rectOf(h.a(), "prov.convert." + std::to_string(conv));
   h.click(sw.x + sw.w * 0.75f, sw.cy());
@@ -230,7 +216,7 @@ TEST(app_trees_place_converter) {
   CHECK_NEAR(h->world().faction(sp.state)->stock(mercury), 95, 1e-9);
   h.settle(40);
   CHECK(revealIn(h, "prov.cycle." + std::to_string(conv)));
-  shotTrees(h, "trees_place_convert_cycle");
+  shotClean(h, "trees_place_convert_cycle", 60);
   // Следующий ход: цикл завершён — магический порох поступил.
   const double powder0 = h->world().faction(sp.state)->stock(powder);
   CHECK(h->endTurnNow());
@@ -245,5 +231,5 @@ TEST(app_trees_place_converter) {
   h.settle(40);
   CHECK(!planned());
   CHECK(revealIn(h, "prov.waiting." + std::to_string(conv)));
-  shotTrees(h, "trees_place_convert_waiting");
+  shotClean(h, "trees_place_convert_waiting", 60);
 }

@@ -1,6 +1,8 @@
 // Regnum — флот: вместимость (ТЗ «Доработки №3», п.6) и «Поставить флот» у верфи (п.3). Без «Свободного
 // редактирования флотов» новый флот появляется только у берега провинции фракции с достроенной верфью: кнопка открывает
-// список таких провинций (приморские, с верфью), выбор ставит флот на свободное место моря у её берега.
+// список таких провинций (приморские, с верфью), выбор ставит флот на свободное место моря у её берега. Роли (ТЗ
+// «Доработки №4», п.5): флот у верфи — игровое действие за фракцию (App::play); свободная постановка инструментом карты
+// — правка мира (только администратор, игрок ставит флот у верфи и при «Свободном редактировании флотов»).
 #include "app/panels/military.h"
 
 namespace rg::app::mil {
@@ -35,7 +37,7 @@ int shipyardLevel(const World& w, const Province& p) {
 
 void placeFleetButton(App& a, Id fid, bool empty) {
   const World& w = frameWorld(a);
-  const bool free = w.settings->freeFleets;
+  const bool free = w.settings->freeFleets && a.admin();
   bool clicked = false;
   if (empty) clicked = ui::emptyState("fleet", "Флотов на карте нет.", "Поставить флот", "tool-fleet");
   else
@@ -61,10 +63,10 @@ void placeFleetButton(App& a, Id fid, bool empty) {
     const std::string sub = "Верфь · " + std::to_string(shipyardLevel(w, *p)) + " ур.";
     if (ui::listItem(w.provinceName(pid), {.icon = "shipyard", .subtitle = sub})) {
       Id id = 0;
-      if (a.act("Поставить флот: " + w.provinceName(pid), [&](Tx& tx) { id = rules::placeFleet(tx, fid, pid); })) {
+      if (w::checkPlay(a, fid) && a.play("Поставить флот: " + w.provinceName(pid), [&](Tx& tx) { id = rules::placeFleet(tx, fid, pid); })) {
         ui::closePopup();
         a.select(SelType::Army, id, true);
-        a.ui.tabOf[SelType::Army] = "army.units";
+        a.ui.tabOf[SelType::Army] = mil::kTabUnits;
       }
     }
     a.markUi("mil.fleet.place." + std::to_string(pid));

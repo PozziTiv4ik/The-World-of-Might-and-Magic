@@ -1,23 +1,20 @@
 // Regnum — наглядные листы холста (PNG в каталоге артефактов): карточки интерфейса с тенями и градиентами,
 // тонкие и толстые линии, соединения и концы, масштабирование и поворот изображений, отсечение.
-#include "codec/png.h"
 #include "gfx/canvas.h"
 #include "gfx/raster.h"
 #include "gfx/stroke.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
 
 using namespace rg;
 using namespace rg::gfx;
 
 namespace {
 
+// Лист в каталог артефактов: gfx_<name>.png.
 void save(const Image& img, const char* name) {
-  codec::RgbaImage out;
-  out.w = img.w;
-  out.h = img.h;
-  out.rgba = img.toRgba();
-  std::string path = test::outDir() + "/gfx_" + name + ".png";
-  CHECK_MSG(codec::writePngFile(path, out, 6), path);
+  const std::string file = std::string("gfx_") + name + ".png";
+  CHECK_MSG(test::savePng(file, img), file);
 }
 
 // Увеличенный фрагмент (ближайший сосед) — для разглядывания сглаживания по пикселям.

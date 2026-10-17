@@ -15,7 +15,6 @@ i64 reserveNow(Harness& h, Id faction, Id row, bool fleet = false) { return app:
 // Инструменты «Новое войско» и «Новый флот»: панель с фракцией, призрак, вода и суша, выделение нового объекта.
 TEST(app_military_place_tools) {
   Harness h("military_place");
-  RealArmyTools tools;
   h.demo();
   h.waitMap();
   // Флот ставится инструментом только при «Свободном редактировании флотов» (ТЗ «Доработки №3», п.3).
@@ -109,7 +108,6 @@ TEST(app_military_place_tools) {
 // Отряды из резерва в инспекторе войска: не больше резерва, только строки своей фракции, отмена.
 TEST(app_military_assign_units) {
   Harness h("military_units");
-  RealArmyTools tools;
   h.demo();
   const World& w0 = h->world();
   Id hel = factionByName(w0, "Хельдвиг");
@@ -182,7 +180,6 @@ TEST(app_military_assign_units) {
 // Таблицы войск и флота фракции: добавить строку, изменить, не меньше «в поле», удалить с подтверждением.
 TEST(app_military_faction_tables) {
   Harness h("military_tables");
-  RealArmyTools tools;
   h.demo();
   h.waitMap();
   const World& w0 = h->world();
@@ -286,7 +283,6 @@ TEST(app_military_faction_tables) {
 // Гарнизон провинции: из резерва владельца, не больше резерва, пустые состояния.
 TEST(app_military_garrison) {
   Harness h("military_garrison");
-  RealArmyTools tools;
   h.demo();
   const World& w0 = h->world();
   Id pid = 0;
@@ -349,7 +345,6 @@ TEST(app_military_garrison) {
 // Расформирование (подтверждение, отряды в резерв, Delete), разделение, роспуск союза.
 TEST(app_military_disband_split_dissolve) {
   Harness h("military_disband");
-  RealArmyTools tools;
   h.demo();
   const World& w0 = h->world();
   Id hel = factionByName(w0, "Хельдвиг");
@@ -414,11 +409,10 @@ TEST(app_military_disband_split_dissolve) {
   CHECK(h->world().army(allied)->allied());
 }
 
-// Инспектор союзного войска (плитки фракций), светлая тема, выдвижная панель «Войска и флот».
+// Инспектор союзного войска (плитки фракций), другой цветокор, выдвижная панель «Войска и флот».
 TEST(app_military_inspector_and_drawer) {
   {
     Harness h("military_inspector");
-    RealArmyTools tools;
     h.demo();
     Id allied = 0;
     h->world().armies.each([&](const Army& a) {
@@ -465,7 +459,6 @@ TEST(app_military_inspector_and_drawer) {
   }
   {
     Harness h("military_light", 1440, 900, 1, kAltScheme);
-    RealArmyTools tools;
     h.demo();
     Id allied = 0;
     h->world().armies.each([&](const Army& a) {
@@ -483,7 +476,6 @@ TEST(app_military_inspector_and_drawer) {
 // Гильдия (ТЗ 1.d.iii): свои таблицы войск и флота, пустые состояния, своё войско на карте.
 TEST(app_military_guild_forces) {
   Harness h("military_guild");
-  RealArmyTools tools;
   h.demo();
   h.waitMap();
   Id guild = 0;

@@ -1,7 +1,8 @@
 // Regnum — шапка инспектора государства и гильдии: большой флаг (щелчок — редактор флага), вид, значки основного
 // игрового государства и вассала (переход к сюзерену), цвет, название крупным шрифтом с переименованием на месте
 // (щелчок, F2), правитель с титулом, казна;
-// меню действий: флаг, переименование, государственная гильдия, удаление с подтверждением.
+// меню действий: флаг, переименование, государственная гильдия, удаление с подтверждением. Флаг, цвет, название и
+// меню — правка мира (только администратор, ТЗ «Доработки №4», п.5); правитель назначается игровым действием.
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -33,8 +34,8 @@ void treasuryPill(App& a, double treasury, double net, float width) {
   RectF r = ui::lastItem().rect;
   r.w = std::min(r.w, width);
   bool hov = ui::lastItem().hovered;
-  ui::draw::rect(r, t.dark ? (hov ? t.hover : t.stripe) : (hov ? t.surface3 : t.surface3.alpha(0.6f)), t.radiusField);
-  ui::draw::rectStroke(r, t.dark ? t.hover : t.border, t.radiusField, 1);
+  ui::draw::rect(r, hov ? t.hover : t.stripe, t.radiusField);
+  ui::draw::rectStroke(r, t.hover, t.radiusField, 1);
   float x = r.x + 9;
   ui::draw::icon("coins", RectF{x, r.cy() - 8, 16, 16}, t.accent);
   x += 22;
@@ -55,7 +56,7 @@ void drawHeader(App& a, Id id) {
   const Faction* f = w.faction(id);
   if (!f) return;
   const ui::Theme& t = ui::theme();
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // флаг, цвет, название и меню — правка мира
   auto calc = rules::calc(w);
   const rules::FactionCalc* fc = calc->faction(id);
   const KindInfo kind = kindInfo(*f);
@@ -68,13 +69,14 @@ void drawHeader(App& a, Id id) {
 
   // Ряд 1: флаг, вид и цвет, меню действий.
   {
-    ui::Row row({ui::px(72), ui::fr(1), ui::px(30)}, ui::kAuto, 12);
+    const ui::Len cols[] = {ui::px(72), ui::fr(1), ui::px(30)};
+    ui::Row row(std::span<const ui::Len>(cols, a.admin() ? 3 : 2), ui::kAuto, 12);   // меню действий — только администратору
     ui::flag(f->flag, 72, 48, 5, ro ? "Флаг" : "Флаг — изменить");
     ui::Item fi = ui::lastItem();
     a.markUi("faction.flag", fi.rect);
     if (fi.hovered && !ro) {
       ui::draw::rect(fi.rect, t.scrim, 5);
-      ui::draw::icon("palette", RectF{fi.rect.cx() - 10, fi.rect.cy() - 10, 20, 20}, t.dark ? t.text : t.surface2);
+      ui::draw::icon("palette", RectF{fi.rect.cx() - 10, fi.rect.cy() - 10, 20, 20}, t.text);
       ui::setCursor(platform::Cursor::Hand);
     }
     if (fi.clicked && !ro) openFlagEditor(a, id);
@@ -107,8 +109,10 @@ void drawHeader(App& a, Id id) {
         else if (f->isState() && f->capital) w::provinceChip(f->capital);
       }
     }
-    if (ui::iconButton("more-v", "Действия")) ui::openPopup("more");
-    a.markUi("faction.more");
+    if (a.admin()) {
+      if (ui::iconButton("more-v", "Действия")) ui::openPopup("more");
+      a.markUi("faction.more");
+    }
     if (ui::beginMenu("more")) {
       ui::menuHeader(kind.label);
       if (ui::menuItem("Изменить флаг…", {.icon = "flag", .disabled = ro})) openFlagEditor(a, id);
@@ -179,7 +183,8 @@ void drawHeader(App& a, Id id) {
                        cy + 18.5f * float(std::sin(a1)), t.borderStrong, 1.5f);
       }
       ui::at(RectF{cx - 15, cy - 15, 30, 30});
-      if (ui::iconButton("user-plus", f->isState() ? "Назначить правителя" : "Назначить главу", {.disabled = ro})) showTab(a, kTabOverview);
+      if (a.canPlay(id) || a.admin())
+        if (ui::iconButton("user-plus", f->isState() ? "Назначить правителя" : "Назначить главу", {.disabled = !a.canPlay(id)})) showTab(a, kTabOverview);
     }
     {
       ui::Group g(0, 0);

@@ -43,13 +43,11 @@ class Font {
 
   // Имена (предпочтительно типографские nameID 16/17, иначе 1/2).
   const std::string& family() const { return family_; }
-  const std::string& subfamily() const { return subfamily_; }
   const std::string& fullName() const { return fullName_; }
   int weightClass() const { return weightClass_; }       // 100..900 (OS/2), 400 по умолчанию
   int widthClass() const { return widthClass_; }         // 1..9 (OS/2), 5 — обычная ширина
   bool italic() const { return italic_; }
   bool monospace() const { return monospace_; }
-  bool variable() const { return variable_; }             // есть fvar (используется экземпляр по умолчанию)
 
   // Метрики в единицах шрифта; descender отрицателен.
   int unitsPerEm() const { return upem_; }
@@ -63,7 +61,6 @@ class Font {
   u16 glyphIndex(u32 codepoint) const;                    // 0 — нет глифа
   bool hasGlyph(u32 codepoint) const { return glyphIndex(codepoint) != 0; }
   int advance(u16 glyph) const;                           // ширина продвижения (единицы шрифта)
-  int leftSideBearing(u16 glyph) const;
   int kerning(u16 left, u16 right) const;                 // поправка продвижения левого глифа пары
   bool hasKerning() const;
   // Контур в единицах шрифта (y вверх). false — глиф пуст или повреждён (out очищен).
@@ -78,7 +75,7 @@ class Font {
   std::unique_ptr<Impl> d_;
   std::string family_, subfamily_, fullName_;
   int weightClass_ = 400, widthClass_ = 5;
-  bool italic_ = false, monospace_ = false, variable_ = false;
+  bool italic_ = false, monospace_ = false;
   int upem_ = 1000, ascender_ = 800, descender_ = -200, lineGap_ = 0, capHeight_ = 700, xHeight_ = 500, numGlyphs_ = 0;
 };
 
@@ -126,7 +123,6 @@ class GlyphCache {
   std::shared_ptr<const GlyphBitmap> get(const GlyphRequest& r);
   // Пакетный запрос под одной блокировкой (промахи растеризуются вне блокировки).
   void getMany(const GlyphRequest* req, size_t n, std::shared_ptr<const GlyphBitmap>* out);
-  void setCapacity(size_t bytes);
   void clear();
   struct Stats { size_t entries, bytes, capacity; u64 hits, misses; };
   Stats stats() const;

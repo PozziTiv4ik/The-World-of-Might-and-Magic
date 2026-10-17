@@ -22,7 +22,6 @@ double stockOf(Harness& h, Id f, std::string_view key) {
 }  // namespace
 
 TEST(app_economy_wasteland) {
-  HideTestRegs hide;
   Harness h("economy_wasteland", 1440, 1200);
   h.demo();
   const Id st = biggestState(h->world());
@@ -96,7 +95,6 @@ TEST(app_economy_wasteland) {
 }
 
 TEST(app_economy_desecration) {
-  HideTestRegs hide;
   Harness h("economy_desecration", 1440, 1200);
   h.demo();
   const Id st = biggestState(h->world());

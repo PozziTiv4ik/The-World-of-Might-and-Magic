@@ -1,11 +1,11 @@
-// Regnum — классы героев и деревья талантов (ТЗ «Доработки №4», п.6, 8), уровень героя и изучение талантов,
-// «Возвысить до Лича» (ТЗ «Доработки №1», п.11).
+// Regnum — классы и подклассы героев, деревья талантов подклассов, уровень героя и изучение рангов талантов,
+// «Возвысить до Лича».
 //
-// Дерево талантов класса — как в World of Warcraft: ячейки (ярус, столбец), в ячейке один талант, стрелка-условие из
-// более высокого яруса. Ярус r открыт, когда в ярусах выше вложено не меньше r × tierPoints очков. Изучение — у
-// каждого героя своё (Character::talents в порядке изучения). Правка дерева не оставляет у героев незаконных талантов:
-// после неё список каждого героя класса проходится по порядку изучения, и таланты, которые уже нельзя было бы изучить,
-// снимаются (как при чтении файла — лишние снимаются с конца).
+// Дерево талантов подкласса — как в World of Warcraft: ячейки (ярус, столбец), в ячейке один талант с 1…5 рангами,
+// стрелка-условие из более высокого яруса (условие изучается полностью). Ярус r открыт, когда в ярусах выше вложено не
+// меньше r × tierPoints очков. Изучение — у каждого героя своё (Character::talents — ранги в порядке изучения). Правка
+// дерева не оставляет у героев незаконных рангов: после неё список каждого героя подкласса проходится по порядку
+// изучения (lawfulTalents), и ранги, которые уже нельзя было бы изучить, снимаются (как при чтении файла).
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -14,8 +14,9 @@ using namespace detail;
 
 namespace {
 
-std::string clsName(const HeroClass& c) { return q(c.name.empty() ? std::string("Без названия") : c.name); }
-std::string talName(const Talent& t) { return q(t.name.empty() ? std::string("Без названия") : t.name); }
+std::string clsName(const HeroClass& c) { return q(nameOr(c.name)); }
+std::string subName(const SubClass& s) { return q(nameOr(s.name)); }
+std::string talName(const Talent& t) { return q(nameOr(t.name)); }
 
 const HeroClass& needClass(const World& w, Id cls) {
   const HeroClass* c = w.heroClass(cls);
@@ -25,30 +26,41 @@ const HeroClass& needClass(const World& w, Id cls) {
 
 HeroClass& classRef(Tx& tx, Id cls) {
   needClass(tx.w(), cls);
-  for (HeroClass& c : tx.catalogs().classes)
-    if (c.id == cls) return c;
+  if (HeroClass* c = findById(tx.catalogs().classes, cls)) return *c;
   fail("Класс героя не найден");
 }
 
-// Класс и талант по ID таланта.
+const SubClass& needSub(const World& w, Id sub) {
+  const SubClass* s = w.catalogs->subclass(sub);
+  if (!s) fail(sub ? "Подкласс героя не найден" : "Не выбран подкласс героя");
+  return *s;
+}
+
+SubClass& subRef(Tx& tx, Id sub) {
+  needSub(tx.w(), sub);
+  for (HeroClass& c : tx.catalogs().classes)
+    if (SubClass* s = findById(c.subclasses, sub)) return *s;
+  fail("Подкласс героя не найден");
+}
+
+// Подкласс и талант по ID таланта.
 struct Found {
-  const HeroClass* cls = nullptr;
+  const SubClass* sub = nullptr;
   const Talent* t = nullptr;
 };
 Found needTalent(const World& w, Id talent) {
-  const HeroClass* c = w.catalogs->classOfTalent(talent);
-  if (!c) fail(talent ? "Талант не найден" : "Не выбран талант");
-  return Found{c, c->talent(talent)};
+  const SubClass* s = w.catalogs->subclassOfTalent(talent);
+  if (!s) fail(talent ? "Талант не найден" : "Не выбран талант");
+  return Found{s, s->talent(talent)};
 }
 
-Talent& talentRef(Tx& tx, Id cls, Id talent) {
-  for (Talent& t : classRef(tx, cls).talents)
-    if (t.id == talent) return t;
+Talent& talentRef(Tx& tx, Id sub, Id talent) {
+  if (Talent* t = findById(subRef(tx, sub).talents, talent)) return *t;
   fail("Талант не найден");
 }
 
-const Talent* talentAt(const HeroClass& c, int row, int col, Id except = 0) {
-  for (const Talent& t : c.talents)
+const Talent* talentAt(const SubClass& s, int row, int col, Id except = 0) {
+  for (const Talent& t : s.talents)
     if (t.row == row && t.col == col && t.id != except) return &t;
   return nullptr;
 }
@@ -58,46 +70,15 @@ void needCell(int row, int col) {
   if (col < 0 || col >= kTalentCols) fail("Столбец дерева — от 1 до " + std::to_string(kTalentCols));
 }
 
-// Вложено в ярусы выше row среди талантов set.
-int spentAboveIn(const HeroClass& c, const std::vector<Id>& set, int row) {
-  int s = 0;
-  for (Id id : set)
-    if (const Talent* t = c.talent(id); t && t->row < row) s += t->cost;
-  return s;
-}
-int spentIn(const HeroClass& c, const std::vector<Id>& set) {
-  int s = 0;
-  for (Id id : set)
-    if (const Talent* t = c.talent(id)) s += t->cost;
-  return s;
-}
-
-// Законные таланты героя: проход по порядку изучения, каждый талант должен быть изучаем после уже оставленных
-// (условие, порог яруса, очки уровня).
-std::vector<Id> lawful(const HeroClass& c, const std::vector<Id>& learned, int level) {
-  std::vector<Id> keep;
-  int spent = 0;
-  for (Id id : learned) {
-    const Talent* t = c.talent(id);
-    if (!t || contains(keep, id)) continue;
-    if (t->prereq && !contains(keep, t->prereq)) continue;
-    if (spentAboveIn(c, keep, t->row) < tierThreshold(c, t->row)) continue;
-    if (spent + t->cost > level) continue;
-    keep.push_back(id);
-    spent += t->cost;
-  }
-  return keep;
-}
-
-// Привести таланты героев класса к законным; возвращает число героев, у которых таланты сняты.
-int fitHeroes(Tx& tx, Id cls) {
-  const HeroClass* c = tx.w().heroClass(cls);
-  if (!c) return 0;
-  const HeroClass hc = *c;
+// Привести ранги героев подкласса к законным; возвращает число героев, у которых ранги сняты.
+int fitHeroes(Tx& tx, Id sub) {
+  const SubClass* s = tx.w().catalogs->subclass(sub);
+  if (!s) return 0;
+  const SubClass sc = *s;
   int n = 0;
-  for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return x.heroClass == cls && !x.talents.empty(); })) {
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return x.subclass == sub && !x.talents.empty(); })) {
     const Character& ch = *tx.w().character(cid);
-    std::vector<Id> keep = lawful(hc, ch.talents, ch.level);
+    std::vector<Id> keep = lawfulTalents(sc, ch.talents, ch.level);
     if (keep.size() == ch.talents.size()) continue;
     tx.character(cid).talents = std::move(keep);
     n++;
@@ -106,27 +87,47 @@ int fitHeroes(Tx& tx, Id cls) {
 }
 
 // Условия талантов дерева выше зависимых (после переноса).
-void checkLinks(const HeroClass& c) {
-  for (const Talent& t : c.talents) {
+void checkLinks(const SubClass& s) {
+  for (const Talent& t : s.talents) {
     if (!t.prereq) continue;
-    const Talent* p = c.talent(t.prereq);
+    const Talent* p = s.talent(t.prereq);
     if (p && p->row >= t.row)
       fail("Условие " + talName(*p) + " должно стоять выше таланта " + talName(t) + " — сначала снимите стрелку");
   }
 }
 
-std::string uniqueTalentName(const HeroClass& c, const std::string& name, Id except) {
+std::string uniqueTalentName(const SubClass& s, const std::string& name, Id except) {
   std::string n = trim(name);
   std::vector<std::string> taken;
-  for (const Talent& t : c.talents)
+  for (const Talent& t : s.talents)
     if (t.id != except) taken.push_back(t.name);
   if (n.empty()) return uniqueName(taken, "Новый талант");
   for (const std::string& x : taken)
-    if (utf8::searchKey(x) == utf8::searchKey(n)) fail("Талант «" + x + "» уже есть в дереве класса");
+    if (utf8::searchKey(x) == utf8::searchKey(n)) fail("Талант «" + x + "» уже есть в дереве подкласса");
+  return n;
+}
+
+std::string uniqueSubName(const HeroClass& c, const std::string& name, Id except) {
+  std::string n = trim(name);
+  std::vector<std::string> taken;
+  for (const SubClass& s : c.subclasses)
+    if (s.id != except) taken.push_back(s.name);
+  if (n.empty()) return uniqueName(taken, "Новый подкласс");
+  for (const std::string& x : taken)
+    if (utf8::searchKey(x) == utf8::searchKey(n)) fail("Подкласс «" + x + "» уже есть у класса " + clsName(c));
   return n;
 }
 
 const Character& needHero(const World& w, Id character) { return needCharacter(w, character); }
+
+// Снять последнее вхождение таланта (один ранг).
+void eraseLast(std::vector<Id>& v, Id id) {
+  for (size_t i = v.size(); i-- > 0;)
+    if (v[i] == id) {
+      v.erase(v.begin() + long(i));
+      return;
+    }
+}
 
 }  // namespace
 
@@ -150,22 +151,17 @@ Id addHeroClass(Tx& tx, const std::string& name) {
   return tx.w().catalogs->classes.back().id;
 }
 
-int setHeroClass(Tx& tx, const HeroClass& c0) {
-  const HeroClass& cur = needClass(tx.w(), c0.id);
+void setHeroClass(Tx& tx, const HeroClass& c0) {
+  needClass(tx.w(), c0.id);
   const std::string n = trim(c0.name);
   if (n.empty()) fail("Название класса не может быть пустым");
   for (const HeroClass& o : tx.w().catalogs->classes)
     if (o.id != c0.id && utf8::searchKey(o.name) == utf8::searchKey(n)) fail("Класс «" + o.name + "» уже есть");
-  if (c0.tierPoints < 1 || c0.tierPoints > kMaxTierPoints)
-    fail("Очков на ярус — от 1 до " + std::to_string(kMaxTierPoints));
-  const bool tiers = cur.tierPoints != c0.tierPoints;
   HeroClass& c = classRef(tx, c0.id);
   c.name = n;
   c.desc = c0.desc;
   c.icon = c0.icon;
   c.color = c0.color;
-  c.tierPoints = c0.tierPoints;
-  return tiers ? fitHeroes(tx, c0.id) : 0;
 }
 
 void removeHeroClass(Tx& tx, Id cls) {
@@ -173,35 +169,78 @@ void removeHeroClass(Tx& tx, Id cls) {
   for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return x.heroClass == cls; })) {
     Character& ch = tx.character(cid);
     ch.heroClass = 0;
+    ch.subclass = 0;
     ch.talents.clear();
   }
   auto& list = tx.catalogs().classes;
   list.erase(std::remove_if(list.begin(), list.end(), [&](const HeroClass& c) { return c.id == cls; }), list.end());
 }
 
-// ================================================================ таланты дерева
-Id addTalent(Tx& tx, Id cls, int row, int col, const std::string& name) {
+// ================================================================ подклассы
+Id addSubClass(Tx& tx, Id cls, const std::string& name) {
   const HeroClass& c = needClass(tx.w(), cls);
+  SubClass s;
+  s.id = tx.nextId(Seq::SubClass);
+  s.name = uniqueSubName(c, name, 0);
+  s.icon = c.icon;
+  s.tierPoints = schema::kDefaultTierPoints;
+  const Id id = s.id;
+  classRef(tx, cls).subclasses.push_back(std::move(s));
+  return id;
+}
+
+int setSubClass(Tx& tx, const SubClass& s0) {
+  const SubClass& cur = needSub(tx.w(), s0.id);
+  const HeroClass& c = *tx.w().catalogs->classOfSubclass(s0.id);
+  if (trim(s0.name).empty()) fail("Название подкласса не может быть пустым");
+  const std::string n = uniqueSubName(c, s0.name, s0.id);
+  if (s0.tierPoints < 1 || s0.tierPoints > kMaxTierPoints) fail("Очков на ярус — от 1 до " + std::to_string(kMaxTierPoints));
+  const bool tiers = cur.tierPoints != s0.tierPoints;
+  SubClass& s = subRef(tx, s0.id);
+  s.name = n;
+  s.desc = s0.desc;
+  s.icon = s0.icon;
+  s.tierPoints = s0.tierPoints;
+  return tiers ? fitHeroes(tx, s0.id) : 0;
+}
+
+void removeSubClass(Tx& tx, Id sub) {
+  needSub(tx.w(), sub);
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return x.subclass == sub; })) {
+    Character& ch = tx.character(cid);
+    ch.subclass = 0;
+    ch.talents.clear();
+  }
+  for (HeroClass& c : tx.catalogs().classes)
+    c.subclasses.erase(std::remove_if(c.subclasses.begin(), c.subclasses.end(), [&](const SubClass& s) { return s.id == sub; }), c.subclasses.end());
+}
+
+const HeroClass* subclassClass(const World& w, Id sub) { return w.catalogs->classOfSubclass(sub); }
+
+// ================================================================ таланты дерева
+Id addTalent(Tx& tx, Id sub, int row, int col, const std::string& name) {
+  const SubClass& s = needSub(tx.w(), sub);
   needCell(row, col);
-  if (const Talent* x = talentAt(c, row, col)) fail("Ячейка занята талантом " + talName(*x));
+  if (const Talent* x = talentAt(s, row, col)) fail("Ячейка занята талантом " + talName(*x));
   Talent t;
   t.id = tx.nextId(Seq::Talent);
-  t.name = uniqueTalentName(c, name, 0);
+  t.name = uniqueTalentName(s, name, 0);
   t.icon = "talent";
   t.row = row;
   t.col = col;
   const Id id = t.id;
-  classRef(tx, cls).talents.push_back(std::move(t));
+  subRef(tx, sub).talents.push_back(std::move(t));
   return id;
 }
 
 int setTalent(Tx& tx, const Talent& t0) {
   const Found f = needTalent(tx.w(), t0.id);
-  const Id cls = f.cls->id;
+  const Id sub = f.sub->id;
   if (trim(t0.name).empty()) fail("Название таланта не может быть пустым");
-  const std::string n = uniqueTalentName(*f.cls, t0.name, t0.id);
+  const std::string n = uniqueTalentName(*f.sub, t0.name, t0.id);
   if (t0.cost < schema::kMinTalentCost || t0.cost > schema::kMaxTalentCost)
-    fail("Стоимость таланта — от " + std::to_string(schema::kMinTalentCost) + " до " + std::to_string(schema::kMaxTalentCost) + " очков");
+    fail("Стоимость ранга — от " + std::to_string(schema::kMinTalentCost) + " до " + std::to_string(schema::kMaxTalentCost) + " очков");
+  if (t0.ranks < 1 || t0.ranks > schema::kMaxTalentRanks) fail("Рангов таланта — от 1 до " + std::to_string(schema::kMaxTalentRanks));
   std::vector<Id> mods;
   for (Id m : t0.modifiers) {
     const Modifier* x = tx.w().modifier(m);
@@ -213,22 +252,23 @@ int setTalent(Tx& tx, const Talent& t0) {
       fail("Модификатор «" + x->name + "» — состояние героя или ставится сам: талант его не даёт");
     mods.push_back(m);
   }
-  const bool cost = f.t->cost != t0.cost;
-  Talent& t = talentRef(tx, cls, t0.id);
+  const bool refit = f.t->cost != t0.cost || f.t->ranks != t0.ranks;
+  Talent& t = talentRef(tx, sub, t0.id);
   t.name = n;
   t.desc = t0.desc;
   t.icon = t0.icon;
   t.cost = t0.cost;
+  t.ranks = t0.ranks;
   t.modifiers = std::move(mods);
-  return cost ? fitHeroes(tx, cls) : 0;
+  return refit ? fitHeroes(tx, sub) : 0;
 }
 
 int moveTalent(Tx& tx, Id talent, int row, int col) {
   const Found f = needTalent(tx.w(), talent);
   needCell(row, col);
   if (f.t->row == row && f.t->col == col) return 0;
-  const Id cls = f.cls->id;
-  HeroClass next = *f.cls;
+  const Id sub = f.sub->id;
+  SubClass next = *f.sub;
   const int fromRow = f.t->row, fromCol = f.t->col;
   for (Talent& t : next.talents) {
     if (t.id == talent) {
@@ -240,42 +280,41 @@ int moveTalent(Tx& tx, Id talent, int row, int col) {
     }
   }
   checkLinks(next);
-  classRef(tx, cls).talents = next.talents;
-  return fitHeroes(tx, cls);
+  subRef(tx, sub).talents = next.talents;
+  return fitHeroes(tx, sub);
 }
 
 int setTalentPrereq(Tx& tx, Id talent, Id prereq) {
   const Found f = needTalent(tx.w(), talent);
-  const Id cls = f.cls->id;
+  const Id sub = f.sub->id;
   if (f.t->prereq == prereq) return 0;
   if (prereq) {
     if (prereq == talent) fail("Талант не может требовать сам себя");
-    const Talent* p = f.cls->talent(prereq);
-    if (!p) fail("Условие — талант того же класса");
+    const Talent* p = f.sub->talent(prereq);
+    if (!p) fail("Условие — талант того же подкласса");
     if (p->row >= f.t->row) fail("Условие " + talName(*p) + " должно стоять в ярусе выше таланта " + talName(*f.t));
   }
-  talentRef(tx, cls, talent).prereq = prereq;
-  return fitHeroes(tx, cls);
+  talentRef(tx, sub, talent).prereq = prereq;
+  return fitHeroes(tx, sub);
 }
 
 int removeTalent(Tx& tx, Id talent) {
   const Found f = needTalent(tx.w(), talent);
-  const Id cls = f.cls->id;
-  // Герои, у которых таланты изменятся: изучившие удаляемый и те, у кого он держал порог яруса (снимаются и
-  // таланты, которые без него нельзя изучить).
+  const Id sub = f.sub->id;
+  // Герои, у которых ранги изменятся: изучившие удаляемый и те, у кого он держал порог яруса или условие.
   std::vector<Id> lost;
   for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return contains(x.talents, talent); })) {
     eraseValue(tx.character(cid).talents, talent);
     lost.push_back(cid);
   }
-  HeroClass& c = classRef(tx, cls);
-  for (Talent& t : c.talents)
+  SubClass& s = subRef(tx, sub);
+  for (Talent& t : s.talents)
     if (t.prereq == talent) t.prereq = 0;
-  c.talents.erase(std::remove_if(c.talents.begin(), c.talents.end(), [&](const Talent& t) { return t.id == talent; }), c.talents.end());
-  const HeroClass hc = *tx.w().heroClass(cls);
-  for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return x.heroClass == cls && !x.talents.empty(); })) {
+  s.talents.erase(std::remove_if(s.talents.begin(), s.talents.end(), [&](const Talent& t) { return t.id == talent; }), s.talents.end());
+  const SubClass sc = *tx.w().catalogs->subclass(sub);
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& x) { return x.subclass == sub && !x.talents.empty(); })) {
     const Character& ch = *tx.w().character(cid);
-    std::vector<Id> keep = lawful(hc, ch.talents, ch.level);
+    std::vector<Id> keep = lawfulTalents(sc, ch.talents, ch.level);
     if (keep.size() == ch.talents.size()) continue;
     tx.character(cid).talents = std::move(keep);
     if (!contains(lost, cid)) lost.push_back(cid);
@@ -283,38 +322,47 @@ int removeTalent(Tx& tx, Id talent) {
   return int(lost.size());
 }
 
-const HeroClass* talentClass(const World& w, Id talent) { return w.catalogs->classOfTalent(talent); }
+const SubClass* talentSubClass(const World& w, Id talent) { return w.catalogs->subclassOfTalent(talent); }
 
 std::vector<Id> talentDependents(const World& w, Id talent) {
   std::vector<Id> out;
-  if (const HeroClass* c = talentClass(w, talent))
-    for (const Talent& t : c->talents)
+  if (const SubClass* s = talentSubClass(w, talent))
+    for (const Talent& t : s->talents)
       if (t.prereq == talent) out.push_back(t.id);
   return out;
 }
 
-int talentTiers(const HeroClass& c) {
+int talentTiers(const SubClass& s) {
   int n = 0;
-  for (const Talent& t : c.talents) n = std::max(n, t.row + 1);
+  for (const Talent& t : s.talents) n = std::max(n, t.row + 1);
   return n;
 }
 
 // ================================================================ герой
+const SubClass* heroSubClass(const World& w, Id character) {
+  const Character* c = w.character(character);
+  const HeroClass* hc = c ? w.heroClass(c->heroClass) : nullptr;
+  return hc ? hc->subclass(c->subclass) : nullptr;
+}
+
 int talentPoints(const World& w, Id character) {
   const Character* c = w.character(character);
   return c ? std::clamp(c->level, 1, schema::kMaxHeroLevel) : 0;
 }
 
 int talentPointsSpent(const World& w, Id character) {
-  const Character* c = w.character(character);
-  const HeroClass* hc = c ? w.heroClass(c->heroClass) : nullptr;
-  return hc ? spentIn(*hc, c->talents) : 0;
+  const SubClass* s = heroSubClass(w, character);
+  return s ? talentSpent(*s, w.character(character)->talents) : 0;
 }
 
-int talentSpentAbove(const World& w, Id character, int row) {
+int heroSpentAbove(const World& w, Id character, int row) {
+  const SubClass* s = heroSubClass(w, character);
+  return s ? talentSpentAbove(*s, w.character(character)->talents, row) : 0;
+}
+
+int heroTalentRank(const World& w, Id character, Id talent) {
   const Character* c = w.character(character);
-  const HeroClass* hc = c ? w.heroClass(c->heroClass) : nullptr;
-  return hc ? spentAboveIn(*hc, c->talents, row) : 0;
+  return c ? talentRank(c->talents, talent) : 0;
 }
 
 bool canLearnTalent(const World& w, Id character, Id talent, std::string* why) {
@@ -326,18 +374,22 @@ bool canLearnTalent(const World& w, Id character, Id talent, std::string* why) {
   if (!c) return no("Персонаж не найден");
   const HeroClass* hc = w.heroClass(c->heroClass);
   if (!hc) return no("У героя нет класса");
-  const Talent* t = hc->talent(talent);
-  if (!t) return no("Талант не из дерева класса " + clsName(*hc));
-  if (contains(c->talents, talent)) return no(talName(*t) + " уже изучен");
-  if (t->prereq && !contains(c->talents, t->prereq)) {
-    const Talent* p = hc->talent(t->prereq);
-    return no("Сначала изучите " + (p ? talName(*p) : std::string("предшествующий талант")));
+  const SubClass* sc = hc->subclass(c->subclass);
+  if (!sc) return no("У героя не выбран подкласс класса " + clsName(*hc));
+  const Talent* t = sc->talent(talent);
+  if (!t) return no("Талант не из дерева подкласса " + subName(*sc));
+  const int rank = talentRank(c->talents, talent);
+  if (rank >= std::max(1, t->ranks)) return no(talName(*t) + " изучен полностью");
+  if (t->prereq) {
+    const Talent* p = sc->talent(t->prereq);
+    if (!p || talentRank(c->talents, t->prereq) < std::max(1, p->ranks))
+      return no("Сначала изучите полностью " + (p ? talName(*p) : std::string("предшествующий талант")));
   }
-  const int need = tierThreshold(*hc, t->row), above = spentAboveIn(*hc, c->talents, t->row);
+  const int need = tierThreshold(*sc, t->row), above = talentSpentAbove(*sc, c->talents, t->row);
   if (above < need)
     return no("Ярус " + std::to_string(t->row + 1) + " откроется, когда в ярусах выше будет вложено " + std::to_string(need) + " " +
               plural(need, "очко", "очка", "очков") + " (сейчас " + std::to_string(above) + ")");
-  const int free = talentPoints(w, character) - spentIn(*hc, c->talents);
+  const int free = talentPoints(w, character) - talentSpent(*sc, c->talents);
   if (t->cost > free)
     return no("Не хватает очков талантов: нужно " + std::to_string(t->cost) + ", свободно " + std::to_string(std::max(0, free)));
   if (why) why->clear();
@@ -358,27 +410,33 @@ bool canUnlearnTalent(const World& w, Id character, Id talent, std::string* why)
   };
   const Character* c = w.character(character);
   if (!c) return no("Персонаж не найден");
-  const HeroClass* hc = w.heroClass(c->heroClass);
-  const Talent* t = hc ? hc->talent(talent) : nullptr;
+  const SubClass* sc = heroSubClass(w, character);
+  const Talent* t = sc ? sc->talent(talent) : nullptr;
   if (!t || !contains(c->talents, talent)) return no("Талант не изучен");
   std::vector<Id> rest = c->talents;
-  eraseValue(rest, talent);
-  for (Id id : rest) {
-    const Talent* x = hc->talent(id);
-    if (!x) continue;
-    if (x->prereq == talent) return no("От " + talName(*t) + " зависит изученный " + talName(*x) + " — сначала отмените его");
-    if (spentAboveIn(*hc, rest, x->row) < tierThreshold(*hc, x->row))
-      return no("Без " + talName(*t) + " закроется ярус " + std::to_string(x->row + 1) + " с изученным " + talName(*x) + " — сначала отмените его");
+  eraseLast(rest, talent);
+  if (lawfulTalents(*sc, rest, c->level).size() == rest.size()) {
+    if (why) why->clear();
+    return true;
   }
-  if (why) why->clear();
-  return true;
+  // Что держит ранг: условие или порог яруса.
+  const bool last = !contains(rest, talent);
+  for (Id id : rest) {
+    const Talent* x = sc->talent(id);
+    if (!x || id == talent) continue;
+    if (x->prereq == talent) return no("От " + talName(*t) + " зависит изученный " + talName(*x) + " — сначала отмените его");
+    if (talentSpentAbove(*sc, rest, x->row) < tierThreshold(*sc, x->row))
+      return no(std::string(last ? "Без " : "Без этого ранга ") + talName(*t) + " закроется ярус " + std::to_string(x->row + 1) + " с изученным " +
+                talName(*x) + " — сначала отмените его");
+  }
+  return no("Без этого ранга " + talName(*t) + " другие изученные таланты станут незаконными");
 }
 
 void unlearnTalent(Tx& tx, Id character, Id talent) {
   needHero(tx.w(), character);
   std::string why;
   if (!canUnlearnTalent(tx.w(), character, talent, &why)) fail(why);
-  eraseValue(tx.character(character).talents, talent);
+  eraseLast(tx.character(character).talents, talent);
 }
 
 void resetTalents(Tx& tx, Id character) {
@@ -401,11 +459,26 @@ void setHeroLevel(Tx& tx, Id character, int level, bool reset) {
 
 void setCharacterClass(Tx& tx, Id character, Id cls) {
   const Character& c = needHero(tx.w(), character);
-  if (cls) needClass(tx.w(), cls);
+  const HeroClass* hc = cls ? &needClass(tx.w(), cls) : nullptr;
   if (c.heroClass == cls) return;
+  const Id only = hc && hc->subclasses.size() == 1 ? hc->subclasses[0].id : 0;
   Character& m = tx.character(character);
   m.heroClass = cls;
-  m.talents.clear();   // дерево другого класса — изучение заново
+  m.subclass = only;
+  m.talents.clear();   // другое дерево — изучение заново
+}
+
+void setCharacterSubclass(Tx& tx, Id character, Id sub) {
+  const Character& c = needHero(tx.w(), character);
+  if (sub) {
+    const HeroClass* hc = tx.w().heroClass(c.heroClass);
+    if (!hc) fail("Сначала выберите класс героя");
+    if (!hc->subclass(sub)) fail("Подкласс не из класса " + clsName(*hc));
+  }
+  if (c.subclass == sub) return;
+  Character& m = tx.character(character);
+  m.subclass = sub;
+  m.talents.clear();
 }
 
 // ================================================================ «Возвысить до Лича»
@@ -430,7 +503,7 @@ Id deathEssence(const World& w) {
 }
 
 std::string phylacteryName(const std::string& relic, const std::string& hero) {
-  return relic + kPhylactery + (hero.empty() ? std::string("Без имени") : hero) + "»)";
+  return relic + kPhylactery + nameOr(hero, kNameless) + "»)";
 }
 
 bool isPhylactery(const Relic& r) { return r.name.find(kPhylactery) != std::string::npos; }
@@ -439,8 +512,8 @@ std::vector<Id> phylacteryRelics(const World& w, Id character) {
   std::vector<Id> out;
   const Character* c = w.character(character);
   if (!c) return out;
-  for (Id rid : c->inventory)
-    if (const Relic* r = w.relic(rid); r && int(r->rarity) >= int(Rarity::Epic) && !isPhylactery(*r)) out.push_back(rid);
+  for (const RelicStack& st : c->inventory)
+    if (const Relic* r = w.relic(st.relic); r && int(r->rarity) >= int(Rarity::Epic) && !isPhylactery(*r)) out.push_back(st.relic);
   sortByRarity(w, out);
   return out;
 }
@@ -473,7 +546,7 @@ std::vector<std::string> lichProblems(const World& w, Id character, Id relic) {
   } else if (const Relic* r = w.relic(relic); !r) {
     out.push_back("Реликвия не найдена");
   } else {
-    if (!contains(c->inventory, relic)) out.push_back("Филактерию отдают только из инвентаря героя");
+    if (!relicCount(c->inventory, relic)) out.push_back("Филактерию отдают только из инвентаря героя");
     if (int(r->rarity) < int(Rarity::Epic)) out.push_back("Филактерия — реликвия не ниже эпической");
     if (isPhylactery(*r)) out.push_back(q(r->name) + " уже филактерия");
   }
@@ -505,8 +578,18 @@ void ascendLich(Tx& tx, Id character, Id relic) {
   for (Id m : c.modifiers)
     if (const Modifier* x = tx.w().modifier(m); x && x->key == schema::mod::Necromancer) dropModifier(tx, ModTarget::Character, character, m);
   addModifier(tx, ModTarget::Character, character, ensureBuiltinMod(tx, schema::mod::Lich), 0);
-  for (Relic& x : tx.catalogs().relics)
-    if (x.id == relic) x.name = newName;
+  // Уникальная реликвия переименовывается; от стопки копируемой одна штука становится отдельной реликвией-филактерией.
+  if (r.unique()) {
+    if (Relic* x = findById(tx.catalogs().relics, relic)) x->name = newName;
+  } else {
+    Relic ph = r;
+    ph.id = tx.nextId(Seq::Relic);
+    ph.name = newName;
+    tx.catalogs().relics.push_back(ph);
+    const RelicPlace at{RelicPlace::Hero, character, 0, c.faction};
+    moveRelic(tx, relic, at, RelicPlace{}, 1);
+    moveRelic(tx, ph.id, RelicPlace{}, at, 1);
+  }
   addLog(tx, LogKind::Note,
          q(hero) + " возвысился до Лича: " + amount(schema::kLichCorpses) + " трупов, " + amount(schema::kLichDeathEssence) +
              " эссенции смерти, филактерия — " + q(r.name),

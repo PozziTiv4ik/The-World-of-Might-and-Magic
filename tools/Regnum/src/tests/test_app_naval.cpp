@@ -9,26 +9,6 @@ using namespace rg::apptest;
 
 namespace {
 
-// Перетаскивание по шагам; snapshot — снимок, пока кнопка ещё зажата.
-void dragTo(Harness& h, gfx::Pt from, gfx::Pt to, const std::string& snapshot = {}) {
-  hl::mouseMove(from.x, from.y);
-  h.step();
-  hl::mouseDown(from.x, from.y, platform::MouseLeft);
-  h.step();
-  for (int i = 1; i <= 10; i++) {
-    hl::mouseMove(from.x + (to.x - from.x) * float(i) / 10, from.y + (to.y - from.y) * float(i) / 10);
-    h.step();
-  }
-  if (!snapshot.empty()) {
-    h.dropToasts();
-    h.settle();
-    CHECK(h.shot(snapshot));
-  }
-  hl::mouseUp(to.x, to.y, platform::MouseLeft);
-  h.step();
-  hl::advance(0.6);
-}
-
 Vec2 labelOf(const World& w, Id province) {
   auto fs = geo::faces(w);
   const geo::ProvinceShape* sh = fs ? fs->shape(province) : nullptr;
@@ -435,7 +415,7 @@ TEST(app_naval_shipyard_place) {
     rules::setBuildingFlag(tx, yard, rules::BuildingFlag::Shipyard, true);
     rules::setLevelShips(tx, yard, 1, 1u << int(ShipType::Frigate));
     tx.province(coast).size = ProvSize::Large;
-    tx.province(coast).city = CityType::City;
+    test::setCityPop(tx, coast, CityType::City);
     rules::placeBuilding(tx, coast, yard, 1);
   });
   CHECK((rules::shipyardProvinces(h->world(), hel) == std::vector<Id>{coast}));

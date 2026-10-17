@@ -273,12 +273,12 @@ struct ExchangeDialog final : Dialog {
       return false;
     }
     x.markUi("exchange.cancel");
-    ui::Disabled dis(x.readOnly());
+    ui::Disabled dis(!playsLeader(x, w, a));   // обмен — за государство объектов
     const bool can = problems.empty() && diff;
     // Не кнопка по Enter: Enter фиксирует число в поле строки (правят несколько строк подряд).
     if (ui::button("Обменять", {.variant = ui::Variant::Primary, .icon = "exchange", .disabled = !can}) && can) {
       const Id fa = a, fb = b;
-      if (x.act(fleet ? "Обмен кораблями" : "Обмен отрядами", [&](Tx& tx) { rules::exchangeUnits(tx, fa, fb, spec); })) {
+      if (playsLeader(x, w, fa) && x.play(fleet ? "Обмен кораблями" : "Обмен отрядами", [&](Tx& tx) { rules::exchangeUnits(tx, fa, fb, spec); })) {
         x.select(SelType::Army, x.world().army(fa) ? fa : fb);
         finish(x, true);
         return false;
@@ -293,8 +293,8 @@ struct ExchangeDialog final : Dialog {
 
 void openExchange(App& a, Id first, Id second, std::function<void(App&, bool)> done) {
   std::string why;
-  if (a.readOnly()) {
-    a.act("Обмен отрядами", [](Tx&) {});   // сообщение о просмотре прошлого хода
+  const Army* fa = a.world().army(first);
+  if (!w::checkPlay(a, fa ? fa->leader() : 0)) {   // прошлый ход или чужие войска — причина уведомлением
     if (done) done(a, false);
     return;
   }

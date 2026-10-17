@@ -12,7 +12,7 @@ TEST(app_editors_tech_research_time) {
   Harness h("editors_tech_time");
   h.demo();
   h.dropToasts();
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   (void)B;
   // Технология без условий на 2 хода и модификатор государства +100 % ко времени исследования.
   Id t = 0, mod = 0;

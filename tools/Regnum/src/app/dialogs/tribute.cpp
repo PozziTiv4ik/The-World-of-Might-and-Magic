@@ -1,8 +1,8 @@
 // Regnum — дань и репарации (DialogReg «tribute», arg — фракция, которая навязывает выплаты и получает их):
 // плательщик, вид (дань или репарации), золото за ход, срок в ходах; итог и доход сторон после выплат;
 // rules::imposeTribute. ТЗ 1.e.ii. Действующие выплаты видны и отменяются в редакторе торговли и вкладке фракции.
+// Роли (ТЗ «Доработки №4», п.5): дань — игровое действие; игрок назначает выплаты, где одна из сторон — его государство.
 #include "app/app_internal.h"
-#include "app/dialogs/turn_ui.h"
 #include "app/widgets.h"
 
 namespace rg::app {
@@ -82,14 +82,14 @@ struct TributeDlg : Dialog {
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     a.markUi("tribute.cancel");
-    bool ok = receiver && payer && receiver != payer && !a.readOnly();
+    bool ok = receiver && payer && receiver != payer && (a.canPlay(receiver) || a.canPlay(payer));
     if (ui::button(kind == 0 ? "Навязать дань" : "Назначить репарации", {.variant = ui::Variant::Primary, .icon = kind == 0 ? "tribute" : "reparations",
                                                                           .disabled = !ok, .isDefault = true})) {
       DealKind k = kind == 0 ? DealKind::Tribute : DealKind::Reparations;
       Id rcv = receiver, pay = payer;
       double amt = amount;
       int n = turns;
-      if (a.act(kind == 0 ? "Навязать дань" : "Назначить репарации", [&](Tx& tx) { rules::imposeTribute(tx, k, rcv, pay, amt, n); })) {
+      if (a.play(kind == 0 ? "Навязать дань" : "Назначить репарации", [&](Tx& tx) { rules::imposeTribute(tx, k, rcv, pay, amt, n); })) {
         a.toast(w.factionName(pay) + (kind == 0 ? " платит дань: " : " платит репарации: ") + fmtGold(amt) + " золота за ход, " + nTurns(n),
                 ToastKind::Success, kind == 0 ? "tribute" : "reparations");
         return false;
@@ -106,7 +106,7 @@ DialogReg reg({"tribute", [](App& a, Id arg) -> std::unique_ptr<Dialog> {
                    return nullptr;
                  }
                  auto d = std::make_unique<TributeDlg>();
-                 d->receiver = a.world().faction(arg) ? arg : 0;
+                 d->receiver = a.world().faction(arg) ? arg : a.playerState();   // игрок — по умолчанию получатель
                  return d;
                }});
 

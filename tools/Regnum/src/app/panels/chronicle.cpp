@@ -1,9 +1,9 @@
 // Regnum — хроника мира (выдвижная панель «Хроника»): все записи World::log по ходам (новые сверху), значки и
 // цвета видов, фильтры (вид, фракция, диапазон ходов, поиск), щелчок по записи — выделить и показать объект;
 // «Записать событие» — заметка текущего хода (rules::addLog, LogKind::Note). ТЗ: механика хода фиксирует все
-// зависящие от хода происшествия на карте.
+// зависящие от хода происшествия на карте. Запись в хронику — правка мира (только администратор, ТЗ «Доработки №4», п.5).
 #include "app/app_internal.h"
-#include "app/dialogs/turn_ui.h"
+#include "app/turn/turn_ui.h"
 #include "app/widgets.h"
 
 namespace rg::app {
@@ -91,7 +91,7 @@ const Cache& entries(const World& w) {
 // Другой мир или приложение — фильтры сбрасываются.
 void syncSession(App& a) {
   static u64 tag = 0;
-  u64 t = turnui::sessionTag(a);
+  u64 t = detail::sessionTag(a);
   if (t == tag) return;
   tag = t;
   filter().reset();
@@ -121,7 +121,7 @@ struct NoteDlg : Dialog {
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     std::string t = trim(text);
-    if (ui::button("Записать", {.variant = ui::Variant::Primary, .icon = "quill", .disabled = t.empty() || a.readOnly()})) {
+    if (ui::button("Записать", {.variant = ui::Variant::Primary, .icon = "quill", .disabled = t.empty() || !a.canEdit()})) {
       rules::LogRefs refs;
       refs.province = province;
       if (faction) refs.factions.push_back(faction);
@@ -136,6 +136,7 @@ struct NoteDlg : Dialog {
 };
 
 void openNote(App& a) {
+  if (!a.admin()) return;   // хроника для игрока — только чтение
   if (a.readOnly()) {
     a.toast("Открыт прошлый ход — записи недоступны", ToastKind::Warning, "lock", "К текущему ходу", [](App& x) { x.backToCurrent(); });
     return;
@@ -144,7 +145,7 @@ void openNote(App& a) {
 }
 
 DialogReg noteReg({"chronicle.note", [](App& a, Id) -> std::unique_ptr<Dialog> {
-                     if (a.readOnly()) return nullptr;
+                     if (!a.canEdit()) return nullptr;
                      return std::make_unique<NoteDlg>();
                    }});
 
@@ -228,20 +229,24 @@ void drawChronicle(App& a) {
   const World& w = a.world();
   Filter& f = filter();
   {
-    ui::Row r({ui::fr(1), ui::px(30), ui::px(30)}, 30, 6);
+    const bool note = a.admin();   // запись в хронику — правка мира
+    const ui::Len cols[] = {ui::fr(1), ui::px(30), ui::px(30)};
+    ui::Row r(std::span<const ui::Len>(cols, note ? 3 : 2), 30, 6);
     if (ui::searchField("q", f.query, "Поиск в хронике")) f.limit = 120;
     a.markUi("chronicle.search");
     if (ui::iconButton("filter", "Фильтры: вид, фракция, ходы", {.toggled = f.active(), .badge = f.active()})) ui::openPopup("filters");
     a.markUi("chronicle.filter");
     filtersPopup(a, w);
-    if (ui::iconButton("quill", "Записать событие", {.disabled = a.readOnly()})) openNote(a);
-    a.markUi("chronicle.note");
+    if (note) {
+      if (ui::iconButton("quill", "Записать событие", {.disabled = a.readOnly()})) openNote(a);
+      a.markUi("chronicle.note");
+    }
   }
   activeChips(w);
   const Cache& c = entries(w);
   if (w.log.empty()) {
     ui::spacer(16);
-    if (ui::emptyState("chronicle", "Хроника пуста.", a.readOnly() ? std::string_view() : "Записать событие", "quill"))
+    if (ui::emptyState("chronicle", "Хроника пуста.", !a.canEdit() ? std::string_view() : "Записать событие", "quill"))
       openNote(a);
     return;
   }
@@ -296,9 +301,9 @@ void drawChronicle(App& a) {
 DrawerReg drawer({"chronicle", "chronicle", "Хроника", 70, drawChronicle, "Ctrl+9"});
 
 bool inEditor(App& a) { return a.ui.screen == Screen::Editor; }
-CommandReg cmdOpen({"chronicle.open", "Хроника", "chronicle", nullptr, [](App& a) { turnui::showChronicle(a, -1); }, inEditor, false, "Ход"});
+CommandReg cmdOpen({"chronicle.open", "Хроника", "chronicle", nullptr, [](App& a) { turnui::showChronicle(a, -1); }, inEditor, false, "Ход", 20});
 CommandReg cmdNote({"chronicle.note", "Записать событие в хронику", "quill", nullptr, [](App& a) { openNote(a); },
-                    [](App& a) { return inEditor(a) && !a.readOnly(); }, false, "Ход"});
+                    [](App& a) { return inEditor(a) && a.canEdit(); }, false, "Ход", 20});
 
 }  // namespace
 

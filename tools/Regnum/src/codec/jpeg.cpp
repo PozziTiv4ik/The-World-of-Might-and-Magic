@@ -2,8 +2,6 @@
 // интерполяция цветности, преобразование цвета, ориентация EXIF.
 #include "codec/jpeg.h"
 
-#include "base/fs.h"
-
 namespace rg::codec {
 
 namespace {
@@ -868,19 +866,6 @@ std::optional<RgbaImage> decodeJpeg(const u8* data, size_t size, const JpegDecod
   d.reset();
   if (opt.applyOrientation) img = orient(std::move(img), o);
   return img;
-}
-
-std::optional<RgbaImage> decodeImage(const u8* data, size_t size, std::string* error) {
-  if (data && size >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') return decodePng(data, size, error);
-  if (data && size >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return decodeJpeg(data, size, JpegDecodeOptions{}, error);
-  if (error) *error = "Неизвестный формат изображения (ожидается PNG или JPEG)";
-  return std::nullopt;
-}
-
-std::optional<RgbaImage> readImageFile(const std::string& path, std::string* error) {
-  auto bytes = fs::readFile(path, error);
-  if (!bytes) return std::nullopt;
-  return decodeImage(*bytes, error);
 }
 
 }  // namespace rg::codec

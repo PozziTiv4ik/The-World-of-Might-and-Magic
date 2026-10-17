@@ -26,22 +26,6 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 
 . (Join-Path $PSScriptRoot '_lib.ps1')
-function Format-ProjectReference {
-    param([string]$Value)
-
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        return $null
-    }
-
-    $reference = $Value.Trim() -replace '\\', '/'
-
-    if ($reference -match '^`.+`$' -or $reference -match '^[a-z]+://') {
-        return $reference
-    }
-
-    return "``$reference``"
-}
-
 function Convert-ToBulletText {
     param([string]$Value)
 
@@ -62,12 +46,6 @@ function Convert-ToBulletText {
             "- $_"
         }
     }) -join "`r`n")
-}
-
-function Get-InboxEntries {
-    param([string]$NewBody)
-
-    return @(Get-WmmaInboxEntries $NewBody)
 }
 
 function Select-InboxEntry {
@@ -178,7 +156,7 @@ function Set-SourceLifecycleStatus {
         return
     }
 
-    $sourceText = Get-Content -Raw -Encoding UTF8 -LiteralPath $sourcePath
+    $sourceText = Read-WmmaText $sourcePath
     if ($sourceText -notmatch '(?m)^type:\s*(source|source_note|source_compilation)\s*$') {
         return
     }
@@ -190,16 +168,14 @@ function Set-SourceLifecycleStatus {
     $updatedSourceText = Set-WmmaMeta $sourceText 'status' $LifecycleStatus
 
     if ($updatedSourceText -ne $sourceText) {
-        $encoding = [System.Text.UTF8Encoding]::new($false)
-        [System.IO.File]::WriteAllText($sourcePath, $updatedSourceText, $encoding)
+        Write-WmmaText $sourcePath $updatedSourceText
     }
 }
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
-$inbox = Get-Content -Raw -Encoding UTF8 -LiteralPath $inboxPath
-$codeFence = '```'
+$inbox = Read-WmmaText $inboxPath
 
 $sections=@(Get-WmmaMarkdownSections $inbox 2)
 $newSection=@($sections|Where-Object heading -eq 'Новые сообщения')|Select-Object -First 1
@@ -213,7 +189,7 @@ $newBody = $newSection.text
 $processedHeader = "`r`n`r`n## Обработанные входящие"
 $processedRest = $inbox.Substring($processedSection.body_start).TrimStart()
 
-$entries = Get-InboxEntries -NewBody $newBody
+$entries = @(Get-WmmaInboxEntries $newBody)
 if($RequestId){
     $receipt=Get-WmmaReceipt $root $RequestId
     if($receipt){
@@ -242,12 +218,12 @@ if($Status -eq 'отложено'){
     $start=$newSection.body_start+$selected.Index
     Write-WmmaText $inboxPath ($inbox.Substring(0,$start)+$replacement+$inbox.Substring($start+$selected.Length))
     if($requestId){$receipt=Get-WmmaReceipt $root $requestId;if($receipt){$receipt.state='deferred';Save-WmmaReceipt $root $receipt}}
-    if(-not $SkipCheck){& (Join-Path $root 'tools/Завершить_ход.ps1')}
+    Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
     "Deferred inbox message: $selectedHeading";return
 }
 
 if (-not [string]::IsNullOrWhiteSpace($SourcePath)) {
-    $sourceLine = Format-ProjectReference -Value $SourcePath
+    $sourceLine = Format-WmmaProjectReference $SourcePath
 } elseif (Get-WmmaEntryField $selectedBody 'Источник') {
     $sourceLine = Get-WmmaEntryField $selectedBody 'Источник'
 } else {
@@ -261,13 +237,13 @@ $sourceLifecycleStatus = switch ($Status) {
 }
 
 $relatedLinks = New-Object 'System.Collections.Generic.List[string]'
-$sceneReference = Format-ProjectReference -Value $ScenePath
+$sceneReference = Format-WmmaProjectReference $ScenePath
 if ($sceneReference) {
     $relatedLinks.Add($sceneReference) | Out-Null
 }
 
 foreach ($link in $Links) {
-    $linkReference = Format-ProjectReference -Value $link
+    $linkReference = Format-WmmaProjectReference $link
     if ($linkReference) {
         $relatedLinks.Add($linkReference) | Out-Null
     }
@@ -323,10 +299,7 @@ if($requestId){
     if($receipt){$receipt.state=if($Status -eq 'обработано'){'processed'}else{'archived'};if($ScenePath){$receipt.scene_path=$ScenePath};Save-WmmaReceipt $root $receipt}
 }
 
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
 
 "Processed inbox message: $selectedHeading"
 }

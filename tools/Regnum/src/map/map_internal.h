@@ -133,7 +133,7 @@ struct TileKey {
 };
 struct TileKeyHash { size_t operator()(const TileKey& k) const; };
 struct TileRequest { TileKey key; double prio = 0; };   // меньше — раньше
-struct TileView { TileKey key; std::shared_ptr<const gfx::Image> img; bool stale = false; };
+struct TileView { TileKey key; std::shared_ptr<const gfx::Image> img; };
 
 class TileStore {
  public:

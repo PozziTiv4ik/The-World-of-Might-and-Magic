@@ -1,17 +1,10 @@
 // Regnum — шапка инспектора провинции (ТЗ 1.a.iii, 1.a.iv, 1.a.ix): название с переименованием на месте, владелец
-// с флагом, метки «море» и «оккупирована», меню действий, галочка «Морская провинция»; команды провинции.
-#include "app/widgets.h"
+// с флагом, метки «море» и «оккупирована», меню действий, галочка «Морская провинция»; команды провинции. Переименование,
+// море, объединение и удаление — правка мира (App::canEdit).
+#include "app/panels/province_common.h"
 #include "gfx/text.h"
 
 namespace rg::app::prov {
-// province_common.cpp
-std::string provinceTitle(const Province& p);
-bool flagPill(std::string_view key, const Faction& f, std::string_view tip, float maxW);
-bool hatchPill(std::string_view key, const Faction& occ, std::string_view tip, float maxW);
-void showProvince(App& a, Id pid);
-void askDelete(App& a, Id pid);
-extern const char* const kDeleteNeedsEdit;
-void startMerge(App& a, Id pid);
 
 // Переименование на месте: общее состояние шапки (команда F2 и пункт меню его включают).
 struct Rename {
@@ -32,7 +25,7 @@ Rename& renameState(App& a) {
 }
 void startRename(App& a, Id pid) {
   const Province* p = a.world().province(pid);
-  if (!p || a.readOnly()) return;
+  if (!p || !a.canEdit()) return;
   Rename& r = renameState(a);
   r = Rename{pid, true, 0, p->name, &a, a.frameCount()};
   a.requestRedraw();
@@ -47,7 +40,7 @@ using platform::Key;
 void moreMenu(App& a, const Province& p) {
   if (!ui::beginMenu("more")) return;
   const World& wd = a.world();
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   Id pid = p.id;
   ui::menuHeader(prov::provinceTitle(p));
   if (ui::menuItem("Показать на карте", {.icon = "target", .shortcut = {Key::F, 0}})) prov::showProvince(a, pid);
@@ -72,7 +65,7 @@ void moreMenu(App& a, const Province& p) {
 }
 
 void drawName(App& a, const Province& p) {
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   prov::Rename& rs = prov::renameState(a);
   if (rs.on && (rs.pid != p.id || ro)) rs = prov::Rename{};
   if (rs.on) {
@@ -113,7 +106,7 @@ void drawHeader(App& a, Id pid) {
   const World& wd = a.world();
   const Province* p = wd.province(pid);
   if (!p) return;
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Faction* own = p->sea ? nullptr : wd.faction(p->owner);
   ui::IdScope ps{i64(pid)};
   // Подпись и меню действий
@@ -165,16 +158,16 @@ HeaderReg header({"province.header", SelType::Province, 0, drawHeader});
 bool provinceSelected(App& a) {
   return a.ui.screen == Screen::Editor && a.ui.editor.empty() && a.ui.sel.type == SelType::Province && a.world().province(a.ui.sel.id) != nullptr;
 }
-bool provinceEditable(App& a) { return provinceSelected(a) && !a.readOnly(); }
+bool provinceEditable(App& a) { return provinceSelected(a) && a.canEdit(); }
 // Удаление меняет карту — только в режиме правки границ (ТЗ 1.a.ii).
 bool provinceDeletable(App& a) { return provinceEditable(a) && a.ui.editBorders; }
 
 CommandReg cDelete({"province.delete", "Удалить провинцию", "trash", "Delete", [](App& a) { prov::askDelete(a, a.ui.sel.id); }, provinceDeletable,
-                    false, "Провинции"});
+                    false, "Провинции", 10});
 CommandReg cShow({"province.show", "Показать провинцию на карте", "target", nullptr, [](App& a) { prov::showProvince(a, a.ui.sel.id); },
-                  provinceSelected, false, "Провинции"});
+                  provinceSelected, false, "Провинции", 10});
 CommandReg cRename({"province.rename", "Переименовать провинцию", "edit", "F2", [](App& a) { prov::startRename(a, a.ui.sel.id); },
-                    provinceEditable, false, "Провинции"});
+                    provinceEditable, false, "Провинции", 10});
 
 }  // namespace
 }  // namespace rg::app

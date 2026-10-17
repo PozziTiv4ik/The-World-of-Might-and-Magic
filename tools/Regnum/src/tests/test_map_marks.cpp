@@ -1,28 +1,15 @@
-// Регрессии отрисовщика карты (исправления аудита ТЗ):
-//  * отметки войск и флота не перекрываются: наложившиеся объекты — стопка, при приближении распадается;
-//  * «Показать всю карту» и минимальный масштаб — по свободной части между панелями (setSafeArea);
-//  * маршрут рисуется ровно по ломаной, по которой считаются его провинции (бонус +10 %);
-//  * сухопутная провинция на морской части карты видна (заливка поверх моря).
-#include "geo/ops.h"
+// Отметки войск и флота на карте (исправления аудита ТЗ): наложившиеся объекты не перекрываются — стопка, при
+// приближении распадается; снимок стопок при обзорном масштабе.
 #include "map/map_internal.h"
-#include "rules/rules.h"
 #include "tests/test_map_view_util.h"
 
 using namespace rg;
+using mvtest::makeArmy;
 
 namespace {
 
 constexpr int W = 1920, H = 1080;
 constexpr float DPI = 1.25f;
-
-Army makeArmy(Id id, Vec2 pos, Id faction, i64 units, ArmyKind kind = ArmyKind::Army) {
-  Army a;
-  a.id = id;
-  a.kind = kind;
-  a.pos = pos;
-  a.groups.push_back(ArmyGroup{faction, {ArmyUnit{1, units}}, {}});
-  return a;
-}
 
 // Отметки при текущей камере: каждый объект ровно в одной, габариты не пересекаются, щелчок по отметке — её верх.
 int checkMarks(const map::MapView& mv, const World& w, const char* when) {
@@ -180,132 +167,3 @@ TEST(map_marks_render_stacks) {
   }
 }
 
-// ================================================================ свободная часть области просмотра
-TEST(map_view_safe_area_fit) {
-  map::MapView mv(&mvtest::basemap());
-  mv.setWorld(mvtest::demo());
-  mv.setViewport(RectF(0, 0, W, H), DPI);
-  const double full = mv.minZoom();
-  // Панели: верхняя полоса 56, лента слева 72, инспектор справа 420.
-  const RectF area(72, 56, W - 72 - 420, H - 56);
-  mv.setSafeArea(area);
-  CHECK(mv.safeArea() == area);
-  CHECK(mv.minZoom() < full);
-  CHECK(mv.minZoom() <= std::min(area.w / 8000.0, area.h / 4500.0) + 1e-9);
-  mv.fitAll(false);
-  const gfx::Pt tl = mv.view().toScreen({0, 0}), br = mv.view().toScreen({8000, 4500});
-  CHECK(tl.x >= area.x - 0.01f && tl.y >= area.y - 0.01f);
-  CHECK(br.x <= area.right() + 0.01f && br.y <= area.bottom() + 0.01f);
-  CHECK_NEAR(mv.view().zoom, mv.minZoom(), 1e-12);
-  // Колесо: отдаление до minZoom возможно, весь мир по-прежнему в свободной части.
-  mv.zoomAt(area.cx(), area.cy(), 3, false);
-  mv.zoomAt(area.cx(), area.cy(), 1e-6, false);
-  CHECK_NEAR(mv.view().zoom, mv.minZoom(), 1e-12);
-  // Панель закрылась (свободная часть больше): камера не дёргается, колесо от этого масштаба не приближает.
-  mv.fitAll(false);
-  const map::View before = mv.view();
-  mv.setSafeArea(RectF());
-  mv.setViewport(RectF(0, 0, W, H), DPI);
-  CHECK_EQ(mv.view().zoom, before.zoom);
-  CHECK_EQ(mv.view().cx, before.cx);
-  mv.zoomAt(960, 540, 0.5, false);
-  CHECK(mv.view().zoom <= before.zoom + 1e-12);
-  // «Показать область» — тоже в свободной части.
-  mv.setSafeArea(area);
-  mv.fit(Box2(3000, 1000, 3400, 1300), false);
-  const gfx::Pt a = mv.view().toScreen({3000, 1000}), b = mv.view().toScreen({3400, 1300});
-  CHECK(a.x >= area.x && a.y >= area.y && b.x <= area.right() && b.y <= area.bottom());
-}
-
-// ================================================================ маршруты
-TEST(map_route_drawn_along_polyline) {
-  const World& w = mvtest::demo();
-  auto fs = geo::faces(w);
-  int checked = 0;
-  w.routes.each([&](const Route& r) {
-    const std::vector<Vec2> line = map::detail::routeLine(r.pts);
-    CHECK(line.size() >= 2);
-    CHECK(fs->provincesOnPolyline(line) == fs->provincesOnPolyline(r.pts));
-    checked++;
-  });
-  CHECK(checked > 0);
-  // Повторяющиеся точки убираются, остальные — без изменений (без сглаживания).
-  const std::vector<Vec2> zig = {{100, 100}, {100, 100}, {400, 600}, {700, 100}};
-  const std::vector<Vec2> got = map::detail::routeLine(zig);
-  CHECK_EQ(got.size(), size_t(3));
-  CHECK(got[1] == zig[2]);
-  // Щелчок точно по середине отрезка ломаной попадает в маршрут (линия не отходит от ломаной на изгибе).
-  map::MapView mv(&mvtest::basemap());
-  mv.setWorld(w);
-  mv.setViewport(RectF(0, 0, W, H), DPI);
-  int hits = 0;
-  w.routes.each([&](const Route& r) {
-    for (size_t i = 1; i + 1 < r.pts.size() && hits < 6; i++) {
-      const Vec2 mid = (r.pts[i] + r.pts[i + 1]) * 0.5;
-      mv.centerOn(mid, 1.0, false);
-      const gfx::Pt s = mv.view().toScreen(mid);
-      CHECK_EQ(mv.routeAt(s.x, s.y, 2), r.id);
-      hits++;
-    }
-  });
-  CHECK(hits > 0);
-}
-
-// ================================================================ сухопутная провинция на морской части карты
-TEST(map_land_province_on_sea_filled) {
-  const World& base = mvtest::demo();
-  auto fs = geo::faces(base);
-  Id pid = 0, state = 0;
-  double best = 0;
-  base.provinces.each([&](const Province& p) {
-    const geo::ProvinceShape* sh = fs->shape(p.id);
-    if (p.sea && sh && sh->area > best) {
-      best = sh->area;
-      pid = p.id;
-    }
-  });
-  base.factions.each([&](const Faction& f) {
-    if (!state && f.isState()) state = f.id;
-  });
-  CHECK(pid && state);
-  World w = [&] {
-    Tx tx(base);
-    rules::setProvinceSea(tx, pid, false);
-    rules::setProvinceOwner(tx, pid, state);
-    return std::move(tx).finish();
-  }();
-  CHECK(!w.province(pid)->sea);
-  CHECK_EQ(w.province(pid)->owner, state);
-  const geo::ProvinceShape* sh = geo::faces(w)->shape(pid);
-  CHECK(sh != nullptr);
-  if (!sh) return;
-  map::RenderOptions opt;
-  auto shot = [&](const World& world, const char* name) {
-    map::MapView mv(&mvtest::basemap());
-    mv.setWorld(world);
-    mv.setViewport(RectF(0, 0, W, H), DPI);
-    mv.fit(sh->box, false);
-    gfx::Image img = mvtest::renderFull(mv, opt, W, H, DPI);
-    mvtest::savePng(img, name);
-    return std::make_pair(img, mv.view());
-  };
-  auto [sea, v] = shot(base, "map_view_sea_province.png");
-  auto [land, v2] = shot(w, "map_view_sea_province_land.png");
-  const Color col = w.faction(state)->color;
-  int n = 0, tinted = 0;
-  for (int k = 0; k < 144; k++) {
-    const Vec2 m{sh->box.x0 + sh->box.w() * ((k % 12) + 0.5) / 12, sh->box.y0 + sh->box.h() * ((k / 12) + 0.5) / 12};
-    if (geo::faces(w)->provinceAt(m) != pid || geo::faces(w)->terrainAt(m) != Terrain::Sea) continue;
-    const gfx::Pt s = v2.toScreen(m);
-    const int x = int(s.x * DPI), y = int(s.y * DPI);
-    if (x < 0 || y < 0 || x >= land.w || y >= land.h) continue;
-    const Color a = gfx::unpremul(sea.at(x, y)), b = gfx::unpremul(land.at(x, y));
-    n++;
-    // Ближе к цвету государства, чем чистое море.
-    auto d = [&](Color p) { return std::abs(p.r - col.r) + std::abs(p.g - col.g) + std::abs(p.b - col.b); };
-    if (d(b) + 40 < d(a)) tinted++;
-  }
-  std::printf("  sea samples %d, tinted %d\n", n, tinted);
-  CHECK(n > 10);
-  CHECK(tinted * 10 >= n * 9);
-}

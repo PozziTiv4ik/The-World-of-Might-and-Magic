@@ -1,7 +1,6 @@
 // Regnum — флаги: все узоры, чёткие края полос, размещение эмблемы, изображения (cover, повреждённые данные),
 // скругление и рамка, повороты, скорость, наглядные листы.
-#include "codec/png.h"
-#include "core/world.h"
+#include "base/flag.h"
 #include "gfx/emblems.h"
 #include "gfx/flag.h"
 #include "tests/test_gfx_icons_util.h"
@@ -26,15 +25,6 @@ Flag makeFlag(FlagPattern p, Color a, Color b, Color c, std::string emblem = {},
 
 Color px(const Image& img, int x, int y) { return unpremul(img.at(x, y)); }
 int dist(Color a, Color b) { return std::abs(a.r - b.r) + std::abs(a.g - b.g) + std::abs(a.b - b.b); }
-
-std::string pngOf(const Image& img) {
-  codec::RgbaImage r;
-  r.w = img.w;
-  r.h = img.h;
-  r.rgba = img.toRgba();
-  const auto bytes = codec::encodePng(r, 6);
-  return std::string(bytes.begin(), bytes.end());
-}
 
 }  // namespace
 
@@ -137,7 +127,7 @@ TEST(gfx_icons_flag_image_cover_and_fallback) {
     for (int x = 98; x < 102; x++) src.row(y)[x] = premul(Color(255, 255, 255));
   Flag f;
   f.image = true;
-  f.png = pngOf(src);
+  f.png = test::pngBytes(src.toRgbaImage());
   // Квадрат 60 × 60: «cover» обрезает края, видна середина (красное | синее).
   Image img(60, 60, 0);
   Canvas c(img);

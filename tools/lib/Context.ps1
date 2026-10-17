@@ -10,8 +10,10 @@ function Get-WmmaSelection {
     $focusIds = @($state.focus_ids)
     if ($branchState) { $focusIds += @($branchState.focus_ids) }
     $terms = @($Query -split '\s+' | Where-Object { $_.Length -ge 3 })
+    # The closure cannot see script-scope functions, so it captures the priority scale.
+    $priority = ${function:Get-WmmaPriority}
     $rank = {
-        $item = $_; $score = $(switch($item.priority){'критический'{400};'высокий'{300};'средний'{200};default{100}})
+        $item = $_; $score = 100 * (& $priority $item.priority)
         if ($focusIds -contains $item.id) { $score += 1000 }
         if ($branchState -and ([string]$item.owner).Contains($branchState.name)) { $score += 300 }
         $haystack = $item | ConvertTo-Json -Depth 8 -Compress
@@ -27,6 +29,18 @@ function Get-WmmaSelection {
         if ($_.lifecycle) { $_.lifecycle -eq 'active' } else { $_.status -notmatch '^(закрыт|изучен|сработал)' }
     } | Sort-Object @{Expression={if ($focusIds -contains $_.id) {1000} elseif ($_.status -match 'критич') {500} else {0}};Descending=$true}, id, timer)
     return [pscustomobject]@{questions=$qs;decisions=$ds;fronts=$fs;timers=$ts;state=$state;branch=$branchState}
+}
+
+# Rows of the next-turn panel. The default limits live only here: Собрать_панель_хода
+# passes explicit overrides, and Проверить_контекст checks the panel against the same rows.
+function Select-WmmaPanelItems {
+    param([object]$Selection,[int]$MaxDecisions=10,[int]$MaxQuestions=8,[int]$MaxFronts=10,[int]$MaxTimers=8)
+    return [pscustomobject]@{
+        decisions=@($Selection.decisions|Select-Object -First $MaxDecisions)
+        questions=@($Selection.questions|Select-Object -First $MaxQuestions)
+        fronts=@($Selection.fronts|Select-Object -First $MaxFronts)
+        timers=@($Selection.timers|Select-Object -First $MaxTimers)
+    }
 }
 
 function Get-WmmaCharacterMemoryData {

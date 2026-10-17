@@ -1,32 +1,66 @@
-// Помощники сценариев войск и флота: настоящие инструменты постановки (тест оболочки подменяет их своим),
-// поиск фракций и объектов демонстрационного мира, точки карты на экране.
+// Помощники сценариев войск и флота: поиск фракций, провинций и объектов демонстрационного мира, точки карты на
+// экране, перетаскивание войска, подсказка под указателем, прокрутка инспектора к элементу.
 #pragma once
 #include "app/panels/military.h"
 #include "tests/test_app_util.h"
 
 namespace rg::apptest {
 
-// Настоящие инструменты «Новое войско» и «Новый флот» на время теста (прежние регистрации — обратно).
-struct RealArmyTools {
-  std::optional<app::ToolDef> army, fleet;
-  RealArmyTools() {
-    if (const app::ToolDef* t = app::findTool(app::ToolId::NewArmy)) army = *t;
-    if (const app::ToolDef* t = app::findTool(app::ToolId::NewFleet)) fleet = *t;
-    app::ToolReg a({app::ToolId::NewArmy, "tool-army", "Новое войско", "A", false, [] { return app::mil::makePlaceTool(ArmyKind::Army); }, 50});
-    app::ToolReg f({app::ToolId::NewFleet, "tool-fleet", "Новый флот", "Shift+A", false, [] { return app::mil::makePlaceTool(ArmyKind::Fleet); }, 51});
-  }
-  ~RealArmyTools() {
-    if (army) app::ToolReg a(*army);
-    if (fleet) app::ToolReg f(*fleet);
-  }
-  RealArmyTools(const RealArmyTools&) = delete;
-  RealArmyTools& operator=(const RealArmyTools&) = delete;
-};
-
-inline Id factionByName(const World& w, std::string_view part) {
+// Провинция государства без войск, гарнизона и оккупации, где у точки подписи можно поставить войско (minPop — не
+// меньше стольких жителей).
+inline Id calmProvince(Harness& h, Id state, i64 minPop = 0) {
+  const World& w = h->world();
+  auto fs = geo::faces(w);
   Id found = 0;
-  w.factions.each([&](const Faction& f) {
-    if (!found && f.name.find(part) != std::string::npos) found = f.id;
+  w.provinces.each([&](const Province& p) {
+    if (found || p.sea || p.owner != state || p.occupied || !p.garrison.empty()) return;
+    i64 pop = 0;
+    for (const RacePop& r : p.races) pop += r.pop;
+    if (pop < minPop) return;
+    const geo::ProvinceShape* sh = fs->shape(p.id);
+    if (!sh || !rules::validPosition(w, ArmyKind::Army, sh->label)) return;
+    bool busy = false;
+    w.armies.each([&](const Army& a) { busy = busy || app::mil::provinceUnder(w, a.pos) == p.id; });
+    if (!busy) found = p.id;
+  });
+  return found;
+}
+
+// Перетаскивание по шагам (snapshot — снимок, пока кнопка ещё зажата).
+inline void dragTo(Harness& h, gfx::Pt from, gfx::Pt to, const std::string& snapshot = {}) {
+  hl::mouseMove(from.x, from.y);
+  h.step();
+  hl::mouseDown(from.x, from.y, platform::MouseLeft);
+  h.step();
+  for (int i = 1; i <= 10; i++) {
+    hl::mouseMove(from.x + (to.x - from.x) * float(i) / 10, from.y + (to.y - from.y) * float(i) / 10);
+    h.step();
+  }
+  if (!snapshot.empty()) {
+    h.dropToasts();
+    h.settle();
+    CHECK(h.shot(snapshot));
+  }
+  hl::mouseUp(to.x, to.y, platform::MouseLeft);
+  h.step();
+  hl::advance(0.6);
+}
+
+// Подсказка, показанная сейчас: увести указатель (после щелчка подсказка элемента ждёт нового наведения), навести
+// и подождать дольше задержки подсказки.
+inline std::string tipAt(Harness& h, float x, float y) {
+  h.move(2, 2);
+  h.move(x, y);
+  hl::advance(0.5);
+  h.frames(4);
+  return ui::tooltipText();
+}
+
+// Первое союзное войско (или флот) мира.
+inline Id alliedArmy(const World& w, ArmyKind kind) {
+  Id found = 0;
+  w.armies.each([&](const Army& a) {
+    if (!found && a.allied() && a.kind == kind) found = a.id;
   });
   return found;
 }
@@ -38,18 +72,6 @@ inline Id armyOf(const World& w, Id faction, ArmyKind kind) {
     if (!found && a.kind == kind && !a.allied() && a.leader() == faction) found = a.id;
   });
   return found;
-}
-
-inline gfx::Pt screenOf(Harness& h, Vec2 p) { return h->map().view().toScreen(p); }
-
-// Точка свободной части карты (не под панелями оболочки).
-inline bool freeOnScreen(Harness& h, float x, float y) {
-  RectF area = h->mapArea().inset(24);
-  if (!area.contains(x, y)) return false;
-  for (const char* n : {"legend", "status", "zoom", "minimap", "toolbar", "inspector", "banner", "rail", "drawer", "topbar", "tool.options"})
-    if (const RectF* r = h->uiRect(n))
-      if (r->expand(8).contains(x, y)) return false;
-  return true;
 }
 
 // Ищет на экране точку карты, где можно поставить объект вида kind (сетка с шагом step).
@@ -70,28 +92,6 @@ inline std::optional<std::pair<Vec2, gfx::Pt>> freeSpot(Harness& h, ArmyKind kin
   return std::nullopt;
 }
 
-// Снимок части окна (логические пиксели), увеличенный в k раз — для проверки мелких деталей.
-inline bool cropShot(const std::string& name, RectF r, int k = 2) {
-  const platform::Frame& f = hl::lastFrame();
-  int x0 = std::max(0, int(r.x * f.scale)), y0 = std::max(0, int(r.y * f.scale));
-  int x1 = std::min(f.w, int(r.right() * f.scale)), y1 = std::min(f.h, int(r.bottom() * f.scale));
-  if (x1 <= x0 || y1 <= y0) return false;
-  codec::RgbaImage img;
-  img.w = (x1 - x0) * k;
-  img.h = (y1 - y0) * k;
-  img.rgba.resize(size_t(img.w) * size_t(img.h) * 4);
-  for (int y = 0; y < img.h; y++)
-    for (int x = 0; x < img.w; x++) {
-      u32 p = f.row(y0 + y / k)[x0 + x / k];
-      u8* d = &img.rgba[(size_t(y) * size_t(img.w) + size_t(x)) * 4];
-      d[0] = u8(p >> 16);
-      d[1] = u8(p >> 8);
-      d[2] = u8(p);
-      d[3] = 255;
-    }
-  return codec::writePngFile(test::outDir() + "/app_" + name + ".png", img, 6);
-}
-
 // Прокрутить инспектор колесом, пока элемент не окажется в его видимой части (true — виден).
 // Элемент ещё не построен (строки таблиц ниже видимой части не строятся) — сначала вниз, затем вверх.
 inline bool reveal(Harness& h, const std::string& mark) {
@@ -109,13 +109,6 @@ inline bool reveal(Harness& h, const std::string& mark) {
     h.settle();
   }
   return false;
-}
-
-// Показать точку карты в центре видимой части с масштабом zoom и дождаться камеры.
-inline void showAt(Harness& h, Vec2 p, double zoom) {
-  h->focusMap(p, zoom);
-  h.settle();
-  h.waitMap();
 }
 
 }  // namespace rg::apptest

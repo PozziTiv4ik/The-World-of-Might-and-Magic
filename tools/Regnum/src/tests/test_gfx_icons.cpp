@@ -25,6 +25,8 @@ const char* const kRequired[] = {
     "clock", "calendar", "hourglass", "play", "next-turn", "refresh", "star", "star-filled", "heart", "user", "users",
     "user-plus", "bolt", "repeat", "note", "list", "table", "tag", "globe", "compass", "map", "map-pin", "home",
     "command", "dice", "bell",
+    // плеер саундтреков
+    "pause", "skip-next", "skip-prev", "volume", "volume-low", "volume-off", "shuffle", "music", "playlist",
     // предметные
     "crown", "flag", "banner", "castle", "tower", "shield", "sword", "swords", "war", "battle", "skull", "army", "fleet",
     "anchor", "horse", "bow", "staff", "wand", "sparkles", "book", "scroll", "quill", "coins", "treasury", "scales",
@@ -38,7 +40,7 @@ const char* const kRequired[] = {
     "chronicle", "sea-province",
     // величины, поселения, постройки
     "size-s", "size-m", "size-l", "c-outpost", "c-village", "c-town", "c-city", "b-military", "b-economic",
-    "b-industrial", "b-residential",
+    "b-industrial", "b-residential", "b-infrastructure",
     // отряды и корабли
     "u-light-inf", "u-medium-inf", "u-heavy-inf", "u-light-cav", "u-medium-cav", "u-heavy-cav", "u-flying", "u-casters",
     "u-ranged", "u-beasts", "u-monsters", "u-machines", "s-ship-line", "s-frigate", "s-galleon",

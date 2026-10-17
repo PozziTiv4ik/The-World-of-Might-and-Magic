@@ -6,9 +6,7 @@
 
 namespace rg::app::fac {
 
-// Снимок мира на время кадра: указатели на записи (и флаги в ui::flag) живут до конца endFrame,
-// даже если в этом кадре act() заменил мир (слияние шагов отмены освобождает промежуточные версии).
-const World& frameWorld(App& a);
+using w::frameWorld;
 
 // Вид фракции: подпись, значок, тон бейджа.
 struct KindInfo {
@@ -26,8 +24,7 @@ const char* relLabel(RelStatus s);
 // Выбор состояния отношений: таблетка цвета состояния, меню со значками. true — изменено.
 bool statusPicker(std::string_view id, RelStatus& s, bool disabled = false);
 
-// Ресурс: название из справочника.
-std::string resourceName(const World& w, Id res);
+using w::resourceName;   // название ресурса из справочника («Ресурс», если нет)
 
 // Суммы денег и ресурсов одинаково во всех вкладках: дробная часть — только у малых нецелых значений.
 int moneyDigits(double v);
@@ -39,9 +36,6 @@ std::string moneySigned(double v);
 bool catalogField(App& a, std::string_view id, rules::CatalogList list, Id value, std::string_view noneLabel, const char* undoLabel,
                   std::function<void(Tx&, Id)> assign, bool disabled = false);
 
-// Строка суммы: значок (цвет категории), подпись с подсказкой (формула), значение справа.
-void moneyRow(const char* icon, Color iconColor, std::string_view label, double value, std::string_view tip, bool sign = false,
-              ui::Ink valueInk = ui::Ink::Normal);
 // Полоса долей (структура доходов/расходов): отрезки-таблетки цветов категорий.
 struct Share {
   double value;

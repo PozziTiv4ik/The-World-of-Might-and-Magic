@@ -279,6 +279,7 @@ int main(int argc, char** argv) {
     app::AppConfig cfg;
     cfg.dataDir = dataDir;
     cfg.savePrefs = !selftest && !bench;
+    cfg.askRole = !selftest && !bench;   // роль за редактором — окном при открытии мира
     app::App a(cfg);
     if (!path.empty() && !bench) a.loadProject(fs::absolute(path));
     platform::WindowConfig wc;

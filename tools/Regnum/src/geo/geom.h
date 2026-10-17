@@ -22,8 +22,6 @@ constexpr double kDefaultSnap = 1.0;   // прилипание ввода к с�
 // ---------------------------------------------------------------- предикаты
 // Точный знак cross(b - a, c - a): +1 — c слева от a->b, -1 — справа, 0 — на прямой.
 int orient(Vec2 a, Vec2 b, Vec2 c);
-// Приближённое значение того же определителя (удвоенная площадь треугольника).
-inline double cross3(Vec2 a, Vec2 b, Vec2 c) { return (b - a).cross(c - a); }
 
 enum class SegRel : u8 {
   None,     // общих точек нет
@@ -73,10 +71,5 @@ Vec2 polylabel(const std::vector<std::vector<Vec2>>& rings, double precision = 1
 // ---------------------------------------------------------------- упрощение
 // Дуглас — Пекер. Концы ломаной сохраняются; для кольца (closed) — не менее трёх точек.
 std::vector<Vec2> simplifyDP(const std::vector<Vec2>& pts, double tol, bool closed = false);
-// Упрощение набора линий с сохранением топологии: концы линий неподвижны, новые пересечения и касания
-// не появляются, ни одна оставшаяся вершина не переходит на другую сторону упрощённого звена.
-// Исходный набор должен быть корректным (линии не пересекаются, кольца простые).
-std::vector<std::vector<Vec2>> simplifyTopo(const std::vector<std::vector<Vec2>>& lines,
-                                            const std::vector<bool>& closed, double tol);
 
 }  // namespace rg::geo

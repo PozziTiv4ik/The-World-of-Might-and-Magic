@@ -19,7 +19,10 @@ World bigWorld(size_t* points) {
   Rng rng(42);
   auto q = [](double v) { return std::round(v * 4) / 4; };
 
-  tx.catalogs().religions.clear();   // базовые религии нового мира заменяются своими
+  // Базовые расы, культуры и религии нового мира заменяются своими.
+  tx.catalogs().races.clear();
+  tx.catalogs().cultures.clear();
+  tx.catalogs().religions.clear();
   for (int i = 0; i < 6; i++) {
     CatalogItem r;
     r.id = Id(i + 1);
@@ -74,7 +77,6 @@ World bigWorld(size_t* points) {
       p.owner = Id(1 + (x / 5 + (y / 5) * 10) % 40);
       p.capital = "Город " + std::to_string(y * kCols + x + 1);
       p.size = ProvSize((x + y) % 3);
-      p.city = CityType((x * 7 + y) % 4);
       p.resource = Id(1 + (x + y) % 6);
       p.resourceAmount = (x * y) % 50;
       const Faction* owner = tx.w().faction(p.owner);
@@ -155,7 +157,7 @@ template <class F> double timed(F&& f) {
 
 }  // namespace
 
-TEST(io_perf_big_world) {
+TEST(core_io_perf_big_world) {
   size_t points = 0;
   World w = bigWorld(&points);
   CHECK_EQ(w.provinces.size(), 2000u);

@@ -1,8 +1,10 @@
 // Regnum — вкладка «Герои» (ТЗ 1.b.iv: список значимых героев государства): портрет в круге, имя, титул или
 // состояние («Мертв» с местом захоронения, «В плену» с пленившим государством — ТЗ «Механика героев»), содержание за
-// ход (расход «специалисты», золото до тысячных), отметка «в войске» или «в гарнизоне», число реликвий инвентаря
-// (ТЗ «Доработки», п.10); воскрешение погибшего (окно «hero.resurrect»); пленники государства — чужие герои в плену и
-// чьи они; новый герой, назначение персонажа героем, снятие, переход.
+// ход (расход «специалисты», золото до тысячных), отметка «в войске» или «в гарнизоне», реликвии инвентаря — значки
+// старших стопок и число штук (ТЗ «Доработки», п.10; «Доработки №4», п.3); воскрешение погибшего (окно
+// «hero.resurrect», игровое действие); пленники государства — чужие герои в плену и чьи они; новый герой, назначение
+// персонажа героем, снятие и содержание — правка мира (администратор).
+#include "app/common/relics.h"
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -51,7 +53,7 @@ void drawHeroes(App& a, Id id) {
   const Faction* f = w.faction(id);
   if (!f) return;
   const ui::Theme& th = ui::theme();
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit(), play = a.canPlay(id);   // состав героев и содержание — правка мира; воскрешение — игра
   std::vector<const Character*> heroes, candidates;
   w.characters.each([&](const Character& c) {
     if (c.faction == id && c.hero) heroes.push_back(&c);
@@ -88,22 +90,18 @@ void drawHeroes(App& a, Id id) {
         ui::emptyState("hero", "Значимых героев пока нет.");
       } else {
         ui::Column cols[] = {{"Герой", nullptr, ui::fr(1, 120), ui::Align::Left, true},
-                             {{}, "coins", ui::px(66), ui::Align::Left, true, "Содержание за ход"},
+                             {{}, "coins", ui::px(96), ui::Align::Left, true, "Содержание за ход"},
                              {{}, "army", ui::px(40), ui::Align::Center, true, "В войске, флоте или гарнизоне"},
-                             {{}, "inventory", ui::px(44), ui::Align::Center, true, "Реликвии в инвентаре"},
+                             {{}, "inventory", ui::px(104), ui::Align::Left, true, "Реликвии в инвентаре"},
                              {{}, nullptr, ui::px(70)}};
         ui::Table t("heroes", cols, int(heroes.size()), {.rowHeight = 46, .selectable = false});
-        auto relicsOf = [&](const Character& c) {
-          int n = 0;
-          for (Id r : c.inventory) n += w.relic(r) ? 1 : 0;
-          return n;
-        };
+        auto relicsOf = [&](const Character& c) { return relics::pieces(w, c.inventory); };
         t.sort([&](int x, int y, int col) {
           const Character& A = *heroes[size_t(x)];
           const Character& B = *heroes[size_t(y)];
           if (col == 1) return A.upkeep < B.upkeep ? -1 : A.upkeep > B.upkeep ? 1 : 0;
           if (col == 2) return int(armyOfCharacter(w, A.id) != 0 || rules::heroGarrison(w, A.id) != 0) - int(armyOfCharacter(w, B.id) != 0 || rules::heroGarrison(w, B.id) != 0);
-          if (col == 3) return relicsOf(A) - relicsOf(B);
+          if (col == 3) return relicsOf(A) < relicsOf(B) ? -1 : relicsOf(A) > relicsOf(B) ? 1 : 0;
           return compareRu(A.name, B.name);
         });
         for (int i : t) {
@@ -153,23 +151,27 @@ void drawHeroes(App& a, Id id) {
           } else {
             t.text("—", ui::Ink::Muted);
           }
-          // Реликвии инвентаря: число, в подсказке — названия и редкость; щелчок — персонаж (инвентарь).
-          if (const int nr = relicsOf(c)) {
-            t.cell();
+          // Реликвии инвентаря: значки до трёх старших стопок и число штук; в подсказке — стопки «× N» с редкостью;
+          // щелчок — персонаж (инвентарь).
+          if (const i64 nr = relicsOf(c)) {
+            const RectF cell = t.cell();
+            const std::vector<RelicStack> stacks = relics::sorted(w, c.inventory);
             std::vector<std::string> names;
-            for (Id r : c.inventory)
-              if (const Relic* rel = w.relic(r)) names.push_back((rel->name.empty() ? std::string("Без названия") : rel->name) + " · " + schema::rarity(rel->rarity).name);
-            Rarity best = Rarity::Common;
-            for (Id r : c.inventory)
-              if (const Relic* rel = w.relic(r)) best = std::max(best, rel->rarity);
-            {
-              ui::HStack hs(24, ui::Align::Center, 3);
-              ui::iconColored("relic", w::rarityColor(best), 14, join(names, "\n"));
-              if (ui::lastItem().hovered) ui::setCursor(platform::Cursor::Hand);
-              if (ui::lastItem().clicked) a.select(SelType::Character, cid);
-              ui::label(std::to_string(nr), {.font = ui::Font::Small, .ink = ui::Ink::Dim});
+            for (const RelicStack& st : stacks) {
+              const Relic& rel = *w.relic(st.relic);
+              names.push_back(w::orName(rel.name) + (st.count > 1 ? " × " + fmtInt(st.count) : std::string()) + " · " + schema::rarity(rel.rarity).name);
             }
-            a.markUi("heroes.relics." + std::to_string(cid));
+            const int shown = int(std::min<size_t>(3, stacks.size()));
+            const float s = 18, step = 22;   // значки рядом, без наложения
+            const RectF hit{cell.x, cell.cy() - 12, std::min(cell.w, s + step * float(shown - 1) + 34), 24};
+            const ui::Interaction it = ui::interact(ui::id("##relics"), hit);
+            for (int k = shown - 1; k >= 0; k--) w::drawRelicIcon(*w.relic(stacks[size_t(k)].relic), RectF{hit.x + step * float(k), hit.cy() - s / 2, s, s}, 5);
+            const float tx = hit.x + s + step * float(shown - 1) + 6;
+            ui::draw::text(fmtInt(nr), RectF{tx, hit.y, hit.right() - tx, hit.h}, ui::Font::Small, it.hovered ? th.text : th.textDim);
+            ui::hoverTip("##relicstip", hit, join(names, "\n"));
+            if (it.hovered) ui::setCursor(platform::Cursor::Hand);
+            if (it.clicked) a.select(SelType::Character, cid);
+            a.markUi("heroes.relics." + std::to_string(cid), hit);
           } else {
             t.text("—", ui::Ink::Muted);
           }
@@ -177,13 +179,13 @@ void drawHeroes(App& a, Id id) {
           {
             ui::HStack hs(24, ui::Align::Right, 4);
             if (isDead) {
-              if (ui::iconButton("sparkles", "Воскресить", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Accent}))
+              if (ui::iconButton("sparkles", "Воскресить", {.size = ui::Size::Small, .disabled = !play, .tone = ui::Tone::Accent}))
                 a.openDialog("hero.resurrect", cid);
               a.markUi("heroes.resurrect." + std::to_string(cid));
             } else {
               if (ui::iconButton("arrow-right", "Открыть персонажа", {.size = ui::Size::Small})) a.select(SelType::Character, cid);
             }
-            if (ui::iconButton("close", "Убрать из героев", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
+            if (a.admin() && ui::iconButton("close", "Убрать из героев", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
               std::string nm = charName(c);
               if (a.act("Убрать из героев", [&](Tx& tx) { tx.character(cid).hero = false; }))
                 a.toast(nm + " больше не в списке героев", ToastKind::Info, "hero", "Отменить", [](App& x) { x.undo(); });
@@ -192,12 +194,12 @@ void drawHeroes(App& a, Id id) {
           }
         }
         if (t.footer()) {
-          int relics = 0;
-          for (const Character* c : heroes) relics += relicsOf(*c);
+          i64 pieces = 0;
+          for (const Character* c : heroes) pieces += relicsOf(*c);
           t.text("Итого");
           t.text(fmtGold(upkeep));
           t.text({});
-          t.text(relics ? std::to_string(relics) : std::string(), ui::Ink::Dim);
+          t.text(pieces ? fmtInt(pieces) : std::string(), ui::Ink::Dim);
           t.text({});
         }
       }
@@ -236,7 +238,7 @@ void drawHeroes(App& a, Id id) {
 // Точка на значке вкладки — у государства есть пленники.
 int captivesBadge(App& a, Id id) { return rules::captivesOf(a.world(), id).empty() ? 0 : -1; }
 
-TabReg tab({kTabHeroes, "hero", "Герои", 60, SelType::Faction, nullptr, drawHeroes, captivesBadge});
+TabReg tab({kTabHeroes, "hero", "Герои", 61, SelType::Faction, nullptr, drawHeroes, captivesBadge});
 
 }  // namespace
 }  // namespace rg::app

@@ -1,12 +1,11 @@
 // Regnum — вкладка провинции «Археология» (ТЗ «Доработки №2», п.1, 13, 16): четыре слота археологических мест (в ряд
 // или 2 × 2) с ячейками сокровищ, режим правки (открыть и закрыть слот, заменить место, поле «Спрятанная реликвия»),
-// «Спрятать реликвию» и «Откопать спрятанную реликвию» (только спрятавшему государству, пока оно владеет провинцией),
-// переход к археологии государства-владельца.
+// «Спрятать реликвию» и «Откопать спрятанную реликвию» (только спрятавшему государству, пока оно владеет провинцией;
+// откопанная — в инвентарь государства, ТЗ «Доработки №4», п.4), переход к археологии государства-владельца. Спрятать
+// и откопать — игровые действия владельца (canPlay), режим правки — администратору (canEdit).
+#include "app/common/relics.h"
 #include "app/panels/arch_common.h"
-
-namespace rg::app::prov {
-const World& frameWorld(App& a);   // province_common.cpp
-}  // namespace rg::app::prov
+#include "app/panels/province_common.h"
 
 namespace rg::app {
 namespace {
@@ -15,40 +14,37 @@ using namespace archui;
 
 bool g_edit = false;   // режим правки слотов (состояние интерфейса, не мира)
 
-bool landOnly(App& a, Id pid) {
-  const Province* p = a.world().province(pid);
-  return p && !p->sea;
-}
-
 const Faction* ownerState(const World& w, const Province& p) {
   const Faction* f = w.faction(p.owner);
   return f && f->isState() ? f : nullptr;
 }
 
-// Где лежит реликвия (подпись в списке «Спрятать реликвию»).
-std::string placeText(const World& w, Id relic) {
-  const rules::RelicPlace pl = rules::relicPlace(w, relic);
-  switch (pl.kind) {
-    case rules::RelicPlace::Hero: return w.characterName(pl.id);
-    case rules::RelicPlace::Building: {
-      const Building* b = w.building(pl.building);
-      return (b ? b->name : std::string("Постройка")) + " · " + w.provinceName(pl.id);
-    }
-    case rules::RelicPlace::State: return "Реликвии государства";
-    default: break;
+// Где у государства лежит реликвия (подпись в списке «Спрятать реликвию»): первое место его владений и сколько штук
+// у него всего.
+std::string placeText(const World& w, const relics::Places& pl, Id state, Id relic) {
+  std::string first;
+  i64 n = 0;
+  for (const rules::RelicAt& at : pl.of(relic)) {
+    if (at.place.owner != state || at.place.kind == rules::RelicPlace::Hidden) continue;
+    if (first.empty()) first = at.place.kind == rules::RelicPlace::State ? std::string("Инвентарь государства") : relics::placeView(w, at.place).text;
+    n += at.count;
   }
-  return {};
+  return n > 1 ? first + " · " + fmtInt(n) + " шт." : first;
 }
 
-void hideMenu(App& a, const World& w, Id pid) {
-  if (!ui::beginPopup("hide", {.side = ui::Side::Below, .width = 320, .maxHeight = 360})) return;
+void hideMenu(App& a, const World& w, const Province& p) {
+  if (!ui::beginPopup("hide", {.side = ui::Side::Below, .width = 340, .maxHeight = 380})) return;
+  const Id pid = p.id;
   ui::label("Спрятать реликвию", {.font = ui::Font::Strong, .icon = "eye-off"});
-  for (Id rid : rules::hideableRelics(w, pid)) {
+  const relics::Places pl(w);
+  std::vector<Id> list = rules::hideableRelics(w, pid);
+  rules::sortByRarity(w, list);
+  for (Id rid : list) {
     const Relic* r = w.relic(rid);
     if (!r) continue;
     const RectF top = ui::avail();
-    if (w::relicRow(*r, placeText(w, rid))) {
-      a.act("Спрятать реликвию", [&](Tx& tx) { rules::hideRelic(tx, pid, rid); });
+    if (w::relicRow(*r, placeText(w, pl, p.owner, rid))) {
+      a.play("Спрятать реликвию", [&](Tx& tx) { rules::hideRelic(tx, pid, rid); });
       ui::closePopup();
     }
     a.markUi("arch.hide.relic." + std::to_string(rid), RectF{top.x, top.y, top.w, 40});
@@ -56,61 +52,33 @@ void hideMenu(App& a, const World& w, Id pid) {
   ui::endPopup();
 }
 
-void unearthMenu(App& a, const World& w, const Province& p) {
-  if (!ui::beginMenu("unearth")) return;
-  const Id pid = p.id, owner = p.owner;
-  ui::menuHeader("Откопать спрятанную реликвию");
-  int n = 0;
-  std::vector<const Character*> heroes;
-  w.characters.each([&](const Character& c) {
-    if (c.faction == owner && rules::heroAvailable(w, c.id)) heroes.push_back(&c);
-  });
-  std::sort(heroes.begin(), heroes.end(), [](const Character* x, const Character* y) { return compareRu(x->name, y->name) < 0; });
-  for (const Character* c : heroes) {
-    ui::IdScope s{i64(c->id)};
-    const Id cid = c->id;
-    if (ui::menuItem(c->name.empty() ? std::string("Без имени") : c->name, {.icon = "hero"})) {
-      a.act("Откопать спрятанную реликвию", [&](Tx& tx) { rules::unearthRelic(tx, pid, rules::RelicPlace{rules::RelicPlace::Hero, cid, 0, owner}); });
-    }
-    a.markUi("arch.unearth.hero." + std::to_string(cid));
-    n++;
-  }
-  w.provinces.each([&](const Province& q) {
-    if (q.owner != owner || q.sea) return;
-    for (const ProvBuilding& pb : q.buildings) {
-      const Building* b = w.building(pb.building);
-      if (!b || !b->relicStore || pb.builtLevel() < 1) continue;
-      ui::IdScope s{i64(q.id) * 100000 + i64(b->id)};
-      const Id qid = q.id, bid = b->id;
-      if (ui::menuItem(b->name + " · " + q.name, {.icon = "building"}))
-        a.act("Откопать спрятанную реликвию", [&](Tx& tx) { rules::unearthRelic(tx, pid, rules::RelicPlace{rules::RelicPlace::Building, qid, bid, owner}); });
-      a.markUi("arch.unearth.building." + std::to_string(bid));
-      n++;
-    }
-  });
-  if (n == 0) ui::menuItem("Нет героев и хранилищ реликвий", {.disabled = true});
-  ui::endMenu();
-}
-
-void headerRow(App& a, const World& w, const Province& p, bool ro) {
+// Спрятать и откопать — игровые действия государства-владельца; режим правки слотов — только администратору.
+void headerRow(App& a, const World& w, const Province& p) {
   const Faction* o = ownerState(w, p);
   const Id pid = p.id;
+  const bool play = o && a.canPlay(o->id);
   ui::HStack hs(30, ui::Align::Left, 4);
-  ui::iconToggle("edit", "Режим правки", g_edit);
-  a.markUi("arch.edit");
-  // Спрятать реликвию: реликвия героя, постройки или государства-владельца.
+  if (a.admin()) {
+    ui::iconToggle("edit", "Режим правки", g_edit);
+    a.markUi("arch.edit");
+  }
+  // Спрятать реликвию: реликвия героя, постройки или инвентаря государства-владельца.
   const std::vector<Id> can = o ? rules::hideableRelics(w, pid) : std::vector<Id>{};
   std::string tip = "Спрятать реликвию";
   if (!o) tip += " — у провинции нет государства-владельца";
   else if (p.hiddenRelic) tip += " — в провинции уже спрятана реликвия";
   else if (can.empty()) tip += " — у государства нет реликвий";
-  if (ui::iconButton("eye-off", tip, {.disabled = ro || !o || p.hiddenRelic || can.empty()})) ui::openPopup("hide");
-  a.markUi("arch.hide");
-  hideMenu(a, w, pid);
-  if (p.hiddenRelic && rules::canUnearth(w, pid)) {
-    if (ui::iconButton("shovel", "Откопать спрятанную реликвию", {.disabled = ro})) ui::openPopup("unearth");
+  if (o && (play || a.admin())) {
+    if (ui::iconButton("eye-off", tip, {.disabled = !play || p.hiddenRelic || can.empty()})) ui::openPopup("hide");
+    a.markUi("arch.hide");
+    hideMenu(a, w, p);
+  }
+  // Откопать — в инвентарь государства (одна кнопка).
+  if (p.hiddenRelic && rules::canUnearth(w, pid) && (play || a.admin())) {
+    if (ui::iconButton("shovel", "Откопать спрятанную реликвию — в инвентарь государства «" + w::orName(o ? o->name : std::string()) + "»",
+                       {.disabled = !play}))
+      a.play("Откопать спрятанную реликвию", [&](Tx& tx) { rules::unearthRelic(tx, pid); });
     a.markUi("arch.unearth");
-    unearthMenu(a, w, p);
   }
   ui::flex();
   if (o) {
@@ -201,8 +169,9 @@ void drawArch(App& a, Id pid) {
   const Province* p = w.province(pid);
   if (!p || p->sea) return;
   ui::IdScope ps{i64(pid)};
-  const bool ro = a.readOnly();
-  headerRow(a, w, *p, ro);
+  if (!a.admin()) g_edit = false;   // режим правки — только администратору
+  const bool ro = !a.canEdit();
+  headerRow(a, w, *p);
   ui::spacer(2);
   slotGrid(a, w, *p, ro);
   if (g_edit) {
@@ -211,7 +180,7 @@ void drawArch(App& a, Id pid) {
   }
 }
 
-TabReg tab({kTabProvince, "pickaxe", "Археология", 50, SelType::Province, landOnly, drawArch});
+TabReg tab({kTabProvince, "pickaxe", "Археология", 50, SelType::Province, prov::landOnly, drawArch});
 
 }  // namespace
 }  // namespace rg::app

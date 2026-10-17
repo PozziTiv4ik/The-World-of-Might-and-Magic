@@ -2,7 +2,8 @@
 // отрядами (ТЗ «Доработки №3», п.6), создать союзное войско (флот) для союзников — управление у фракции цели (ТЗ
 // «Доработки №4», п.9), посадить войско на флот своего государства или объявить войну фракции со статусом-кво или
 // незнакомой (затем битва и вассалитет — flow::afterWarDeclared). Согласие выполняет действие (отменяется Ctrl+Z);
-// отказ возвращает перемещённый объект на исходную позицию.
+// отказ возвращает перемещённый объект на исходную позицию. Роли (ТЗ «Доработки №4», п.5): решение — за лидера
+// перемещённого объекта (App::play).
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -114,16 +115,16 @@ struct EncounterDialog final : Dialog {
     const World& w = frameWorld(a);
     const Army* m = w.army(moving);
     const Army* t = w.army(target);
-    if (!m || !t) return false;
+    if (!m || !t || !w::checkPlay(a, m->leader())) return false;   // решает лидер перемещённого объекта
     bool fleet = m->isFleet();
     Id mv = moving, tg = target;
     switch (enc.type) {
       case rules::EncounterType::Merge:
-        if (!a.act(fleet ? "Объединить флоты" : "Объединить войска", [&](Tx& tx) { rules::mergeArmies(tx, tg, mv); })) return false;
+        if (!a.play(fleet ? "Объединить флоты" : "Объединить войска", [&](Tx& tx) { rules::mergeArmies(tx, tg, mv); })) return false;
         a.select(SelType::Army, tg);
         return true;
       case rules::EncounterType::Alliance:
-        if (!a.act(t->allied() ? (fleet ? "Присоединиться к союзному флоту" : "Присоединиться к союзному войску")
+        if (!a.play(t->allied() ? (fleet ? "Присоединиться к союзному флоту" : "Присоединиться к союзному войску")
                                : (fleet ? "Создать союзный флот" : "Создать союзное войско"),
                    [&](Tx& tx) { rules::formAllied(tx, tg, mv); }))
           return false;
@@ -133,14 +134,14 @@ struct EncounterDialog final : Dialog {
         // Войско на флот или флот к войску: флот остаётся на месте.
         const Id army = fleet ? tg : mv, fl = fleet ? mv : tg;
         const Army* ar = w.army(army);
-        if (!ar || !a.act("Посадка на флот: " + objectName(*ar), [&](Tx& tx) { rules::embark(tx, army, fl); })) return false;
-        a.ui.tabOf[SelType::Army] = "army.cargo";
+        if (!ar || !a.play("Посадка на флот: " + objectName(*ar), [&](Tx& tx) { rules::embark(tx, army, fl); })) return false;
+        a.ui.tabOf[SelType::Army] = mil::kTabCargo;
         a.select(SelType::Army, fl);
         return true;
       }
       case rules::EncounterType::DeclareWar: {
         Id us = enc.us, them = enc.them;
-        if (!a.act("Объявить войну: " + w.factionName(them), [&](Tx& tx) { rules::declareWar(tx, us, them); })) return false;
+        if (!a.play("Объявить войну: " + w.factionName(them), [&](Tx& tx) { rules::declareWar(tx, us, them); })) return false;
         // Война объявлена — сразу панель битвы; её итог решает судьбу перемещения. После окон битвы — сюзерены и
         // вассалы воюющих сторон (ТЗ «Механика вассалитета»).
         decided = true;
@@ -252,6 +253,7 @@ struct EncounterDialog final : Dialog {
                      : enc.type == rules::EncounterType::Alliance ? (t->allied() ? std::string("Присоединиться") : fleet ? "Создать союзный флот" : "Создать союзное войско")
                                                                   : "Объявить войну";
     bool war = enc.type == rules::EncounterType::DeclareWar;
+    ui::Disabled dis(!playsLeader(a, w, moving));
     if (ui::button(ok, {.variant = war ? ui::Variant::Danger : ui::Variant::Primary,
                         .icon = war ? "war" : (enc.type == rules::EncounterType::Merge ? "merge" : enc.type == rules::EncounterType::Embark ? "embark" : "alliance"),
                         .isDefault = true})) {

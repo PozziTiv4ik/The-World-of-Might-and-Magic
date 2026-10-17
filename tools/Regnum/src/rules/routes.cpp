@@ -1,4 +1,4 @@
-// Regnum — торговые маршруты (ТЗ 1.d.v): +10 % базовой ценности каждой провинции на пути.
+// Regnum — торговые маршруты: +10 % базовой ценности каждой провинции на пути.
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -51,7 +51,7 @@ void setRoutePoints(Tx& tx, Id route, const std::vector<Vec2>& pts) {
 void removeRoute(Tx& tx, Id route) {
   const Route* r = tx.w().route(route);
   if (!r) fail(route ? "Маршрут не найден" : "Не выбран маршрут");
-  std::string name = q(r->name.empty() ? "Без названия" : r->name);
+  std::string name = q(nameOr(r->name));
   Id guild = r->guild;
   tx.eraseRoute(route);
   addLog(tx, LogKind::Trade, "Упразднён торговый маршрут " + name, LogRefs{0, 0, guild ? std::vector<Id>{guild} : std::vector<Id>{}});

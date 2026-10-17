@@ -1,6 +1,6 @@
 // Сценарии основного экрана: выбор провинции и инспектор с зарегистрированными в тесте вкладками и шапкой,
-// правка границ (переключение панели инструментов), палитра команд, отмена и повтор, карта (колесо, панорама),
-// настройки, справка, светлая тема.
+// правка границ (переключение панели инструментов и инструмент правки по щелчку), палитра команд, отмена и повтор,
+// карта (колесо, панорама), настройки, справка, цветокор.
 #include "tests/test_app_util.h"
 
 using namespace rg;
@@ -21,7 +21,7 @@ void testHeader(app::App& a, Id pid) {
   if (own) {
     ui::HStack hs(26, ui::Align::Left, 6);
     ui::chip(own->name, {.color = own->color, .clickable = true, .tooltip = "Владелец"});
-    ui::tag(schema::cityType(p->city).name, ui::Tone::Neutral, schema::cityType(p->city).icon);
+    ui::tag(schema::cityType(rules::cityType(*p)).name, ui::Tone::Neutral, schema::cityType(rules::cityType(*p)).icon);
   }
 }
 
@@ -67,27 +67,47 @@ void testDrawer(app::App& a) {
   });
 }
 
-app::TabReg tabOverview({"test.overview", "info", "Обзор", 10, app::SelType::Province, nullptr, testOverview});
-app::TabReg tabEconomy({"test.economy", "coins", "Экономика", 20, app::SelType::Province, nullptr, testEconomy, badgeTwo});
-app::TabReg tabSea({"test.sea", "sea", "Море", 30, app::SelType::Province, onlySea, testSea});
-app::HeaderReg header({"test.header", app::SelType::Province, 0, testHeader});
-app::DrawerReg drawer({"test.states", "crown", "Государства", 10, testDrawer, "Ctrl+1"});
+int gEditorDrawn = 0;
+Id gEditorArg = 0;
+void testEditor(app::App& a, Id arg) {
+  gEditorDrawn++;
+  gEditorArg = arg;
+  const Faction* f = a.world().faction(arg);
+  ui::label(f ? "Дерево технологий: " + f->name : std::string("Дерево технологий"), {.font = ui::Font::Title});
+  ui::text("Редактор занимает место карты; Esc или «К карте» — назад к карте.", ui::Font::Body, ui::Ink::Dim);
+}
 
-// Инструмент правки границ (настоящий напишут авторы инструментов; здесь — для переключения панели).
-struct FakeBorders final : app::MapTool {
-  int downs = 0;
-  bool pointerDown(app::App&, const app::PointerEvent& e) override {
-    downs++;
-    return e.button == 0;
+// Вкладки, шапка, панель и редактор сценария — только на время теста: реестры приложения общие для всей программы
+// тестов, остальные сценарии видят их такими же, как в приложении. Вкладки и шапка — раньше настоящих (порядок
+// меньше), поэтому «Обзор» сценария открывается по умолчанию.
+struct Fakes {
+  std::vector<app::TabDef> tabs = app::tabs();
+  std::vector<app::HeaderDef> headers = app::headers();
+  std::vector<app::DrawerDef> drawers = app::drawers();
+  std::vector<app::EditorDef> editors = app::editors();
+  Fakes() {
+    app::TabReg({"test.overview", "info", "Обзор", 1, app::SelType::Province, nullptr, testOverview});
+    app::TabReg({"test.economy", "coins", "Экономика", 2, app::SelType::Province, nullptr, testEconomy, badgeTwo});
+    app::TabReg({"test.sea", "sea", "Море", 3, app::SelType::Province, onlySea, testSea});
+    app::HeaderReg({"test.header", app::SelType::Province, -1, testHeader});
+    app::DrawerReg({"test.states", "crown", "Государства", 10, testDrawer, "Ctrl+1"});
+    app::EditorReg({"test.techtree", "Дерево технологий", testEditor, "tech-tree"});
   }
+  ~Fakes() {
+    restore(app::tabs(), tabs);
+    restore(app::headers(), headers);
+    restore(app::drawers(), drawers);
+    restore(app::editors(), editors);
+  }
+  template <class T> static void restore(const std::vector<T>& reg, std::vector<T>& saved) { const_cast<std::vector<T>&>(reg) = std::move(saved); }
+  Fakes(const Fakes&) = delete;
+  Fakes& operator=(const Fakes&) = delete;
 };
-app::ToolReg bordersTool({app::ToolId::EditBorders, "tool-edit", "Правка границ провинции", "B", true, [] { return std::make_unique<FakeBorders>(); }, 10});
-app::ToolReg knifeTool({app::ToolId::Knife, "tool-knife", "Нож", "K", true, [] { return std::make_unique<FakeBorders>(); }, 20});
-app::ToolReg armyTool({app::ToolId::NewArmy, "army", "Новое войско", "A", false, [] { return std::make_unique<FakeBorders>(); }, 50});
 
 }  // namespace
 
 TEST(app_editor_select_province) {
+  Fakes fakes;
   Harness h("editor_select");
   h.demo();
   h.waitMap();
@@ -120,6 +140,7 @@ TEST(app_editor_select_province) {
 }
 
 TEST(app_editor_drawer_and_inspector_resize) {
+  Fakes fakes;
   Harness h("editor_drawer");
   h.demo();
   CHECK(h.clickUi("drawer.test.states"));
@@ -140,6 +161,7 @@ TEST(app_editor_drawer_and_inspector_resize) {
 }
 
 TEST(app_editor_borders_toggle) {
+  Fakes fakes;
   Harness h("editor_borders");
   h.demo();
   CHECK(!h->ui.editBorders);
@@ -175,6 +197,7 @@ TEST(app_editor_borders_toggle) {
 }
 
 TEST(app_editor_palette_search) {
+  Fakes fakes;
   Harness h("editor_palette");
   h.demo();
   // Провинция с уникальным именем.
@@ -209,6 +232,7 @@ TEST(app_editor_palette_search) {
 }
 
 TEST(app_editor_undo_redo) {
+  Fakes fakes;
   Harness h("editor_undo");
   h.demo();
   auto vp = h.visibleProvince();
@@ -245,6 +269,7 @@ TEST(app_editor_undo_redo) {
 }
 
 TEST(app_editor_map_navigation) {
+  Fakes fakes;
   Harness h("editor_nav");
   h.demo();
   const map::View v0 = h->map().view();
@@ -285,6 +310,7 @@ TEST(app_editor_map_navigation) {
 }
 
 TEST(app_editor_settings_help) {
+  Fakes fakes;
   Harness h("editor_settings");
   h.demo();
   CHECK(h.clickUi("topbar.settings"));
@@ -336,6 +362,7 @@ TEST(app_editor_settings_help) {
 }
 
 TEST(app_editor_ui_scale) {
+  Fakes fakes;
   Harness h("editor_scale", 1600, 1000, 1.25f);
   h.demo();
   h->setUiScale(1.1f);
@@ -351,6 +378,7 @@ TEST(app_editor_ui_scale) {
 
 TEST(app_editor_min_window) {
   // Наименьшее окно 1100×700: строки компактны, панели не налезают друг на друга.
+  Fakes fakes;
   Harness h("editor_min", 1100, 700);
   h.demo();
   CHECK(h.clickUi("drawer.test.states"));
@@ -379,20 +407,8 @@ TEST(app_editor_min_window) {
   CHECK(dr->right() <= rail->x + 0.5f);
 }
 
-namespace {
-int gEditorDrawn = 0;
-Id gEditorArg = 0;
-void testEditor(app::App& a, Id arg) {
-  gEditorDrawn++;
-  gEditorArg = arg;
-  const Faction* f = a.world().faction(arg);
-  ui::label(f ? "Дерево технологий: " + f->name : std::string("Дерево технологий"), {.font = ui::Font::Title});
-  ui::text("Редактор занимает место карты; Esc или «К карте» — назад к карте.", ui::Font::Body, ui::Ink::Dim);
-}
-app::EditorReg testEditorReg({"test.techtree", "Дерево технологий", testEditor, "tech-tree"});
-}  // namespace
-
 TEST(app_editor_fullscreen_editor) {
+  Fakes fakes;
   Harness h("editor_fullscreen");
   h.demo();
   Id fid = 0;
@@ -420,7 +436,7 @@ TEST(app_editor_fullscreen_editor) {
   CHECK(h->ui.editor.empty());
 }
 
-TEST(app_prefs_persist) {
+TEST(app_editor_prefs_persist) {
   // Цветокор, масштаб, ширина панелей и цвета карты запоминаются в app.json папки данных пользователя.
   std::string dir = tempDir("prefs");
   hl::reset();

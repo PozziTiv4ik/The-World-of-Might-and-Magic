@@ -1,34 +1,12 @@
 // Regnum — вкладка «Модификаторы» инспектора провинции (ТЗ 1.g, 1.b.iii; «Модификаторы», п.1): автоматические
 // модификаторы («Столица государства» — только чтение, с причиной), список модификаторов провинции через правило
-// (срок по умолчанию, оставшиеся ходы с правкой) и сводка всех действующих локальных эффектов с источниками —
-// провинция, государство, технологии, постройки, гильдии, автоматические.
-#include "app/widgets.h"
-
-namespace rg::app::prov {
-// province_common.cpp
-const World& frameWorld(App& a);
-struct ChipSpec {
-  std::string label;
-  const char* icon = nullptr;
-  Color color{0, 0, 0, 0};
-  ui::Tone tone = ui::Tone::Neutral;
-  std::string tooltip;
-  bool clickable = false;
-};
-int flowChips(std::string_view key, const std::vector<ChipSpec>& chips);
-const char* sourceIcon(rules::EffectSource::Kind k);
-const char* sourceKind(rules::EffectSource::Kind k);
-const Modifier* sourceMod(const World& wd, const rules::EffectSource& s);
-std::string sourceName(const World& wd, const rules::EffectSource& s);
-}  // namespace rg::app::prov
+// (срок по умолчанию, оставшиеся ходы с правкой; правка — администратору) и сводка всех действующих локальных эффектов с
+// источниками — провинция, государство, технологии, постройки, гильдии, автоматические. Эффекты модификаторов провинции
+// — действующие в ней (rules::provinceModView: «Чума» при «Здании чумы» даёт прирост).
+#include "app/panels/province_common.h"
 
 namespace rg::app {
 namespace {
-
-bool landOnly(App& a, Id pid) {
-  const Province* p = a.world().province(pid);
-  return p && !p->sea;
-}
 
 int modBadge(App& a, Id pid) {
   const Province* p = a.world().province(pid);
@@ -71,6 +49,7 @@ void modifierRows(App& a, const Province& p, bool ro) {
   const Id pid = p.id;
   std::vector<Id> ids = p.modifiers;
   w::ModEdit ed;
+  ed.province = pid;   // подсказки фишек — с действующими в провинции эффектами
   if (w::modifierList("mods", ids, ro, w::ModScope::Local, &p.modTurns, &ed))
     a.act("Модификаторы провинции", [&](Tx& tx) {
       if (!ed.addKey.empty()) ids.push_back(rules::ensureBuiltinMod(tx, ed.addKey));
@@ -111,8 +90,9 @@ void autoSection(App& a, const World& wd, Id pid) {
 
 // Карточка источника: значок вида, название (щелчок — открыть), модификатор и его эффекты.
 void sourceCard(App& a, const World& wd, const rules::EffectSource& s, int idx) {
-  const Modifier* m = prov::sourceMod(wd, s);
-  if (!m) return;
+  const std::optional<Modifier> mv = prov::sourceView(wd, s);
+  if (!mv) return;
+  const Modifier* m = &*mv;
   ui::IdScope sc{idx};
   ui::Card card({.pad = 10});
   {
@@ -145,7 +125,7 @@ void drawModifiers(App& a, Id pid) {
   const Province* p = wd.province(pid);
   if (!p) return;
   ui::IdScope ps{i64(pid)};
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   auto calc = rules::calc(wd);
   rules::ProvinceCalc none;
   const rules::ProvinceCalc* pcp = calc->province(pid);
@@ -190,7 +170,7 @@ void drawModifiers(App& a, Id pid) {
   }
 }
 
-TabReg tabModifiers({"province.modifiers", "sparkles", "Модификаторы", 60, SelType::Province, landOnly, drawModifiers, modBadge});
+TabReg tabModifiers({"province.modifiers", "sparkles", "Модификаторы", 60, SelType::Province, prov::landOnly, drawModifiers, modBadge});
 
 }  // namespace
 }  // namespace rg::app

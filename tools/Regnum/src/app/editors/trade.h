@@ -1,5 +1,5 @@
 // Regnum — переговоры и торговля, подарки, дань и репарации: общее для окна «Переговоры и торговля»
-// (editors/trade.cpp), вкладки фракции и выдвижной панели (panels/trade.cpp) и диалога дани (dialogs/tribute.cpp).
+// (editors/trade.cpp), вкладки фракции (panels/trade.cpp) и диалога дани (dialogs/tribute.cpp).
 // ТЗ 1.b.vii, 1.d.iii, 1.e.ii; «Механика героев», п.2 (обмен пленными); «Механика войн», п.3 (обмен провинциями).
 #pragma once
 #include "app/app.h"

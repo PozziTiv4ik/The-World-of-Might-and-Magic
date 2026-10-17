@@ -3,90 +3,31 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
-
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $characterRoot = Join-Path $root '03_Персонажи'
 $portraitRoot = Join-Path $root '11_Медиа\Портреты_персонажей'
-$errors = New-Object 'System.Collections.Generic.List[string]'
+$problems = New-WmmaProblemSet
 $missing = New-Object 'System.Collections.Generic.List[string]'
 $wrongRatio = New-Object 'System.Collections.Generic.List[string]'
 $available = 0
 $planned = 0
 
-function Get-RelativePath {
-    param([string]$Path)
-
-    if ($Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
-        return $Path.Substring($root.Length).TrimStart('\', '/')
-    }
-
-    return $Path
-}
-
-function Test-ProjectPath {
-    param([string]$Reference)
-
-    $normalized = $Reference -replace '/', '\'
-    if ([System.IO.Path]::IsPathRooted($normalized)) {
-        return Test-Path -LiteralPath $normalized
-    }
-
-    return Test-Path -LiteralPath (Join-Path $root $normalized)
-}
-
-function Resolve-ProjectPath {
-    param([string]$Reference)
-
-    $normalized = $Reference -replace '/', '\'
-    if ([System.IO.Path]::IsPathRooted($normalized)) {
-        if (Test-Path -LiteralPath $normalized) {
-            return (Resolve-Path -LiteralPath $normalized).Path
-        }
-
-        return $null
-    }
-
-    $candidate = Join-Path $root $normalized
-    if (Test-Path -LiteralPath $candidate) {
-        return (Resolve-Path -LiteralPath $candidate).Path
-    }
-
-    return $null
-}
-
-function Get-ImageSize { param([string]$Path) return Get-WmmaImageSize $Path }
-
-function Test-AcceptedPortraitRatio {
-    param(
-        [int]$Width,
-        [int]$Height
-    )
-
-    if ($Width -le 0 -or $Height -le 0 -or $Width -ge $Height) {
-        return $false
-    }
-
-    $ratio = $Width / $Height
-    $isThreeByFour = [math]::Abs($ratio - 0.75) -le 0.04
-    $isLegacyTwoByThree = [math]::Abs($ratio - (2 / 3)) -le 0.04
-    return ($isThreeByFour -or $isLegacyTwoByThree)
-}
-
-$characterFiles = Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md' |
-    Where-Object { $_.Name -ne '00_Индекс_персонажей.md' -and $_.Name -ne '00_Словарь_имен_и_алиасов.md' }
+$characterFiles = @(
+    Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md' |
+        Where-Object { $_.Name -ne '00_Индекс_персонажей.md' -and $_.Name -ne '00_Словарь_имен_и_алиасов.md' }
+)
 
 foreach ($file in $characterFiles) {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $text = Read-WmmaText $file.FullName
     if ($text -notmatch '(?m)^type:\s*character\s*$') {
         continue
     }
 
-    $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
-
+    $relativeFile = Get-WmmaRelativePath $root $file.FullName
     if ($text -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
-        $errors.Add("Invalid or missing portrait_status: $(Get-RelativePath $file.FullName)") | Out-Null
+        Add-Problem Error "Invalid or missing portrait_status: $relativeFile"
         continue
     }
 
@@ -94,43 +35,33 @@ foreach ($file in $characterFiles) {
     switch ($status) {
         'available' { $available++ }
         'planned' { $planned++ }
-        'missing' { $missing.Add($name) | Out-Null }
+        'missing' { $missing.Add($file.BaseName) | Out-Null }
     }
 
-    if ($status -eq 'available') {
-        if ($text -notmatch '(?m)^portrait:\s*(.+)\s*$') {
-            $errors.Add("Missing portrait path: $(Get-RelativePath $file.FullName)") | Out-Null
-            continue
-        }
+    if ($status -ne 'available') {
+        continue
+    }
 
-        $portraitPath = $Matches[1].Trim()
-        $portraitFullPath = Resolve-ProjectPath -Reference $portraitPath
-        if ($portraitPath -eq 'null' -or -not $portraitFullPath) {
-            $errors.Add("portrait_status=available but file is missing: $(Get-RelativePath $file.FullName)") | Out-Null
-        } else {
-            $size = Get-ImageSize -Path $portraitFullPath
-            if (-not $size) {
-                $errors.Add("Cannot read portrait dimensions: $(Get-RelativePath $portraitFullPath)") | Out-Null
-            } elseif (-not (Test-AcceptedPortraitRatio -Width $size.Width -Height $size.Height)) {
-                $wrongRatio.Add("$(Get-RelativePath $portraitFullPath) ($($size.Width)x$($size.Height))") | Out-Null
-            }
-        }
+    if ($text -notmatch '(?m)^portrait:\s*(.+)\s*$') {
+        Add-Problem Error "Missing portrait path: $relativeFile"
+        continue
+    }
+
+    # The portrait path is resolved from the project root only; an unreadable image is an error here.
+    $portrait = Test-WmmaPortraitFile -Root $root -Portrait $Matches[1].Trim()
+    switch ($portrait.Problem) {
+        'missing' { Add-Problem Error "portrait_status=available but file is missing: $relativeFile" }
+        'unreadable' { Add-Problem Error "Cannot read portrait dimensions: $(Get-WmmaRelativePath $root $portrait.Path)" }
+        'ratio' { $wrongRatio.Add("$(Get-WmmaRelativePath $root $portrait.Path) ($($portrait.Size.Width)x$($portrait.Size.Height))") | Out-Null }
     }
 }
 
-$portraitFoldersWithImages = Get-ChildItem -LiteralPath $portraitRoot -Directory |
-    Where-Object {
-        (Get-ChildItem -LiteralPath $_.FullName -File |
-            Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } |
-            Measure-Object).Count -gt 0
-    }
-
-$foldersWithoutPrompt = foreach ($folder in $portraitFoldersWithImages) {
-    $prompt = Join-Path $folder.FullName 'Промпт_портрета.md'
-    if (-not (Test-Path -LiteralPath $prompt)) {
-        Get-RelativePath $folder.FullName
-    }
-}
+$portraitFoldersWithImages = @(Get-WmmaPortraitImageFolders $portraitRoot)
+$foldersWithoutPrompt = @(
+    $portraitFoldersWithImages |
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $_.FullName 'Промпт_портрета.md')) } |
+        ForEach-Object { Get-WmmaRelativePath $root $_.FullName }
+)
 
 [pscustomobject]@{
     Characters = $characterFiles.Count
@@ -138,9 +69,9 @@ $foldersWithoutPrompt = foreach ($folder in $portraitFoldersWithImages) {
     PortraitPlanned = $planned
     PortraitMissing = $missing.Count
     PortraitFoldersWithImages = $portraitFoldersWithImages.Count
-    FoldersWithoutPrompt = @($foldersWithoutPrompt).Count
+    FoldersWithoutPrompt = $foldersWithoutPrompt.Count
     WrongAspectRatio = $wrongRatio.Count
-    Errors = $errors.Count
+    Errors = $problems.Errors.Count
 } | Format-List
 
 if ($missing.Count -gt 0) {
@@ -148,7 +79,7 @@ if ($missing.Count -gt 0) {
     $missing | Sort-Object | ForEach-Object { "- $_" }
 }
 
-if (@($foldersWithoutPrompt).Count -gt 0) {
+if ($foldersWithoutPrompt.Count -gt 0) {
     "`nPortrait folders without prompt:"
     $foldersWithoutPrompt | Sort-Object | ForEach-Object { "- $_" }
 }
@@ -157,13 +88,9 @@ if ($wrongRatio.Count -gt 0) {
     "`nPortraits with invalid aspect ratio:"
     $wrongRatio | Sort-Object | ForEach-Object { "- $_" }
     foreach ($item in $wrongRatio) {
-        $errors.Add("Invalid portrait aspect ratio: $item") | Out-Null
+        Add-Problem Error "Invalid portrait aspect ratio: $item"
     }
 }
 
-if ($errors.Count -gt 0) {
-    "`nErrors:"
-    $errors | Sort-Object | ForEach-Object { "- $_" }
-    exit 1
-}
+Complete-WmmaCheck
 }

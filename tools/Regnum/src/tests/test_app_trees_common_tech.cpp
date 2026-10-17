@@ -10,28 +10,12 @@ using namespace rg::apptest::trees;
 
 namespace {
 
-// Два первых государства мира (по порядку ID).
-std::pair<Id, Id> twoStates(const World& w) {
-  Id a = 0, b = 0;
-  w.factions.each([&](const Faction& f) {
-    if (!f.isState()) return;
-    if (!a) a = f.id;
-    else if (!b) b = f.id;
-  });
-  return {a, b};
-}
-
 std::vector<Id> commonTechs(const World& w) {
   std::vector<Id> r;
   w.techs.each([&](const Tech& t) {
     if (t.faction == 0) r.push_back(t.id);
   });
   return r;
-}
-
-bool hasPrereq(const World& w, Id tech, Id pre) {
-  const Tech* t = w.tech(tech);
-  return t && std::find(t->prereqs.begin(), t->prereqs.end(), pre) != t->prereqs.end();
 }
 
 // Общее дерево: «Строительство» → «Архитектура» (2 хода каждая).
@@ -51,11 +35,10 @@ std::pair<Id, Id> commonPair(app::App& a) {
 }  // namespace
 
 TEST(app_trees_common_tech_tree) {
-  HideTestRegs hide;
   Harness h("trees_common_tech", 1600, 1000);
   h.demo();
   h.dropToasts();
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   CHECK(A && B);
   // Базовая ветка «Археология» (новый мир сеет её в общее дерево) убирается: сценарий строит общее дерево с нуля.
   CHECK(!commonTechs(h->world()).empty());
@@ -71,7 +54,7 @@ TEST(app_trees_common_tech_tree) {
   CHECK(h->uiRect("tt.empty.add") != nullptr);
   CHECK(h->uiRect("tt.empty.alt") == nullptr);   // копировать дерево в общее нельзя
   CHECK(h->uiRect("tt.learner") != nullptr);
-  shotTrees(h, "trees_common_tech_empty");
+  shotClean(h, "trees_common_tech_empty", 60);
   clickQuick(h, "tt.empty.add");
   std::vector<Id> cs = commonTechs(h->world());
   CHECK_EQ(cs.size(), size_t(1));
@@ -89,7 +72,7 @@ TEST(app_trees_common_tech_tree) {
   h.key(Key::Enter);
   h.settle(40);
   CHECK(pickSide(h, "tt.side.addpre", "Строительство", "tt.canvas"));
-  CHECK(hasPrereq(h->world(), t2, t1));
+  CHECK(test::hasPrereq(h->world(), t2, t1));
   CHECK(h->act("Сроки и раскладка", [&](Tx& tx) {
     tx.tech(t1).turns = 3;
     tx.tech(t2).turns = 3;
@@ -117,7 +100,7 @@ TEST(app_trees_common_tech_tree) {
   CHECK(rules::techState(h->world(), t1, B).research);
   CHECK(!rules::techState(h->world(), t1, A).research);
   CHECK(rules::techStudied(h->world(), t1, A));
-  shotTrees(h, "trees_common_tech");
+  shotClean(h, "trees_common_tech", 60);
   // Ход: исследование B продвигается, A не затронуто.
   CHECK(h->endTurnNow());
   h->toasts().clear();
@@ -132,9 +115,9 @@ TEST(app_trees_common_tech_tree) {
   Id u = 0;
   CHECK(h->act("Уникальная", [&](Tx& tx) { u = rules::createTech(tx, A, "Тайные ремёсла"); }));
   CHECK(!h->act("Связь", [&](Tx& tx) { rules::setPrereq(tx, t1, u, true); }));
-  CHECK(hasToast(h.a(), "Общая технология не может зависеть", app::ToastKind::Warning));
+  CHECK(hasToast(h, "Общая технология не может зависеть", app::ToastKind::Warning));
   h->toasts().clear();
-  CHECK(!hasPrereq(h->world(), t1, u));
+  CHECK(!test::hasPrereq(h->world(), t1, u));
   // В общем дереве условия предлагаются только общие: уникальной в списке нет.
   h.settle(40);
   clickQuick(h, "tt.node." + std::to_string(t1), 0.4f, 0.7f);
@@ -142,15 +125,14 @@ TEST(app_trees_common_tech_tree) {
   h.type("Тайные");
   h.key(Key::Enter);
   h.settle(40);
-  CHECK(!hasPrereq(h->world(), t1, u));
+  CHECK(!test::hasPrereq(h->world(), t1, u));
 }
 
 TEST(app_trees_common_tech_faction) {
-  HideTestRegs hide;
   Harness h("trees_common_tech_faction", 1600, 1000);
   h.demo();
   h.dropToasts();
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   auto [t1, t2] = commonPair(h.a());
   CHECK(t1 && t2);
   // Технология государства A требует общую: условие выбирается в панели свойств (общие — после своих).
@@ -162,7 +144,7 @@ TEST(app_trees_common_tech_faction) {
   app::openTechTree(h.a(), A, u);
   h.settle(40);
   CHECK(pickSide(h, "tt.side.addpre", "Строительство", "tt.canvas"));
-  CHECK(hasPrereq(h->world(), u, t1));
+  CHECK(test::hasPrereq(h->world(), u, t1));
   // Условие — плашка-ссылка слева от карточки; у A «Строительство» не изучено — технология закрыта.
   CHECK(!rules::canResearch(h->world(), u).ok);
   h.key(Key::F);
@@ -170,7 +152,7 @@ TEST(app_trees_common_tech_faction) {
   const std::string ext = "tt.ext." + std::to_string(u) + "." + std::to_string(t1);
   CHECK(h->uiRect(ext) != nullptr);
   CHECK(h->uiRect("tt.side.pre." + std::to_string(t1)) != nullptr);
-  shotTrees(h, "trees_common_tech_ext");
+  shotClean(h, "trees_common_tech_ext", 60);
   // Изучено за A — уникальная становится доступной.
   CHECK(h->act("Изучить", [&](Tx& tx) { rules::setStudied(tx, t1, true, A); }));
   CHECK(rules::canResearch(h->world(), u).ok);
@@ -199,7 +181,7 @@ TEST(app_trees_common_tech_faction) {
   const app::TabDef* tab = tabDef("faction.tech");
   CHECK(tab != nullptr && tab->badge != nullptr);
   CHECK(tab->badge(h.a(), B) >= 1);
-  shotTrees(h, "trees_common_tech_tab");
+  shotClean(h, "trees_common_tech_tab", 60);
   CHECK(revealIn(h, "faction.ctech.stop." + s1));
   clickQuick(h, "faction.ctech.stop." + s1);
   CHECK(!rules::techState(h->world(), t1, B).research);
@@ -231,5 +213,5 @@ TEST(app_trees_common_tech_faction) {
   h.click(cv.x + 30, cv.bottom() - 90);
   h.settle(40);
   CHECK(revealSide(h, "tt.learner." + std::to_string(B), "tt.canvas"));
-  shotTrees(h, "trees_common_tech_learners");
+  shotClean(h, "trees_common_tech_learners", 60);
 }

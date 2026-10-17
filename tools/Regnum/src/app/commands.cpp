@@ -1,5 +1,6 @@
 // Regnum — встроенные команды оболочки (палитра Ctrl+K, сочетания, справка F1).
 #include "app/app_internal.h"
+#include "app/shell/role.h"
 #include "base/fs.h"
 
 namespace rg::app {
@@ -47,6 +48,8 @@ CommandReg cExport({"file.export", "Экспорт карты в картинк�
 CommandReg cReveal({"file.reveal", "Показать папку мира", "folder", nullptr,
                     [](App& a) { platform::openPath(a.projectIsBundle() ? fs::parent(a.projectPath()) : a.projectPath()); },
                     [](App& a) { return inEditor(a) && !a.projectPath().empty(); }, false, "Файл"});
+// Роль за редактором: администратор или игрок (при смене на игрока — выбор государства).
+CommandReg cRole({"app.role", "Сменить роль…", "user", nullptr, [](App& a) { detail::role::ask(a); }, inEditor, false, "Файл"});
 CommandReg cClose({"file.close", "Закрыть мир", "close", "Ctrl+W", [](App& a) { a.closeWorld(); }, inEditor, false, "Файл"});
 CommandReg cQuit({"app.quit", "Выйти", "arrow-left", "Ctrl+Q", [](App& a) { a.requestQuit(); }, nullptr, false, "Файл"});
 
@@ -64,9 +67,9 @@ CommandReg cBack({"turn.current", "Вернуться к текущему ход
 
 // ---- карта
 CommandReg cBorders({"map.borders", "Правка границ", "unlock", "E", [](App& a) { a.setEditBorders(!a.ui.editBorders); },
-                     [](App& a) { return onMap(a) && !a.readOnly(); }, false, "Карта"});
+                     [](App& a) { return onMap(a) && a.canEdit(); }, false, "Карта"});
 CommandReg cMapEdit({"map.edit", "Правка карты: суша, воды, горы, замки и башни", "map-edit", "T", [](App& a) { a.setEditMap(!a.ui.editMap); },
-                     [](App& a) { return onMap(a) && !a.readOnly(); }, false, "Карта"});
+                     [](App& a) { return onMap(a) && a.canEdit(); }, false, "Карта"});
 CommandReg cFit({"map.fit", "Показать всю карту", "zoom-fit", "Home", [](App& a) {
                    // Весь мир — в свободной части между панелями, а не во всём окне.
                    a.map().setSafeArea(a.mapArea());

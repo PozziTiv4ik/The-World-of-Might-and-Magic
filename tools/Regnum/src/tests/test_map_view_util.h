@@ -1,12 +1,13 @@
-// Regnum — общие средства тестов отрисовки карты (test_map_view*.cpp, test_map_demo*.cpp).
+// Regnum — общие средства тестов карты (test_map_*.cpp): настоящая базовая карта, демонстрационный и пустой миры, кадр с
+// дорисовкой тайлов, войско для отметок, запись кадров и увеличенных фрагментов в PNG.
 #pragma once
 #include "base/fs.h"
-#include "codec/png.h"
 #include "gfx/canvas.h"
 #include "map/basemap.h"
 #include "map/demo_world.h"
 #include "map/mapview.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
 
 namespace rg::mvtest {
 
@@ -50,12 +51,19 @@ inline gfx::Image renderFull(map::MapView& mv, const map::RenderOptions& opt, in
   return img;
 }
 
+// Войско (или флот) с одной группой фракции faction: units отрядов строки 1.
+inline Army makeArmy(Id id, Vec2 pos, Id faction, i64 units, ArmyKind kind = ArmyKind::Army) {
+  Army a;
+  a.id = id;
+  a.kind = kind;
+  a.pos = pos;
+  a.groups.push_back(ArmyGroup{faction, {ArmyUnit{1, units}}, {}});
+  return a;
+}
+
+// Кадр в каталог артефактов (сжатие 4 — крупные снимки пишутся быстрее); неудача записи роняет тест.
 inline void savePng(const gfx::Image& img, const std::string& name) {
-  codec::RgbaImage out;
-  out.w = img.w;
-  out.h = img.h;
-  out.rgba = img.toRgba();
-  if (!codec::writePngFile(fs::join(test::outDir(), name), out, 4)) test::fail(__FILE__, __LINE__, "не записать " + name);
+  if (!test::savePng(name, img, 4)) test::fail(__FILE__, __LINE__, "не записать " + name);
 }
 
 // Увеличенный фрагмент (каждый пиксель — k × k) для разглядывания швов, берега и подписей.

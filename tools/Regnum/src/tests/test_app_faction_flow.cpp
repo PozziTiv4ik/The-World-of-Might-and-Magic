@@ -1,9 +1,13 @@
 // Сценарии панелей государств и гильдий на демонстрационном мире: создание из списков и переименование в шапке,
-// редактор флага (узор, эмблема, изображение PNG/JPEG, ввод пути без системных диалогов), симметричные отношения,
-// совет, налог и запасы ресурсов, государственная гильдия и закреплённое государство, удаление с очисткой ссылок,
-// штабы гильдии, герои, модификаторы, дань, режим только для чтения. Каждое изменение проверяется и отменой.
+// редактор флага (узор, эмблема, изображение PNG/JPEG, ввод пути без системных диалогов), налог и запасы ресурсов
+// (щелчок по казне округляет), государственная гильдия и закреплённое государство (союз, войско гильдии), удаление с
+// очисткой ссылок, штабы гильдии и влияние, герои, модификаторы (и эффекты изученных технологий), поля «Обзора»,
+// списки и сочетания клавиш, режим только для чтения. Каждое изменение проверяется и отменой. Совет —
+// test_app_faction_council.cpp, отношения и дань — test_app_diplomacy_relations.cpp.
+#include "app/editors/techtree.h"
 #include "app/widgets.h"
 #include "tests/test_app_faction_util.h"
+#include "tests/test_app_military_util.h"
 #include "tests/test_codec_util.h"
 
 using namespace rg;
@@ -12,7 +16,6 @@ using namespace rg::factest;
 
 // ---------------------------------------------------------------- создание и переименование (ТЗ 1.b.ii, 1.d.i)
 TEST(app_faction_create_and_rename) {
-  HideTestRegs regs;
   Harness h("faction_create");
   h.demo();
   h.waitMap();
@@ -90,7 +93,6 @@ TEST(app_faction_create_and_rename) {
 
 // ---------------------------------------------------------------- редактор флага
 TEST(app_faction_flag_editor) {
-  HideTestRegs regs;
   Harness h("faction_flag");
   h.demo();
   h.waitMap();
@@ -126,21 +128,12 @@ TEST(app_faction_flag_editor) {
 
   // Изображение PNG через системный диалог.
   std::string png = fs::join(h.root, "flag.png");
-  {
-    codec::RgbaImage img;
-    img.w = 90;
-    img.h = 60;
-    img.rgba.resize(size_t(img.w * img.h * 4));
-    for (int y = 0; y < img.h; y++)
-      for (int x = 0; x < img.w; x++) {
-        u8* p = &img.rgba[size_t((y * img.w + x) * 4)];
-        p[0] = x < 30 ? 30 : x < 60 ? 240 : 200;
-        p[1] = x < 30 ? 80 : x < 60 ? 240 : 40;
-        p[2] = x < 30 ? 200 : x < 60 ? 240 : 40;
-        p[3] = 255;
-      }
-    CHECK(codec::writePngFile(png, img));
-  }
+  CHECK(codec::writePngFile(png, test::makeRgba(90, 60, [](int x, int, u8* p) {
+    p[0] = x < 30 ? 30 : x < 60 ? 240 : 200;
+    p[1] = x < 30 ? 80 : x < 60 ? 240 : 40;
+    p[2] = x < 30 ? 200 : x < 60 ? 240 : 40;
+    p[3] = 255;
+  })));
   hl::setDialogsSupported(true);
   hl::queueDialogResult(png);
   CHECK(h.clickUi("faction.flag"));
@@ -205,123 +198,8 @@ TEST(app_faction_flag_editor) {
   CHECK(h->world().faction(st)->flag.image);
 }
 
-// ---------------------------------------------------------------- отношения (ТЗ 1.b.vi; «Механика войн», п.2)
-TEST(app_faction_relations_symmetric) {
-  HideTestRegs regs;
-  Harness h("faction_relations");
-  h.demo();
-  h.waitMap();
-  h.dropToasts();
-  Id a = findFaction(h->world(), "Королевство Альмарин");
-  Id b = findFaction(h->world(), "Вольные города Ольсты");
-  CHECK(a && b);
-  CHECK(h->world().relation(a, b).s != RelStatus::War);
-  openTab(h, a, "faction.diplomacy");
-  // Таблица заполнена всеми прочими фракциями.
-  h->world().factions.each([&](const Faction& f) {
-    if (f.id != a) CHECK(h->uiRect("dip.row." + std::to_string(f.id)) != nullptr);
-  });
-  // «В войне» отсюда — объявление войны: отношения −25 (ТЗ 1.c.iv), запись хроники.
-  CHECK(clickIn(h, "dip.status." + std::to_string(b)));
-  CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
-  h.step();
-  CHECK(h->world().relation(a, b).s == RelStatus::War);
-  CHECK_NEAR(h->world().relation(a, b).v, schema::kWarRelation, 1e-9);
-  // Поле — действующее значение (с «+10 одна вера», ТЗ «Доработки №4», п.3); хранится значение без смещения.
-  CHECK(typeNumber(h, "dip.value." + std::to_string(b), "-40"));
-  CHECK_NEAR(rules::relationValue(h->world(), a, b), -40, 1e-9);
-  CHECK_NEAR(h->world().relation(a, b).v, -40 - rules::relationBonus(h->world(), a, b), 1e-9);
-  CHECK(h.shot("faction_diplomacy_war_a"));
-  // Вкладка другой стороны показывает то же самое; состояние заблокировано, есть «Заключить перемирие».
-  openTab(h, b, "faction.diplomacy");
-  CHECK(h->uiRect("dip.status." + std::to_string(a)) != nullptr);
-  CHECK(h->uiRect("dip.truce." + std::to_string(a)) != nullptr);
-  bool seen = false;
-  for (auto& r : rules::relationsOf(h->world(), b))
-    if (r.other == a) {
-      seen = true;
-      CHECK(r.status == RelStatus::War);
-      CHECK_NEAR(r.value + r.bonus, -40, 1e-9);
-    }
-  CHECK(seen);
-  CHECK(h.shot("faction_diplomacy_war_b"));
-  // Щелчок по заблокированному состоянию меню не открывает; правило тоже отказывает.
-  CHECK(clickIn(h, "dip.status." + std::to_string(a)));
-  CHECK(h->uiRect("status.item." + std::to_string(int(RelStatus::Alliance))) == nullptr);
-  CHECK(h->world().relation(b, a).s == RelStatus::War);
-  CHECK(!h->act("Союз", [&](Tx& tx) { rules::setRelation(tx, b, a, -40, RelStatus::Alliance); }));
-  // Перемирие со стороны B: итог — союз; видно у A, значение отношений прежнее.
-  CHECK(clickIn(h, "dip.truce." + std::to_string(a)));
-  h.settle();
-  CHECK(h->hasDialog("truce"));
-  {
-    const RectF* st = h->uiRect("truce.status");
-    CHECK(st != nullptr);
-    if (st) {
-      RectF r = *st;
-      h.click(r.x + r.w * 0.5f, r.cy());   // «В союзе» — средний из трёх
-    }
-  }
-  CHECK(h.clickUi("truce.ok"));
-  h.settle();
-  CHECK(!h->hasDialog("truce"));
-  CHECK(h->world().relation(b, a).s == RelStatus::Alliance);
-  CHECK_NEAR(rules::relationValue(h->world(), a, b), -40, 1e-9);
-  // Фильтр «Гильдии» скрывает государства.
-  CHECK(h->uiRect("dip.filter") != nullptr);
-  {
-    RectF fr = *h->uiRect("dip.filter");
-    h.click(fr.x + fr.w * 5 / 6, fr.cy());
-    h.step();
-    CHECK(h->uiRect("dip.row." + std::to_string(a)) == nullptr);
-    h.click(fr.x + fr.w / 6, fr.cy());
-    h.step();
-  }
-  // Отмена трёх шагов возвращает исходное.
-  h->undo();
-  h->undo();
-  h->undo();
-  h.step();
-  CHECK(h->world().relation(a, b).s != RelStatus::War);
-  CHECK(h->world().relation(a, b).s != RelStatus::Alliance);
-}
-
-// ---------------------------------------------------------------- совет (ТЗ 1.b.iv)
-TEST(app_faction_council_rows) {
-  HideTestRegs regs;
-  Harness h("faction_council");
-  h.demo();
-  h.waitMap();
-  h.dropToasts();
-  Id a = findFaction(h->world(), "Республика Корвен");
-  openTab(h, a, "faction.council");
-  const size_t n0 = h->world().faction(a)->council.size();
-  CHECK(n0 > 0);
-  CHECK(clickIn(h, "council.add"));
-  h.step();
-  const Faction* f = h->world().faction(a);
-  CHECK_EQ(f->council.size(), n0 + 1);
-  // Новое место получает свободную должность справочника.
-  const std::string pos = f->council.back().position;
-  CHECK(!pos.empty());
-  for (size_t i = 0; i + 1 < f->council.size(); i++) CHECK(f->council[i].position != pos);
-  CHECK(f->council.back().character == 0);
-  h.dropToasts();
-  CHECK(h.shot("faction_council_added"));
-  // Удалить новое место; уведомление предлагает отмену.
-  CHECK(clickIn(h, "council.remove." + std::to_string(n0)));
-  h.step();
-  CHECK_EQ(h->world().faction(a)->council.size(), n0);
-  CHECK(!h->toasts().empty());
-  CHECK(!h->toasts().back().actionLabel.empty());
-  h->undo();
-  h.step();
-  CHECK_EQ(h->world().faction(a)->council.size(), n0 + 1);
-}
-
 // ---------------------------------------------------------------- налог и ресурсы (ТЗ 1.d.iv, 1.b.iv)
 TEST(app_faction_tax_and_resources) {
-  HideTestRegs regs;
   Harness h("faction_economy");
   h.demo();
   h.waitMap();
@@ -356,45 +234,34 @@ TEST(app_faction_tax_and_resources) {
   CHECK_EQ(h->ui.tabOf[app::SelType::Faction], std::string("faction.economy"));
 }
 
-// ---------------------------------------------------------------- дань и репарации (ТЗ 1.e.ii)
-TEST(app_faction_tributes) {
-  HideTestRegs regs;
-  Harness h("faction_tribute");
+// ---------------------------------------------------------------- 1.e.i: щелчок по полю казны меняет казну
+// После хода казна дробная (чистый доход дробный). Поле «Запас» золота во вкладке «Экономика» показывает один знак
+// после запятой; щелчок в поле и уход фокуса (Tab) без ввода записывают округлённое значение в мир — появляется шаг
+// отмены «Казна», мир помечается несохранённым, точное значение теряется.
+TEST(app_faction_treasury_click_rounds) {
+  Harness h("audit_tzstates_treasury");
   h.demo();
   h.waitMap();
+  Id alm = findFaction(h->world(), "Королевство Альмарин");
+  CHECK(alm);
+  CHECK(h->endTurnNow());
+  h.settle();
   h.dropToasts();
-  // Плательщик репараций в демонстрационном мире.
-  Id payer = 0, deal = 0;
-  h->world().deals.each([&](const Deal& d) {
-    if (!deal && d.kind == DealKind::Reparations && d.status == DealStatus::Active) {
-      deal = d.id;
-      payer = d.b;
-    }
-  });
-  CHECK(deal != 0);
-  openTab(h, payer, "faction.economy");
-  CHECK(ensureVisible(h, "tribute.cancel." + std::to_string(deal)));
-  CHECK(h.shot("faction_economy_tribute"));
-  CHECK(h.clickUi("tribute.cancel." + std::to_string(deal)));
-  h.step();
-  CHECK(h->hasDialog("confirm"));
-  CHECK(h.clickUi("dialog.ok"));
-  h.step();
-  CHECK(h->world().deal(deal)->status == DealStatus::Cancelled);
-  h->undo();
-  h.step();
-  CHECK(h->world().deal(deal)->status == DealStatus::Active);
-  // «Навязать дань» открывает диалог «tribute» (или сообщает, что его нет).
-  h.dropToasts();
-  CHECK(clickIn(h, "economy.impose"));
-  h.step();
-  if (app::findDialog("tribute")) CHECK(h->hasDialog("tribute"));
-  else CHECK(!h->toasts().empty());
+  const double t0 = h->world().faction(alm)->treasury();
+  CHECK(std::fabs(t0 * 10 - std::round(t0 * 10)) > 1e-6);   // больше одного знака после запятой
+  const std::string undo0 = h->store.canUndo() ? h->store.undoLabel() : std::string();
+  openTab(h, alm, "faction.economy");
+  CHECK(clickIn(h, "economy.stock.1"));
+  h.key(Key::Tab);
+  h.settle();
+  const double t1 = h->world().faction(alm)->treasury();
+  const std::string undo1 = h->store.canUndo() ? h->store.undoLabel() : std::string();
+  CHECK_MSG(t1 == t0, "щелчок по полю казны и Tab без ввода изменили казну: " + fmtNum(t0, 6) + " → " + fmtNum(t1, 6) + " (шаг отмены «" + undo1 + "»)");
+  CHECK_MSG(undo1 == undo0, "после щелчка по полю казны появился шаг отмены «" + undo1 + "»");
 }
 
 // ---------------------------------------------------------------- государственная гильдия (ТЗ 1.d.vi)
 TEST(app_faction_state_guild) {
-  HideTestRegs regs;
   Harness h("faction_state_guild");
   h.demo();
   h.waitMap();
@@ -444,9 +311,60 @@ TEST(app_faction_state_guild) {
   CHECK_EQ(h->world().factions.size(), n0 + 2);
 }
 
+// ТЗ 1.d.vi: государственная гильдия создаётся из вкладки государства и закреплена за ним, но по отношению к своему
+// государству она «незнакомы»: войско государственной гильдии, встретив войско своего государства, получает
+// предложение объявить ему войну.
+TEST(app_faction_state_guild_home_relation) {
+  Harness h("audit_tzmil_stateguild");
+  h.demo();
+  const World& w = h->world();
+  Id alm = factionByName(w, "Альмарин");
+  Id comp = factionByName(w, "Альмарская торговая");
+  CHECK(alm && comp);
+  CHECK(w.faction(comp)->stateGuild && w.faction(comp)->homeState == alm);
+  Relation rel = w.relation(alm, comp);
+  std::printf("  [audit tzmil] отношения Альмарина и его государственной гильдии: %.0f, состояние %d (3 = незнакомы)\n", rel.v, int(rel.s));
+  // Новая государственная гильдия из вкладки государства — то же.
+  Id ng = 0;
+  CHECK(h->act("Гильдия", [&](Tx& tx) { ng = rules::createStateGuild(tx, alm, ""); }));
+  Relation rel2 = h->world().relation(alm, ng);
+  CHECK_MSG(rel2.s == RelStatus::Alliance, "новая государственная гильдия «незнакома» своему государству");
+  CHECK_MSG(rel.s == RelStatus::Alliance, "государственная гильдия демонстрационного мира не в союзе со своим государством");
+  // Войско гильдии рядом с войсками Альмарина: собственное войско государства — союзник (не «объявить войну»);
+  // у союзного войска Альмарина и Хельдвига войну предлагают разве что незнакомому Хельдвигу, но не своему государству.
+  Id aa = alliedArmy(h->world(), ArmyKind::Army);
+  CHECK(aa != 0);
+  Vec2 apos = h->world().army(aa)->pos;
+  Id ga = 0, sa = 0;
+  CHECK(h->act("Войска гильдии и государства", [&](Tx& tx) {
+    Id row = rules::addArmyRow(tx, comp, UnitType::Ranged, "Охрана караванов", 300, 1);
+    auto spot = rules::findFreeSpot(tx.w(), ArmyKind::Army, apos + Vec2(200, 0));
+    if (!spot) fail("нет места");
+    ga = rules::createArmy(tx, ArmyKind::Army, comp, *spot);
+    rules::setUnits(tx, ga, comp, row, 200);
+    Id srow = rules::addArmyRow(tx, alm, UnitType::LightInf, "Ополчение", 300, 0.05);
+    auto spot2 = rules::findFreeSpot(tx.w(), ArmyKind::Army, apos + Vec2(-200, 120));
+    if (!spot2) fail("нет места");
+    sa = rules::createArmy(tx, ArmyKind::Army, alm, *spot2);
+    rules::setUnits(tx, sa, alm, srow, 200);
+  }));
+  rules::Encounter es = rules::encounter(h->world(), ga, h->world().army(sa)->pos);
+  CHECK_MSG(es.type == rules::EncounterType::Alliance, "войско государственной гильдии не союзно войску своего государства");
+  rules::Encounter e = rules::encounter(h->world(), ga, apos);
+  std::printf("  [audit tzmil] встреча войска государственной гильдии с союзным войском её государства: тип %d (4 = объявить войну)\n", int(e.type));
+  CHECK_MSG(!(e.type == rules::EncounterType::DeclareWar && (e.them == alm || e.us == alm)),
+            "войску государственной гильдии предлагают объявить войну своему государству");
+  if (e.type == rules::EncounterType::DeclareWar) {
+    app::mil::openEncounter(h.a(), ga, aa, e, h->world().army(ga)->pos, [](app::App&, bool) {});
+    h.settle();
+    h.dropToasts();
+    h.settle();
+    CHECK(h.shot("audit_tzmil_stateguild_declare_war"));
+  }
+}
+
 // ---------------------------------------------------------------- удаление с очисткой ссылок
 TEST(app_faction_delete_cleanup) {
-  HideTestRegs regs;
   Harness h("faction_delete");
   h.demo();
   h.waitMap();
@@ -494,7 +412,6 @@ TEST(app_faction_delete_cleanup) {
 
 // ---------------------------------------------------------------- штабы гильдии (ТЗ 1.d.ii)
 TEST(app_faction_guild_hqs) {
-  HideTestRegs regs;
   Harness h("faction_hqs");
   h.demo();
   h.waitMap();
@@ -542,7 +459,6 @@ TEST(app_faction_guild_hqs) {
 
 // ---------------------------------------------------------------- герои и модификаторы (ТЗ 1.b.iv, 1.b.iii)
 TEST(app_faction_heroes_and_modifiers) {
-  HideTestRegs regs;
   Harness h("faction_heroes");
   h.demo();
   h.waitMap();
@@ -614,9 +530,38 @@ TEST(app_faction_heroes_and_modifiers) {
   CHECK(std::find(h->world().faction(a)->modifiers.begin(), h->world().faction(a)->modifiers.end(), all[0]) == h->world().faction(a)->modifiers.end());
 }
 
+// ---------------------------------------------------------------- 1.b.iii: «Действующие эффекты» вкладки «Модификаторы»
+// У Альмарина изучена «Торговые гильдии» (модификатор «Торговый тракт»: +6 к торговой ценности каждой провинции).
+// Вкладка «Модификаторы» государства в «Действующих эффектах» показывает только свои модификаторы: локальные эффекты
+// изученных технологий не видны ни в «В каждой провинции», ни в «Источниках».
+TEST(app_faction_modifiers_tab_tech_effects) {
+  Harness h("audit_tzstates_mods");
+  h.demo();
+  h.waitMap();
+  Id alm = findFaction(h->world(), "Королевство Альмарин");
+  CHECK(alm);
+  const World& w = h->world();
+  // Локальные эффекты изученных технологий Альмарина.
+  std::vector<Id> techLocal;
+  w.techs.each([&](const Tech& t) {
+    if (t.faction != alm || !t.studied) return;
+    for (Id mid : t.modifiers)
+      if (const Modifier* m = w.modifier(mid))
+        for (int k = 0; k < kFxCount; k++)
+          if (schema::kEffects[k].local && m->has(Fx(k)) && m->fx[size_t(k)] != 0 && std::find(techLocal.begin(), techLocal.end(), t.id) == techLocal.end()) techLocal.push_back(t.id);
+  });
+  CHECK(!techLocal.empty());
+  openTab(h, alm, "faction.modifiers");
+  shotClean(h, "audit_tzstates_modifiers_tab");
+  // Регрессия: каждая изученная технология с локальными эффектами есть в «Источниках» вкладки, её эффекты — в сводке
+  // «В каждой провинции».
+  for (Id tid : techLocal)
+    CHECK_MSG(h->uiRect("mods.source." + std::to_string(int(rules::EffectSource::Tech)) + "." + std::to_string(tid)) != nullptr,
+              "вкладка «Модификаторы» не показывает локальные эффекты изученных технологий (+6 к торговой ценности в каждой провинции)");
+}
+
 // ---------------------------------------------------------------- просмотр прошлого хода
 TEST(app_faction_read_only) {
-  HideTestRegs regs;
   Harness h("faction_readonly");
   h.demo();
   h.waitMap();
@@ -643,7 +588,6 @@ TEST(app_faction_read_only) {
 
 // ---------------------------------------------------------------- обзор: столица, правитель, справочники (ТЗ 1.b.iv)
 TEST(app_faction_overview_fields) {
-  HideTestRegs regs;
   Harness h("faction_overview");
   h.demo();
   h.waitMap();
@@ -717,52 +661,8 @@ TEST(app_faction_overview_fields) {
   CHECK(!gov2 || gov2->name != "Триумвират");
 }
 
-// ---------------------------------------------------------------- совет: своя должность и содержание
-TEST(app_faction_council_edit) {
-  HideTestRegs regs;
-  Harness h("faction_council_edit");
-  h.demo();
-  h.waitMap();
-  h.dropToasts();
-  Id a = findFaction(h->world(), "Королевство Альмарин");
-  openTab(h, a, "faction.council");
-  const Faction* f = h->world().faction(a);
-  CHECK(!f->council.empty());
-  const Id seat0 = f->council[0].id;
-  const Id who0 = f->council[0].character;
-  CHECK(who0 != 0);
-  // Своя должность: последний пункт списка — запрос названия.
-  CHECK(clickIn(h, "council.pos.0"));
-  h.key(Key::PageDown);
-  h.key(Key::PageDown);
-  h.key(Key::Enter);
-  h.step();
-  CHECK(h->hasDialog("prompt"));
-  CHECK(answerPrompt(h, "Хранитель печати"));
-  CHECK_EQ(h->world().faction(a)->council[0].position, std::string("Хранитель печати"));
-  CHECK_EQ(h->world().faction(a)->council[0].id, seat0);
-  // Содержание советника правится в строке совета и попадает в расход «специалисты».
-  const double spec0 = rules::calc(h->world())->faction(a)->expSpecialists;
-  const double up0 = h->world().character(who0)->upkeep;
-  CHECK(typeNumber(h, "council.upkeep.0", "40"));
-  CHECK_NEAR(h->world().character(who0)->upkeep, 40, 1e-9);
-  CHECK_NEAR(rules::calc(h->world())->faction(a)->expSpecialists, spec0 + 40 - up0, 1e-6);
-  // Отрицательное содержание не принимается.
-  CHECK(typeNumber(h, "council.upkeep.0", "-5"));
-  CHECK(h->world().character(who0)->upkeep >= 0);
-  CHECK(h.shot("faction_council_edit"));
-  // Вакантное место: поля содержания нет.
-  CHECK(h->act("Вакансия", [&](Tx& tx) { tx.faction(a).council[0].character = 0; }));
-  h.step();
-  CHECK(h->uiRect("council.upkeep.0") == nullptr);
-  h->undo();
-  h.step();
-  CHECK_EQ(h->world().faction(a)->council[0].character, who0);
-}
-
 // ---------------------------------------------------------------- каталоги: сочетания, строки, переход на страницу
 TEST(app_faction_drawers_keys_sort) {
-  HideTestRegs regs;
   Harness h("faction_drawers");
   h.demo();
   h.waitMap();
@@ -800,7 +700,6 @@ TEST(app_faction_drawers_keys_sort) {
 
 // ---------------------------------------------------------------- влияние штаба (ТЗ 1.d.iv)
 TEST(app_faction_hq_influence) {
-  HideTestRegs regs;
   Harness h("faction_hq_influence");
   h.demo();
   h.waitMap();
@@ -839,7 +738,6 @@ TEST(app_faction_hq_influence) {
 
 // ---------------------------------------------------------------- герои: назначить существующего персонажа
 TEST(app_faction_heroes_assign) {
-  HideTestRegs regs;
   Harness h("faction_heroes_assign");
   h.demo();
   h.waitMap();

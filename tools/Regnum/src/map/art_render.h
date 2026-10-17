@@ -2,6 +2,8 @@
 // стены и знаки. Слои рисуются в изображение устройства: точка карты m -> (m.x · ds − ox, m.y · ds − oy), пиксель
 // (i, j) — квадрат [i, i + 1) × [j, j + 1). Функции потокобезопасны (тайлы рисуются в нескольких потоках).
 #pragma once
+#include <array>
+
 #include "gfx/canvas.h"
 #include "map/art.h"
 
@@ -58,8 +60,12 @@ void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant =
 // Габарит значка относительно точки привязки (единицы карты при s = 1) и габарит знака на карте.
 RectF symbolBounds(Sym kind);
 Box2 symbolBox(Sym kind, double x, double y, double s);
-// Разработка: подбор параметров рисунка горы (design 0 или 1) под образец исходника ink (w × h, −1 — не важно) с
-// точкой привязки (ax, ay). Возвращает параметры как инициализатор C++; error — итоговая ошибка.
-std::string fitMountainIcon(const std::vector<i16>& ink, int w, int h, int ax, int ay, int design, int maxEvals, double* error);
+// Параметры рисунка горы (значение каждого — у makeMountain в art_render.cpp) для подбора по штампам исходника
+// (regnum-cli build-map --fit-icons). mountainParams — подобранные рисунки: 0 — светлая вершина, 1 — тёмный кончик.
+constexpr int kMountainParams = 21;
+using MountainParams = std::array<float, kMountainParams>;
+const MountainParams& mountainParams(int design);
+// Гора с параметрами p краской стиля по умолчанию: точка привязки в at, масштаб scale.
+void drawMountain(gfx::Canvas& c, const MountainParams& p, gfx::Pt at, float scale);
 
 }  // namespace rg::map::art

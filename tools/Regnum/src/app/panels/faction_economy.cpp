@@ -5,14 +5,10 @@
 // группы с суммами, поиск, «скрыть пустые»; запас правится в строке; приход — добыча, постройки и преобразование,
 // расход — провизия и преобразование; «Золото», «Трупы» и «Демоническая энергия» — всегда первыми), эссенции
 // элементов (запас, генерация построек, содержание элементалей, долг — красным), рабы по расам («Механика войн»,
-// п.1), дань и репарации и вход в диалог «Навязать дань / репарации». Золото и ресурсы — до тысячных.
+// п.1), дань и репарации и вход в диалог «Навязать дань / репарации». Золото и ресурсы — до тысячных. Снижение
+// содержания армии постройками (казармы) — строкой расходов. Налог, дань и репарации — игровые действия государства
+// (App::canPlay, App::play); запасы, эссенции и рабы — правка мира (App::canEdit).
 #include "app/panels/faction_common.h"
-
-namespace rg::app::edkit {   // editors/modifiers.cpp — фишки с переносом
-void chipsBegin();
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
-void chipsEnd();
-}  // namespace rg::app::edkit
 
 namespace rg::app {
 namespace {
@@ -22,9 +18,8 @@ using namespace fac;
 // Золото до тысячных: лишние нули не пишутся; 1 единица = 1 тыс. золотых — подпись «тыс.» (ТЗ «Доработки №1», п.12).
 std::string gold(double v) { return fmtNum(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
 std::string goldSigned(double v) { return fmtSigned(std::fabs(v) < 5e-4 ? 0.0 : v, 3); }
-std::string goldK(double v) { return gold(v) + " тыс."; }
 
-// Строка суммы (как fac::moneyRow, но до тысячных).
+// Строка суммы: значок (цвет категории), подпись с подсказкой (формула), значение до тысячных справа.
 void goldRow(const char* icon, Color iconColor, std::string_view label, double value, std::string_view tip, bool sign = false,
              ui::Ink valueInk = ui::Ink::Normal) {
   ui::IdScope s(label);
@@ -35,14 +30,14 @@ void goldRow(const char* icon, Color iconColor, std::string_view label, double v
   ui::label(v, {.font = ui::Font::Strong, .ink = std::fabs(value) < 5e-4 ? ui::Ink::Muted : valueInk, .align = ui::Align::Right});
 }
 
-void moneyCards(const Faction& f, const rules::FactionCalc& fc) {
+void moneyCards(App& a, const Faction& f, const rules::FactionCalc& fc) {
   const ui::Theme& t = ui::theme();
   const bool state = f.isState();
   // Доходы
   {
     Color cProv = t.accent, cGuildTax = t.info, cHq = t.success, cTrade = Color::mix(t.info, t.success, 0.5f), cTrib = t.warning;
     Color cSlaves = Color::mix(t.warning, t.danger, 0.4f), cFleet = Color::mix(t.info, t.accent, 0.5f), cRoutes = Color::mix(t.success, t.accent, 0.5f);
-    if (ui::Section s("Доходы", "income", {.badge = goldK(fc.incTotal)}); s) {
+    if (ui::Section s("Доходы", "income", {.badge = fmtGold(fc.incTotal)}); s) {
       ui::IdScope sc("income");
       Share parts[] = {{fc.incProvinces, cProv}, {fc.incGuildTax, cGuildTax}, {fc.incGuilds, cHq}, {fc.incTrade, cTrade}, {fc.incTribute, cTrib},
                        {fc.incSlaves, cSlaves}, {fc.incTradeFleet, cFleet}, {fc.incRoutes, cRoutes}};
@@ -76,14 +71,24 @@ void moneyCards(const Faction& f, const rules::FactionCalc& fc) {
   {
     Color cArmy = t.danger, cFleet = t.info, cSpec = t.accent, cTrade = Color::mix(t.info, t.success, 0.5f), cTrib = t.warning;
     Color cSlaves = Color::mix(t.warning, t.danger, 0.4f), cArch = Color::hex(0xd4a64a);
-    if (ui::Section s("Расходы", "expense", {.badge = goldK(fc.expTotal)}); s) {
+    if (ui::Section s("Расходы", "expense", {.badge = fmtGold(fc.expTotal)}); s) {
       ui::IdScope sc("expense");
       Share parts[] = {{fc.expArmy, cArmy},     {fc.expFleet, cFleet},     {fc.expSpecialists, cSpec}, {fc.expTrade, cTrade},
                        {fc.expTribute, cTrib}, {fc.expSlaves, cSlaves}, {fc.expArch, cArch}};
       shareBar(parts);
       ui::spacer(2);
       goldRow("army", cArmy, "Содержание войск", fc.expArmy,
-              "Σ по строкам войск: численность общая × содержание одного × (1 + Σ «содержание войск» / 100)");
+              "Σ по строкам войск: численность общая × содержание одного × (1 + Σ «содержание войск» / 100) × (1 − снижение постройками / 100)");
+      // Постройки «Снижение содержания армии» (казармы): уже учтено в строке выше — здесь сколько сэкономлено.
+      if (fc.upkeepCut > 0) {
+        const double cut = std::min(fc.upkeepCut, schema::kMaxUpkeepCut);
+        const double saved = cut < 100 ? fc.expArmy / (1 - cut / 100) * cut / 100 : 0;
+        goldRow("army", t.success, "Снижение содержания " + fmtPct(cut, 1, false), -saved,
+                "Постройки «Снижение содержания армии» (казармы) в провинциях государства: содержание войск меньше на " + fmtPct(cut, 1) +
+                    " — уже учтено в строке «Содержание войск».\nСумма по государству — не больше " + fmtPct(schema::kMaxUpkeepCut) + ".",
+                true, ui::Ink::Success);
+        a.markUi("economy.upkeepCut");
+      }
       goldRow("fleet", cFleet, "Содержание флота", fc.expFleet,
               "Σ по строкам флота: численность общая × содержание одного × (1 + Σ «содержание флота» / 100)");
       goldRow("council", cSpec, "Специалисты", fc.expSpecialists, "Σ содержания правителя, советников (любой фракции) и героев фракции; каждый учитывается один раз");
@@ -101,14 +106,15 @@ void moneyCards(const Faction& f, const rules::FactionCalc& fc) {
   }
 }
 
-void taxSection(App& a, const Faction& f, Id id, bool ro) {
+void taxSection(App& a, const Faction& f, Id id) {
   if (!f.isState()) return;
+  const bool ro = !a.canPlay(id);   // налог задаёт само государство
   if (ui::Section s("Налог", "percent"); s) {
     ui::prop("Налог государства", "percent");
     double tax = f.tax;
     if (ui::numberField("tax", tax, {.min = 0, .max = 100, .step = 1, .digits = 1, .unit = "%", .disabled = ro,
                                      .tooltip = "Одинаков для всех провинций государства, не меньше 0"}))
-      a.act("Налог государства", [&](Tx& tx) { tx.faction(id).tax = std::max(0.0, tax); }, {.coalesce = "faction.tax:" + std::to_string(id)});
+      a.play("Налог государства", [&](Tx& tx) { tx.faction(id).tax = std::max(0.0, tax); }, {.coalesce = "faction.tax:" + std::to_string(id)});
     a.markUi("economy.tax");
   }
 }
@@ -120,18 +126,11 @@ constexpr double kEps = 5e-4;   // меньше половины тысячно�
 // данных (сценарий теста) — начинаются заново. Ресурсов ~150: по умолчанию пустые (запас 0 и нет потоков) скрыты —
 // видно, что у государства есть; значок в заголовке показывает все, поиск находит и пустые.
 struct EcoPrefs {
-  u64 session = 0;
   std::map<Id, bool> open;   // группа ресурсов раскрыта (нет записи — раскрыта, если в ней что-то есть)
   bool hideEmpty = true, hideEmptyEss = false;
   std::string query;
 };
-EcoPrefs& prefs(App& a) {
-  static EcoPrefs p;
-  const Meta& m = *a.store.world().meta;
-  const u64 tag = hashMix(hash64(a.dataDir()), hash64(m.createdAt + "|" + m.basemap));
-  if (p.session != tag) p = EcoPrefs{tag};
-  return p;
-}
+EcoPrefs& prefs(App&) { return sessionState<EcoPrefs>(); }
 
 // Приход (добыча и постройки, выход преобразования) и расход (провизия населения, вход преобразования) ресурса.
 double inflow(const rules::ResourceFlow& f) { return f.production + f.conversionOut; }
@@ -218,8 +217,9 @@ ResourceView buildRows(App& a, const World& w, const rules::FactionCalc& fc) {
     }
   }
   if (!w.resource(kGold) || shown(kGold)) v.rows.push_back({false, kGold, 0});
-  for (const CatalogItem& c : cat.resources)
-    if (c.id != kGold && pinned(w, c.id) && shown(c.id)) v.rows.push_back({false, c.id, 0});
+  // Трупы, затем демоническая энергия — всегда в этом порядке (не по месту в справочнике).
+  for (const char* key : {schema::kResCorpses, schema::kResEnergy})
+    if (const Id r = cat.resourceId(key); r && r != kGold && shown(r)) v.rows.push_back({false, r, 0});
   for (const CatalogItem& c : cat.resources)
     if (!pinned(w, c.id) && (!c.group || !cat.group(c.group)) && shown(c.id)) v.rows.push_back({false, c.id, 0});
   // Группы деревом: заголовок, подгруппы, затем свои ресурсы группы.
@@ -375,7 +375,7 @@ void resourceTable(App& a, const World& w, const Faction& f, const rules::Factio
     no.max = 1e12;
     no.step = r == kGold ? 10 : 1;
     no.digits = 3;                      // золото и ресурсы — до тысячных
-    no.unit = r == kGold ? "тыс." : nullptr;
+    no.unit = w::amountUnit(r);
     no.disabled = ro;
     no.tooltip = r == kGold ? "Казна" : "Запас ресурса";
     if (ui::numberField("stock", stock, no))
@@ -474,17 +474,16 @@ void provisionSection(App& a, const World& w, const Faction& f, const rules::Fac
     const std::string tip = use.size() > 1 ? "Расход провизии поровну: " + std::to_string(use.size()) + " " +
                                                  plural(i64(use.size()), "ресурс", "ресурса", "ресурсов")
                                            : std::string("Весь расход провизии — с этого ресурса");
-    edkit::chipsBegin();
+    ui::ChipFlow chipFlow;
     for (auto [r, v] : use) {
       ui::IdScope sc{i64(r)};
       ui::ChipOpt co;
       co.icon = w::resourceIcon(w, r);
       co.tone = ui::Tone::Danger;
       co.tooltip = tip;
-      edkit::chip(resourceName(w, r) + " " + amountSigned(-v), co);
+      ui::flowChip(resourceName(w, r) + " " + amountSigned(-v), co);
       a.markUi("economy.provision.use." + std::to_string(r));
     }
-    edkit::chipsEnd();
   }
 }
 
@@ -678,7 +677,8 @@ void slavesSection(App& a, const World& w, const Faction& f, const rules::Factio
 }
 
 // Дань и репарации, где фракция платит или получает (ТЗ 1.e.ii).
-void tributeSection(App& a, const World& w, Id id, bool ro) {
+void tributeSection(App& a, const World& w, Id id) {
+  const bool ro = !a.canPlay(id);   // дань и репарации — дипломатия государства
   struct Row {
     const Deal* d;
     bool receive;
@@ -723,7 +723,7 @@ void tributeSection(App& a, const World& w, Id id, bool ro) {
         std::string what = d.kind == DealKind::Tribute ? "дань" : "репарации";
         a.confirm(d.kind == DealKind::Tribute ? "Отменить дань?" : "Отменить репарации?",
                   "Выплаты прекратятся со следующего хода. Отменить можно сочетанием Ctrl+Z.", "Отменить " + what, true,
-                  [did](App& x) { x.act("Отменить выплаты", [&](Tx& tx) { rules::cancelDeal(tx, did); }); });
+                  [did](App& x) { x.play("Отменить выплаты", [&](Tx& tx) { rules::cancelDeal(tx, did); }); });
       }
       a.markUi("tribute.cancel." + std::to_string(d.id));
     }
@@ -731,7 +731,7 @@ void tributeSection(App& a, const World& w, Id id, bool ro) {
       ui::Row row({ui::fr(1), ui::px(136)}, 26, 8);
       if (of) w::factionChip(other);   // в ячейке: естественная ширина, длинное название — с многоточием
       else ui::label("—", {.ink = ui::Ink::Muted});
-      ui::label((r.receive ? "+" : "−") + goldK(r.amount) + " / ход", {.font = ui::Font::Strong, .ink = r.receive ? ui::Ink::Success : ui::Ink::Danger,
+      ui::label((r.receive ? "+" : "−") + fmtGold(r.amount) + " / ход", {.font = ui::Font::Strong, .ink = r.receive ? ui::Ink::Success : ui::Ink::Danger,
                                                                            .align = ui::Align::Right, .tooltip = "Золото за ход"});
     }
     double k = r.turns > 0 ? double(r.left) / double(r.turns) : 0;
@@ -751,17 +751,17 @@ void drawEconomy(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // запасы, эссенции, рабы — правка мира
   auto calc = rules::calc(w);
   const rules::FactionCalc* fc = calc->faction(id);
   if (!fc) return;
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
-    ui::stat(goldK(f->treasury()), f->treasury() < 0 ? "Казна в долгу" : "Казна",
+    ui::stat(fmtGold(f->treasury()), f->treasury() < 0 ? "Казна в долгу" : "Казна",
              {.icon = "treasury", .tone = f->treasury() < 0 ? ui::Tone::Danger : ui::Tone::Accent,
               .tooltip = "Текущая казна; при завершении хода прибавляется чистый доход"});
     a.markUi("economy.treasury");
-    ui::stat(goldSigned(fc->net) + " тыс.", "Чистый доход", {.icon = fc->net >= 0 ? "trend-up" : "trend-down",
+    ui::stat(fmtGoldSigned(fc->net), "Чистый доход", {.icon = fc->net >= 0 ? "trend-up" : "trend-down",
                                                     .tone = fc->net >= 0 ? ui::Tone::Success : ui::Tone::Danger,
                                                     .tooltip = "Доходы − расходы за ход; прибавляется к казне при завершении хода"});
   }
@@ -780,13 +780,13 @@ void drawEconomy(App& a, Id id) {
     }
   }
   ui::spacer(2);
-  moneyCards(*f, *fc);
-  taxSection(a, *f, id, ro);
+  moneyCards(a, *f, *fc);
+  taxSection(a, *f, id);
   provisionSection(a, w, *f, *fc);
   resourcesSection(a, w, *f, *fc, id, ro);
   essenceSection(a, w, *f, *fc, id, ro);
   slavesSection(a, w, *f, *fc, id, ro);
-  tributeSection(a, w, id, ro);
+  tributeSection(a, w, id);
 }
 
 // Точка на значке вкладки: казна убывает, голод (сейчас или после хода), эссенция в долгу (сейчас или после хода).

@@ -1,15 +1,8 @@
 // Regnum — PNG: чтение всех стандартных вариантов и запись RGBA8.
 #pragma once
-#include "base/base.h"
+#include "codec/image.h"
 
 namespace rg::codec {
-
-// Обычный (не premultiplied) RGBA8, строки сверху вниз.
-struct RgbaImage {
-  int w = 0, h = 0;
-  std::vector<u8> rgba;
-  bool empty() const { return w <= 0 || h <= 0; }
-};
 
 // Декодирование: типы цвета 0/2/3/4/6, глубина 1–16 бит, палитра и tRNS, чересстрочный Adam7.
 // 16 бит приводятся к 8 с округлением. Проверяются CRC блоков и Adler-32 данных.

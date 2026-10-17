@@ -6,110 +6,13 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$errors = New-Object 'System.Collections.Generic.List[string]'
-$warnings = New-Object 'System.Collections.Generic.List[string]'
+$problems = New-WmmaProblemSet
 
-function Add-Problem {
-    param(
-        [string]$Kind,
-        [string]$Message
-    )
-
-    if ($Kind -eq 'Error') {
-        $errors.Add($Message) | Out-Null
-    } else {
-        $warnings.Add($Message) | Out-Null
-    }
-}
-
-function Get-RelativePath {
-    param([string]$Path)
-
-    if ($Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
-        return $Path.Substring($root.Length).TrimStart('\', '/')
-    }
-
-    return $Path
-}
-
-function Test-ProjectPath {
-    param(
-        [string]$Reference,
-        [string]$FromFile
-    )
-
-    if ($Reference -match '^[a-z]+://') {
-        return $true
-    }
-
-    $normalized = $Reference -replace '/', '\'
-
-    if ([System.IO.Path]::IsPathRooted($normalized)) {
-        return Test-Path -LiteralPath $normalized
-    }
-
-    $rootCandidate = Join-Path $root $normalized
-    if (Test-Path -LiteralPath $rootCandidate) {
-        return $true
-    }
-
-    $fromDir = Split-Path -Parent $FromFile
-    $relativeCandidate = Join-Path $fromDir $normalized
-    return Test-Path -LiteralPath $relativeCandidate
-}
-
-function Resolve-ProjectPath {
-    param(
-        [string]$Reference,
-        [string]$FromFile
-    )
-
-    $normalized = $Reference -replace '/', '\'
-
-    if ([System.IO.Path]::IsPathRooted($normalized)) {
-        if (Test-Path -LiteralPath $normalized) {
-            return (Resolve-Path -LiteralPath $normalized).Path
-        }
-
-        return $null
-    }
-
-    $rootCandidate = Join-Path $root $normalized
-    if (Test-Path -LiteralPath $rootCandidate) {
-        return (Resolve-Path -LiteralPath $rootCandidate).Path
-    }
-
-    $fromDir = Split-Path -Parent $FromFile
-    $relativeCandidate = Join-Path $fromDir $normalized
-    if (Test-Path -LiteralPath $relativeCandidate) {
-        return (Resolve-Path -LiteralPath $relativeCandidate).Path
-    }
-
-    return $null
-}
-
-function Get-ImageSize { param([string]$Path) return Get-WmmaImageSize $Path }
-
-function Test-AcceptedPortraitRatio {
-    param(
-        [int]$Width,
-        [int]$Height
-    )
-
-    if ($Width -le 0 -or $Height -le 0 -or $Width -ge $Height) {
-        return $false
-    }
-
-    $ratio = $Width / $Height
-    $isThreeByFour = [math]::Abs($ratio - 0.75) -le 0.04
-    $isLegacyTwoByThree = [math]::Abs($ratio - (2 / 3)) -le 0.04
-    return ($isThreeByFour -or $isLegacyTwoByThree)
-}
-
+# An image reference may point to a file that is not made yet when the document,
+# or its row of the portrait index, is marked planned.
 function Test-PlannedReference {
     param(
         [string]$Reference,
-        [string]$FromFile,
         [string]$Text
     )
 
@@ -117,11 +20,7 @@ function Test-PlannedReference {
         return $false
     }
 
-    if ($Text -match '(?m)^portrait_status:\s*planned\s*$') {
-        return $true
-    }
-
-    if ($Text -match '(?m)^status:\s*planned\s*$') {
+    if ($Text -match '(?m)^portrait_status:\s*planned\s*$' -or $Text -match '(?m)^status:\s*planned\s*$') {
         return $true
     }
 
@@ -133,36 +32,89 @@ function Test-PlannedReference {
         }
     }
 
-    if ($Text -match '(?m)^type:\s*portrait_prompt\s*$' -and $Text -match '(?m)^status:\s*planned\s*$') {
-        return $true
-    }
-
     return $false
 }
 
-function Compare-IdSets {
+# Project-relative paths of all Markdown files of a type.
+function Get-TypePaths {
+    param([string]$Type)
+
+    return @($filesByType[$Type] | Where-Object { $_ } | ForEach-Object { Get-WmmaRelativePath $root $_.FullName })
+}
+
+# The first generated view of a type, with a warning when its header names another
+# generator (generated_by) or another source registry (source_registry).
+function Get-GeneratedView {
     param(
-        [string]$LeftName,
-        [string[]]$LeftIds,
-        [string]$RightName,
-        [string[]]$RightIds
+        [string]$Type,
+        [string]$Label,
+        [string]$GeneratedBy,
+        [string]$SourceRegistry
     )
 
-    $leftUnique = @($LeftIds | Sort-Object -Unique)
-    $rightUnique = @($RightIds | Sort-Object -Unique)
+    if (-not $filesByType.ContainsKey($Type)) {
+        return $null
+    }
 
-    foreach ($id in $leftUnique) {
-        if ($rightUnique -notcontains $id) {
-            Add-Problem Error "$LeftName contains $id but $RightName does not."
+    $path = $filesByType[$Type][0].FullName
+    $text = Read-WmmaText $path
+    $relative = Get-WmmaRelativePath $root $path
+    if ($GeneratedBy -and $text -notmatch ('(?m)^generated_by:\s*' + [regex]::Escape($GeneratedBy) + '\s*$')) {
+        Add-Problem Warning "$Label should be generated by ${GeneratedBy}: $relative"
+    }
+
+    if ($SourceRegistry -and $text -notmatch ('(?m)^source_registry:\s*' + [regex]::Escape($SourceRegistry) + '\s*$')) {
+        Add-Problem Warning "$Label should be generated from ${SourceRegistry}: $relative"
+    }
+
+    return [pscustomobject]@{ Path = $path; Text = $text }
+}
+
+# Index rows point to existing files, and every file of the indexed kind has a row.
+function Compare-IndexCoverage {
+    param(
+        [object]$View,
+        [string[]]$Refs,
+        [string[]]$Files,
+        [string]$MissingFileMessage,
+        [string]$MissingRowMessage
+    )
+
+    foreach ($ref in $Refs) {
+        if (-not (Test-WmmaReference $root $ref -FromFile $View.Path)) {
+            Add-Problem Error "${MissingFileMessage}: $ref"
         }
     }
 
-    foreach ($id in $rightUnique) {
-        if ($leftUnique -notcontains $id) {
-            Add-Problem Error "$RightName contains $id but $LeftName does not."
+    foreach ($file in $Files) {
+        if ($Refs -notcontains $file) {
+            Add-Problem Error "${MissingRowMessage}: $file"
         }
     }
 }
+
+function Add-DuplicateIdErrors {
+    param(
+        [string[]]$Ids,
+        [string]$Message
+    )
+
+    foreach ($id in @($Ids | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })) {
+        Add-Problem Error "${Message}: $id"
+    }
+}
+
+# Backticked references of the given form, in document order.
+function Get-BacktickedRefs {
+    param(
+        [string]$Text,
+        [string]$Pattern
+    )
+
+    return @([regex]::Matches($Text, $Pattern) | ForEach-Object { $_.Groups[1].Value })
+}
+
+# --- Inventory -------------------------------------------------------------------
 
 # Prune runtime copies before descending; enumerate the project once.
 $projectFiles=[Collections.Generic.List[IO.FileInfo]]::new()
@@ -179,14 +131,10 @@ while($folders.Count){
 $mdFiles=@($projectFiles|Where-Object Extension -eq '.md')
 $imageFiles=@($projectFiles|Where-Object {$_.Extension -match '^\.(jpg|jpeg|png|webp)$'})
 
+# The legacy path list itself lives in tools/lib/Checks.ps1, which is not scanned.
 $legacyScanExtensions = @('.md', '.ps1', '.json', '.yml', '.yaml', '.txt', '.gitignore', '.gitattributes', '.editorconfig', 'pre-commit')
-$legacyScannerPaths = @(
-    (Join-Path $root 'tools\Проверить_проект.ps1'),
-    (Join-Path $root 'tools\Проверить_архив.ps1')
-)
-
 $textFilesForLegacyScan=@($projectFiles|Where-Object {
-    $legacyScannerPaths -notcontains $_.FullName -and
+    (Get-WmmaRelativePath $root $_.FullName) -ne 'tools/lib/Checks.ps1' -and
     ($legacyScanExtensions -contains $_.Extension -or $legacyScanExtensions -contains $_.Name)
 })
 
@@ -194,69 +142,56 @@ $filesByType = @{}
 
 foreach ($requiredPath in @(
     'AGENTS.md',
-    '.githooks\pre-commit',
-    '09_Реестры\Вопросы.json',
-    '09_Реестры\Вопросы_открытые.json',
-    '09_Реестры\Вопросы_закрытые.json',
-    '09_Реестры\Решения.json',
-    '09_Реестры\Решения_незакрытые.json',
-    '09_Реестры\Решения_закрытые.json',
-    '09_Реестры\Фронты.json',
-    'tools\_lib.ps1',
-    'tools\Завершить_ход.ps1',
-    'tools\Закрыть_вопрос.ps1',
-    'tools\Новый_портрет.ps1',
-    'tools\Обновить_фронт.ps1',
-    'tools\Проверить_архив.ps1',
-    'tools\Проверить_инструменты.ps1',
-    'tools\Проверить_реестры.ps1',
-    'tools\Собрать_вопросы.ps1',
-    'tools\Собрать_решения.ps1',
-    'tools\Собрать_срезы_реестров.ps1',
-    'tools\Собрать_фронты.ps1',
-    'tools\Собрать_индекс_источников.ps1',
-    'tools\Собрать_индекс_активов.ps1',
-    'tools\Собрать_индекс_сцен.ps1',
-    'tools\Собрать_индекс_локаций.ps1',
-    'tools\Собрать_индекс_персонажей.ps1',
-    'tools\Собрать_панель_хода.ps1',
-    'tools\Установить_git_hooks.ps1',
-    'tools\Новый_персонаж.ps1',
-    'tools\Новая_локация.ps1',
-    'tools\Новая_сцена.ps1',
-    'tools\Новый_вопрос.ps1',
-    'tools\Новое_решение.ps1',
-    'tools\Принять_сообщение.ps1',
-    'tools\Обработать_входящее.ps1',
-    'tools\Сцена_из_входящего.ps1',
-    'tools\Новый_фронт.ps1',
-    'tools\Закрыть_решение.ps1',
-    'tools\Проверить_портреты.ps1',
-    'tools\README.md',
-    '08_Источники\00_Индекс_источников.md',
-    '05_Активы_персонажей\00_Индекс_активов.md',
-    '.github\workflows\project-check.yml',
-    '.github\workflows\tools-check.yml'
+    '.githooks/pre-commit',
+    '09_Реестры/Вопросы.json',
+    '09_Реестры/Вопросы_открытые.json',
+    '09_Реестры/Вопросы_закрытые.json',
+    '09_Реестры/Решения.json',
+    '09_Реестры/Решения_незакрытые.json',
+    '09_Реестры/Решения_закрытые.json',
+    '09_Реестры/Фронты.json',
+    'tools/_lib.ps1',
+    'tools/Завершить_ход.ps1',
+    'tools/Закрыть_вопрос.ps1',
+    'tools/Новый_портрет.ps1',
+    'tools/Обновить_фронт.ps1',
+    'tools/Проверить_архив.ps1',
+    'tools/Проверить_инструменты.ps1',
+    'tools/Проверить_реестры.ps1',
+    'tools/Собрать_вопросы.ps1',
+    'tools/Собрать_решения.ps1',
+    'tools/Собрать_срезы_реестров.ps1',
+    'tools/Собрать_фронты.ps1',
+    'tools/Собрать_индекс_источников.ps1',
+    'tools/Собрать_индекс_активов.ps1',
+    'tools/Собрать_индекс_сцен.ps1',
+    'tools/Собрать_индекс_локаций.ps1',
+    'tools/Собрать_индекс_персонажей.ps1',
+    'tools/Собрать_панель_хода.ps1',
+    'tools/Установить_git_hooks.ps1',
+    'tools/Новый_персонаж.ps1',
+    'tools/Новая_локация.ps1',
+    'tools/Новая_сцена.ps1',
+    'tools/Новый_вопрос.ps1',
+    'tools/Новое_решение.ps1',
+    'tools/Принять_сообщение.ps1',
+    'tools/Обработать_входящее.ps1',
+    'tools/Сцена_из_входящего.ps1',
+    'tools/Новый_фронт.ps1',
+    'tools/Закрыть_решение.ps1',
+    'tools/Проверить_портреты.ps1',
+    'tools/README.md',
+    '08_Источники/00_Индекс_источников.md',
+    '05_Активы_персонажей/00_Индекс_активов.md',
+    '.github/workflows/project-check.yml',
+    '.github/workflows/tools-check.yml'
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $requiredPath))) {
         Add-Problem Error "Required support file is missing: $requiredPath"
     }
 }
 
-foreach ($forbiddenPath in @(
-    '00_НАЧАТЬ_ОТСЮДА.md',
-    '00_ТЕКУЩИЙ_КОНТЕКСТ_ДЛЯ_ИИ.md',
-    '00_Словарь_имен_и_алиасов.md',
-    '05_Текстовые_описания',
-    '09_Шаблоны\Шаблон_текстового_описания.md',
-    '10_ПРОСТОЙ_РЕЖИМ_ДЛЯ_ТЕБЯ.md',
-    '11_Медиа\Иллюстрации_сцен',
-    '11_Медиа\Карты_и_схемы',
-    '11_Медиа\Портреты_персонажей\Правила_генерации_портретов.md',
-    'AI_ПРОМПТ_ДЛЯ_ВЕДЕНИЯ_ИГРЫ.md',
-    'AI_ПРОМПТ_ДЛЯ_ФОТО.md',
-    'Инструкция_собрать_все_MD_в_одну_папку.md'
-)) {
+foreach ($forbiddenPath in Get-WmmaLegacyPaths) {
     if (Test-Path -LiteralPath (Join-Path $root $forbiddenPath)) {
         Add-Problem Error "Forbidden legacy path exists: $forbiddenPath"
     }
@@ -265,39 +200,17 @@ foreach ($forbiddenPath in @(
 $gitignorePath = Join-Path $root '.gitignore'
 if (-not (Test-Path -LiteralPath $gitignorePath)) {
     Add-Problem Warning '.gitignore file not found.'
-} else {
-    $gitignore = Get-Content -Raw -Encoding UTF8 -LiteralPath $gitignorePath
-    if ($gitignore -notmatch '(?m)^.+_MD_.+/$') {
-        Add-Problem Warning '.gitignore does not appear to ignore the temporary Markdown export folder.'
-    }
+} elseif ((Read-WmmaText $gitignorePath) -notmatch '(?m)^.+_MD_.+/$') {
+    Add-Problem Warning '.gitignore does not appear to ignore the temporary Markdown export folder.'
 }
 
-foreach ($file in $mdFiles) {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-    $type = Get-WmmaMeta -Field type -Text $text
-    $relativeFile = Get-RelativePath $file.FullName
-    $isTemplateFile = $relativeFile -like '09_*'
+# --- Markdown documents: types, local references, front matter ---------------------
 
-    foreach ($forbiddenReference in @(
-        '00_НАЧАТЬ_ОТСЮДА.md',
-        '00_ТЕКУЩИЙ_КОНТЕКСТ_ДЛЯ_ИИ.md',
-        '05_Текстовые_описания',
-        '09_Шаблоны/Шаблон_текстового_описания.md',
-        '09_Шаблоны\Шаблон_текстового_описания.md',
-        '10_ПРОСТОЙ_РЕЖИМ_ДЛЯ_ТЕБЯ.md',
-        '11_Медиа/Иллюстрации_сцен',
-        '11_Медиа\Иллюстрации_сцен',
-        '11_Медиа/Карты_и_схемы',
-        '11_Медиа\Карты_и_схемы',
-        '11_Медиа/Портреты_персонажей/Правила_генерации_портретов.md',
-        'AI_ПРОМПТ_ДЛЯ_ВЕДЕНИЯ_ИГРЫ.md',
-        'AI_ПРОМПТ_ДЛЯ_ФОТО.md',
-        'Инструкция_собрать_все_MD_в_одну_папку.md'
-    )) {
-        if ($text.Contains($forbiddenReference)) {
-            Add-Problem Error "Forbidden legacy reference in $(Get-RelativePath $file.FullName): $forbiddenReference"
-        }
-    }
+foreach ($file in $mdFiles) {
+    $text = Read-WmmaText $file.FullName
+    $type = Get-WmmaMeta -Field type -Text $text
+    $relativeFile = Get-WmmaRelativePath $root $file.FullName
+    $isTemplateFile = $relativeFile -like '09_Шаблоны/*'
 
     if ($type -and -not $isTemplateFile) {
         if (-not $filesByType.ContainsKey($type)) {
@@ -307,15 +220,9 @@ foreach ($file in $mdFiles) {
         $filesByType[$type].Add($file) | Out-Null
     }
 
-    $matches = [regex]::Matches($text, '`([^`]+\.(?:md|jpg|jpeg|png|webp))`')
-
-    foreach ($match in $matches) {
-        $ref = $match.Groups[1].Value
-        if (
-            -not (Test-ProjectPath -Reference $ref -FromFile $file.FullName) -and
-            -not (Test-PlannedReference -Reference $ref -FromFile $file.FullName -Text $text)
-        ) {
-            Add-Problem Error "Broken local reference: $(Get-RelativePath $file.FullName) -> $ref"
+    foreach ($ref in Get-BacktickedRefs $text '`([^`]+\.(?:md|jpg|jpeg|png|webp))`') {
+        if (-not (Test-WmmaReference $root $ref -FromFile $file.FullName) -and -not (Test-PlannedReference -Reference $ref -Text $text)) {
+            Add-Problem Error "Broken local reference: $relativeFile -> $ref"
         }
     }
 
@@ -323,61 +230,49 @@ foreach ($file in $mdFiles) {
         $meta = $Matches[1]
         foreach ($field in @('type', 'status', 'canon_level')) {
             if ($meta -notmatch "(?m)^$field\s*:\s*\S+") {
-                Add-Problem Warning "Missing front matter field '$field': $(Get-RelativePath $file.FullName)"
+                Add-Problem Warning "Missing front matter field '$field': $relativeFile"
             }
         }
     }
 }
 
+$legacyReferences = @(Get-WmmaLegacyReferences)
 foreach ($file in $textFilesForLegacyScan) {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-    foreach ($forbiddenReference in @(
-        '00_НАЧАТЬ_ОТСЮДА.md',
-        '00_ТЕКУЩИЙ_КОНТЕКСТ_ДЛЯ_ИИ.md',
-        '05_Текстовые_описания',
-        '09_Шаблоны/Шаблон_текстового_описания.md',
-        '09_Шаблоны\Шаблон_текстового_описания.md',
-        '10_ПРОСТОЙ_РЕЖИМ_ДЛЯ_ТЕБЯ.md',
-        '11_Медиа/Иллюстрации_сцен',
-        '11_Медиа\Иллюстрации_сцен',
-        '11_Медиа/Карты_и_схемы',
-        '11_Медиа\Карты_и_схемы',
-        '11_Медиа/Портреты_персонажей/Правила_генерации_портретов.md',
-        'AI_ПРОМПТ_ДЛЯ_ВЕДЕНИЯ_ИГРЫ.md',
-        'AI_ПРОМПТ_ДЛЯ_ФОТО.md',
-        'Инструкция_собрать_все_MD_в_одну_папку.md'
-    )) {
+    $text = Read-WmmaText $file.FullName
+    foreach ($forbiddenReference in $legacyReferences) {
         if ($text.Contains($forbiddenReference)) {
-            Add-Problem Error "Forbidden legacy reference in text/service file $(Get-RelativePath $file.FullName): $forbiddenReference"
+            Add-Problem Error "Forbidden legacy reference in $(Get-WmmaRelativePath $root $file.FullName): $forbiddenReference"
         }
     }
 }
 
-foreach ($script in Get-ChildItem -LiteralPath (Join-Path $root 'tools') -File -Filter '*.ps1') {
+foreach ($script in @(Get-ChildItem -LiteralPath (Join-Path $root 'tools') -File -Filter '*.ps1') + @(Get-ChildItem -LiteralPath (Join-Path $root 'tools/lib') -File -Filter '*.ps1')) {
     $tokens = $null
     $parseErrors = $null
     [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
     foreach ($parseError in $parseErrors) {
-        Add-Problem Error "PowerShell syntax error in $(Get-RelativePath $script.FullName): line $($parseError.Extent.StartLineNumber): $($parseError.Message)"
+        Add-Problem Error "PowerShell syntax error in $(Get-WmmaRelativePath $root $script.FullName): line $($parseError.Extent.StartLineNumber): $($parseError.Message)"
     }
 }
 
-$registryCheckPath = Join-Path $root 'tools\Проверить_реестры.ps1'
+# --- Registries (structure is checked once by Проверить_реестры) ---------------------
+
+$registryCheckPath = Join-Path $root 'tools/Проверить_реестры.ps1'
 if (Test-Path -LiteralPath $registryCheckPath) {
     try {
         $registryCheck = & $registryCheckPath -Quiet -PassThru
         if ($null -eq $registryCheck) {
             Add-Problem Error 'Registry check returned no result.'
         } else {
-            foreach ($warning in @($registryCheck.Warnings)) {
-                if (-not [string]::IsNullOrWhiteSpace($warning)) {
-                    Add-Problem Warning $warning
+            foreach ($problem in @($registryCheck.Warnings)) {
+                if (-not [string]::IsNullOrWhiteSpace($problem)) {
+                    Add-Problem Warning $problem
                 }
             }
 
-            foreach ($error in @($registryCheck.Errors)) {
-                if (-not [string]::IsNullOrWhiteSpace($error)) {
-                    Add-Problem Error $error
+            foreach ($problem in @($registryCheck.Errors)) {
+                if (-not [string]::IsNullOrWhiteSpace($problem)) {
+                    Add-Problem Error $problem
                 }
             }
         }
@@ -411,25 +306,20 @@ foreach ($requiredType in @(
     }
 }
 
-$chapterDir = Join-Path $root '01_Кампания\Главы'
-if (Test-Path -LiteralPath $chapterDir) {
-    $chapterFiles = @(Get-ChildItem -LiteralPath $chapterDir -File -Filter '*.md' | Sort-Object Name)
-    $activeChapterFiles = New-Object 'System.Collections.Generic.List[object]'
+# --- Chapters ------------------------------------------------------------------------
 
-    foreach ($file in $chapterFiles) {
-        $chapterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-        $relativeFile = Get-RelativePath $file.FullName
-        $type = Get-WmmaMeta -Text $chapterText -Field 'type'
+$chapterDir = Join-Path $root '01_Кампания/Главы'
+if (Test-Path -LiteralPath $chapterDir) {
+    $activeChapterCount = 0
+
+    foreach ($file in @(Get-ChildItem -LiteralPath $chapterDir -File -Filter '*.md' | Sort-Object Name)) {
+        $chapterText = Read-WmmaText $file.FullName
+        $relativeFile = Get-WmmaRelativePath $root $file.FullName
         $chapter = Get-WmmaMeta -Text $chapterText -Field 'chapter'
         $status = Get-WmmaMeta -Text $chapterText -Field 'status'
-        $canonLevel = Get-WmmaMeta -Text $chapterText -Field 'canon_level'
-        $dateInStory = Get-WmmaMeta -Text $chapterText -Field 'date_in_story'
-        $openedRealDate = Get-WmmaMeta -Text $chapterText -Field 'opened_real_date'
         $closedRealDate = Get-WmmaMeta -Text $chapterText -Field 'closed_real_date'
-        $titleField = Get-WmmaMeta -Text $chapterText -Field 'title'
-        $previousChapter = Get-WmmaMeta -Text $chapterText -Field 'previous_chapter'
 
-        if ($type -ne 'chapter') {
+        if ((Get-WmmaMeta -Text $chapterText -Field 'type') -ne 'chapter') {
             Add-Problem Error "Chapter file must have type: chapter: $relativeFile"
         }
 
@@ -446,25 +336,25 @@ if (Test-Path -LiteralPath $chapterDir) {
             Add-Problem Error "Chapter file has invalid status '$status': $relativeFile"
         }
 
-        if ([string]::IsNullOrWhiteSpace($canonLevel)) {
+        if ([string]::IsNullOrWhiteSpace((Get-WmmaMeta -Text $chapterText -Field 'canon_level'))) {
             Add-Problem Error "Chapter file is missing canon_level: $relativeFile"
         }
 
-        if ([string]::IsNullOrWhiteSpace($dateInStory)) {
+        if ([string]::IsNullOrWhiteSpace((Get-WmmaMeta -Text $chapterText -Field 'date_in_story'))) {
             Add-Problem Error "Chapter file is missing date_in_story: $relativeFile"
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($titleField)) {
+        if (-not [string]::IsNullOrWhiteSpace((Get-WmmaMeta -Text $chapterText -Field 'title'))) {
             Add-Problem Error "Chapter file must not use front matter title; keep the title in H1 and filename: $relativeFile"
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($previousChapter)) {
+        if (-not [string]::IsNullOrWhiteSpace((Get-WmmaMeta -Text $chapterText -Field 'previous_chapter'))) {
             Add-Problem Error "Chapter file must not use previous_chapter; chapter order is defined by chapter number: $relativeFile"
         }
 
         if ($status -eq 'active') {
-            $activeChapterFiles.Add($file) | Out-Null
-            if ([string]::IsNullOrWhiteSpace($openedRealDate)) {
+            $activeChapterCount++
+            if ([string]::IsNullOrWhiteSpace((Get-WmmaMeta -Text $chapterText -Field 'opened_real_date'))) {
                 Add-Problem Error "Active chapter is missing opened_real_date: $relativeFile"
             }
 
@@ -478,94 +368,38 @@ if (Test-Path -LiteralPath $chapterDir) {
         }
     }
 
-    if ($activeChapterFiles.Count -ne 1) {
-        Add-Problem Error "Expected exactly one active chapter file in 01_Кампания/Главы, found $($activeChapterFiles.Count)."
+    if ($activeChapterCount -ne 1) {
+        Add-Problem Error "Expected exactly one active chapter file in 01_Кампания/Главы, found $activeChapterCount."
     }
 } else {
-    Add-Problem Error 'Chapter directory is missing: 01_Кампания\Главы'
+    Add-Problem Error 'Chapter directory is missing: 01_Кампания/Главы'
 }
 
-if (-not $filesByType.ContainsKey('location_index')) {
+# --- Generated indices ---------------------------------------------------------------
+
+$locationIndex = Get-GeneratedView 'location_index' 'Location index' 'tools/Собрать_индекс_локаций.ps1'
+if (-not $locationIndex) {
     Add-Problem Error 'location_index file not found.'
 } else {
-    $locationIndexPath = $filesByType['location_index'][0].FullName
-    $locationIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $locationIndexPath
-    if ($locationIndex -notmatch '(?m)^generated_by:\s*tools/Собрать_индекс_локаций\.ps1\s*$') {
-        Add-Problem Warning "Location index should be generated by tools/Собрать_индекс_локаций.ps1: $(Get-RelativePath $locationIndexPath)"
-    }
-
-    $locationRefs = [regex]::Matches($locationIndex, '`(04_Локации/[^`]+\.md)`') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object -Unique
-
-    foreach ($ref in $locationRefs) {
-        if (-not (Test-ProjectPath -Reference $ref -FromFile $locationIndexPath)) {
-            Add-Problem Error "Location index points to missing file: $ref"
-        }
-    }
-
-    if ($filesByType.ContainsKey('location')) {
-        $locationFiles = $filesByType['location'] |
-            ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
-
-        foreach ($file in $locationFiles) {
-            if ($locationRefs -notcontains $file) {
-                Add-Problem Error "Location card is missing from location index: $file"
-            }
-        }
-    }
+    $locationRefs = @(Get-BacktickedRefs $locationIndex.Text '`(04_Локации/[^`]+\.md)`' | Sort-Object -Unique)
+    Compare-IndexCoverage $locationIndex $locationRefs (Get-TypePaths 'location') 'Location index points to missing file' 'Location card is missing from location index'
 }
 
-if ($filesByType.ContainsKey('next_turn_panel')) {
-    $nextTurnPath = $filesByType['next_turn_panel'][0].FullName
-    $nextTurn = Get-Content -Raw -Encoding UTF8 -LiteralPath $nextTurnPath
-    if ($nextTurn -notmatch '(?m)^generated_by:\s*tools/Собрать_панель_хода\.ps1\s*$') {
-        Add-Problem Warning "Next turn panel should be generated by tools/Собрать_панель_хода.ps1: $(Get-RelativePath $nextTurnPath)"
-    }
+[void](Get-GeneratedView 'next_turn_panel' 'Next turn panel' 'tools/Собрать_панель_хода.ps1')
+
+$sceneIndex = Get-GeneratedView 'scene_index' 'Scene index' 'tools/Собрать_индекс_сцен.ps1'
+if ($sceneIndex) {
+    $sceneRefs = @(Get-BacktickedRefs $sceneIndex.Text '`(01_Кампания/Ветки/[^`]+\.md)`' | Sort-Object -Unique)
+    Compare-IndexCoverage $sceneIndex $sceneRefs (Get-TypePaths 'scene') 'Scene index points to missing file' 'Scene file is missing from scene index'
 }
 
-if ($filesByType.ContainsKey('scene_index')) {
-    $sceneIndexPath = $filesByType['scene_index'][0].FullName
-    $sceneIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $sceneIndexPath
-    if ($sceneIndex -notmatch '(?m)^generated_by:\s*tools/Собрать_индекс_сцен\.ps1\s*$') {
-        Add-Problem Warning "Scene index should be generated by tools/Собрать_индекс_сцен.ps1: $(Get-RelativePath $sceneIndexPath)"
-    }
-
-    $sceneRefs = [regex]::Matches($sceneIndex, '`(01_Кампания/Ветки/[^`]+\.md)`') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object -Unique
-
-    foreach ($ref in $sceneRefs) {
-        if (-not (Test-ProjectPath -Reference $ref -FromFile $sceneIndexPath)) {
-            Add-Problem Error "Scene index points to missing file: $ref"
-        }
-    }
-
-    if ($filesByType.ContainsKey('scene')) {
-        $sceneFiles = $filesByType['scene'] |
-            ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
-
-        foreach ($file in $sceneFiles) {
-            if ($sceneRefs -notcontains $file) {
-                Add-Problem Error "Scene file is missing from scene index: $file"
-            }
-        }
-    }
-}
-
-if (-not $filesByType.ContainsKey('character_assets_index')) {
+$assetIndex = Get-GeneratedView 'character_assets_index' 'Character asset index' 'tools/Собрать_индекс_активов.ps1'
+if (-not $assetIndex) {
     Add-Problem Error 'character_assets_index file not found.'
 } else {
-    $assetIndexPath = $filesByType['character_assets_index'][0].FullName
-    $assetIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $assetIndexPath
-    if ($assetIndex -notmatch '(?m)^generated_by:\s*tools/Собрать_индекс_активов\.ps1\s*$') {
-        Add-Problem Warning "Character asset index should be generated by tools/Собрать_индекс_активов.ps1: $(Get-RelativePath $assetIndexPath)"
-    }
-
     $assetIndexRowsByRef = @{}
-    $assetRefs = New-Object 'System.Collections.Generic.List[string]'
 
-    foreach ($line in ($assetIndex -split "\r?\n")) {
+    foreach ($line in ($assetIndex.Text -split "\r?\n")) {
         $cells = Convert-WmmaTableRow -Line $line
         if ($null -eq $cells -or $cells.Count -lt 5 -or $cells[0] -eq 'Владелец') {
             continue
@@ -585,7 +419,6 @@ if (-not $filesByType.ContainsKey('character_assets_index')) {
             continue
         }
 
-        $assetRefs.Add($assetRef) | Out-Null
         $assetIndexRowsByRef[$assetRef] = [pscustomobject]@{
             Owner = $cells[0]
             Asset = $cells[1]
@@ -593,28 +426,21 @@ if (-not $filesByType.ContainsKey('character_assets_index')) {
             Status = $cells[3]
         }
 
-        if (-not (Test-ProjectPath -Reference $assetRef -FromFile $assetIndexPath)) {
+        if (-not (Test-WmmaReference $root $assetRef -FromFile $assetIndex.Path)) {
             Add-Problem Error "Character asset index points to missing file: $assetRef"
         }
     }
 
-    $assetCardRefs = @()
-    if ($filesByType.ContainsKey('character_asset')) {
-        $assetCardRefs = @(
-            $filesByType['character_asset'] |
-                ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
-        )
-    }
-
-    foreach ($ref in $assetRefs) {
+    $assetCardRefs = Get-TypePaths 'character_asset'
+    foreach ($ref in $assetIndexRowsByRef.Keys) {
         if ($assetCardRefs -notcontains $ref) {
             Add-Problem Error "Character asset index row has no matching character_asset card: $ref"
         }
     }
 
     foreach ($file in $filesByType['character_asset']) {
-        $relativeAsset = (Get-RelativePath $file.FullName) -replace '\\', '/'
-        $assetText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+        $relativeAsset = Get-WmmaRelativePath $root $file.FullName
+        $assetText = Read-WmmaText $file.FullName
 
         if (-not $assetIndexRowsByRef.ContainsKey($relativeAsset)) {
             Add-Problem Error "Character asset card is missing from asset index: $relativeAsset"
@@ -647,7 +473,7 @@ if (-not $filesByType.ContainsKey('character_assets_index')) {
         }
 
         if ($visualStatus -eq 'available') {
-            if ($visual -eq 'null' -or -not (Test-ProjectPath -Reference $visual -FromFile $file.FullName)) {
+            if ($visual -eq 'null' -or -not (Test-WmmaReference $root $visual -FromFile $file.FullName)) {
                 Add-Problem Error "Character asset has visual_status=available but visual file is missing: $relativeAsset"
             }
         } elseif ($visualStatus -eq 'missing' -and $visual -and $visual -ne 'null') {
@@ -677,37 +503,19 @@ if (-not $filesByType.ContainsKey('character_assets_index')) {
     }
 }
 
-if (-not $filesByType.ContainsKey('source_index')) {
+$sourceIndex = Get-GeneratedView 'source_index' 'Source index' 'tools/Собрать_индекс_источников.ps1'
+if (-not $sourceIndex) {
     Add-Problem Error 'source_index file not found.'
 } else {
-    $sourceIndexPath = $filesByType['source_index'][0].FullName
-    $sourceIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $sourceIndexPath
-    if ($sourceIndex -notmatch '(?m)^generated_by:\s*tools/Собрать_индекс_источников\.ps1\s*$') {
-        Add-Problem Warning "Source index should be generated by tools/Собрать_индекс_источников.ps1: $(Get-RelativePath $sourceIndexPath)"
-    }
+    $sourceRefs = @(Get-BacktickedRefs $sourceIndex.Text '`(08_Источники/[^`]+\.md)`' | Sort-Object -Unique)
+    $sourceFiles = @(
+        Get-ChildItem -LiteralPath (Join-Path $root '08_Источники') -File -Filter '*.md' |
+            Where-Object { $_.Name -ne '00_Индекс_источников.md' } |
+            ForEach-Object { Get-WmmaRelativePath $root $_.FullName }
+    )
+    Compare-IndexCoverage $sourceIndex $sourceRefs $sourceFiles 'Source index points to missing file' 'Source file is missing from source index'
 
-    $sourceRefs = [regex]::Matches($sourceIndex, '`(08_Источники/[^`]+\.md)`') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object -Unique
-
-    foreach ($ref in $sourceRefs) {
-        if (-not (Test-ProjectPath -Reference $ref -FromFile $sourceIndexPath)) {
-            Add-Problem Error "Source index points to missing file: $ref"
-        }
-    }
-
-    $sourceFiles = Get-ChildItem -LiteralPath (Join-Path $root '08_Источники') -File -Filter '*.md' |
-        Where-Object { $_.Name -ne '00_Индекс_источников.md' } |
-        ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
-
-    foreach ($file in $sourceFiles) {
-        if ($sourceRefs -notcontains $file) {
-            Add-Problem Error "Source file is missing from source index: $file"
-        }
-    }
-
-    $validSourceStatuses = @('new', 'processed', 'archived')
-    foreach ($line in ($sourceIndex -split "\r?\n")) {
+    foreach ($line in ($sourceIndex.Text -split "\r?\n")) {
         $cells = Convert-WmmaTableRow -Line $line
         if ($null -eq $cells -or $cells.Count -lt 6 -or $cells[0] -eq 'Дата') {
             continue
@@ -715,13 +523,12 @@ if (-not $filesByType.ContainsKey('source_index')) {
 
         $sourceStatus = $cells[1].Trim()
         $inboxState = $cells[3].Trim()
-        $sourceFileCell = $cells[$cells.Count - 1]
-        if ($sourceFileCell -notmatch '`([^`]+\.md)`') {
+        if ($cells[$cells.Count - 1] -notmatch '`([^`]+\.md)`') {
             continue
         }
 
         $sourceRef = $Matches[1] -replace '\\', '/'
-        if ($validSourceStatuses -notcontains $sourceStatus) {
+        if ($sourceStatus -notin @('new', 'processed', 'archived')) {
             Add-Problem Error "Source has invalid lifecycle status '$sourceStatus': $sourceRef"
         }
 
@@ -739,129 +546,78 @@ if (-not $filesByType.ContainsKey('source_index')) {
     }
 }
 
-if (-not $filesByType.ContainsKey('character_index')) {
+$characterIndex = Get-GeneratedView 'character_index' 'Character index' 'tools/Собрать_индекс_персонажей.ps1'
+if (-not $characterIndex) {
     Add-Problem Error 'character_index file not found.'
 } else {
-    $characterIndexPath = $filesByType['character_index'][0].FullName
-    $characterIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterIndexPath
-    if ($characterIndex -notmatch '(?m)^generated_by:\s*tools/Собрать_индекс_персонажей\.ps1\s*$') {
-        Add-Problem Warning "Character index should be generated by tools/Собрать_индекс_персонажей.ps1: $(Get-RelativePath $characterIndexPath)"
-    }
-
-    $characterRefs = [regex]::Matches($characterIndex, '`([^`]+\.md)`') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Where-Object { $_ -like '03_*' }
-
-    $characterFiles = @()
-    if ($filesByType.ContainsKey('character')) {
-        $characterFiles = $filesByType['character'] |
-            ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
-    }
-
-    foreach ($ref in $characterRefs) {
-        if (-not (Test-ProjectPath -Reference $ref -FromFile $characterIndexPath)) {
-            Add-Problem Error "Character index points to missing file: $ref"
-        }
-    }
-
-    foreach ($file in $characterFiles) {
-        if ($characterRefs -notcontains $file) {
-            Add-Problem Error "Character card is missing from index: $file"
-        }
-    }
+    $characterRefs = @(Get-BacktickedRefs $characterIndex.Text '`([^`]+\.md)`' | Where-Object { $_ -like '03_*' })
+    Compare-IndexCoverage $characterIndex $characterRefs (Get-TypePaths 'character') 'Character index points to missing file' 'Character card is missing from index'
 
     $characterIndexRows = [regex]::Matches(
-        $characterIndex,
+        $characterIndex.Text,
         '(?m)^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*`([^`]+\.md)`\s*\|\s*$'
     )
 
     foreach ($row in $characterIndexRows) {
-        $characterName = $row.Groups[1].Value.Trim()
-        $indexPortraitStatus = $row.Groups[3].Value.Trim()
         $characterRef = $row.Groups[4].Value.Trim()
-
         if ($characterRef -notlike '03_*') {
             continue
         }
 
-        $normalizedRef = $characterRef -replace '/', '\'
-        $characterPath = Join-Path $root $normalizedRef
-
-        if (-not (Test-Path -LiteralPath $characterPath)) {
-            $characterPath = Join-Path (Split-Path -Parent $characterIndexPath) $normalizedRef
-        }
-
-        if (-not (Test-Path -LiteralPath $characterPath)) {
+        $characterPath = Resolve-WmmaReference $root $characterRef -FromFile $characterIndex.Path
+        if (-not $characterPath -or (Read-WmmaText $characterPath) -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
             continue
         }
 
-        $characterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterPath
-
-        if ($characterText -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
-            continue
-        }
-
-        $portraitStatus = $Matches[1].Trim()
-        $indexStatusAvailable = -join [char[]](0x0435, 0x0441, 0x0442, 0x044C)
-        $indexStatusMissing = -join [char[]](0x043D, 0x0443, 0x0436, 0x0435, 0x043D)
-        $indexStatusPlanned = -join [char[]](0x0437, 0x0430, 0x043F, 0x043B, 0x0430, 0x043D, 0x0438, 0x0440, 0x043E, 0x0432, 0x0430, 0x043D)
-        $expectedIndexStatus = switch ($portraitStatus) {
-            'available' { $indexStatusAvailable }
-            'missing' { $indexStatusMissing }
-            'planned' { $indexStatusPlanned }
-        }
-
+        $indexPortraitStatus = $row.Groups[3].Value.Trim()
+        $expectedIndexStatus = Get-WmmaPortraitStatusWord $Matches[1].Trim()
         if ($indexPortraitStatus -ne $expectedIndexStatus) {
-            Add-Problem Warning "Character index portrait status mismatch: $characterName uses '$indexPortraitStatus' but card expects '$expectedIndexStatus': $characterRef"
+            Add-Problem Warning "Character index portrait status mismatch: $($row.Groups[1].Value.Trim()) uses '$indexPortraitStatus' but card expects '$expectedIndexStatus': $characterRef"
         }
     }
 }
 
-if ($filesByType.ContainsKey('character')) {
-    foreach ($file in $filesByType['character']) {
-        $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+# --- Portraits -----------------------------------------------------------------------
 
-        if ($text -notmatch '(?m)^portrait:\s*(.+)\s*$') {
-            Add-Problem Error "Character card has no portrait field: $(Get-RelativePath $file.FullName)"
-            continue
-        }
+foreach ($file in $filesByType['character']) {
+    $text = Read-WmmaText $file.FullName
+    $relativeFile = Get-WmmaRelativePath $root $file.FullName
 
-        $portrait = $Matches[1].Trim()
+    if ($text -notmatch '(?m)^portrait:\s*(.+)\s*$') {
+        Add-Problem Error "Character card has no portrait field: $relativeFile"
+        continue
+    }
 
-        if ($text -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
-            Add-Problem Error "Character card has invalid portrait_status: $(Get-RelativePath $file.FullName)"
-            continue
-        }
+    $portraitPath = $Matches[1].Trim()
 
-        $portraitStatus = $Matches[1].Trim()
+    if ($text -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
+        Add-Problem Error "Character card has invalid portrait_status: $relativeFile"
+        continue
+    }
 
-        if ($portraitStatus -eq 'available') {
-            $portraitFullPath = Resolve-ProjectPath -Reference $portrait -FromFile $file.FullName
-            if ($portrait -eq 'null' -or -not $portraitFullPath) {
-                Add-Problem Error "portrait_status=available but portrait file is missing: $(Get-RelativePath $file.FullName)"
-            } else {
-                $size = Get-ImageSize -Path $portraitFullPath
-                if (-not $size) {
-                    Add-Problem Warning "Cannot read portrait dimensions: $(Get-RelativePath $portraitFullPath)"
-                } elseif (-not (Test-AcceptedPortraitRatio -Width $size.Width -Height $size.Height)) {
-                    Add-Problem Error "Portrait has invalid aspect ratio, expected 3:4 or legacy 2:3: $(Get-RelativePath $portraitFullPath) ($($size.Width)x$($size.Height))"
-                }
-            }
-        }
+    if ($Matches[1].Trim() -ne 'available') {
+        continue
+    }
+
+    # The path may also be relative to the card; an unreadable image is only a warning here.
+    $portrait = Test-WmmaPortraitFile -Root $root -Portrait $portraitPath -CardPath $file.FullName
+    switch ($portrait.Problem) {
+        'missing' { Add-Problem Error "portrait_status=available but portrait file is missing: $relativeFile" }
+        'unreadable' { Add-Problem Warning "Cannot read portrait dimensions: $(Get-WmmaRelativePath $root $portrait.Path)" }
+        'ratio' { Add-Problem Error "Portrait has invalid aspect ratio, expected 3:4 or legacy 2:3: $(Get-WmmaRelativePath $root $portrait.Path) ($($portrait.Size.Width)x$($portrait.Size.Height))" }
     }
 }
 
-if ($filesByType.ContainsKey('portrait_prompt')) {
-    foreach ($file in $filesByType['portrait_prompt']) {
-        $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+foreach ($file in $filesByType['portrait_prompt']) {
+    $text = Read-WmmaText $file.FullName
+    $relativeFile = Get-WmmaRelativePath $root $file.FullName
 
-        if ($text -notmatch '(?m)^character:\s*\S+') {
-            Add-Problem Warning "Portrait prompt has no character field: $(Get-RelativePath $file.FullName)"
-        }
+    if ($text -notmatch '(?m)^character:\s*\S+') {
+        Add-Problem Warning "Portrait prompt has no character field: $relativeFile"
+    }
 
-        if ($text -notmatch '(?m)^(output|result):\s*11_Медиа/Портреты_персонажей/.+\.(jpg|jpeg|png|webp)\s*$') {
-            Add-Problem Warning "Portrait prompt has no output/result image path: $(Get-RelativePath $file.FullName)"
-        }
+    if ($text -notmatch '(?m)^(output|result):\s*11_Медиа/Портреты_персонажей/.+\.(jpg|jpeg|png|webp)\s*$') {
+        Add-Problem Warning "Portrait prompt has no output/result image path: $relativeFile"
     }
 }
 
@@ -869,81 +625,52 @@ if (-not $filesByType.ContainsKey('character_portrait_index')) {
     Add-Problem Error 'character_portrait_index file not found.'
 } else {
     $portraitIndexPath = $filesByType['character_portrait_index'][0].FullName
-    $portraitIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $portraitIndexPath
+    $portraitIndex = Read-WmmaText $portraitIndexPath
     $portraitRoot = Split-Path -Parent $portraitIndexPath
-    $portraitRefs = [regex]::Matches($portraitIndex, '`([^`]+\.(?:jpg|jpeg|png|webp))`') |
-        ForEach-Object { $_.Groups[1].Value }
-    $portraitImageFiles = Get-ChildItem -LiteralPath $portraitRoot -Recurse -File |
-        Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } |
-        ForEach-Object { (Get-RelativePath $_.FullName) -replace '\\', '/' }
+    $portraitRefs = Get-BacktickedRefs $portraitIndex '`([^`]+\.(?:jpg|jpeg|png|webp))`'
 
     foreach ($ref in $portraitRefs) {
-        if (
-            -not (Test-ProjectPath -Reference $ref -FromFile $portraitIndexPath) -and
-            -not (Test-PlannedReference -Reference $ref -FromFile $portraitIndexPath -Text $portraitIndex)
-        ) {
+        if (-not (Test-WmmaReference $root $ref -FromFile $portraitIndexPath) -and -not (Test-PlannedReference -Reference $ref -Text $portraitIndex)) {
             Add-Problem Error "Portrait index points to missing file: $ref"
         }
     }
 
+    $portraitImageFiles = Get-ChildItem -LiteralPath $portraitRoot -Recurse -File |
+        Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } |
+        ForEach-Object { Get-WmmaRelativePath $root $_.FullName }
     foreach ($file in $portraitImageFiles) {
         if ($portraitRefs -notcontains $file) {
             Add-Problem Error "Portrait image is missing from portrait index: $file"
         }
     }
 
-    foreach ($dir in Get-ChildItem -LiteralPath $portraitRoot -Directory) {
-        $hasImage = (Get-ChildItem -LiteralPath $dir.FullName -File |
-            Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } |
-            Measure-Object).Count -gt 0
-        $hasPrompt = $false
+    foreach ($dir in Get-WmmaPortraitImageFolders $portraitRoot) {
+        $hasPrompt = @(Get-ChildItem -LiteralPath $dir.FullName -File -Filter '*.md' | Where-Object {
+            (Get-WmmaMeta -Field type -Text (Read-WmmaText $_.FullName)) -eq 'portrait_prompt'
+        }).Count -gt 0
 
-        foreach ($promptFile in Get-ChildItem -LiteralPath $dir.FullName -File -Filter '*.md') {
-            $promptText = Get-Content -Raw -Encoding UTF8 -LiteralPath $promptFile.FullName
-            if ((Get-WmmaMeta -Field type -Text $promptText) -eq 'portrait_prompt') {
-                $hasPrompt = $true
-                break
-            }
-        }
-
-        if ($hasImage -and -not $hasPrompt) {
-            Add-Problem Warning "Portrait folder has image but no portrait_prompt file: $(Get-RelativePath $dir.FullName)"
+        if (-not $hasPrompt) {
+            Add-Problem Warning "Portrait folder has image but no portrait_prompt file: $(Get-WmmaRelativePath $root $dir.FullName)"
         }
     }
 }
 
+# --- Decision and question views -----------------------------------------------------
+
 $decisionIds = @()
-
-if ($filesByType.ContainsKey('decision_log')) {
-    $decisionLogPath = $filesByType['decision_log'][0].FullName
-    $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
-    if ($decisionLog -notmatch '(?m)^source_registry:\s*09_Реестры/Решения\.json\s*$') {
-        Add-Problem Warning "decision_log should be generated from 09_Реестры/Решения.json: $(Get-RelativePath $decisionLogPath)"
-    }
-
-    $decisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+(DEC(?:-PENDING)?-\d{3})\s*$') |
-        ForEach-Object { $_.Groups[1].Value }
-
+$decisionLog = Get-GeneratedView 'decision_log' 'decision_log' -SourceRegistry '09_Реестры/Решения.json'
+if ($decisionLog) {
+    $decisionIds = Get-BacktickedRefs $decisionLog.Text '(?m)^###\s+(DEC(?:-PENDING)?-\d{3})\s*$'
     if ($decisionIds.Count -eq 0) {
         Add-Problem Warning 'No decision IDs found in decision_log headings.'
     }
 
-    $duplicateDecisionIds = $decisionIds |
-        Group-Object |
-        Where-Object { $_.Count -gt 1 } |
-        ForEach-Object { $_.Name }
+    Add-DuplicateIdErrors $decisionIds 'Duplicate decision ID in decision log'
 
-    foreach ($id in $duplicateDecisionIds) {
-        Add-Problem Error "Duplicate decision ID in decision log: $id"
-    }
-
-    $acceptedDecisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+DEC-(\d{3})\s*$') |
-        ForEach-Object {
-            [pscustomobject]@{
-                Id = [int]$_.Groups[1].Value
-                Text = $_.Value.Trim()
-            }
-        }
+    $acceptedDecisionIds = @(
+        [regex]::Matches($decisionLog.Text, '(?m)^###\s+DEC-(\d{3})\s*$') |
+            ForEach-Object { [pscustomobject]@{ Id = [int]$_.Groups[1].Value; Text = $_.Value.Trim() } }
+    )
 
     for ($i = 1; $i -lt $acceptedDecisionIds.Count; $i++) {
         if ($acceptedDecisionIds[$i].Id -lt $acceptedDecisionIds[$i - 1].Id) {
@@ -956,38 +683,19 @@ $activePendingDecisionIds = @()
 $openQuestionIds = @()
 $closedQuestionIds = @()
 
-if ($filesByType.ContainsKey('open_questions')) {
-    $openQuestionsPath = $filesByType['open_questions'][0].FullName
-    $openQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $openQuestionsPath
-    if ($openQuestions -notmatch '(?m)^source_registry:\s*09_Реестры/Вопросы\.json\s*$') {
-        Add-Problem Warning "open_questions should be generated from 09_Реестры/Вопросы.json: $(Get-RelativePath $openQuestionsPath)"
-    }
+$openQuestions = Get-GeneratedView 'open_questions' 'open_questions' -SourceRegistry '09_Реестры/Вопросы.json'
+if ($openQuestions) {
+    $openQuestionIds = Get-BacktickedRefs $openQuestions.Text '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|'
+    $openQuestionRowsWithIds = [regex]::Matches($openQuestions.Text, '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C\d+|WORLD))-\d{3})\s*\|')
 
-    $questionIds = @(
-        [regex]::Matches($openQuestions, '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|') |
-            ForEach-Object { $_.Groups[1].Value }
-    )
-    $openQuestionIds = $questionIds
-
-    $openQuestionRowsWithIds = [regex]::Matches($openQuestions, '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C\d+|WORLD))-\d{3})\s*\|') |
-        ForEach-Object { $_.Value }
-
-    if ($questionIds.Count -eq 0) {
+    if ($openQuestionIds.Count -eq 0) {
         Add-Problem Warning 'No Q-C*/Q-WORLD IDs found in open_questions.'
     }
 
-    $duplicateQuestionIds = $questionIds |
-        Group-Object |
-        Where-Object { $_.Count -gt 1 } |
-        ForEach-Object { $_.Name }
+    Add-DuplicateIdErrors $openQuestionIds 'Duplicate open question ID'
 
-    foreach ($id in $duplicateQuestionIds) {
-        Add-Problem Error "Duplicate open question ID: $id"
-    }
-
-    $validQuestionStatuses = @('active', 'waiting', 'later')
     $questionRowsWithStatus = [regex]::Matches(
-        $openQuestions,
+        $openQuestions.Text,
         '(?m)^\|\s*((?:DEC-PENDING|Q-(?:C\d+|WORLD))-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
     )
 
@@ -1004,84 +712,57 @@ if ($filesByType.ContainsKey('open_questions')) {
             continue
         }
 
-        if ($validQuestionStatuses -notcontains $questionStatus) {
+        if ($questionStatus -notin @('active', 'waiting', 'later')) {
             Add-Problem Error "Invalid open question status for ${id}: $questionStatus"
         }
     }
 
-    $pendingQuestionIds = @(
+    $activePendingDecisionIds = @(
         $questionRowsWithStatus |
-            Where-Object {
-                $_.Groups[1].Value.Trim() -match '^DEC-PENDING-\d{3}$' -and
-                $_.Groups[2].Value.Trim() -ne 'resolved'
-            } |
+            Where-Object { $_.Groups[1].Value.Trim() -match '^DEC-PENDING-\d{3}$' -and $_.Groups[2].Value.Trim() -ne 'resolved' } |
             ForEach-Object { $_.Groups[1].Value.Trim() }
     )
-    $activePendingDecisionIds = $pendingQuestionIds
 
-    if ($filesByType.ContainsKey('decision_log')) {
-        $decisionLogPath = $filesByType['decision_log'][0].FullName
-        $decisionLog = Get-Content -Raw -Encoding UTF8 -LiteralPath $decisionLogPath
-        $pendingDecisionIds = [regex]::Matches($decisionLog, '(?m)^###\s+(DEC-PENDING-\d{3})\s*$') |
-            ForEach-Object { $_.Groups[1].Value }
-
-        Compare-IdSets 'decision_log pending decisions' $pendingDecisionIds 'open_questions pending decisions' $pendingQuestionIds
+    if ($decisionLog) {
+        $logPendingIds = Get-BacktickedRefs $decisionLog.Text '(?m)^###\s+(DEC-PENDING-\d{3})\s*$'
+        Compare-IdSets 'decision_log pending decisions' $logPendingIds 'open_questions pending decisions' $activePendingDecisionIds
     }
 
     if ($filesByType.ContainsKey('ai_current_context')) {
-        $currentContextPath = $filesByType['ai_current_context'][0].FullName
-        $currentContext = Get-Content -Raw -Encoding UTF8 -LiteralPath $currentContextPath
-        $contextPendingIds = [regex]::Matches($currentContext, '\bDEC-PENDING-\d{3}\b') |
-            ForEach-Object { $_.Value }
-
-        Compare-IdSets 'current context pending decisions' $contextPendingIds 'open_questions pending decisions' $pendingQuestionIds
+        $currentContext = Read-WmmaText $filesByType['ai_current_context'][0].FullName
+        $contextPendingIds = @([regex]::Matches($currentContext, '\bDEC-PENDING-\d{3}\b') | ForEach-Object { $_.Value })
+        Compare-IdSets 'current context pending decisions' $contextPendingIds 'open_questions pending decisions' $activePendingDecisionIds
     }
 }
 
 # Registry structure is checked once by Проверить_реестры. Here compare views.
 try {
     $decisions=(Read-WmmaRegistry $root 'Решения').decisions
-    $pending=@($decisions|Where-Object {$_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*'}|ForEach-Object {$_.id})
+    $pending=@($decisions|Where-Object {Test-WmmaPendingDecision $_}|ForEach-Object {$_.id})
     Compare-IdSets 'decision registry decisions' @($decisions.id) 'decision_log headings' $decisionIds
     Compare-IdSets 'decision registry pending decisions' $pending 'open_questions pending decisions' $activePendingDecisionIds
 } catch {
     Add-Problem Error "Cannot compare decision views: $($_.Exception.Message)"
 }
 
-if ($filesByType.ContainsKey('closed_questions')) {
-    $closedQuestionsPath = $filesByType['closed_questions'][0].FullName
-    $closedQuestions = Get-Content -Raw -Encoding UTF8 -LiteralPath $closedQuestionsPath
-    if ($closedQuestions -notmatch '(?m)^source_registry:\s*09_Реестры/Вопросы\.json\s*$') {
-        Add-Problem Warning "closed_questions should be generated from 09_Реестры/Вопросы.json: $(Get-RelativePath $closedQuestionsPath)"
-    }
-
+$closedQuestions = Get-GeneratedView 'closed_questions' 'closed_questions' -SourceRegistry '09_Реестры/Вопросы.json'
+if ($closedQuestions) {
     $closedQuestionRowsWithStatus = [regex]::Matches(
-        $closedQuestions,
+        $closedQuestions.Text,
         '(?m)^\|\s*(Q-(?:C\d+|WORLD)-\d{3})\s*\|\s*[^|]+\|\s*[^|]+\|\s*[^|]+\|\s*([^|]+?)\s*\|\s*$'
     )
-    $closedQuestionIds = @(
-        $closedQuestionRowsWithStatus |
-            ForEach-Object { $_.Groups[1].Value.Trim() }
-    )
+    $closedQuestionIds = @($closedQuestionRowsWithStatus | ForEach-Object { $_.Groups[1].Value.Trim() })
 
     if ($closedQuestionIds.Count -eq 0) {
         Add-Problem Warning 'No Q-C*/Q-WORLD IDs found in closed_questions.'
     }
 
-    $duplicateClosedQuestionIds = $closedQuestionIds |
-        Group-Object |
-        Where-Object { $_.Count -gt 1 } |
-        ForEach-Object { $_.Name }
-
-    foreach ($id in $duplicateClosedQuestionIds) {
-        Add-Problem Error "Duplicate closed question ID: $id"
-    }
+    Add-DuplicateIdErrors $closedQuestionIds 'Duplicate closed question ID'
 
     foreach ($row in $closedQuestionRowsWithStatus) {
-        $id = $row.Groups[1].Value.Trim()
         $questionStatus = $row.Groups[2].Value.Trim()
         if ($questionStatus -ne 'resolved') {
-            Add-Problem Error "Invalid closed question status for ${id}: $questionStatus"
+            Add-Problem Error "Invalid closed question status for $($row.Groups[1].Value.Trim()): $questionStatus"
         }
     }
 
@@ -1091,11 +772,11 @@ if ($filesByType.ContainsKey('closed_questions')) {
         }
     }
 
-    if ($closedQuestions.Contains('$QuestionId')) {
+    if ($closedQuestions.Text.Contains('$QuestionId')) {
         Add-Problem Error 'closed_questions contains an unexpanded $QuestionId marker.'
     }
 
-    if ($closedQuestions.Contains('resolved${')) {
+    if ($closedQuestions.Text.Contains('resolved${')) {
         Add-Problem Error 'closed_questions contains a malformed resolved replacement marker.'
     }
 }
@@ -1110,117 +791,24 @@ try {
     Add-Problem Error "Cannot compare question views: $($_.Exception.Message)"
 }
 
+# --- Live context: pending decisions and active scenes -----------------------------
+
 $liveContextFilesByPath = @{}
-
-function Add-LiveContextFile {
-    param([string]$Path)
-
-    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
-        return
-    }
-
-    $resolved = (Resolve-Path -LiteralPath $Path).Path
-    $liveContextFilesByPath[$resolved] = $true
-}
-
-foreach ($typeName in @(
-    'ai_current_context',
-    'campaign_summary',
-    'active_chapter',
-    'open_questions',
-    'front_tracker',
-    'next_turn_panel'
-)) {
-    if ($filesByType.ContainsKey($typeName)) {
-        foreach ($file in $filesByType[$typeName]) {
-            Add-LiveContextFile -Path $file.FullName
-        }
+foreach ($typeName in @('ai_current_context', 'campaign_summary', 'active_chapter', 'open_questions', 'front_tracker', 'next_turn_panel', 'character_branch')) {
+    foreach ($file in $filesByType[$typeName]) {
+        $liveContextFilesByPath[$file.FullName] = $true
     }
 }
 
-if ($filesByType.ContainsKey('chapter')) {
-    foreach ($file in $filesByType['chapter']) {
-        $chapterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-        if ((Get-WmmaMeta -Text $chapterText -Field 'status') -eq 'active') {
-            Add-LiveContextFile -Path $file.FullName
-        }
-    }
-}
-
-if ($filesByType.ContainsKey('character_branch')) {
-    foreach ($file in $filesByType['character_branch']) {
-        Add-LiveContextFile -Path $file.FullName
-    }
-}
-
-$liveContextFiles = @(
-    $liveContextFilesByPath.Keys |
-        ForEach-Object { Get-Item -LiteralPath $_ } |
-        Sort-Object FullName
-)
-
-foreach ($file in $liveContextFiles) {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-    $relativeFile = Get-RelativePath $file.FullName
-    $pendingRefs = @(
-        [regex]::Matches($text, '\bDEC-PENDING-\d{3}\b') |
-            ForEach-Object { $_.Value } |
-            Sort-Object -Unique
-    )
-
-    foreach ($id in $pendingRefs) {
-        if ($activePendingDecisionIds -notcontains $id) {
-            Add-Problem Error "Stale pending decision reference in live context: $relativeFile -> $id"
-        }
+foreach ($file in $filesByType['chapter']) {
+    if ((Get-WmmaMeta -Text (Read-WmmaText $file.FullName) -Field 'status') -eq 'active') {
+        $liveContextFilesByPath[$file.FullName] = $true
     }
 }
 
 $sceneStatusByRef = @{}
-if ($filesByType.ContainsKey('scene')) {
-    foreach ($file in $filesByType['scene']) {
-        $sceneText = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-        $sceneRef = (Get-RelativePath $file.FullName) -replace '\\', '/'
-        $sceneStatusByRef[$sceneRef] = Get-WmmaMeta -Text $sceneText -Field 'status'
-    }
-}
-
-foreach ($file in $liveContextFiles) {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-    $relativeFile = Get-RelativePath $file.FullName
-    $activeSceneSection = Get-SectionText -Text $text -Heading 'Активные сцены'
-    $refsInActiveSceneSection = @(
-        [regex]::Matches($activeSceneSection, '`(01_Кампания/Ветки/[^`]+\.md)`') |
-            ForEach-Object { $_.Groups[1].Value }
-    )
-
-    foreach ($ref in $refsInActiveSceneSection) {
-        if ($sceneStatusByRef.ContainsKey($ref) -and $sceneStatusByRef[$ref] -ne 'active') {
-            Add-Problem Error "Closed scene is listed in active scenes: $relativeFile -> $ref has status '$($sceneStatusByRef[$ref])'"
-        }
-    }
-
-    foreach ($line in ($text -split "\r?\n")) {
-        $cells = Convert-WmmaTableRow -Line $line
-        if ($null -eq $cells) {
-            continue
-        }
-
-        $activeStatusCell = @($cells | Where-Object { $_.ToLowerInvariant() -match '^(active|актив)' }).Count -gt 0
-        if (-not $activeStatusCell) {
-            continue
-        }
-
-        $sceneRefs = @(
-            [regex]::Matches($line, '`(01_Кампания/Ветки/[^`]+\.md)`') |
-                ForEach-Object { $_.Groups[1].Value }
-        )
-
-        foreach ($ref in $sceneRefs) {
-            if ($sceneStatusByRef.ContainsKey($ref) -and $sceneStatusByRef[$ref] -ne 'active') {
-                Add-Problem Error "Scene table row is marked active but scene is not active: $relativeFile -> $ref has status '$($sceneStatusByRef[$ref])'"
-            }
-        }
-    }
+foreach ($file in $filesByType['scene']) {
+    $sceneStatusByRef[(Get-WmmaRelativePath $root $file.FullName)] = Get-WmmaMeta -Text (Read-WmmaText $file.FullName) -Field 'status'
 }
 
 $staleActiveMarkers = @(
@@ -1231,9 +819,34 @@ $staleActiveMarkers = @(
     }
 )
 
-foreach ($file in $liveContextFiles) {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-    $relativeFile = Get-RelativePath $file.FullName
+foreach ($path in @($liveContextFilesByPath.Keys | Sort-Object)) {
+    $text = Read-WmmaText $path
+    $relativeFile = Get-WmmaRelativePath $root $path
+
+    foreach ($id in @([regex]::Matches($text, '\bDEC-PENDING-\d{3}\b') | ForEach-Object { $_.Value } | Sort-Object -Unique)) {
+        if ($activePendingDecisionIds -notcontains $id) {
+            Add-Problem Error "Stale pending decision reference in live context: $relativeFile -> $id"
+        }
+    }
+
+    foreach ($ref in Get-BacktickedRefs (Get-WmmaSection -Text $text -Heading 'Активные сцены') '`(01_Кампания/Ветки/[^`]+\.md)`') {
+        if ($sceneStatusByRef.ContainsKey($ref) -and $sceneStatusByRef[$ref] -ne 'active') {
+            Add-Problem Error "Closed scene is listed in active scenes: $relativeFile -> $ref has status '$($sceneStatusByRef[$ref])'"
+        }
+    }
+
+    foreach ($line in ($text -split "\r?\n")) {
+        $cells = Convert-WmmaTableRow -Line $line
+        if ($null -eq $cells -or @($cells | Where-Object { $_.ToLowerInvariant() -match '^(active|актив)' }).Count -eq 0) {
+            continue
+        }
+
+        foreach ($ref in Get-BacktickedRefs $line '`(01_Кампания/Ветки/[^`]+\.md)`') {
+            if ($sceneStatusByRef.ContainsKey($ref) -and $sceneStatusByRef[$ref] -ne 'active') {
+                Add-Problem Error "Scene table row is marked active but scene is not active: $relativeFile -> $ref has status '$($sceneStatusByRef[$ref])'"
+            }
+        }
+    }
 
     foreach ($marker in $staleActiveMarkers) {
         if ([regex]::IsMatch($text, $marker.Pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
@@ -1242,34 +855,23 @@ foreach ($file in $liveContextFiles) {
     }
 }
 
+# --- Fronts --------------------------------------------------------------------------
+
 $declaredFrontIdSet = @()
 
-if ($filesByType.ContainsKey('front_tracker')) {
-    $frontTrackerPath = $filesByType['front_tracker'][0].FullName
-    $frontTracker = Get-Content -Raw -Encoding UTF8 -LiteralPath $frontTrackerPath
-    if ($frontTracker -notmatch '(?m)^source_registry:\s*09_Реестры/Фронты\.json\s*$') {
-        Add-Problem Warning "front_tracker should be generated from 09_Реестры/Фронты.json: $(Get-RelativePath $frontTrackerPath)"
-    }
-
-    $frontIdSection = Get-SectionText -Text $frontTracker -Heading 'Справочник FRONT-ID'
-    $declaredFrontIds = [regex]::Matches($frontIdSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
-        ForEach-Object { $_.Groups[1].Value }
+$frontTracker = Get-GeneratedView 'front_tracker' 'front_tracker' -SourceRegistry '09_Реестры/Фронты.json'
+if ($frontTracker) {
+    $frontRowPattern = '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|'
+    $declaredFrontIds = Get-BacktickedRefs (Get-WmmaSection -Text $frontTracker.Text -Heading 'Справочник FRONT-ID') $frontRowPattern
 
     if ($declaredFrontIds.Count -eq 0) {
         Add-Problem Error 'No FRONT-ID declarations found in front tracker.'
     }
 
-    $duplicateFrontIds = $declaredFrontIds |
-        Group-Object |
-        Where-Object { $_.Count -gt 1 } |
-        ForEach-Object { $_.Name }
-
-    foreach ($id in $duplicateFrontIds) {
-        Add-Problem Error "Duplicate FRONT-ID declaration: $id"
-    }
+    Add-DuplicateIdErrors $declaredFrontIds 'Duplicate FRONT-ID declaration'
 
     $declaredFrontIdSet = @($declaredFrontIds | Sort-Object -Unique)
-    $usedFrontIds = [regex]::Matches($frontTracker, '\bFRONT-[A-Z0-9-]+\b') |
+    $usedFrontIds = [regex]::Matches($frontTracker.Text, '\bFRONT-[A-Z0-9-]+\b') |
         ForEach-Object { $_.Value } |
         Where-Object { $_ -ne 'FRONT-ID' } |
         Sort-Object -Unique
@@ -1280,101 +882,73 @@ if ($filesByType.ContainsKey('front_tracker')) {
         }
     }
 
-    $activeFrontSection = Get-SectionText -Text $frontTracker -Heading 'Активные фронты'
-    $activeFrontIds = [regex]::Matches($activeFrontSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object -Unique
-
-    $urgentFrontSection = Get-SectionText -Text $frontTracker -Heading 'Срочные развилки'
-    $urgentFrontIds = [regex]::Matches($urgentFrontSection, '(?m)^\|\s*(FRONT-[A-Z0-9-]+)\s*\|') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object -Unique
-
-    $timerSection = Get-SectionText -Text $frontTracker -Heading 'Таймеры угроз'
-    $timerRows = @(
-        $timerSection -split "\r?\n" |
-            ForEach-Object { Convert-WmmaTableRow -Line $_ } |
-            Where-Object { $null -ne $_ -and $_.Count -ge 2 -and $_[0] -match '^FRONT-[A-Z0-9-]+$' }
-    )
+    $activeFrontIds = @(Get-BacktickedRefs (Get-WmmaSection -Text $frontTracker.Text -Heading 'Активные фронты') $frontRowPattern | Sort-Object -Unique)
+    $urgentFrontIds = @(Get-BacktickedRefs (Get-WmmaSection -Text $frontTracker.Text -Heading 'Срочные развилки') $frontRowPattern | Sort-Object -Unique)
     $timerKeys = @(
-        $timerRows |
+        (Get-WmmaSection -Text $frontTracker.Text -Heading 'Таймеры угроз') -split "\r?\n" |
+            ForEach-Object { Convert-WmmaTableRow -Line $_ } |
+            Where-Object { $null -ne $_ -and $_.Count -ge 2 -and $_[0] -match '^FRONT-[A-Z0-9-]+$' } |
             ForEach-Object { "$($_[0])|$($_[1])" }
     )
 
-    $sceneFrontIds = @()
-    if ($filesByType.ContainsKey('scene')) {
-        $sceneFrontIds = @(
-            $filesByType['scene'] |
-                ForEach-Object {
-                    $sceneText = Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName
-                    if ($sceneText -match '(?m)^front_id:\s*(FRONT-[A-Z0-9-]+)\s*$') {
-                        $Matches[1]
-                    }
-                } |
-                Sort-Object -Unique
-        )
-    }
+    $sceneFrontIds = @(
+        $filesByType['scene'] |
+            Where-Object { $_ } |
+            ForEach-Object {
+                if ((Read-WmmaText $_.FullName) -match '(?m)^front_id:\s*(FRONT-[A-Z0-9-]+)\s*$') {
+                    $Matches[1]
+                }
+            } |
+            Sort-Object -Unique
+    )
 
-    $locationFrontIds = @()
-    if ($filesByType.ContainsKey('location')) {
-        $locationFrontIds = @(
-            $filesByType['location'] |
-                ForEach-Object {
-                    $relativeLocation = (Get-RelativePath $_.FullName) -replace '\\', '/'
-                    $locationText = Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName
-                    if ($locationText -notmatch '(?m)^front_id:\s*(\S+)\s*$') {
-                        Add-Problem Error "Location has no front_id field: $relativeLocation"
-                        return
-                    }
+    $locationFrontIds = @(
+        $filesByType['location'] |
+            Where-Object { $_ } |
+            ForEach-Object {
+                $relativeLocation = Get-WmmaRelativePath $root $_.FullName
+                if ((Read-WmmaText $_.FullName) -notmatch '(?m)^front_id:\s*(\S+)\s*$') {
+                    Add-Problem Error "Location has no front_id field: $relativeLocation"
+                    return
+                }
 
-                    $locationFrontId = $Matches[1].Trim()
-                    if ([string]::IsNullOrWhiteSpace($locationFrontId)) {
-                        Add-Problem Error "Location has empty front_id field: $relativeLocation"
-                        return
-                    }
+                $locationFrontId = $Matches[1].Trim()
+                if ([string]::IsNullOrWhiteSpace($locationFrontId)) {
+                    Add-Problem Error "Location has empty front_id field: $relativeLocation"
+                    return
+                }
 
-                    if ($locationFrontId -eq '-') {
-                        return
-                    }
+                if ($locationFrontId -eq '-') {
+                    return
+                }
 
-                    if ($locationFrontId -notmatch '^FRONT-[A-Z0-9-]+$') {
-                        Add-Problem Error "Location has invalid front_id format: $relativeLocation -> $locationFrontId"
-                        return
-                    }
+                if ($locationFrontId -notmatch '^FRONT-[A-Z0-9-]+$') {
+                    Add-Problem Error "Location has invalid front_id format: $relativeLocation -> $locationFrontId"
+                    return
+                }
 
-                    if ($declaredFrontIdSet -notcontains $locationFrontId) {
-                        Add-Problem Error "Location uses undeclared FRONT-ID: $relativeLocation -> $locationFrontId"
-                        return
-                    }
+                if ($declaredFrontIdSet -notcontains $locationFrontId) {
+                    Add-Problem Error "Location uses undeclared FRONT-ID: $relativeLocation -> $locationFrontId"
+                    return
+                }
 
-                    $locationFrontId
-                } |
-                Sort-Object -Unique
-        )
-    }
+                $locationFrontId
+            } |
+            Sort-Object -Unique
+    )
 
     $decisionFrontIds = @()
-    if ($filesByType.ContainsKey('decision_log')) {
-        $decisionText = Get-Content -Raw -Encoding UTF8 -LiteralPath $filesByType['decision_log'][0].FullName
-        $decisionFrontIds = @(
-            [regex]::Matches($decisionText, '\bFRONT-[A-Z0-9-]+\b') |
-                ForEach-Object { $_.Value } |
-                Sort-Object -Unique
-        )
+    if ($decisionLog) {
+        $decisionFrontIds = @([regex]::Matches($decisionLog.Text, '\bFRONT-[A-Z0-9-]+\b') | ForEach-Object { $_.Value } | Sort-Object -Unique)
     }
 
     $questionFrontIds = @()
-    if ($filesByType.ContainsKey('open_questions')) {
-        $questionText = Get-Content -Raw -Encoding UTF8 -LiteralPath $filesByType['open_questions'][0].FullName
-        $questionFrontIds = @(
-            [regex]::Matches($questionText, '\bFRONT-[A-Z0-9-]+\b') |
-                ForEach-Object { $_.Value } |
-                Sort-Object -Unique
-        )
+    if ($openQuestions) {
+        $questionFrontIds = @([regex]::Matches($openQuestions.Text, '\bFRONT-[A-Z0-9-]+\b') | ForEach-Object { $_.Value } | Sort-Object -Unique)
     }
 
     $frontTrackerLinkedIds = @(
-        $frontTracker -split "\r?\n" |
+        $frontTracker.Text -split "\r?\n" |
             Where-Object {
                 $_ -match '\bFRONT-[A-Z0-9-]+\b' -and
                 $_ -match '`(?:01_Кампания/Ветки|01_Кампания/02_Журнал_решений|01_Кампания/03_Нерешенные_вопросы|04_Локации)/[^`]+\.md`'
@@ -1387,15 +961,14 @@ if ($filesByType.ContainsKey('front_tracker')) {
     )
 
     foreach ($id in $activeFrontIds) {
-        $hasDirectLink =
+        $hasLink =
             $sceneFrontIds -contains $id -or
             $locationFrontIds -contains $id -or
             $decisionFrontIds -contains $id -or
-            $questionFrontIds -contains $id
+            $questionFrontIds -contains $id -or
+            $frontTrackerLinkedIds -contains $id
 
-        $hasTrackerProjectLink = $frontTrackerLinkedIds -contains $id
-
-        if (-not ($hasDirectLink -or $hasTrackerProjectLink)) {
+        if (-not $hasLink) {
             Add-Problem Warning "Active FRONT-ID has no scene/question/decision/location link: $id"
         }
     }
@@ -1412,41 +985,41 @@ if ($filesByType.ContainsKey('front_tracker')) {
     }
 }
 
-if ($filesByType.ContainsKey('scene')) {
-    foreach ($file in $filesByType['scene']) {
-        $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
-        $relativeFile = Get-RelativePath $file.FullName
+foreach ($file in $filesByType['scene']) {
+    $text = Read-WmmaText $file.FullName
+    $relativeFile = Get-WmmaRelativePath $root $file.FullName
 
-        if ($text -notmatch '(?m)^front_id:\s*(\S+)\s*$') {
-            Add-Problem Error "Scene has no front_id field: $relativeFile"
-            continue
+    if ($text -notmatch '(?m)^front_id:\s*(\S+)\s*$') {
+        Add-Problem Error "Scene has no front_id field: $relativeFile"
+        continue
+    }
+
+    $frontId = $Matches[1].Trim()
+
+    if ([string]::IsNullOrWhiteSpace($frontId)) {
+        Add-Problem Error "Scene has empty front_id field: $relativeFile"
+        continue
+    }
+
+    if ($frontId -eq '-') {
+        if ($text -match '(?m)^status:\s*active\s*$') {
+            Add-Problem Warning "Active scene has front_id '-': $relativeFile"
         }
 
-        $frontId = $Matches[1].Trim()
+        continue
+    }
 
-        if ([string]::IsNullOrWhiteSpace($frontId)) {
-            Add-Problem Error "Scene has empty front_id field: $relativeFile"
-            continue
-        }
+    if ($frontId -notmatch '^FRONT-[A-Z0-9-]+$') {
+        Add-Problem Error "Scene has invalid front_id format: $relativeFile -> $frontId"
+        continue
+    }
 
-        if ($frontId -eq '-') {
-            if ($text -match '(?m)^status:\s*active\s*$') {
-                Add-Problem Warning "Active scene has front_id '-': $relativeFile"
-            }
-
-            continue
-        }
-
-        if ($frontId -notmatch '^FRONT-[A-Z0-9-]+$') {
-            Add-Problem Error "Scene has invalid front_id format: $relativeFile -> $frontId"
-            continue
-        }
-
-        if ($declaredFrontIdSet.Count -gt 0 -and $declaredFrontIdSet -notcontains $frontId) {
-            Add-Problem Error "Scene uses undeclared FRONT-ID: $relativeFile -> $frontId"
-        }
+    if ($declaredFrontIdSet.Count -gt 0 -and $declaredFrontIdSet -notcontains $frontId) {
+        Add-Problem Error "Scene uses undeclared FRONT-ID: $relativeFile -> $frontId"
     }
 }
+
+# --- Context, memory and history (Проверить_контекст) ---------------------------------
 
 if(Test-Path -LiteralPath (Join-Path $root '09_Реестры/Контекст.json')) {
     $contextResult=& (Join-Path $root 'tools/Проверить_контекст.ps1') -AsObject
@@ -1462,30 +1035,15 @@ if ($IsWindows -ne $false -and (Test-Path -LiteralPath $regnumCli)) {
         $global:LASTEXITCODE = 0
         $out = & $regnumCli validate $worldDir 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0) {
-            Add-Problem Error "Regnum world is invalid: $(Get-RelativePath $worldDir)`n$out"
+            Add-Problem Error "Regnum world is invalid: $(Get-WmmaRelativePath $root $worldDir)`n$out"
         }
     }
 }
 
-$result = [pscustomobject]@{
+Complete-WmmaCheck ([pscustomobject]@{
     MarkdownFiles = $mdFiles.Count
     ImageFiles = $imageFiles.Count
-    Errors = $errors.Count
-    Warnings = $warnings.Count
-}
-
-$result | Format-List
-
-if ($warnings.Count -gt 0) {
-    "`nWarnings:"
-    $warnings | Sort-Object | ForEach-Object { "- $_" }
-}
-
-if ($errors.Count -gt 0) {
-    "`nErrors:"
-    $errors | Sort-Object | ForEach-Object { "- $_" }
-    exit 1
-}
-
-"`nProject check completed successfully."
+    Errors = $problems.Errors.Count
+    Warnings = $problems.Warnings.Count
+}) 'Project check completed successfully.'
 }

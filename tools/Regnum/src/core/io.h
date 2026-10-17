@@ -112,7 +112,6 @@ std::string savedTime(const std::string& path);
 // Архив .regnum: zip с той же раскладкой (world.json, data/, history/). Запись атомарная.
 // История ходов берётся из historyFrom (папка или архив); пусто — из прежней версии архива path.
 void saveBundle(const std::string& path, const World& w, const std::string& historyFrom = {});
-LoadResult loadBundle(const std::string& path);
 // Папка <-> архив (по расширению dst). Мир читается с нормализацией и записывается заново, история копируется.
 // Непустая папка или существующий архив назначения — ошибка, если не overwrite.
 void convert(const std::string& src, const std::string& dst, Warnings* warnings = nullptr, bool overwrite = false);
@@ -133,11 +132,9 @@ struct SnapshotInfo {
 constexpr const char* kSnapStart = "start";    // начало хода (сразу после расчёта прошлого хода или открытия)
 constexpr const char* kSnapEnd = "end";        // конец хода — мир перед расчётом
 constexpr const char* kSnapBranch = "branch";  // состояние перед возвратом к другому ходу
-// Записать снимок мира как ход w.turn() (заменяет снимок того же хода без номера). path — папка или архив.
-SnapshotInfo writeSnapshot(const std::string& path, const World& w, const std::string& label = {});
-std::vector<SnapshotInfo> listSnapshots(const std::string& path);  // по возрастанию хода, затем номера
-LoadResult loadSnapshot(const std::string& path, int turn);      // последний снимок хода
-bool removeSnapshot(const std::string& path, int turn);
+// Снимки истории (path — папка или архив) по возрастанию хода, затем номера; снимки прежних версий без номера
+// (turn-NNNN.json.gz) читаются вместе с новыми.
+std::vector<SnapshotInfo> listSnapshots(const std::string& path);
 
 // Снимок для записи: info (turn, seq, kind, parent, at, label, name) и мир, сжатый pack().
 struct NewSnapshot {
@@ -201,9 +198,7 @@ struct Autosave {
 // Автосохранение (для восстановления после сбоя): отдельный слот на каждый проект.
 AutosaveInfo writeAutosave(const World& w, const std::string& project = {}, const std::string& dataDir = {});
 std::vector<AutosaveInfo> listAutosaves(const std::string& dataDir = {});  // новые первыми
-// Самое свежее автосохранение. Нет или повреждено — nullopt (причина в error).
-std::optional<Autosave> loadAutosave(const std::string& dataDir = {}, std::string* error = nullptr);
-// Автосохранение конкретного проекта (пусто — нового несохранённого мира).
+// Автосохранение проекта (пусто — нового несохранённого мира). Нет или повреждено — nullopt (причина в error).
 std::optional<Autosave> loadAutosaveFor(const std::string& project, const std::string& dataDir = {},
                                         std::string* error = nullptr);
 void clearAutosave(const std::string& project = {}, const std::string& dataDir = {});

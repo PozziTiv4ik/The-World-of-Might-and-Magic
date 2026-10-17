@@ -4,47 +4,13 @@
 // провинции, в выборе строительства и во вкладке «Экономика» провинции.
 #include "app/editors/buildings.h"
 #include "tests/test_app_economy_util.h"
+#include "tests/test_app_trees_util.h"
 
 using namespace rg;
 using namespace rg::econtest;
-
-namespace {
-
-// Прокрутить панель свойств дерева построек, пока элемент не окажется в видимой части.
-bool revealSide(Harness& h, const std::string& name) {
-  for (int k = 0; k < 40; k++) {
-    const RectF* r = h->uiRect(name);
-    const RectF* cv = h->uiRect("bt.canvas");
-    if (!r || !cv) return false;
-    if (r->y >= cv->y + 8 && r->bottom() <= cv->bottom() - 8) return true;
-    h.wheel(cv->right() + 80, cv->cy(), r->y < cv->y + 8 ? 2.f : -2.f);
-    h.frames(12);
-  }
-  return false;
-}
-
-bool pickResource(Harness& h, const std::string& combo, const std::string& name) {
-  if (!revealSide(h, combo)) return false;
-  if (!h.clickUi(combo)) return false;
-  h.type(name);
-  h.key(Key::Enter);
-  h.settle();
-  return true;
-}
-
-bool typeSide(Harness& h, const std::string& field, const std::string& value) {
-  if (!revealSide(h, field)) return false;
-  if (!h.clickUi(field)) return false;
-  h.retype(value);
-  h.key(Key::Enter);
-  h.settle();
-  return true;
-}
-
-}  // namespace
+using namespace rg::apptest::trees;
 
 TEST(app_economy_building_produce) {
-  HideTestRegs hide;
   Harness h("economy_building_produce", 1600, 1100);
   h.demo();
   h.dropToasts();
@@ -71,13 +37,13 @@ TEST(app_economy_building_produce) {
   const std::string L = "bt.level." + std::to_string(lvl - 1);
   app::openBuildingTree(h.a(), 0, bid);
   h.settle();
-  CHECK(pickResource(h, L + ".addproduce", "Трупы"));
+  CHECK(pickSide(h, L + ".addproduce", "Трупы"));
   CHECK_EQ(rules::resourceId(h->world(), schema::kResCorpses), corpses);
   CHECK_NEAR(h->world().building(bid)->levels[size_t(lvl - 1)].produce.at(corpses), 1, 1e-12);
   CHECK(typeSide(h, L + ".produce." + std::to_string(corpses), "2,5"));
   CHECK_NEAR(h->world().building(bid)->levels[size_t(lvl - 1)].produce.at(corpses), 2.5, 1e-12);
   // Золото за ход — до тысячных.
-  CHECK(pickResource(h, L + ".addproduce", "Золото"));
+  CHECK(pickSide(h, L + ".addproduce", "Золото"));
   CHECK(typeSide(h, L + ".produce." + std::to_string(kGold), "0,125"));
   CHECK_NEAR(h->world().building(bid)->levels[size_t(lvl - 1)].produce.at(kGold), 0.125, 1e-12);
   CHECK(revealSide(h, L + ".produce." + std::to_string(corpses)));

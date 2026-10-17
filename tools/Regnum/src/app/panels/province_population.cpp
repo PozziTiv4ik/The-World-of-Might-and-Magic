@@ -1,34 +1,12 @@
 // Regnum — вкладка «Население» инспектора провинции (ТЗ 1.a.vi): таблица рас (численность и доля, в пустоши нежити —
-// только 0), итог, рабы владельца на работах (ТЗ «Механика мятежа», п.5: не больше 10 % населения, 0,002 золота за
-// раба в ход), культура и религия, довольство −100…+100 и вероятность восстания (2 довольства : 1 % + модификаторы).
-#include "app/widgets.h"
-
-namespace rg::app::prov {
-// province_common.cpp
-const World& frameWorld(App& a);
-struct TipLine {
-  std::string label, value;
-  ui::Tone tone = ui::Tone::Neutral;
-  bool total = false;
-};
-std::string pct(double v, bool sign = false);
-std::string signedNum(double v);
-std::string popText(double v);
-std::string goldSigned(double v);
-void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width = 300);
-std::vector<TipLine> rebellionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
-bool bipolarSlider(std::string_view key, double& v, double mn, double mx, bool disabled, RectF* rectOut);
-}  // namespace rg::app::prov
+// только 0), итог, прирост за ход по источникам (действующие эффекты: «Чума» при «Здании чумы» — прирост), рабы
+// владельца на работах (ТЗ «Механика мятежа», п.5: не больше 10 % населения, 0,002 золота за раба в ход), культура и
+// религия, довольство −100…+100 и вероятность восстания (2 довольства : 1 % + модификаторы). Расы, численность,
+// довольство, культура и вера — правка мира (App::canEdit); рабы на работах — игровое действие владельца.
+#include "app/panels/province_common.h"
 
 namespace rg::app {
 namespace {
-
-bool landOnly(App& a, Id pid) {
-  const Province* p = a.world().province(pid);
-  return p && !p->sea;
-}
-
-std::string key(const char* what, Id pid) { return std::string("province.") + what + ":" + std::to_string(pid); }
 
 std::string raceName(const World& wd, Id race) {
   const CatalogItem* c = Catalogs::find(wd.catalogs->races, race);
@@ -99,7 +77,7 @@ void racesTable(App& a, const Province& p, bool ro) {
                                      .tooltip = waste ? std::string_view("Пустошь нежити: население только 0") : std::string_view()})) {
       Id r = rp.race;
       a.act("Численность расы", [&](Tx& tx) { rules::setRacePop(tx, pid, r, std::max<i64>(0, pop)); },
-            {.coalesce = key("race", pid) + ":" + std::to_string(i)});
+            {.coalesce = prov::key("race", pid) + ":" + std::to_string(i)});
     }
     a.markUi("province.racePop." + std::to_string(i));
     t.cell();
@@ -129,10 +107,11 @@ void racesTable(App& a, const Province& p, bool ro) {
 
 // Рабы владельца на работах в провинции: по расам рабов государства, не больше 10 % населения провинции и не больше
 // свободных рабов расы (rules::setSlaveWork).
-void slavesSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
+void slavesSection(App& a, const Province& p, const rules::ProvinceCalc& pc) {
   const World& wd = prov::frameWorld(a);
   const Faction* o = wd.faction(p.owner);
   if (!o || !o->isState()) return;
+  const bool ro = !a.canPlay(o->id);   // рабов на работы ставит владелец
   const Id pid = p.id;
   const i64 limit = rules::slaveWorkLimit(wd, pid);
   i64 here = 0;
@@ -187,8 +166,8 @@ void slavesSection(App& a, const Province& p, const rules::ProvinceCalc& pc, boo
       if (ui::numberField("n", n, {.min = 0, .max = double(std::max(l.count, std::min(l.count + free, room))), .step = 10, .disabled = ro,
                                    .tooltip = "Не больше 10 % населения: " + fmtNum(double(limit))})) {
         Id race = l.race;
-        a.act("Рабы на работах", [&](Tx& tx) { rules::setSlaveWork(tx, pid, race, std::max<i64>(0, n)); },
-              {.coalesce = key("slaves", pid) + ":" + std::to_string(race)});
+        a.play("Рабы на работах", [&](Tx& tx) { rules::setSlaveWork(tx, pid, race, std::max<i64>(0, n)); },
+              {.coalesce = prov::key("slaves", pid) + ":" + std::to_string(race)});
       }
       a.markUi("province.slaveWork." + std::to_string(l.race));
       t.text(fmtNum(double(free)), free > 0 ? ui::Ink::Success : ui::Ink::Muted);
@@ -209,7 +188,7 @@ void drawPopulation(App& a, Id pid) {
   const Province* p = wd.province(pid);
   if (!p) return;
   ui::IdScope ps{i64(pid)};
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   auto calc = rules::calc(wd);
   rules::ProvinceCalc none;
   const rules::ProvinceCalc* pcp = calc->province(pid);
@@ -220,12 +199,19 @@ void drawPopulation(App& a, Id pid) {
     double growth = pc.fx[Fx::PopGrowthPct];
     ui::stat(prov::popText(double(pc.population)), "Население",
              {.icon = "population", .deltaText = growth != 0 ? prov::pct(growth, true) : std::string(), .tooltip = "Сумма численности рас"});
-    if (growth != 0) {
-      prov::breakdown("Население", {{"Жителей", fmtNum(double(pc.population))}, {"Прирост за ход", prov::pct(growth, true), growth > 0 ? ui::Tone::Success : ui::Tone::Danger}});
-    }
+    if (growth != 0) prov::breakdown("Прирост населения", prov::growthLines(wd, pc), 300);
+    a.markUi("province.population");
     ui::stat(prov::pct(pc.rebellion), "Восстание", {.icon = "rebellion", .tone = ui::Tone::Danger, .tooltip = "Вероятность восстания"});
     prov::breakdown("Вероятность восстания", prov::rebellionLines(wd, *p, pc));
     a.markUi("province.rebellion");
+  }
+  // Прирост за ход по источникам (в узкой панели отметка у числа населения не помещается).
+  if (const double growth = pc.fx[Fx::PopGrowthPct]; growth != 0) {
+    ui::HStack hs(26, ui::Align::Left, 6);
+    ui::tag("Прирост " + prov::pct(growth, true) + " за ход", growth > 0 ? ui::Tone::Success : ui::Tone::Danger, growth > 0 ? "trend-up" : "trend-down");
+    ui::tooltip("Прирост населения");
+    prov::breakdown("Прирост населения", prov::growthLines(wd, pc), 300);
+    a.markUi("province.growth");
   }
 
   // Довольство: двуполярный ползунок −100…+100.
@@ -233,7 +219,7 @@ void drawPopulation(App& a, Id pid) {
     double c = p->contentment;
     RectF sr;
     if (prov::bipolarSlider("contentment", c, -100, 100, ro, &sr))
-      a.act("Довольство населения", [&](Tx& tx) { tx.province(pid).contentment = clamp(c, -100.0, 100.0); }, {.coalesce = key("content", pid)});
+      a.act("Довольство населения", [&](Tx& tx) { tx.province(pid).contentment = clamp(c, -100.0, 100.0); }, {.coalesce = prov::key("content", pid)});
     a.markUi("province.contentment", sr);
     double per = pc.fx[Fx::ContentmentPerTurn];
     {
@@ -254,7 +240,7 @@ void drawPopulation(App& a, Id pid) {
     if (rs) racesTable(a, *p, ro);
   }
 
-  slavesSection(a, *p, pc, ro);
+  slavesSection(a, *p, pc);
 
   if (ui::Section s("Культура и вера", "culture"); s) {
     ui::prop("Культура", "culture");
@@ -270,7 +256,7 @@ void drawPopulation(App& a, Id pid) {
   }
 }
 
-TabReg tabPopulation({"province.population", "population", "Население", 20, SelType::Province, landOnly, drawPopulation});
+TabReg tabPopulation({"province.population", "population", "Население", 20, SelType::Province, prov::landOnly, drawPopulation});
 
 }  // namespace
 }  // namespace rg::app

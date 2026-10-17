@@ -17,6 +17,23 @@ enum class FactionFilter : u8 { Any, States, Guilds };
 bool factionPicker(std::string_view id, Id& value, FactionFilter filter = FactionFilter::Any,
                    std::string_view noneLabel = "—", Id exclude = 0, bool disabled = false);
 
+// Пункты выпадающего списка записей мира: подписи и подсказки хранятся здесь (ui::Option ссылается на строки), у пункта —
+// ID записи.
+struct IdOptions {
+  std::vector<std::string> labels, hints;
+  std::vector<ui::Option> opts;
+  std::vector<Id> ids;
+  void reserve(size_t n);
+  void add(Id id, std::string label, const char* icon = nullptr, Color color = Color(0, 0, 0, 0), std::string hint = {}, bool disabled = false);
+  std::span<const ui::Option> finish();   // после всех add: строки уже не переедут
+  int indexOf(Id id) const;               // −1 — нет (и для 0)
+  Id idAt(int i) const;                   // 0 — вне списка
+};
+// Выбор записи из o: value — её ID (0 — «нет», co.noneLabel). true — значение изменилось.
+bool idCombo(std::string_view id, Id& value, IdOptions& o, const ui::ComboOpt& co);
+// «Добавить из списка»: пункт не выбран (co.placeholder); выбранный — его ID, иначе 0.
+Id addCombo(std::string_view id, IdOptions& o, const ui::ComboOpt& co);
+
 // Выбор провинции (owner != 0 — только провинции этого государства). Морские провинции не предлагаются.
 bool provincePicker(std::string_view id, Id& value, Id owner = 0, std::string_view noneLabel = "—", bool disabled = false);
 
@@ -42,6 +59,7 @@ struct ModEdit {
   Id termOf = 0;          // модификатор, срок которого изменён (список при этом не меняется)
   int turns = 0;          // его новый срок, ходов (0 — бессрочно)
   std::string addKey;     // выбран встроенный модификатор без записи мира: создать (rules::ensureBuiltinMod) и добавить
+  Id province = 0;        // список провинции: эффекты в подсказках — действующие в ней (rules::provinceModView)
 };
 // Список модификаторов фишками (удаление крестиком) + выбор для добавления. true — изменился состав (ids) или выбран
 // встроенный модификатор без записи (edit->addKey). Предлагаются модификаторы вида «Везде» или вида области
@@ -59,6 +77,10 @@ bool modifierFits(const Modifier& m, ModScope where);
 // Состояние героя одной строкой: «Мертв · <место захоронения>», «В плену · <государство>»; пусто — доступен.
 std::string heroState(const World& w, const Character& c);
 
+// Роли (ТЗ «Доработки №4», п.5): можно ли игровое действие за фракцию (App::canPlay). Нет — уведомление с причиной
+// (открыт прошлый ход или фракция не своя) и false.
+bool checkPlay(App& a, Id faction);
+
 // Фишки-ссылки: щелчок выделяет сущность и открывает её инспектор.
 void factionChip(Id faction, bool showKind = false);
 void provinceChip(Id province);
@@ -66,19 +88,31 @@ void characterChip(Id character);
 
 // Подпись эффекта: «+10 % торговой ценности», «−5 довольства за ход».
 std::string effectText(Fx f, double value);
-// Фишки всех эффектов модификатора (значок эффекта, знак, тон: польза — success, вред — danger).
-void effectChips(const Modifier& m);
 // Хорош ли эффект для владельца при данном знаке (рост восстания и стоимости — плохо).
 bool effectGood(Fx f, double value);
 
 // Значок и цвет ресурса (из справочника; «Золото» — coins).
 const char* resourceIcon(const World& w, Id res);
 Color resourceColor(const World& w, Id res);
-// Строка «значок + количество» для ресурса (например, стоимость постройки).
-void resourceAmount(Id res, double amount, ui::Ink ink = ui::Ink::Normal);
 
 // Цвет фракции (серый, если нет).
 Color factionColor(const World& w, Id faction);
+
+// ---------------------------------------------------------------- мир кадра, подписи, числа, цвета
+// Копия мира на время кадра (каждый вызов — своя): указатели на записи и флаги в ui::flag живут до конца endFrame,
+// даже если в этом кадре act() заменил мир (слияние шагов отмены освобождает промежуточные версии).
+const World& frameWorld(App& a);
+// Название или запасная подпись, если оно пусто: «Без названия», «Без имени», «Модификатор».
+std::string orName(const std::string& s, const char* fallback = "Без названия");
+// Название ресурса или эссенции из справочника; записи нет или название пусто — fallback.
+std::string resourceName(const World& w, Id res, std::string_view fallback = "Ресурс");
+std::string essenceName(const World& w, Id essence, std::string_view fallback = "Эссенция");
+// Количество ресурса до тысячных; золото — с подписью «тыс.» (1 единица — тысяча золотых, ТЗ «Доработки №1», п.12).
+std::string amountText(Id res, double v);
+// Единица числового поля количества: «тыс.» у золота, иначе нет.
+const char* amountUnit(Id res);
+// Цвет сущности для значка на тёмном фоне: очень тёмный (яркость ниже threshold) — светлее, чтобы значок был виден.
+Color legible(Color c, float threshold = 0.1f);
 
 // ---------------------------------------------------------------- группы ресурсов (ТЗ «Добавления в справочники», п.3)
 // Группы в порядке дерева: (группа, глубина) — родитель, затем его подгруппы.
@@ -106,8 +140,6 @@ ui::ChipAction relicChip(const Relic& r, bool removable = false, std::string_vie
 // цвета редкости. relicImage — nullptr, если изображения нет или оно ещё декодируется.
 const gfx::Image* relicImage(const Relic& r);
 void drawRelicIcon(const Relic& r, RectF rect, float radius = 0 /*0 — по размеру*/);
-// Значок в потоке (слот size × size) с подсказкой: название, редкость, описание (или tooltip). true — щелчок.
-bool relicIcon(const Relic& r, float size, std::string_view tooltip = {});
 // Строка реликвии: значок, название цветом редкости и подпись (редкость или sub); справа остаётся right точек под
 // кнопки вызывающего. Высота 40; row — прямоугольник строки (кнопки поверх, метки). true — щелчок по строке.
 bool relicRow(const Relic& r, std::string_view sub = {}, float right = 0, RectF* row = nullptr);

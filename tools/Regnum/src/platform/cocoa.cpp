@@ -217,8 +217,8 @@ struct PixelBuffer {  // буфер кадра; живёт, пока на нег
   int w = 0, h = 0;
 };
 
-struct State {
-  id app = nil;          // NSApp
+struct State : detail::Dispatch {
+  id nsApp = nil;        // NSApp
   std::atomic<bool> appReady{false};  // NSApp создан: wake()/invalidate() из потоков могут им пользоваться
   id window = nil;
   id view = nil;
@@ -227,9 +227,7 @@ struct State {
   id timer = nil;
   bool classesReady = false;
 
-  App* client = nullptr;
   WindowConfig cfg;
-  bool ready = false;
   float scale = 1;
   float lw = 0, lh = 0;  // логический размер области окна (точки)
   int cw = 0, ch = 0;    // физический
@@ -240,15 +238,8 @@ struct State {
   double lastFrame = -1;
   double period = 1.0 / 60;
 
-  std::atomic<bool> dirty{true};
   std::atomic<bool> wakePosted{false};
   std::atomic<bool> wakeEvent{false};
-  int callbackDepth = 0;
-  bool quitting = false;
-  bool closePending = false;
-  int exitCode = 0;
-  std::exception_ptr error;
-  std::deque<Event> queue;
 
   int buttonsDown = 0;
   bool ctrlClick = false;  // Ctrl+щелчок превращён в правую кнопку
@@ -266,57 +257,6 @@ struct State {
 State g;
 
 // ---------------------------------------------------------------- очередь и вызовы приложения
-void push(Event e) {
-  if (e.type == EventType::Text && !g.queue.empty() && g.queue.back().type == EventType::Text) {
-    g.queue.back().text += e.text;
-    return;
-  }
-  g.queue.push_back(std::move(e));
-}
-
-template <class F>
-void guarded(F&& f) {
-  g.callbackDepth++;
-  try {
-    f();
-  } catch (...) {
-    if (!g.error) g.error = std::current_exception();
-    g.quitting = true;
-  }
-  g.callbackDepth--;
-}
-
-void flushEvents() {
-  if (!g.client || !g.ready || g.callbackDepth > 0) return;
-  while (!g.queue.empty() && !g.quitting) {
-    Event e = std::move(g.queue.front());
-    g.queue.pop_front();
-    g.dirty = true;  // каждое доставленное событие — новый кадр
-    guarded([&] { g.client->onEvent(e); });
-  }
-}
-
-bool callAnimating() {
-  bool anim = false;
-  if (g.client && g.callbackDepth == 0) guarded([&] { anim = g.client->animating(); });
-  return anim;
-}
-
-void requestClose() {
-  if (!g.client || g.quitting) return;
-  if (g.callbackDepth > 0) {
-    g.closePending = true;
-    return;
-  }
-  flushEvents();
-  bool ok = false;
-  guarded([&] { ok = g.client->onCloseRequest(); });
-  if (ok && !g.quitting) {
-    g.quitting = true;
-    g.exitCode = 0;
-  }
-}
-
 // ---------------------------------------------------------------- размер и кадр
 void updateGeometry() {
   if (!g.view || !g.window) return;
@@ -335,17 +275,17 @@ void pushSizeEvent(EventType t) {
   e.width = g.lw;
   e.height = g.lh;
   e.scale = g.scale;
-  push(std::move(e));
+  g.push(std::move(e));
 }
 
 bool canRender() {
-  return g.client && g.ready && g.callbackDepth == 0 && g.cw > 0 && g.ch > 0 && msg<BOOL>(g.window, "isMiniaturized") == NO;
+  return g.app && g.ready && g.callbackDepth == 0 && g.cw > 0 && g.ch > 0 && msg<BOOL>(g.window, "isMiniaturized") == NO;
 }
 
 // Отрисовать кадр приложения в буфер (без вывода на экран).
 bool renderFrame() {
   if (!canRender()) return false;
-  flushEvents();
+  g.flushEvents();
   if (g.quitting || !canRender()) return false;
   if (!g.buf || g.buf->w != g.cw || g.buf->h != g.ch) {
     auto nb = std::make_shared<PixelBuffer>();  // старый буфер освободится, когда его отпустит CoreGraphics
@@ -364,7 +304,7 @@ bool renderFrame() {
   f.scale = g.scale;
   f.reset = g.bufferReset;
   f.index = g.frameIndex++;
-  guarded([&] { g.client->onFrame(f); });
+  g.guarded([&] { g.app->onFrame(f); });
   detail::adoptSource(f);
   g.bufferReset = false;
   return true;
@@ -486,7 +426,7 @@ void onMouse(id event) {
       g.mouseInside = x >= 0 && y >= 0 && x < g.lw && y < g.lh;
       if (type == kEvMouseMoved && g.mouseInside) applyCursor();  // AppKit мог сменить курсор (край окна и т. п.)
       e.type = EventType::MouseMove;
-      push(std::move(e));
+      g.push(std::move(e));
       return;
     case kEvMouseEntered:
       g.mouseInside = true;
@@ -495,7 +435,7 @@ void onMouse(id event) {
       g.mouseInside = false;
       if (g.buttonsDown == 0) {
         e.type = EventType::MouseLeave;
-        push(std::move(e));
+        g.push(std::move(e));
       }
       return;
     default:
@@ -526,13 +466,13 @@ void onMouse(id event) {
     if (!(g.buttonsDown & (1 << button))) return;
     g.buttonsDown &= ~(1 << button);
   }
-  push(std::move(e));
+  g.push(std::move(e));
   if (!down && g.buttonsDown == 0 && !(x >= 0 && y >= 0 && x < g.lw && y < g.lh)) {
     Event leave;
     leave.type = EventType::MouseLeave;
     leave.x = x;
     leave.y = y;
-    push(std::move(leave));
+    g.push(std::move(leave));
   }
 }
 
@@ -549,7 +489,7 @@ void scrollImp(id, SEL, id event) {
   // dy > 0 — содержимое вниз (прокрутка вверх); dx > 0 у macOS — содержимое вправо, у нас — прокрутка вправо.
   e.wheelY = float(msg<CGFloat>(event, "scrollingDeltaY"));
   e.wheelX = -float(msg<CGFloat>(event, "scrollingDeltaX"));
-  if (e.wheelX != 0 || e.wheelY != 0) push(std::move(e));
+  if (e.wheelX != 0 || e.wheelY != 0) g.push(std::move(e));
 }
 
 void magnifyImp(id, SEL, id event) {
@@ -562,7 +502,7 @@ void magnifyImp(id, SEL, id event) {
   e.mods = modsFrom(msg<NSUInteger>(event, "modifierFlags")) | ModCtrl;
   e.precise = true;
   e.wheelY = float(msg<CGFloat>(event, "magnification")) * 300.f;
-  if (e.wheelY != 0) push(std::move(e));
+  if (e.wheelY != 0) g.push(std::move(e));
 }
 
 void keyImp(id, SEL, id event) {
@@ -576,7 +516,7 @@ void keyImp(id, SEL, id event) {
     e.mods = modsFrom(flags);
     e.repeat = down && msg<BOOL>(event, "isARepeat") != NO;
     g.keyDown[size_t(k)] = down;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   if (!down || (flags & (kFlagCommand | kFlagControl))) return;  // сочетания с ⌘/⌃ текста не дают
   std::string chars = fromNs(msg<id>(event, "characters"));
@@ -591,7 +531,7 @@ void keyImp(id, SEL, id event) {
     e.type = EventType::Text;
     e.text = std::move(text);
     e.mods = modsFrom(flags);
-    push(std::move(e));
+    g.push(std::move(e));
   }
 }
 
@@ -619,7 +559,7 @@ void flagsImp(id, SEL, id event) {
   e.type = down ? EventType::KeyDown : EventType::KeyUp;
   e.key = k;
   e.mods = modsFrom(flags);
-  push(std::move(e));
+  g.push(std::move(e));
 }
 
 id cursorObject(Cursor c) {
@@ -669,7 +609,7 @@ void backingImp(id, SEL) { syncGeometry(false); }
 
 // ---------------------------------------------------------------- делегаты окна и приложения
 BOOL shouldCloseImp(id, SEL, id) {
-  requestClose();
+  g.requestClose();
   return NO;  // окно закрывает сам цикл после согласия приложения
 }
 
@@ -678,7 +618,7 @@ void didResizeImp(id, SEL, id) { syncGeometry(true); }
 void didBecomeKeyImp(id, SEL, id) {
   Event e;
   e.type = EventType::FocusIn;
-  push(std::move(e));
+  g.push(std::move(e));
   g.dirty = true;
 }
 
@@ -689,11 +629,11 @@ void didResignKeyImp(id, SEL, id) {
     Event e;
     e.type = EventType::KeyUp;
     e.key = Key(k);
-    push(std::move(e));
+    g.push(std::move(e));
   }
   Event e;
   e.type = EventType::FocusOut;
-  push(std::move(e));
+  g.push(std::move(e));
 }
 
 void didEnterFullScreenImp(id, SEL, id) { g.fullscreen = true; }
@@ -701,16 +641,16 @@ void didExitFullScreenImp(id, SEL, id) { g.fullscreen = false; }
 void didDeminiaturizeImp(id, SEL, id) { g.dirty = true; }
 
 NSUInteger shouldTerminateImp(id, SEL, id) {
-  requestClose();  // ⌘Q и «Завершить» — тот же запрос, что и кнопка закрытия
+  g.requestClose();  // ⌘Q и «Завершить» — тот же запрос, что и кнопка закрытия
   return 0;        // NSTerminateCancel: цикл завершается сам
 }
 
 void tickImp(id, SEL, id) {
   // Таймер анимации в общих режимах цикла — работает и во время перетаскивания рамки и меню.
   if (g.callbackDepth > 0 || !g.ready) return;
-  flushEvents();
+  g.flushEvents();
   double now = time();
-  bool anim = callAnimating();
+  bool anim = g.callAnimating();
   if ((anim || g.dirty) && now - g.lastFrame >= g.period * 0.5) {
     g.lastFrame = now;
     renderNow();
@@ -799,8 +739,8 @@ void buildMenu() {
   addMenuItem(winMenu, "Свернуть", "performMiniaturize:", "m", 0);
   addMenuItem(winMenu, "Во весь экран", "toggleFullScreen:", "f", kFlagControl | kFlagCommand);
   msg<void>(winItem, "setSubmenu:", winMenu);
-  msg<void>(g.app, "setMainMenu:", bar);
-  msg<void>(g.app, "setWindowsMenu:", winMenu);
+  msg<void>(g.nsApp, "setMainMenu:", bar);
+  msg<void>(g.nsApp, "setWindowsMenu:", winMenu);
   for (id o : {bar, appItem, appMenu, winItem, winMenu}) msg<void>(o, "release");
 }
 
@@ -860,7 +800,7 @@ void cleanup() {
   if (g.view) msg<void>(g.view, "release");
   if (g.winDelegate) msg<void>(g.winDelegate, "release");
   g.window = g.view = g.winDelegate = nil;
-  g.client = nullptr;
+  g.app = nullptr;
   g.ready = false;
   g.queue.clear();
   g.buf.reset();
@@ -881,7 +821,7 @@ id wakeEventObject() {
 
 void postWake() {
   Pool pool;  // вызывается и из фоновых потоков
-  if (id ev = wakeEventObject()) msg<void>(g.app, "postEvent:atStart:", ev, NO);
+  if (id ev = wakeEventObject()) msg<void>(g.nsApp, "postEvent:atStart:", ev, NO);
 }
 
 void onWakeEvent() {
@@ -889,7 +829,7 @@ void onWakeEvent() {
   if (g.wakeEvent.exchange(false)) {
     Event e;
     e.type = EventType::Wake;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.dirty = true;
 }
@@ -905,10 +845,10 @@ void ensureTimer() {
 
 void ensureApp() {
   loadRuntime();
-  if (g.app) return;
+  if (g.nsApp) return;
   Pool pool;
-  g.app = msg<id>(cls("NSApplication"), "sharedApplication");
-  msg<BOOL>(g.app, "setActivationPolicy:", NSInteger(0));  // обычное приложение: Dock и меню
+  g.nsApp = msg<id>(cls("NSApplication"), "sharedApplication");
+  msg<BOOL>(g.nsApp, "setActivationPolicy:", NSInteger(0));  // обычное приложение: Dock и меню
   g.appReady.store(true, std::memory_order_release);
 }
 
@@ -916,7 +856,7 @@ void ensureApp() {
 
 // ================================================================ публичный интерфейс
 int run(App& client, const WindowConfig& cfg) {
-  if (g.client) throw std::logic_error("platform::run уже выполняется");
+  if (g.app) throw std::logic_error("platform::run уже выполняется");
   ensureApp();
   if (msg<BOOL>(cls("NSThread"), "isMainThread") == NO) throw std::logic_error("platform::run на macOS — только из главного потока");
   Pool outer;
@@ -928,12 +868,12 @@ int run(App& client, const WindowConfig& cfg) {
   g.closePending = false;
   g.exitCode = 0;
   g.error = nullptr;
-  g.client = &client;
+  g.app = &client;
   if (!g.appDelegate) {
     g.appDelegate = newObject("RegnumAppDelegate");
-    msg<void>(g.app, "setDelegate:", g.appDelegate);
+    msg<void>(g.nsApp, "setDelegate:", g.appDelegate);
     buildMenu();
-    msg<void>(g.app, "finishLaunching");
+    msg<void>(g.nsApp, "finishLaunching");
   }
   try {
     createWindow();
@@ -946,14 +886,14 @@ int run(App& client, const WindowConfig& cfg) {
   if (g.wakeEvent.exchange(false)) {
     Event e;
     e.type = EventType::Wake;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.wakePosted = false;
   g.dirty = true;
-  flushEvents();
+  g.flushEvents();
   renderNow();
   msg<void>(g.window, "makeKeyAndOrderFront:", nil);
-  msg<void>(g.app, "activateIgnoringOtherApps:", YES);
+  msg<void>(g.nsApp, "activateIgnoringOtherApps:", YES);
   if (g.pendingFullscreen) {
     g.pendingFullscreen = false;
     msg<void>(g.window, "toggleFullScreen:", nil);
@@ -973,8 +913,8 @@ int run(App& client, const WindowConfig& cfg) {
     using NextFn = id (*)(id, SEL, unsigned long long, id, id, BOOL);
     auto next = reinterpret_cast<NextFn>(R.msgSend);
     SEL nextSel = sel("nextEventMatchingMask:untilDate:inMode:dequeue:");
-    for (id ev = next(g.app, nextSel, ~0ULL, until, R.defaultRunLoopMode, YES); ev;
-         ev = next(g.app, nextSel, ~0ULL, distantPast, R.defaultRunLoopMode, YES)) {
+    for (id ev = next(g.nsApp, nextSel, ~0ULL, until, R.defaultRunLoopMode, YES); ev;
+         ev = next(g.nsApp, nextSel, ~0ULL, distantPast, R.defaultRunLoopMode, YES)) {
       NSUInteger type = msg<NSUInteger>(ev, "type");
       if (type == kEvApplicationDefined && msg<short>(ev, "subtype") == kWakeSubtype) {
         onWakeEvent();
@@ -982,17 +922,17 @@ int run(App& client, const WindowConfig& cfg) {
       }
       // NSApplication не доставляет окну KeyUp при зажатой ⌘ — отдаём напрямую.
       if (type == kEvKeyUp && (msg<NSUInteger>(ev, "modifierFlags") & kFlagCommand)) msg<void>(g.window, "sendEvent:", ev);
-      else msg<void>(g.app, "sendEvent:", ev);
+      else msg<void>(g.nsApp, "sendEvent:", ev);
       if (g.quitting) break;
     }
     if (g.quitting) break;
-    flushEvents();
+    g.flushEvents();
     if (g.closePending && g.callbackDepth == 0) {
       g.closePending = false;
-      requestClose();
+      g.requestClose();
     }
     if (g.quitting) break;
-    bool anim = callAnimating();
+    bool anim = g.callAnimating();
     if (anim) ensureTimer();  // кадры анимации рисует таймер (и во время модальных циклов AppKit)
     now = time();
     if (g.dirty && !anim && now - g.lastFrame >= g.period - 0.0005) {
@@ -1171,7 +1111,7 @@ void showFatal(const std::string& title, const std::string& text) {
     return;  // AppKit недоступен — остаётся сообщение в stderr
   }
   Pool pool;
-  msg<void>(g.app, "activateIgnoringOtherApps:", YES);
+  msg<void>(g.nsApp, "activateIgnoringOtherApps:", YES);
   id alert = newObject("NSAlert");
   msg<void>(alert, "setMessageText:", nsstr(title));
   msg<void>(alert, "setInformativeText:", nsstr(text));

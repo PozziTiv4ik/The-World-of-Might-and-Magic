@@ -10,9 +10,10 @@
 #include "base/fs.h"
 #include "cli/cli.h"
 #include "codec/png.h"
-#include "map/art_extract.h"
+#include "codec/sha256.h"
+#include "mapbake/art_extract.h"
 #include "map/art_render.h"
-#include "map/basemap_build.h"
+#include "mapbake/basemap_build.h"
 
 namespace rg::cli {
 
@@ -21,7 +22,7 @@ namespace {
 int runBuildMap(const std::vector<std::string>& args) {
   const std::vector<std::string> pos = positional(args);
   if (pos.empty() || pos.size() > 2) {
-    std::fprintf(stderr, "Использование: regnum-cli build-map <исходник.png> [папка] [--render=<png>] [--debug=<папка>]\n");
+    std::fprintf(stderr, "Использование: regnum-cli build-map <исходник.png> [папка] [--render=<png>] [--debug=<папка>] (подробно — regnum-cli help)\n");
     return 2;
   }
   std::string err;
@@ -29,7 +30,7 @@ int runBuildMap(const std::vector<std::string>& args) {
   if (!bytes) fail(err);
   auto img = codec::decodePng(*bytes, &err);
   if (!img) fail("Не удалось прочитать PNG «" + pos[0] + "»: " + err);
-  const std::string sha = map::bake::sha256Hex(bytes->data(), bytes->size());
+  const std::string sha = codec::sha256Hex(bytes->data(), bytes->size());
   bytes.reset();
   map::bake::flattenOnWhite(*img);
   if (const std::string inv = option(args, "--inventory"); !inv.empty()) {
@@ -52,11 +53,7 @@ int runBuildMap(const std::vector<std::string>& args) {
       }
       x += 60 * sc;
     }
-    codec::RgbaImage out;
-    out.w = img.w;
-    out.h = img.h;
-    out.rgba = img.toRgba();
-    codec::writePngFile(sheet, out, 6);
+    codec::writePngFile(sheet, img.toRgbaImage(), 6);
     return 0;
   }
   if (hasFlag(args, "--fit-icons")) {
@@ -88,10 +85,7 @@ int runBuildMap(const std::vector<std::string>& args) {
     const map::art::Index idx(art);
     const gfx::Image r = map::art::render(idx, 1, cw, ch, cx, cy);
     const double tr = nowSeconds() - t0;
-    codec::RgbaImage ri;
-    ri.w = cw;
-    ri.h = ch;
-    ri.rgba = r.toRgba();
+    const codec::RgbaImage ri = r.toRgbaImage();
     codec::RgbaImage diff = ri;
     double sum = 0;
     i64 over8 = 0, over32 = 0;
@@ -127,7 +121,9 @@ int runBuildMap(const std::vector<std::string>& args) {
   return 0;
 }
 
-const Command reg("build-map", "<исходник.png> [папка] [--render=<png> [--crop=x,y,ш,в] [--diff=<png>]] [--debug=<папка>] [--id=...]",
+const Command reg("build-map",
+                  "<исходник.png> [папка] [--render=<png> [--crop=x,y,ш,в] [--diff=<png>]] [--debug=<папка>] [--id=...]\n"
+                  "                 разработка: <исходник.png> --inventory=<папка> | --icons=<png> | --fit-icons",
                   "Разобрать исходное изображение в объекты карты (map.json), которые редактор рисует кодом", &runBuildMap);
 
 }  // namespace

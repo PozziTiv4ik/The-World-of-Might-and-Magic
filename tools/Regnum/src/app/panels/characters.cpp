@@ -1,29 +1,11 @@
 // Regnum — раздел «Персонажи» правой ленты: каталог с поиском, фильтром по фракции и героям, список по фракциям
-// (портрет или инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя, класс и
-// уровень), создание, удаление с подтверждением. Щелчок открывает страницу персонажа (character_inspector.cpp).
+// (портрет или инициалы, имя, титул и роль или состояние «Мертв» / «В плену», звезда героя, кольцо правителя, класс,
+// подкласс и уровень), создание, удаление с подтверждением. Щелчок открывает страницу персонажа (character_inspector.cpp).
 #include <algorithm>
 
 #include "app/app_internal.h"
-#include "app/widgets.h"
+#include "app/panels/character_common.h"
 #include "gfx/icons.h"
-
-namespace rg::app::chars {   // объявления из character_common.cpp (struct Roles — точная копия)
-struct Roles {
-  std::vector<Id> rulerOf;
-  std::vector<Id> lordOf;
-  std::vector<std::pair<Id, Id>> seats;
-  std::vector<Id> armies;
-  std::vector<Id> commands;
-  Id garrison = 0;
-  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size() + (garrison ? 1 : 0); }
-};
-Roles rolesOf(const World& w, Id character);
-std::string rolesText(const World& w, const Roles& r);
-std::string roleLine(const World& w, const Character& c, const Roles& r);
-const gfx::Image* portraitImage(const Character& c, bool square);
-void avatar(const Character& c, float size, bool ring, std::string_view tip);
-void askDelete(App& a, Id character);
-}  // namespace rg::app::chars
 
 namespace rg::app {
 namespace {
@@ -42,7 +24,7 @@ Id createAct(App& a, Id faction) {
   Id nid = 0;
   if (a.act("Новый персонаж", [&](Tx& tx) { nid = rules::createCharacter(tx, faction, ""); })) {
     a.select(SelType::Character, nid);
-    a.ui.tabOf[SelType::Character] = "character.info";
+    a.ui.tabOf[SelType::Character] = chars::kTabInfo;
   }
   return nid;
 }
@@ -79,18 +61,44 @@ bool characterRow(App& a, const Character& c, const chars::Roles& roles, bool se
     ui::draw::icon(dead ? "skull" : "shackles", sr, dead ? th.danger : th.warning);
     right = sr.x - 8;
   }
-  // Класс и уровень героя (ТЗ «Доработки №4», п.6): значок цвета класса и уровень.
+  // Класс, подкласс и уровень героя (ТЗ «Доработки №1», п.1; «№4», п.6): значок цвета класса; в широкой строке —
+  // подкласс и «класс · ур. N» двумя строками справа, в узкой — уровень (подкласс — в подсказке).
   if (const HeroClass* hc = w.heroClass(c.heroClass)) {
     if (!c.hero) right -= 24;   // место звезды героя: класс — в одном столбце у всех строк
+    const SubClass* sc = hc->subclass(c.subclass);
+    const std::string cls = hc->name.empty() ? std::string("Без названия") : hc->name;
+    const std::string sub = sc ? (sc->name.empty() ? std::string("Без названия") : sc->name) : std::string();
     const std::string lv = std::to_string(c.level);
-    const float lw = std::ceil(ui::measure(lv, ui::Font::Caption)) + 2;
-    const RectF lr{right - lw, r.cy() - 8, lw, 16};
-    ui::draw::text(lv, lr, ui::Font::Caption, th.textMuted, ui::Align::Right);
-    const RectF ir{lr.x - 17, r.cy() - 8, 16, 16};
-    const Color col = hc->color.luminance() < 0.1f ? hc->color.lighten(0.45f) : hc->color;
-    ui::draw::icon(!hc->icon.empty() && gfx::hasIcon(hc->icon) ? hc->icon.c_str() : "hero-class", ir, col);
-    ui::hoverTip("##cls", RectF{ir.x, ir.y, lr.right() - ir.x, 16}, (hc->name.empty() ? std::string("Без названия") : hc->name) + ", уровень " + lv);
-    right = ir.x - 8;
+    const Color col = w::legible(hc->color);
+    const char* icon = sc && !sc->icon.empty() && gfx::hasIcon(sc->icon) ? sc->icon.c_str()
+                       : !hc->icon.empty() && gfx::hasIcon(hc->icon) ? hc->icon.c_str()
+                                                                       : "hero-class";
+    const std::string tip = cls + (sc ? " · " + sub : std::string(" · подкласс не выбран")) + "\nУровень " + lv + " · вложено " +
+                            std::to_string(rules::talentPointsSpent(w, c.id)) + " из " + lv + " очков талантов";
+    RectF block;
+    if (r.w >= 440) {
+      const std::string top = sc ? sub : cls;
+      const std::string bottom = (sc ? cls + " · " : std::string()) + "ур. " + lv;
+      const float bw = std::min(150.f, std::ceil(std::max(ui::measure(top, ui::Font::Small), ui::measure(bottom, ui::Font::Caption))) + 2);
+      const float lh = ui::lineHeight(ui::Font::Small), ch = ui::lineHeight(ui::Font::Caption);
+      const float y0 = std::round(r.cy() - (lh + ch) * 0.5f);
+      const RectF tr{right - bw, y0, bw, lh};
+      ui::draw::text(top, tr, ui::Font::Small, sc ? col : th.textDim, ui::Align::Right);
+      ui::draw::text(bottom, RectF{right - bw, y0 + lh, bw, ch}, ui::Font::Caption, th.textMuted, ui::Align::Right);
+      const RectF ir{tr.x - 22, r.cy() - 9, 18, 18};
+      ui::draw::icon(icon, ir, col);
+      block = RectF{ir.x, r.y + 4, right - ir.x, r.h - 8};
+    } else {
+      const float lw = std::ceil(ui::measure(lv, ui::Font::Caption)) + 2;
+      const RectF lr{right - lw, r.cy() - 8, lw, 16};
+      ui::draw::text(lv, lr, ui::Font::Caption, th.textMuted, ui::Align::Right);
+      const RectF ir{lr.x - 17, r.cy() - 8, 16, 16};
+      ui::draw::icon(icon, ir, col);
+      block = RectF{ir.x, ir.y, lr.right() - ir.x, 16};
+    }
+    ui::hoverTip("##cls", block, tip);
+    a.markUi("characters.class." + std::to_string(c.id), block);
+    right = block.x - 8;
   }
   float lh = ui::lineHeight(ui::Font::Body), sh = ui::lineHeight(ui::Font::Small);
   float y0 = std::round(r.cy() - (lh + sh) * 0.5f);
@@ -114,7 +122,7 @@ void groupHeader(const std::string& title, Color dot, size_t n) {
   ui::draw::text(std::to_string(n), RectF{x + tw + 6, r.y + 2, 40, r.h}, ui::Font::Caption, th.textMuted.alpha(0.7f));
 }
 
-void drawDrawer(App& a) {
+void drawDirectory(App& a) {
   const World& w = a.world();
   bool ro = a.readOnly();
   ListState& st = ui::state<ListState>(ui::id("##chars"));
@@ -233,14 +241,14 @@ void drawDrawer(App& a) {
   ui::label(cnt, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Center});
 }
 
-SectionReg section({"characters", "users", "Персонажи", 40, "Ctrl+4", drawDrawer, SelType::Character, nullptr, "Все персонажи"});
+SectionReg section({"characters", "users", "Персонажи", 40, "Ctrl+4", drawDirectory, SelType::Character, nullptr, "Все персонажи"});
 CommandReg cmdPanel({"panel.characters", "Персонажи", "users", nullptr,
                      [](App& a) {
                        if (a.ui.directory != "characters") a.openDirectory("characters");
                      },
-                     [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Панели"});
+                     [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Панели", 30});
 CommandReg cmdNew({"character.new", "Новый персонаж", "user-plus", nullptr, [](App& a) { createAct(a, 0); },
-                   [](App& a) { return a.ui.screen == Screen::Editor && !a.readOnly(); }, false, "Панели"});
+                   [](App& a) { return a.ui.screen == Screen::Editor && !a.readOnly(); }, false, "Панели", 30});
 
 }  // namespace
 }  // namespace rg::app

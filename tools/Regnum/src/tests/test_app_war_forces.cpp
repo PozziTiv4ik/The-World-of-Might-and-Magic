@@ -23,7 +23,6 @@ void openTab(Harness& h, Id faction, const char* tab) {
 // «Распустить» — воины в население; общая численность правится только в режиме «Правка резерва».
 TEST(app_war_forces_recruit_disband) {
   Harness h("war_forces_recruit", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   CHECK(hel != 0);
@@ -128,7 +127,6 @@ TEST(app_war_forces_recruit_disband) {
 // чудовища не требуют ни населения, ни трупов — только ключевой ресурс (ТЗ «Ввод новых механик», п.2–3).
 TEST(app_war_forces_remove_row_and_race) {
   Harness h("war_forces_race", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   openTab(h, hel, "faction.army");
@@ -227,7 +225,6 @@ TEST(app_war_forces_remove_row_and_race) {
 // линкор охраняет 10 галеонов).
 TEST(app_war_forces_trade_fleet) {
   Harness h("war_forces_trade", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   openTab(h, hel, "faction.fleet");
@@ -289,7 +286,6 @@ TEST(app_war_forces_trade_fleet) {
 // Полноэкранные таблицы: столбцы расы, ключевого ресурса и цены, формирование под резервом, действия у строки.
 TEST(app_war_forces_editor_columns) {
   Harness h("war_forces_editor", 1600, 1000);
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   const Id row = h->world().faction(hel)->army[1].id;   // кавалерия: нужен ключевой ресурс (ездовые наземные)

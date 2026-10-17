@@ -8,6 +8,7 @@
 #include "codec/zlib.h"
 #include "tests/test.h"
 #include "tests/test_codec_util.h"
+#include "tests/test_png.h"
 
 using namespace rg;
 using namespace rg::codec;
@@ -277,7 +278,7 @@ TEST(codec_png_speed_map_and_tiles) {
       tiles++;
       auto back = decodePng(png.data(), png.size());
       CHECK(back && back->rgba == tile.rgba);
-      if (tx == 1 && ty == 1) CHECK(writePngFile(test::outDir() + "/codec/map_tile.png", tile));
+      if (tx == 1 && ty == 1) CHECK(test::savePng("codec/map_tile.png", tile));
     }
   std::printf("       кодирование тайла 512 x 512 L6: среднее %.1f ms, лучшее %.1f ms, средний размер %.0f KB\n", encSum / tiles * 1000,
               encBest * 1000, total / 1024.0 / tiles);

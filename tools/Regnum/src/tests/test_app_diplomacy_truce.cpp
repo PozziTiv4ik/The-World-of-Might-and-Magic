@@ -9,14 +9,6 @@ using namespace rg::factest;
 
 namespace {
 
-Id characterByName(const World& w, std::string_view name) {
-  Id r = 0;
-  w.characters.each([&](const Character& c) {
-    if (!r && c.name == name) r = c.id;
-  });
-  return r;
-}
-
 // Ввод в поле окна (окно поверх инспектора — без прокрутки инспектора).
 bool typeIn(Harness& h, const std::string& name, const std::string& value) {
   if (!h.clickUi(name)) return false;
@@ -24,12 +16,6 @@ bool typeIn(Harness& h, const std::string& name, const std::string& value) {
   h.key(Key::Enter);
   h.step();
   return true;
-}
-
-void shotClean(Harness& h, const std::string& name) {
-  h.waitMap();
-  h.settle();
-  CHECK(h.shot(name));
 }
 
 i64 slavesOf(const World& w, Id state) {
@@ -42,7 +28,6 @@ i64 slavesOf(const World& w, Id state) {
 }  // namespace
 
 TEST(app_diplomacy_truce_terms) {
-  HideTestRegs regs;
   Harness h("diplomacy_truce", 1440, 1000);
   h.demo();
   h.waitMap();
@@ -52,7 +37,7 @@ TEST(app_diplomacy_truce_terms) {
   CHECK(hel && vk);
   CHECK(h->world().relation(hel, vk).s == RelStatus::War);
   // Пленный герой Хельдвига у Валь-Кетры — вернётся по перемирию.
-  const Id bjorn = characterByName(h->world(), "Бьорн Медведь");
+  const Id bjorn = test::idByName(h->world().characters, "Бьорн Медведь");
   CHECK(h->act("Плен", [&](Tx& tx) { rules::heroFate(tx, bjorn, rules::Fate::Captured, vk, 0); }));
   CHECK_EQ(rules::captivesOf(h->world(), vk).size(), size_t(1));
 
@@ -146,7 +131,6 @@ TEST(app_diplomacy_truce_terms) {
 }
 
 TEST(app_diplomacy_truce_problems) {
-  HideTestRegs regs;
   Harness h("diplomacy_truce_problems", 1440, 1000);
   h.demo();
   h.waitMap();

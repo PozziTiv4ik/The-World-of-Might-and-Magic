@@ -1,39 +1,10 @@
-// Общее для сценариев деревьев технологий и построек (test_app_trees_*.cpp): скрытие тестовых регистраций
-// других сценариев, отмена/повтор сочетаниями, щелчки по отмеченным элементам, поиск уведомлений.
+// Regnum — помощники сценариев деревьев технологий и построек и строительства (test_app_trees_*.cpp): отмена и повтор
+// сочетаниями, щелчки по отмеченным элементам, прокрутка и ввод в панели свойств дерева, провинция государства со
+// свободными слотами, запасы государства (задать; сумма — test::stockSum), постройка провинции.
 #pragma once
 #include "tests/test_app_util.h"
 
 namespace rg::apptest::trees {
-
-// Тестовые регистрации других сценариев («test.*»: вкладки, шапки, панели) на время сценария убираются из реестров,
-// чтобы инспектор и снимки были как в приложении.
-struct HideTestRegs {
-  std::vector<app::TabDef> tabs;
-  std::vector<app::HeaderDef> headers;
-  std::vector<app::DrawerDef> drawers;
-  template <class T>
-  static void strip(std::vector<T>& v) {
-    v.erase(std::remove_if(v.begin(), v.end(), [](const T& d) { return std::string_view(d.id).starts_with("test."); }), v.end());
-  }
-  HideTestRegs() {
-    auto& t = const_cast<std::vector<app::TabDef>&>(app::tabs());
-    auto& h = const_cast<std::vector<app::HeaderDef>&>(app::headers());
-    auto& d = const_cast<std::vector<app::DrawerDef>&>(app::drawers());
-    tabs = t;
-    headers = h;
-    drawers = d;
-    strip(t);
-    strip(h);
-    strip(d);
-  }
-  ~HideTestRegs() {
-    const_cast<std::vector<app::TabDef>&>(app::tabs()) = tabs;
-    const_cast<std::vector<app::HeaderDef>&>(app::headers()) = headers;
-    const_cast<std::vector<app::DrawerDef>&>(app::drawers()) = drawers;
-  }
-  HideTestRegs(const HideTestRegs&) = delete;
-  HideTestRegs& operator=(const HideTestRegs&) = delete;
-};
 
 // Отмена и повтор сочетаниями; уведомления «Отменено…» убираются, чтобы не держать кадры анимации.
 inline void undo(Harness& h) {
@@ -63,12 +34,6 @@ inline void clickQuick(Harness& h, const std::string& name, float fx = 0.5f, flo
   RectF r = rectOf(h.a(), name);
   h.click(r.x + r.w * fx, r.y + r.h * fy);
   h.settle(40);
-}
-
-inline bool hasToast(app::App& a, const std::string& part, app::ToastKind kind) {
-  for (const app::Toast& t : a.toasts())
-    if (t.kind == kind && t.text.find(part) != std::string::npos) return true;
-  return false;
 }
 
 // Вкладка инспектора по ID (для проверки видимости).
@@ -143,14 +108,6 @@ inline bool typeSide(Harness& h, const std::string& field, const std::string& va
   return true;
 }
 
-// Снимок без уведомлений и с дорисованной картой.
-inline void shotTrees(Harness& h, const std::string& name) {
-  h.waitMap();
-  h.dropToasts();
-  h.settle(60);
-  CHECK(h.shot(name));
-}
-
 // Государство с провинциями (первое по порядку ID) и его сухопутная провинция со свободными слотами.
 struct StateProv {
   Id state = 0, province = 0;
@@ -168,6 +125,42 @@ inline StateProv stateWithFreeSlots(const World& w, int free = 2, Id except = 0)
     r = StateProv{p.owner, p.id};
   });
   return r;
+}
+
+// Провинция государства со свободным слотом и общая постройка без требований, которой в ней нет и которую можно там
+// построить (кроме цены: ресурс провинции для добычи, вид государства, приморская — подходят); цена — ресурсами, не
+// нулевая, без эссенций.
+struct BuildPick {
+  Id pid = 0, owner = 0, building = 0;
+};
+inline BuildPick pickBuild(const World& w) {
+  BuildPick r;
+  auto calc = rules::calc(w);
+  w.provinces.each([&](const Province& p) {
+    if (r.pid || p.sea || !p.owner) return;
+    const Faction* f = w.faction(p.owner);
+    if (!f || !f->isState()) return;
+    const rules::ProvinceCalc* pc = calc->province(p.id);
+    if (!pc || pc->slots <= int(p.buildings.size())) return;
+    const std::vector<rules::BuildOption> opts = rules::buildOptions(w, p.id);
+    w.buildings.each([&](const Building& b) {
+      if (r.pid || b.owner || !b.requires_.empty() || b.levels.empty() || b.levels[0].cost.empty() || !b.levels[0].essCost.empty()) return;
+      for (const ProvBuilding& pb : p.buildings)
+        if (pb.building == b.id) return;
+      for (const rules::BuildOption& o : opts)
+        if (o.building == b.id && o.canPlace && !o.upgrade) r = BuildPick{p.id, p.owner, b.id};
+    });
+  });
+  return r;
+}
+
+// Запасы государства: золото и каждый ресурс справочника — v.
+inline void setStock(app::App& a, Id faction, double v) {
+  CHECK(a.act("Запасы", [&](Tx& tx) {
+    Faction& f = tx.faction(faction);
+    f.res[kGold] = v;
+    for (const CatalogItem& c : tx.w().catalogs->resources) f.res[c.id] = v;
+  }));
 }
 
 inline const ProvBuilding* provBuilding(const World& w, Id pid, Id bid) {

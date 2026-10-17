@@ -1,4 +1,4 @@
-// Regnum — справочник перечислений: русские подписи, значки, пределы правил (ТЗ).
+// Regnum — справочник перечислений: русские подписи, значки, пределы и константы правил.
 #pragma once
 #include "core/world.h"
 
@@ -37,7 +37,7 @@ inline const EnumInfo& stateKind(StateKind k) { return kStateKinds[int(k) >= 0 &
 inline const EnumInfo& modKind(ModKind k) { return kModKinds[int(k) >= 0 && int(k) < int(ModKind::Count) ? int(k) : 0]; }
 
 inline const EnumInfo& unitType(UnitType t) { return kUnitTypes[int(t) >= 0 && int(t) < int(UnitType::Count) ? int(t) : 0]; }
-// Найм юнита (ТЗ «Ввод новых механик», п.2–3): звери, чудовища, военные механизмы и элементали не требуют
+// Найм юнита: звери, чудовища, военные механизмы и элементали не требуют
 // населения, трупов и демонической энергии; элементали нанимаются только за эссенции элементов и содержатся ими.
 bool needsPeople(UnitType t);
 bool isCavalry(UnitType t);                // лёгкая, средняя, тяжёлая кавалерия
@@ -46,14 +46,20 @@ bool isElemental(UnitType t);
 inline const EnumInfo& shipType(ShipType t) { return kShipTypes[int(t)]; }
 inline const EnumInfo& relStatus(RelStatus s) { return kRelStatus[int(s)]; }
 inline const EnumInfo& provSize(ProvSize s) { return kProvSizes[int(s)]; }
-inline const EnumInfo& cityType(CityType c) { return kCityTypes[int(c)]; }
+inline const EnumInfo& cityType(CityType c) { return kCityTypes[int(c) >= 0 && int(c) < 4 ? int(c) : 0]; }
+// Тип города по населению: аванпост (до 1000), деревня (1000–10 000), небольшой город (10 000–50 000), большой
+// город (50 000 и больше).
+constexpr i64 kVillagePop = 1000, kTownPop = 10000, kCityPop = 50000;
+inline CityType cityTypeFor(i64 population) {
+  return population >= kCityPop ? CityType::City : population >= kTownPop ? CityType::Town : population >= kVillagePop ? CityType::Village : CityType::Outpost;
+}
 inline const EnumInfo& buildingCat(BuildingCat c) { return kBuildingCats[int(c)]; }
 inline const EnumInfo& logKind(LogKind k) { return kLogKinds[int(k)]; }
 
 // Найти значение перечисления по строковому id (для чтения JSON). Возвращает -1, если нет.
 int findEnum(const EnumInfo* list, int n, std::string_view id);
 
-// Эффекты модификаторов (ТЗ 1.g.ii).
+// Эффекты модификаторов.
 struct EffectInfo {
   Fx fx;
   const char* id;
@@ -63,7 +69,7 @@ struct EffectInfo {
   bool local;           // true — провинция, false — государство/гильдия
   bool perTurn;         // применяется каждый ход
   bool targets;         // требует список целевых фракций (дипломатия)
-  bool extra;           // не перечислен в ТЗ явно (слоты — из пункта 1.f.i)
+  bool extra;           // производный эффект (слоты построек)
   const char* icon;
   bool army = false;    // действует на войска (модификатор войска; у государства — на все его войска)
   bool arch = false;    // действует на археологические группы (модификатор группы; у государства — на все его группы)
@@ -75,22 +81,62 @@ inline const EffectInfo& effect(Fx f) { return kEffects[int(f)]; }
 enum class MapMode : u8 { Political, Guilds, Contentment, Rebellion, Trade, Resources, Religion, Culture, Terrain, Count };
 extern const EnumInfo kMapModes[int(MapMode::Count)];
 
-// Префиксы ID в JSON: p12, f3, ... (узлы и рёбра геометрии — без префикса).
-const char* idPrefix(Seq s);
+// Последовательности ID: имя счётчика (world.json, meta.seq), префикс ID в JSON (p12, f3…; узлы, дуги, знаки и фигуры
+// карты — без префикса), родительный падеж для сообщений («нет провинции p12»).
+struct SeqInfo {
+  const char* name;
+  const char* prefix;
+  const char* genitive;
+};
+extern const SeqInfo kSeqs[kSeqCount];
+const SeqInfo& seqInfo(Seq s);   // неизвестная последовательность — префикс «x», «объекта»
+inline const char* idPrefix(Seq s) { return seqInfo(s).prefix; }
 
-// Константы правил (ТЗ).
-constexpr int kMaxHqPerProvince = 5;          // 1.d.ii
-constexpr double kWarRelation = -25;          // 1.c.iv: «равны 0 и ещё минус 25»
-constexpr double kRouteBonus = 0.10;          // 1.d.v: +10 % базовой ценности за маршрут
+// Простые списки справочников (CatalogItem): ключ массива в data/catalogs.json, последовательность ID, поле Catalogs,
+// подписи записи («Ресурс») и новой записи («Новый ресурс»).
+enum class CatalogList : u8 { Resources, Races, Cultures, Religions, Governments, Positions, Essences };
+constexpr int kCatalogListCount = 7;
+struct CatalogListInfo {
+  CatalogList list;
+  const char* key;
+  Seq seq;
+  std::vector<CatalogItem> Catalogs::*items;
+  const char* noun;
+  const char* fresh;
+};
+extern const CatalogListInfo kCatalogLists[kCatalogListCount];
+const CatalogListInfo& catalogListInfo(CatalogList l);   // неизвестный список — UserError
+inline std::vector<CatalogItem>& catalogList(Catalogs& c, CatalogList l) { return c.*catalogListInfo(l).items; }
+inline const std::vector<CatalogItem>& catalogList(const Catalogs& c, CatalogList l) { return c.*catalogListInfo(l).items; }
+
+// Константы правил (формулы — docs/RULES.md).
+constexpr int kMaxHqPerProvince = 5;          // штабов гильдий в провинции — не больше
+constexpr double kWarRelation = -25;          // объявление войны: «равны 0 и ещё минус 25»
+constexpr double kRouteBonus = 0.10;          // +10 % базовой ценности за маршрут
 constexpr double kRouteStateBonus = 0.025;    // маршрут: ещё +2,5 % за каждое государство на его пути
 constexpr double kGuildRouteShare = 0.05;     // гильдия-владелец маршрута: 5 % торговой ценности сухопутных провинций пути
-constexpr double kMinTotalTax = 1.0;          // 1.d.iv: общий налог не меньше 1 %
+constexpr double kMinTotalTax = 1.0;          // общий налог не меньше 1 %
 constexpr double kMaxTotalTax = 100.0;        // общий налог не больше 100 % (налог не превышает торговую ценность)
-constexpr double kRebellionPerContentment = 0.5;  // 1.a.vi: 2 довольства : 1 %
+constexpr double kRebellionPerContentment = 0.5;  // 2 довольства : 1 % риска восстания
 constexpr double kObjectRadius = 34;          // радиус фигурки войска/флота на карте (единицы карты)
 // Расстояние встречи и наименьший промежуток между войсками (единицы карты): прежние 2 · kObjectRadius минус 30 %.
 constexpr double kInteractDist = 2 * kObjectRadius * 0.7;
 constexpr double kMapWidth = 8000, kMapHeight = 4500;
+constexpr i64 kMaxCount = 1000000000000000LL;    // предел численностей и населения (точно в double)
+// Схемы деревьев построек и технологий: шаг столбцов (слоёв) и строк расстановки (rules::autoLayout).
+constexpr double kTreeColStep = 280, kTreeRowStep = 120;
+// Следующая позиция на схеме дерева: правее всех узлов дерева (same — узел того же дерева); пустое дерево — (0, 0).
+template <class T, class Pred>
+Vec2 nextTreePos(const Table<T>& t, Pred&& same) {
+  bool any = false;
+  double x = 0;
+  t.each([&](const T& e) {
+    if (!same(e)) return;
+    x = any ? std::max(x, e.pos.x) : e.pos.x;
+    any = true;
+  });
+  return any ? Vec2{x + kTreeColStep, 0} : Vec2{0, 0};
+}
 // Значок войска и флота на экране: размер по умолчанию и пределы ползунка (точки интерфейса).
 constexpr int kFigureSizeDefault = 34, kFigureSizeMin = 18, kFigureSizeMax = 72;
 
@@ -152,6 +198,8 @@ struct BuiltinResource {
 };
 extern const BuiltinResource kBuiltinResources[6];
 const BuiltinResource* builtinResource(std::string_view key);
+// Запись справочника встроенного ресурса: название, цвет, значок, ключ, builtin (без ID и группы).
+CatalogItem builtinResourceItem(const BuiltinResource& b);
 
 // Группы ресурсов, на которые опираются правила (ResGroup::key): провизия (расход населением и голод), звери и
 // ездовые (ключевой ресурс кавалерии, воздушной кавалерии, зверей и чудовищ). Их нельзя удалить.
@@ -190,6 +238,11 @@ struct KeyRule {
 KeyRule keyRule(UnitType t);
 // Ключевой ресурс корабля: морское чудовище — ресурс подгруппы «Морские чудовища» (1 на судно); остальные — нет.
 KeyRule shipKeyRule(ShipType t);
+// Ресурс справочника подходит ключевым ресурсом юнита типа t (по keyRule) или корабля типа t (по shipKeyRule).
+bool keyAllowed(const Catalogs& c, UnitType t, Id res);
+bool shipKeyAllowed(const Catalogs& c, ShipType t, Id res);
+// Наёмники — только пехота и кавалерия (лёгкая, средняя, тяжёлая).
+bool isMercType(UnitType t);
 
 // Модификаторы (Modifier::key).
 namespace mod {
@@ -227,7 +280,7 @@ constexpr const char* ArchWounded = "archWounded";        // Ранение в �
 constexpr const char* ArchPlague = "archPlague";          // Заражение чумой (археологическая группа)
 constexpr const char* ArchValues = "archValues";          // Ценности археологии (гильдия археологов)
 }  // namespace mod
-// Шаблоны встроенных модификаторов (id = 0) в порядке ТЗ.
+// Шаблоны встроенных модификаторов (id = 0) в постоянном порядке.
 const std::vector<Modifier>& builtinModifiers();
 const Modifier* builtinModifier(std::string_view key);
 // Природа героя: «Живой», «Нежить», «Демон», «Механизм» — взаимоисключающие.
@@ -281,21 +334,44 @@ constexpr const char* ArchGuild = "archGuild";     // «Гильдия Архе�
 constexpr const char* Port = "port";
 constexpr const char* Shipyard = "shipyard";
 constexpr const char* MercGuild = "mercGuild";     // «Гильдия Наемников»
+constexpr const char* Market = "market";           // «Рынок»: золото за ход, продажа реликвий
+constexpr const char* Infirmary = "infirmary";     // «Лечебница»
+constexpr const char* PlagueLab = "plagueLab";     // «Чумная лаборатория»
+constexpr const char* RelicVault = "relicVault";   // «Хранилище реликвий»
+constexpr const char* Barracks = "barracks";       // «Казармы»: снижение содержания армии
+constexpr const char* Mine = "mine";               // «Шахта»: добыча ресурса провинции
+constexpr const char* Sawmill = "sawmill";         // «Лесопилка»
+constexpr const char* Quarry = "quarry";           // «Каменоломня»
+constexpr const char* AlchemyLab = "alchemyLab";   // «Алхимическая лаборатория»
+constexpr const char* AlchemyConverter = "alchemyConverter";   // «Алхимический преобразователь»
+constexpr const char* CorpseMill = "corpseMill";   // «Мясопилка»: только государству нежити
+constexpr const char* Drainer = "drainer";         // «Иссушительница»
+constexpr const char* Sprinkler = "sprinkler";     // «Окропительница»
+constexpr const char* Steelworks = "steelworks";   // «Сталелитейная»
 }  // namespace bld
 // Технологии, на которые опираются правила (Tech::key).
 namespace tech {
 constexpr const char* ArchValues = "archValues";   // «Ценности археологии»: гильдия археологов даёт сокровища
+constexpr const char* MagicPowder = "magicPowder"; // «Производство магического пороха»: алхимический преобразователь
 }  // namespace tech
 // Группы реликвий (RelicGroup::key).
 constexpr const char* kRelicArchFinds = "archFinds";   // «Археологические находки»: героям напрямую не назначаются
 
-// Цены и лимиты новых механик (ТЗ «Доработки №1–4»).
+// Колонизация и очищение пустоши нежити: переселенцев — не меньше 500.
+constexpr i64 kMinSettlers = 500;
+// «Продать реликвии» (рынок): золото за штуку по редкости — археологические находки и остальные реликвии.
+constexpr double kRelicPriceArch[int(Rarity::Count)] = {1, 2.5, 5, 50, 250};
+constexpr double kRelicPrice[int(Rarity::Count)] = {0.1, 0.25, 1, 50, 250};
+constexpr double kMaxUpkeepCut = 50;             // снижение содержания армии постройками — не больше 50 %
+
+// Цены и лимиты новых механик.
 constexpr double kNewRowUpkeep = 0.001;           // содержание новой строки армии и флота, золота за ход
 constexpr i64 kPirateFlatLoss = 20;               // пираты: при меньше чем 100 галеонах в торговле — 20 галеонов
 constexpr i64 kPirateFlatBelow = 100;
 constexpr int kMaxCouncilSeats = 10;              // совет — не больше 10 должностей
 constexpr double kCouncilInfluencePerSeat = -2;   // «Влияние совета»: −2 % времени исследования за должность
-constexpr int kPlagueTurns = 4, kImmunityTurns = 6;   // «Чума» и «Временный иммунитет»
+constexpr int kPlagueTurns = 4, kImmunityTurns = 6;   // «Чума» (и «Заражение чумой» группы) и «Временный иммунитет»
+constexpr int kWoundTurns = 2;                    // «Ранение в ходе исследования» археологической группы
 constexpr double kPlagueBuildingGrowth = 2.5;     // чума в провинции со «Зданием чумы»: прирост +2,5 %
 constexpr double kHealCost = 500;                 // «Вылечить провинцию»: эссенции любого вида
 constexpr double kInfectCost = 2500;              // «Заразить чумой»: эссенции чумы
@@ -303,7 +379,10 @@ constexpr double kLichCorpses = 20000, kLichDeathEssence = 5000;   // «Возв
 constexpr double kLichShare = 0.50;               // лич: 50 % побеждённых живых отрядов в трупы
 constexpr int kMaxHeroLevel = 60;
 constexpr int kMinTalentCost = 1, kMaxTalentCost = 5;
-constexpr int kTalentCols = 4, kTalentRows = 50;  // дерево талантов: 4 столбца, ярусов не больше 50
+constexpr int kMaxTalentRanks = 5;              // рангов таланта — от 1 до 5
+constexpr int kTalentCols = 5, kTalentRows = 50;  // дерево талантов: 5 столбцов, ярусов не больше 50
+constexpr int kDefaultTierPoints = 10;           // очков на ярус дерева нового подкласса
+constexpr int kMaxTierPoints = 60;                // очков на ярус дерева талантов — не больше
 constexpr double kSameReligionRelation = 10;      // одна религия у государств: отношения всегда +10
 // Объекты карты: пределы масштаба знака и ширины линии (единицы карты), ширина новой стены и реки.
 constexpr float kMinSymbolScale = 0.2f, kMaxSymbolScale = 8.f;

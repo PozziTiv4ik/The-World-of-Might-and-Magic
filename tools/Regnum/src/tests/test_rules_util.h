@@ -5,19 +5,27 @@
 //       │      │  p4 (200,400) │  p5 (400,400) │  p6 (600,400) │  p7 (800,400) │      │
 //   y=600└────────────────────────────────────────────────────────────────────────┘
 // Суша — прямоугольник [100,900] × [100,500]; провинции суши 200 × 200; seaW/seaE — морские полосы.
+//
+//   Fix f;  f.tx([&](Tx& tx) { own(tx, f.p[0], f.A, addRace(tx), 1000); });   // копия мира, владелец и население
+//   f.pc(f.p[0]), f.fc(f.A)                                // расчёт провинции и фракции
+//   has(errorOf([&] { f.tx(...); }), "текст отказа")       // errorOf, has — из test.h и test_world_util.h
+//   popOf(w, p), unitsIn(w, army), setFx(tx, key, {{Fx::LoyaltyPerTurn, -5}}), makeMod(tx, {...}), lastLog(w, "...")
 #pragma once
+#include <algorithm>
 #include <string>
 
 #include "geo/ops.h"
 #include "geo/topo.h"
 #include "rules/rules.h"
 #include "tests/test.h"
+#include "tests/test_geo_util.h"
+#include "tests/test_world_util.h"
 
 namespace rg::rulestest {
 
 constexpr double W = 1000, H = 600;
 
-inline std::vector<Vec2> rect(double x0, double y0, double x1, double y1) { return {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}; }
+using geotest::rect;
 inline Vec2 center(int i) { return {200.0 + 200.0 * (i % 4), 200.0 + 200.0 * (i / 4)}; }
 inline const Vec2 kSeaNorth{500, 50};   // неназначенное море над островом
 inline const Vec2 kSeaWest{35, 300};    // морская провинция seaW
@@ -68,8 +76,12 @@ inline const Base& base() {
         m.fxMask = 0;
         tx.add(std::move(m));
       }
-      // Постройки базового набора (общая «Цитадель Бездны») убираются: тесты строят свои деревья с нуля.
+      // Постройки базового набора (общая «Цитадель Бездны») убираются: тесты строят свои деревья с нуля. Базовые
+      // расы, культуры и реликвии тоже: тесты заводят свои (и проверяют пустой пул находок).
       for (Id b : tx.w().buildings.ids()) tx.eraseBuilding(b);
+      tx.catalogs().races.clear();
+      tx.catalogs().cultures.clear();
+      tx.catalogs().relics.clear();
       // Тесты называют ресурс rs5 «Железо» (как в мире до базовых групп ресурсов): названия rs4 и rs5 меняются местами.
       for (CatalogItem& c : tx.catalogs().resources) {
         if (c.id == 4) c.name = "Титан";
@@ -113,26 +125,85 @@ struct Fix {
   }
 };
 
-// Текст UserError, брошенной f (пусто — исключения не было).
-template <class F> std::string errorOf(F&& f) {
-  try {
-    f();
-  } catch (const UserError& e) {
-    return e.what();
-  }
-  return {};
+using test::errorOf;
+using test::has;   // элемент в векторе
+inline bool has(const std::string& s, const std::string& sub) { return s.find(sub) != std::string::npos; }
+
+// Раса «Люди» в справочнике.
+inline Id addRace(Tx& tx) { return rules::addCatalogItem(tx, rules::CatalogList::Races, "Люди"); }
+
+// Владелец провинции и её население — одна раса.
+inline void own(Tx& tx, Id p, Id owner, Id race, i64 pop) {
+  Province& m = tx.province(p);
+  m.owner = owner;
+  m.races = {RacePop{race, pop}};
 }
 
-inline bool has(const std::string& s, const std::string& sub) { return s.find(sub) != std::string::npos; }
+// Тип города задаётся населением: аванпост — 500, деревня — 5000, небольшой город — 20 000, большой город — 60 000
+// жителей (первая раса справочника).
+inline void setCity(Tx& tx, Id p, CityType c) {
+  static const i64 kPop[] = {500, 5000, 20000, 60000};
+  const Id race = tx.w().catalogs->races.empty() ? addRace(tx) : tx.w().catalogs->races.front().id;
+  tx.province(p).races = {RacePop{race, kPop[std::clamp(int(c), 0, 3)]}};
+}
+
+// Население провинции (все расы).
+inline i64 popOf(const World& w, Id p) {
+  i64 n = 0;
+  for (const RacePop& r : w.province(p)->races) n += r.pop;
+  return n;
+}
+
+// Добавить модификатору эффекты (значения и биты).
+inline void addFx(Modifier& m, std::initializer_list<std::pair<Fx, double>> fx) {
+  for (auto& [f, v] : fx) {
+    m.fx[size_t(f)] = v;
+    m.fxMask |= 1u << unsigned(f);
+  }
+}
+
+// Эффекты встроенного модификатора в мире теста (в базовом мире совет и голод — без эффектов).
+inline void setFx(Tx& tx, const char* key, std::initializer_list<std::pair<Fx, double>> fx) {
+  Modifier& m = tx.modifier(rules::ensureBuiltinMod(tx, key));
+  m.fx = {};
+  m.fxMask = 0;
+  addFx(m, fx);
+}
+
+// Отрядов в войске (все группы и строки).
+inline i64 unitsIn(const World& w, Id army) {
+  i64 n = 0;
+  for (const ArmyGroup& g : w.army(army)->groups)
+    for (const ArmyUnit& u : g.units) n += u.count;
+  return n;
+}
+
+// Отрядов строки row фракции faction в войске; −1 — войска нет.
+inline i64 unitsIn(const World& w, Id army, Id faction, Id row) {
+  const Army* a = w.army(army);
+  if (!a) return -1;
+  i64 n = 0;
+  for (const ArmyGroup& g : a->groups)
+    if (g.faction == faction)
+      for (const ArmyUnit& u : g.units)
+        if (u.row == row) n += u.count;
+  return n;
+}
+
+// Общая постройка с одним уровнем (и возможностью flag, если on); ставится готовой в провинцию province.
+inline Id simpleBuilding(Tx& tx, const char* name, Id province = 0, rules::BuildingFlag flag = rules::BuildingFlag::Coastal,
+                         bool on = false) {
+  const Id b = rules::createBuilding(tx, 0, name);
+  if (on) rules::setBuildingFlag(tx, b, flag, true);
+  if (province) rules::placeBuilding(tx, province, b, 1);
+  return b;
+}
 
 // Модификатор с заданными эффектами (и целями дипломатии).
 inline Id makeMod(Tx& tx, std::initializer_list<std::pair<rg::Fx, double>> fx, std::vector<Id> targets = {}) {
   Id id = rules::createModifier(tx, "Мод");
   Modifier& m = tx.modifier(id);
-  for (auto& [f, v] : fx) {
-    m.fx[size_t(f)] = v;
-    m.fxMask |= 1u << unsigned(f);
-  }
+  addFx(m, fx);
   m.targets = std::move(targets);
   return id;
 }

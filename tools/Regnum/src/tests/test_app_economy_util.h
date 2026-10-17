@@ -1,5 +1,5 @@
-// Regnum — помощники сценариев провинций и экономики (test_app_economy_*.cpp): колонизация, оккупационный гарнизон,
-// рабы, пустошь нежити и осквернение, ресурсы построек, экономика государства.
+// Regnum — помощники сценариев провинций и экономики (test_app_economy_*.cpp): вкладка провинции с начала прокрутки,
+// население провинции, провинция без владельца, самая населённая провинция и самое большое государство.
 #pragma once
 #include "tests/test_app_faction_util.h"
 
@@ -8,25 +8,8 @@ namespace rg::econtest {
 using namespace rg::apptest;
 using namespace rg::factest;
 
-inline const Province* prov(Harness& h, Id pid) { return h->world().province(pid); }
-
-// Выбрать провинцию, открыть вкладку и вернуть прокрутку инспектора к началу.
-inline void openProvince(Harness& h, Id pid, const char* tab) {
-  h->ui.tabOf[app::SelType::Province] = tab;
-  h->select(app::SelType::Province, pid, true);
-  h.settle();
-  h.dropToasts();
-  if (const RectF* r = h->uiRect("inspector")) {
-    h.wheel(r->cx(), r->bottom() - 120, 40);
-    h.frames(24);
-  }
-}
-
-inline bool hasToast(Harness& h, std::string_view part) {
-  for (auto& t : h->toasts())
-    if (t.text.find(part) != std::string::npos) return true;
-  return false;
-}
+// Выбрать провинцию с показом на карте, открыть вкладку и вернуть прокрутку инспектора к началу.
+inline void openProvince(Harness& h, Id pid, const char* tab) { apptest::openTab(h, app::SelType::Province, pid, tab, true); }
 
 inline i64 popOf(const Province& p) {
   i64 n = 0;
@@ -74,13 +57,6 @@ inline Id biggestState(const World& w) {
       best = f;
     }
   return best;
-}
-
-inline void shotClean(Harness& h, const std::string& name) {
-  h.waitMap();
-  h.dropToasts();
-  h.settle();
-  CHECK(h.shot(name));
 }
 
 // Ввод числа в поле с прокруткой к нему; Enter фиксирует.

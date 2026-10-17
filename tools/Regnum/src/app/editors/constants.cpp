@@ -1,4 +1,4 @@
-// Regnum — глобальные константы (ТЗ «Общие доработки», п.1–2): вкладка левой ленты и окно (EditorReg «constants»).
+// Regnum — глобальные константы (ТЗ «Общие доработки», п.1–2): редактор раздела «Справочники» (EditorReg «constants»).
 // Встроенные (schema::builtinConstants) видны всегда: пока их не правили, показывается значение по умолчанию
 // (rules::constantOf), первая правка создаёт запись мира (rules::ensureConstant). Свои константы трёх типов — число,
 // список ресурсов с количествами, список значений (rules::addConstant, rules::removeConstant). Базовые расы отрядов
@@ -6,20 +6,15 @@
 #include <algorithm>
 
 #include "app/app_internal.h"
-#include "app/dialogs/turn_ui.h"
+#include "app/editors/edkit.h"
 #include "app/widgets.h"
 
 namespace rg::app {
 
-namespace edkit {   // modifiers.cpp
-void iconTile(const std::string& icon, Color tint, float size, const char* fallback);
-bool entityRow(std::string_view title, std::string_view subtitle, const char* icon, Color tint, std::string_view hint, bool selected,
-               bool warn, std::string_view tip);
-}  // namespace edkit
-
 namespace {
 
 using platform::Key;
+using w::orName;
 
 // ---------------------------------------------------------------- состояние (сеанс мира)
 struct ConstState {
@@ -27,18 +22,7 @@ struct ConstState {
   std::string focusName;                     // константа, чьё название получит фокус (после создания)
   std::map<std::string, std::string> add;    // ввод нового значения списка по ключу константы
 };
-ConstState& state() {
-  static ConstState s;
-  static u64 tag = 0;
-  if (hasApp()) {
-    u64 t = turnui::sessionTag(app());   // другой мир — чистое состояние
-    if (t != tag) {
-      tag = t;
-      s = ConstState{};
-    }
-  }
-  return s;
-}
+ConstState& state() { return sessionState<ConstState>(); }
 
 // ---------------------------------------------------------------- данные
 bool builtinKey(std::string_view key) {
@@ -89,12 +73,7 @@ bool wholeNumber(std::string_view key) {
   return key == schema::cst::FrigateCapacity || key == schema::cst::LineCapacity || key == schema::cst::MercPerGuild || key == schema::cst::ArchGroupPeople;
 }
 
-std::string resName(const World& w, Id res) {
-  const CatalogItem* c = w.resource(res);
-  return c && !c->name.empty() ? c->name : std::string(res == kGold ? "Золото" : "Ресурс");
-}
-
-std::string orName(const std::string& s) { return s.empty() ? std::string("Без названия") : s; }
+std::string resName(const World& w, Id res) { return w::resourceName(w, res, res == kGold ? "Золото" : "Ресурс"); }
 
 std::string summary(const World& w, const Constant& c) {
   switch (c.type) {
@@ -108,7 +87,7 @@ std::string summary(const World& w, const Constant& c) {
         }
         parts.push_back(s);
       };
-      for (auto& [rid, v] : c.res) add(resName(w, rid) + " " + fmtNum(v, 3) + (rid == kGold ? " тыс." : ""));
+      for (auto& [rid, v] : c.res) add(resName(w, rid) + " " + w::amountText(rid, v));
       for (auto& [eid, v] : c.ess) {
         const CatalogItem* e = w.essence(eid);
         add((e && !e->name.empty() ? e->name : std::string("Эссенция")) + " " + fmtNum(v, 3));
@@ -151,14 +130,15 @@ void createConstant(App& a, ConstType type) {
 
 void askRemove(App& a, const Constant& c) {
   std::string key = c.key;
-  a.confirm("Удалить константу?", "«" + orName(c.name) + "» будет удалена. Действие можно отменить Ctrl+Z.", "Удалить", true, [key](App& x) {
-    if (x.act("Удалить константу", [&](Tx& tx) { rules::removeConstant(tx, key); }) && state().sel == key) state().sel.clear();
-  });
+  a.confirmAct("Удалить константу?", "«" + orName(c.name) + "» будет удалена.", "Удалить", "Удалить константу",
+               [key](Tx& tx) { rules::removeConstant(tx, key); }, [key](App&) {
+                 if (state().sel == key) state().sel.clear();
+               });
 }
 
 // «+»: выбор типа новой константы.
 void newButton(App& a, const char* mark) {
-  bool ro = a.readOnly();
+  bool ro = !a.canEdit();
   if (ui::iconButton("plus", "Новая константа", {.variant = ui::Variant::Secondary, .disabled = ro})) ui::openPopup("new");
   a.markUi(mark);
   if (ui::beginMenu("new")) {
@@ -181,7 +161,7 @@ void numberValue(App& a, const Constant& c, const std::string& mark) {
   o.digits = wholeNumber(c.key) ? 0 : 3;
   o.unit = goldNumber(c.key) ? "тыс." : nullptr;
   o.icon = numberIcon(c.key);
-  o.disabled = a.readOnly();
+  o.disabled = !a.canEdit();
   o.tooltip = goldNumber(c.key) ? std::string_view("Золото") : std::string_view();
   if (ui::numberField("num", v, o)) {
     std::string key = c.key;
@@ -194,7 +174,7 @@ void numberValue(App& a, const Constant& c, const std::string& mark) {
 // базовую позицию убрать нельзя (ТЗ «Доработки №3», п.7–8; rules::setConstantRes/removeConstantRes).
 void amountRows(App& a, const Constant& c, const std::string& mark, bool essence) {
   const World& w = a.world();
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const std::string key = c.key;
   const std::map<Id, double>& list = essence ? c.ess : c.res;
   const std::map<Id, double>& floor = essence ? c.minEss : c.minRes;
@@ -211,7 +191,7 @@ void amountRows(App& a, const Constant& c, const std::string& mark, bool essence
       ui::label(e && !e->name.empty() ? e->name : std::string("Эссенция"));
     } else {
       Color col = w::resourceColor(w, id);
-      if (col.luminance() < 0.12f) col = col.lighten(0.45f);   // тёмный ресурс — светлее на тёмном фоне
+      col = w::legible(col, 0.12f);   // тёмный ресурс — светлее на тёмном фоне
       ui::iconColored(w::resourceIcon(w, id), col, 16);
       ui::label(resName(w, id));
     }
@@ -221,7 +201,7 @@ void amountRows(App& a, const Constant& c, const std::string& mark, bool essence
     o.max = 1e12;
     o.step = 1;
     o.digits = !essence && id == kGold ? 3 : 1;
-    o.unit = !essence && id == kGold ? "тыс." : nullptr;
+    o.unit = essence ? nullptr : w::amountUnit(id);
     o.disabled = ro;
     const std::string tip = locked ? "Базовая стоимость: не меньше " + fmtNum(base->second, 3) : std::string("Количество");
     o.tooltip = tip;
@@ -244,7 +224,7 @@ void amountRows(App& a, const Constant& c, const std::string& mark, bool essence
 
 void resourcesValue(App& a, const Constant& c, const std::string& mark) {
   const World& w = a.world();
-  bool ro = a.readOnly();
+  bool ro = !a.canEdit();
   const std::string key = c.key;
   if (c.res.empty() && c.ess.empty()) ui::label("Нет ресурсов", {.ink = ui::Ink::Muted});
   amountRows(a, c, mark, false);
@@ -286,7 +266,7 @@ std::string checkValue(const std::vector<std::string>& vals, const std::string& 
 }
 
 void valuesValue(App& a, const Constant& c, const std::string& mark) {
-  bool ro = a.readOnly();
+  bool ro = !a.canEdit();
   const std::string key = c.key;
   const bool races = key == schema::cst::UnitRaces;
   const std::vector<std::string> vals = c.values;   // у рас отрядов — с базовыми (allConstants)
@@ -364,7 +344,7 @@ void nameField(App& a, const Constant& c, const std::string& mark, ui::Font font
     st.focusName.clear();
   }
   std::string name = c.name;
-  if (ui::textField("name", name, {.placeholder = "Название константы", .maxLength = 80, .readOnly = a.readOnly(), .selectAllOnFocus = true}) &&
+  if (ui::textField("name", name, {.placeholder = "Название константы", .maxLength = 80, .readOnly = !a.canEdit(), .selectAllOnFocus = true}) &&
       trim(name) != c.name) {
     const std::string key = c.key, nn = trim(name);
     editConst(a, key, "Переименовать константу", [&](Tx& tx, Constant& k) {
@@ -384,7 +364,7 @@ void lockOrDelete(App& a, const Constant& c, const std::string& mark) {
     ui::icon("lock", ui::Ink::Muted, 16, "Встроенная константа");
     return;
   }
-  if (ui::iconButton("trash", "Удалить константу", {.size = ui::Size::Small, .disabled = a.readOnly(), .tone = ui::Tone::Danger})) askRemove(a, c);
+  if (ui::iconButton("trash", "Удалить константу", {.size = ui::Size::Small, .disabled = !a.canEdit(), .tone = ui::Tone::Danger})) askRemove(a, c);
   a.markUi(mark + ".delete");
 }
 
@@ -413,7 +393,7 @@ void drawDetail(App& a, const Constant& c) {
     if (!c.desc.empty()) ui::label(c.desc, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   } else {
     std::string desc = c.desc;
-    if (ui::textField("desc", desc, {.placeholder = "Описание", .maxLength = 200, .readOnly = a.readOnly()}) && desc != c.desc) {
+    if (ui::textField("desc", desc, {.placeholder = "Описание", .maxLength = 200, .readOnly = !a.canEdit()}) && desc != c.desc) {
       const std::string key = c.key;
       editConst(a, key, "Описание константы", [&](Tx&, Constant& k) { k.desc = trim(desc); });
     }
@@ -438,11 +418,7 @@ void drawEditor(App& a, Id) {
     cur = &list.front();
     st.sel = cur->key;
   }
-  RectF R = ui::avail();
-  float listW = std::round(clamp(R.w * 0.27f, 280.f, 380.f));
-  RectF L{R.x, R.y, listW, R.h};
-  RectF D{R.x + listW + 24, R.y, R.w - listW - 24, R.h};
-  ui::draw::line(L.right() + 12, R.y, L.right() + 12, R.bottom(), th.border, 1);
+  const auto [L, D] = edkit::listDetail(ui::avail());
   {
     ui::Area la(L, 0);
     {
@@ -477,7 +453,7 @@ void drawEditor(App& a, Id) {
 
 EditorReg editorReg({"constants", "Глобальные константы", drawEditor, "sliders", "reference", 30});
 CommandReg commandReg({"editor.constants", "Глобальные константы", "sliders", nullptr, [](App& a) { a.openEditor("constants", 0); },
-                       [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Справочники"});
+                       [](App& a) { return a.ui.screen == Screen::Editor && a.admin(); }, false, "Справочники", 70});
 
 }  // namespace
 }  // namespace rg::app

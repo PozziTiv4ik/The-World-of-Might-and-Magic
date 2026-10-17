@@ -1,5 +1,6 @@
-// Regnum — внутреннее устройство оболочки приложения (только для src/app/*.cpp и тестов app).
+// Regnum — внутреннее устройство оболочки приложения (только для src/app/** и тестов app).
 #pragma once
+#include <algorithm>
 #include <condition_variable>
 #include <future>
 #include <mutex>
@@ -14,6 +15,12 @@
 #include "ui/ui.h"
 
 namespace rg::app {
+
+// Есть ли x в последовательности v.
+template <class V, class T>
+bool has(const V& v, const T& x) {
+  return std::find(v.begin(), v.end(), x) != v.end();
+}
 
 // Снимок хода, ещё не записанный на диск: ходы мира без файла и ходы после последнего сохранения.
 // Записываются в историю при сохранении; «Не сохранять» (смена или закрытие мира) их отбрасывает.
@@ -30,6 +37,7 @@ struct MemSnapshot {
 struct App::Impl {
   AppConfig cfg;
   std::string dataDir;
+  bool playing = false;                    // идёт App::play: игровое действие доступно и игроку
   // ---- базовая карта и отрисовка
   std::unique_ptr<map::Basemap> basemap;
   std::unique_ptr<map::MapView> map;
@@ -85,11 +93,9 @@ struct App::Impl {
   // ---- экран запуска
   gfx::Image preview;                      // уменьшенная базовая карта
   bool previewTried = false;
-  gfx::Image backdropBase;                 // перекрашенная размытая карта (на тему)
-  bool backdropBaseDark = true;
+  gfx::Image backdropBase;                 // перекрашенная размытая карта
   gfx::Image backdrop;                     // фон под размер окна
-  int backdropW = 0, backdropH = 0;
-  bool backdropDark = true;
+  int backdropW = 0, backdropH = 0;        // размер фона; 0 — перерисовать (смена цветокора)
   std::vector<io::RecentProject> recent;
   bool recentDirty = true;
   std::unordered_map<std::string, std::shared_ptr<gfx::Image>> thumbs;   // путь -> миниатюра (пусто — нет)
@@ -117,7 +123,7 @@ map::Palette schemePalette(int scheme);
 map::Palette mapPalette(const App& a);
 void savePrefs(App& a);
 
-// ---- оболочка (shell.cpp, start.cpp)
+// ---- оболочка (shell/shell.cpp, shell/start.cpp)
 void mapInput(App& a);                     // начало кадра редактора: указатель над картой
 void mapWheel(App& a);                     // конец кадра: колесо над картой
 void drawEditorScreen(App& a);
@@ -129,14 +135,14 @@ void renderMap(App& a, gfx::Canvas& c);    // карта (с кешем) и на
 void renderStartBackdrop(App& a, gfx::Canvas& c);
 map::RenderOptions renderOptions(App& a);
 
-// ---- проект (project.cpp)
+// ---- проект (project/project.cpp)
 void autosaveTick(App& a);
 void writeThumbnail(App& a);               // миниатюра политической карты для списка недавних
 std::string thumbPath(const std::string& dataDir, const std::string& project);
 void refreshStartData(App& a);             // недавние и автосохранения для экрана запуска
 void restoreAutosave(App& a, const io::AutosaveInfo& info);
 
-// ---- диалоги (dialogs.cpp, browser.cpp, settings.cpp, palette.cpp, turn.cpp)
+// ---- диалоги (project/common_dialogs.cpp, project/browser.cpp, shell/settings.cpp, shell/palette.cpp)
 std::unique_ptr<Dialog> confirmDialog(std::string title, std::string text, std::string ok, bool danger, std::function<void(App&)> onYes,
                                       std::function<void(App&)> onNo = {});
 std::unique_ptr<Dialog> choiceDialog(std::string title, std::string text, std::vector<std::string> buttons,
@@ -149,9 +155,6 @@ std::unique_ptr<Dialog> saveAsDialog(App& a);
 std::unique_ptr<Dialog> settingsDialog();
 std::unique_ptr<Dialog> paletteDialog();
 std::unique_ptr<Dialog> helpDialog();
-std::unique_ptr<Dialog> turnConfirmDialog(App& a, rules::TurnReport preview);
-std::unique_ptr<Dialog> turnReportDialog(App& a, rules::TurnReport report);
-std::unique_ptr<Dialog> historyDialog(App& a);
 
 enum class BrowseMode : u8 { OpenWorld, OpenBundle, SaveBundle, PickFolder };
 std::unique_ptr<Dialog> browserDialog(BrowseMode mode, std::string title, std::string startDir,
@@ -172,7 +175,6 @@ i64 isoToMs(std::string_view iso);                // «2026-10-01T12:00:00Z» ->
 std::string localTime(std::string_view iso);      // «12:40» сегодня, иначе «2 окт., 12:40»
 std::string sanitizeName(std::string_view name);  // имя папки из названия мира
 std::optional<gfx::Image> loadImage(const std::string& path, int maxSide = 0);
-std::string findBasemapDir();
 std::string entityName(const World& w, Selection s);   // название выделенного объекта
 const char* selIcon(SelType t);
 const char* selCaption(SelType t);
@@ -183,11 +185,34 @@ const MapSymbol* mapSymbol(const World& w, Id id);
 const MapShape* mapShape(const World& w, Id id);
 // Название фигуры карты: вода контуром — «Река» (длинная и узкая) или «Озеро»; «Островок», «Стена», «Река».
 std::string mapShapeName(const MapShape& s);
+// Вид уведомления: значок и тон (уведомления, окно сообщения).
+const char* toastIcon(ToastKind k);
+ui::Tone toastTone(ToastKind k);
+// Отпечаток сеанса (папка данных и мир — время создания, базовая карта): сменился — состояние панелей (фильтры,
+// черновики) сбрасывается.
+u64 sessionTag(App& a);
 
-// ---- оболочка (shell.cpp)
+// ---- оболочка (shell/shell.cpp)
 // Значок «галочки» режима правки границ (ТЗ 1.a.ii): замок закрыт — границы закреплены, открыт — правка.
 // Отличается от значка инструмента «Правка границ провинции» (tool-edit).
 const char* bordersToggleIcon(bool on);
 
 }  // namespace detail
+
+// Состояние интерфейса на сеанс мира (выбор, фильтры, черновики окна): открыт другой мир — T{} заново. Одно на тип T:
+// тип — свой у каждого окна или панели.
+template <class T>
+T& sessionState() {
+  static T s{};
+  static u64 tag = 0;
+  if (hasApp()) {
+    const u64 t = detail::sessionTag(app());
+    if (t != tag) {
+      tag = t;
+      s = T{};
+    }
+  }
+  return s;
+}
+
 }  // namespace rg::app

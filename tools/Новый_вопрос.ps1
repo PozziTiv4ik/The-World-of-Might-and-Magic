@@ -30,11 +30,6 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
-$registryPath = Join-Path $root '09_Реестры\Вопросы.json'
-
-if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Question registry is missing: 09_Реестры/Вопросы.json. Restore the authoritative JSON registry from a verified backup."
-}
 
 function Get-QuestionPrefix {
     param(
@@ -78,7 +73,7 @@ function Get-NextQuestionId {
     return ('{0}-{1:D3}' -f $prefix, ($max + 1))
 }
 
-$registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $registryPath) | ConvertFrom-Json
+$registry = Read-WmmaRegistry $root 'Вопросы'
 $questions = @($registry.questions)
 $history = @($registry.history)
 $expectedPrefix = Get-QuestionPrefix -Registry $registry -QuestionScope $Scope
@@ -109,19 +104,8 @@ $questions += [pscustomobject][ordered]@{
 $registry.questions = @($questions)
 $registry.updated_real_date = $today
 
-$json = ($registry | ConvertTo-Json -Depth 8).TrimEnd() + "`n"
-$encoding = [System.Text.UTF8Encoding]::new($false)
-[System.IO.File]::WriteAllText($registryPath, $json, $encoding)
-
-& (Join-Path $root 'tools\Собрать_вопросы.ps1') -SkipCheck
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Write-WmmaRegistry $root 'Вопросы' $registry
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_вопросы' -SkipCheck:$SkipCheck
 
 "Created question: $Id"
 }

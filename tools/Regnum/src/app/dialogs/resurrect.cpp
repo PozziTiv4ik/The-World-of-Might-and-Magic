@@ -1,6 +1,7 @@
 // Regnum — воскрешение погибшего героя (ТЗ «Механика героев», п.1.2; DialogReg «hero.resurrect», arg — персонаж):
 // способ — как живого, как нежить, как демона, как механизм (природа героя заменяется) и государство (по умолчанию
-// своё, можно другое); rules::resurrect одним действием.
+// своё, можно другое); rules::resurrect одним действием. Воскрешение без условий правил — правка мира (только
+// администратор, ТЗ «Доработки №4», п.5).
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -53,7 +54,7 @@ struct ResurrectDlg final : Dialog {
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     a.markUi("resurrect.cancel");
-    if (ui::button("Воскресить", {.variant = ui::Variant::Primary, .icon = "sparkles", .disabled = a.readOnly(), .isDefault = true})) {
+    if (ui::button("Воскресить", {.variant = ui::Variant::Primary, .icon = "sparkles", .disabled = !a.canEdit(), .isDefault = true})) {
       const Id h = hero, st = state;
       const char* key = kWays[std::clamp(way, 0, 3)].key;
       const std::string name = w.characterName(h);
@@ -68,8 +69,8 @@ struct ResurrectDlg final : Dialog {
 };
 
 DialogReg reg({"hero.resurrect", [](App& a, Id arg) -> std::unique_ptr<Dialog> {
-                 if (a.readOnly()) {
-                   a.toast("Открыт прошлый ход — изменения недоступны", ToastKind::Warning, "lock", "К текущему ходу", [](App& x) { x.backToCurrent(); });
+                 if (!a.canEdit()) {
+                   a.act("Воскресить героя", [](Tx&) {});   // причина: прошлый ход или только администратору
                    return nullptr;
                  }
                  const World& w = a.world();

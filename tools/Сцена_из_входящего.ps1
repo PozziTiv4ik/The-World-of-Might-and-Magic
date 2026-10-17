@@ -96,11 +96,11 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $hasInlineMessage = -not [string]::IsNullOrWhiteSpace($Text) -or -not [string]::IsNullOrWhiteSpace($TextPath)
 if($TextPath){$Text=Read-WmmaText ((Resolve-Path -LiteralPath $TextPath).Path)}
-if($hasInlineMessage -and -not $RequestId){$RequestId='MSG-'+(Get-WmmaHash ($Text.Replace("`r`n","`n").Trim())).Substring(0,24)}
+if($hasInlineMessage -and -not $RequestId){$RequestId='MSG-'+(Get-WmmaMessageHash $Text).Substring(0,24)}
 $receipt=if($RequestId){Get-WmmaReceipt $root $RequestId}else{$null}
 if($receipt){
     Assert-WmmaReceiptPayload $root $receipt
-    if($hasInlineMessage -and $receipt.content_sha256 -cne (Get-WmmaHash ($Text.Replace("`r`n","`n").Trim()))){throw 'Request ID content mismatch.'}
+    if($hasInlineMessage -and $receipt.content_sha256 -cne (Get-WmmaMessageHash $Text)){throw 'Request ID content mismatch.'}
     if($receipt.scene_path){
         $scene=Read-WmmaText (Resolve-WmmaPath $root $receipt.scene_path)
         if((Get-WmmaMeta $scene 'branch') -cne $Branch -or ($Chapter -gt 0 -and (Get-WmmaMeta $scene 'chapter') -ne [string]$Chapter)){throw 'Request ID belongs to another scene branch or chapter.'}
@@ -113,7 +113,7 @@ if($receipt -and $receipt.state -eq 'scene_created' -and $receipt.scene_path){
     if($processedEntry.Count -eq 1){$receipt.state='processed';Save-WmmaReceipt $root $receipt}
 }
 if($receipt -and $receipt.state -eq 'processed' -and $receipt.scene_path){
-    if($hasInlineMessage -and $receipt.content_sha256 -cne (Get-WmmaHash ($Text.Replace("`r`n","`n").Trim()))){throw 'Request ID content mismatch.'}
+    if($hasInlineMessage -and $receipt.content_sha256 -cne (Get-WmmaMessageHash $Text)){throw 'Request ID content mismatch.'}
     "Created scene from inbox: $($receipt.scene_path)";return
 }
 
@@ -135,15 +135,11 @@ if ($hasInlineMessage) {
         $acceptArgs.Text = $Text
     }
 
-    $global:LASTEXITCODE = 0
-    & (Join-Path $root 'tools\Принять_сообщение.ps1') @acceptArgs
-    if (-not $? -or $LASTEXITCODE -ne 0) {
-        exit 1
-    }
+    Invoke-WmmaTool -Root $root -Name 'Принять_сообщение' -Arguments $acceptArgs
 }
 
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
-$inbox = Get-Content -Raw -Encoding UTF8 -LiteralPath $inboxPath
+$inbox = Read-WmmaText $inboxPath
 $inboxEntries = Get-NewInboxEntries -InboxText $inbox
 if($RequestId){
     $matching=@($inboxEntries|Where-Object {(Get-WmmaEntryField $_.Value 'Request-ID') -ceq $RequestId})
@@ -185,11 +181,7 @@ $sceneArgs = @{
 if($RequestId){$sceneArgs.RequestId=$RequestId}
 $sceneArgs.SourceIds=$sourceIds
 
-$global:LASTEXITCODE = 0
-$sceneOutput = & (Join-Path $root 'tools\Новая_сцена.ps1') @sceneArgs
-if (-not $? -or $LASTEXITCODE -ne 0) {
-    exit 1
-}
+$sceneOutput = Invoke-WmmaTool -Root $root -Name 'Новая_сцена' -Arguments $sceneArgs
 
 $createdScene = $null
 foreach ($line in $sceneOutput) {
@@ -204,7 +196,7 @@ if (-not $createdScene) {
 if($receipt){$receipt.scene_path=$createdScene;$receipt.state='scene_created';Save-WmmaReceipt $root $receipt}
 
 if ([string]::IsNullOrWhiteSpace($ProcessSummary)) {
-    $ProcessSummary = "Создана новая сцена `$createdScene`; дальнейшая обработка канона ведется в этой сцене."
+    $ProcessSummary = "Создана новая сцена ``$createdScene``; дальнейшая обработка канона ведется в этой сцене."
 }
 
 $processArgs = @{
@@ -215,20 +207,10 @@ $processArgs = @{
 }
 if($RequestId){$processArgs.RequestId=$RequestId}
 
-$global:LASTEXITCODE = 0
-& (Join-Path $root 'tools\Обработать_входящее.ps1') @processArgs
-if (-not $? -or $LASTEXITCODE -ne 0) {
-    exit 1
-}
+Invoke-WmmaTool -Root $root -Name 'Обработать_входящее' -Arguments $processArgs
 if($receipt){$receipt.state='processed';Save-WmmaReceipt $root $receipt}
 
-if (-not $SkipCheck) {
-    $global:LASTEXITCODE = 0
-    & (Join-Path $root 'tools\Завершить_ход.ps1')
-    if (-not $? -or $LASTEXITCODE -ne 0) {
-        exit 1
-    }
-}
+Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
 
 "Created scene from inbox: $createdScene"
 }

@@ -179,7 +179,7 @@ std::string checkInvariants(const World& w) {
 
 }  // namespace
 
-TEST(io_normalize_hand_edited) {
+TEST(core_io_normalize_hand_edited) {
   std::string dir = tempDir("hand");
   io::save(dir, richWorld(), TB_ALL);
 
@@ -386,7 +386,7 @@ TEST(io_normalize_hand_edited) {
   CHECK(diffWorld(w, r2.world).empty());
 }
 
-TEST(io_normalize_in_memory) {
+TEST(core_io_normalize_in_memory) {
   World base = richWorld();
   Tx tx(base);
   tx.province(1).contentment = std::nan("");
@@ -450,7 +450,7 @@ TEST(io_normalize_in_memory) {
   CHECK_MSG(again.empty(), warningsText(again));
 }
 
-TEST(io_normalize_empty_world) {
+TEST(core_io_normalize_empty_world) {
   World w;
   io::Warnings warns;
   io::normalize(w, warns);
@@ -469,7 +469,7 @@ TEST(io_normalize_empty_world) {
 
 // Случайные изменения значений во всех файлах: чтение не падает, результат удовлетворяет
 // инвариантам, нормализация идемпотентна, повторное сохранение и чтение — без предупреждений.
-TEST(io_fuzz_values) {
+TEST(core_io_fuzz_values) {
   const json::Value doc = json::parse(io::toJson(richWorld()));
   const json::Value kinds[] = {
     json::Value(), json::Value(true), json::Value(false), json::Value(0), json::Value(-1), json::Value(0.5), json::Value(3),
@@ -531,7 +531,7 @@ TEST(io_fuzz_values) {
 
 // Удобства ручной правки: ссылки числами, точки парами, координаты объектом, data URI, запись без ID,
 // лишние файлы в data/, группировка предупреждений по файлам.
-TEST(io_hand_edit_conveniences) {
+TEST(core_io_hand_edit_conveniences) {
   std::string dir = tempDir("conveniences");
   World base = richWorld();
   io::save(dir, base, TB_ALL);
@@ -579,7 +579,7 @@ TEST(io_hand_edit_conveniences) {
   CHECK(!(r.fixedTables & TB_CHARACTERS));  // формат записи другой, но исправлений нет
 }
 
-TEST(io_warnings_grouped_by_file) {
+TEST(core_io_warnings_grouped_by_file) {
   std::string dir = tempDir("grouped");
   io::save(dir, richWorld(), TB_ALL);
   json::Value prv = readJson(dir, "data/provinces.json");

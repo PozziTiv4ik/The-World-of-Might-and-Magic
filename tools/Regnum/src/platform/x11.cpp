@@ -236,7 +236,7 @@ struct IncrTransfer {  // отдача большого текста по про
   size_t offset;
 };
 
-struct State {
+struct State : detail::Dispatch {
   Display* dpy = nullptr;
   int screen = 0;
   Window root = 0, win = 0;
@@ -253,9 +253,7 @@ struct State {
   bool mapped = false;
   bool detectableRepeat = false;
 
-  App* app = nullptr;
   WindowConfig cfg;
-  bool ready = false;
   float scale = 1;
   bool envScale = false;   // масштаб задан GDK_SCALE — Xft.dpi не отслеживаем
   int cw = 0, ch = 0;
@@ -269,15 +267,8 @@ struct State {
   int exX0 = 0, exY0 = 0, exX1 = 0, exY1 = 0;  // накопленная область Expose
   bool exposed = false;
 
-  std::atomic<bool> dirty{true};
   std::atomic<bool> wakePosted{false};
   std::atomic<bool> wakeEvent{false};
-  int callbackDepth = 0;
-  bool quitting = false;
-  bool closePending = false;
-  int exitCode = 0;
-  std::exception_ptr error;
-  std::deque<Event> queue;
 
   Time lastTime = CurrentTime;
   int buttonsDown = 0;
@@ -505,57 +496,6 @@ u32 modsFromState(unsigned state) {
 }
 
 // ---------------------------------------------------------------- очередь и вызовы приложения
-void push(Event e) {
-  if (e.type == EventType::Text && !g.queue.empty() && g.queue.back().type == EventType::Text) {
-    g.queue.back().text += e.text;
-    return;
-  }
-  g.queue.push_back(std::move(e));
-}
-
-template <class F>
-void guarded(F&& f) {
-  g.callbackDepth++;
-  try {
-    f();
-  } catch (...) {
-    if (!g.error) g.error = std::current_exception();
-    g.quitting = true;
-  }
-  g.callbackDepth--;
-}
-
-void flushEvents() {
-  if (!g.app || !g.ready || g.callbackDepth > 0) return;
-  while (!g.queue.empty() && !g.quitting) {
-    Event e = std::move(g.queue.front());
-    g.queue.pop_front();
-    g.dirty = true;  // каждое доставленное событие — новый кадр
-    guarded([&] { g.app->onEvent(e); });
-  }
-}
-
-bool callAnimating() {
-  bool anim = false;
-  if (g.app && g.callbackDepth == 0) guarded([&] { anim = g.app->animating(); });
-  return anim;
-}
-
-void requestClose() {
-  if (!g.app || g.quitting) return;
-  if (g.callbackDepth > 0) {
-    g.closePending = true;
-    return;
-  }
-  flushEvents();
-  bool ok = false;
-  guarded([&] { ok = g.app->onCloseRequest(); });
-  if (ok && !g.quitting) {
-    g.quitting = true;
-    g.exitCode = 0;
-  }
-}
-
 // ---------------------------------------------------------------- кадр и вывод
 void putImage(int x, int y, int w, int h) {
   if (!g.win || g.buf.empty() || w <= 0 || h <= 0) return;
@@ -588,7 +528,7 @@ bool canRender() { return g.app && g.ready && g.mapped && g.callbackDepth == 0 &
 
 void renderNow() {
   if (!canRender()) return;
-  flushEvents();
+  g.flushEvents();
   if (g.quitting || !canRender()) return;
   if (g.bw != g.cw || g.bh != g.ch) {
     g.buf.assign(size_t(g.cw) * size_t(g.ch), 0xFF0E1117u);
@@ -605,7 +545,7 @@ void renderNow() {
   f.scale = g.scale;
   f.reset = g.bufferReset;
   f.index = g.frameIndex++;
-  guarded([&] { g.app->onFrame(f); });
+  g.guarded([&] { g.app->onFrame(f); });
   detail::adoptSource(f);
   g.bufferReset = false;
   putImage(0, 0, g.bw, g.bh);
@@ -909,7 +849,7 @@ void onDndData(const XSelectionEvent& s) {
     e.x = g.dndX;
     e.y = g.dndY;
     e.files = std::move(files);
-    push(std::move(e));
+    g.push(std::move(e));
   }
   if (g.dndSource && g.dndVersion >= 2)
     sendClientMessage(g.dndSource, g.win, g.a.XdndFinished, long(g.win), ok ? 1 : 0, long(g.a.XdndActionCopy), 0, 0, NoEventMask);
@@ -925,7 +865,7 @@ void releaseKeys() {
     Event e;
     e.type = EventType::KeyUp;
     e.key = Key(k);
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.keycodeDown.fill(false);
 }
@@ -950,7 +890,7 @@ void onKey(XEvent& ev) {
     e.mods = mods;
     e.repeat = press && g.keycodeDown[kc];
     g.keyDown[size_t(key)] = press;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.keycodeDown[kc] = press;
   if (!press) return;
@@ -981,7 +921,7 @@ void onKey(XEvent& ev) {
     e.type = EventType::Text;
     e.text = std::move(text);
     e.mods = mods;
-    push(std::move(e));
+    g.push(std::move(e));
   }
 }
 
@@ -1002,7 +942,7 @@ void onButton(XEvent& ev) {
     else if (b.button == 5) e.wheelY = -1;
     else if (b.button == 6) e.wheelX = -1;
     else e.wheelX = 1;
-    push(std::move(e));
+    g.push(std::move(e));
     return;
   }
   int button = b.button == 1 ? MouseLeft : b.button == 3 ? MouseRight : b.button == 2 ? MouseMiddle : b.button == 8 ? MouseBack
@@ -1025,13 +965,13 @@ void onButton(XEvent& ev) {
     g.buttonsDown &= ~(1 << button);
     e.clicks = g.lastClicks[size_t(button)];
   }
-  push(std::move(e));
+  g.push(std::move(e));
   if (!press && g.buttonsDown == 0 && (b.x < 0 || b.y < 0 || b.x >= g.cw || b.y >= g.ch)) {
     Event leave;  // перетаскивание закончилось за пределами окна
     leave.type = EventType::MouseLeave;
     leave.x = x;
     leave.y = y;
-    push(std::move(leave));
+    g.push(std::move(leave));
   }
 }
 
@@ -1040,7 +980,7 @@ void onClientMessage(const XClientMessageEvent& c) {
   if (c.message_type == a.WM_PROTOCOLS) {
     Atom proto = Atom(c.data.l[0]);
     if (proto == a.WM_DELETE_WINDOW) {
-      requestClose();
+      g.requestClose();
     } else if (proto == a.NET_WM_PING) {  // «программа отвечает»
       XEvent reply{};
       reply.xclient = c;
@@ -1081,7 +1021,7 @@ void handleEvent(XEvent& ev) {
       g.mx = e.x;
       g.my = e.y;
       g.mouseInside = m.x >= 0 && m.y >= 0 && m.x < g.cw && m.y < g.ch;
-      push(std::move(e));
+      g.push(std::move(e));
       break;
     }
     case EnterNotify:
@@ -1095,7 +1035,7 @@ void handleEvent(XEvent& ev) {
         e.type = EventType::MouseLeave;
         e.x = float(ev.xcrossing.x) / g.scale;
         e.y = float(ev.xcrossing.y) / g.scale;
-        push(std::move(e));
+        g.push(std::move(e));
       }
       break;
     case FocusIn:
@@ -1111,7 +1051,7 @@ void handleEvent(XEvent& ev) {
         releaseKeys();
         e.type = EventType::FocusOut;
       }
-      push(std::move(e));
+      g.push(std::move(e));
       break;
     }
     case Expose: {
@@ -1149,7 +1089,7 @@ void handleEvent(XEvent& ev) {
         e.width = float(g.cw) / g.scale;
         e.height = float(g.ch) / g.scale;
         e.scale = g.scale;
-        push(std::move(e));
+        g.push(std::move(e));
         g.dirty = true;
       }
       break;
@@ -1179,7 +1119,7 @@ void handleEvent(XEvent& ev) {
           e.width = float(g.cw) / g.scale;
           e.height = float(g.ch) / g.scale;
           e.scale = g.scale;
-          push(std::move(e));
+          g.push(std::move(e));
           g.dirty = true;
         }
       }
@@ -1230,7 +1170,7 @@ void drainPipe() {
   if (g.wakeEvent.exchange(false)) {
     Event e;
     e.type = EventType::Wake;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.dirty = true;
 }
@@ -1497,12 +1437,12 @@ int run(App& app, const WindowConfig& cfg) {
     e.width = float(g.cw) / g.scale;
     e.height = float(g.ch) / g.scale;
     e.scale = g.scale;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   if (g.wakeEvent.exchange(false)) {
     Event e;
     e.type = EventType::Wake;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.wakePosted = false;
   g.dirty = true;
@@ -1512,13 +1452,13 @@ int run(App& app, const WindowConfig& cfg) {
   while (!g.quitting) {
     drainX();
     drainPipe();
-    flushEvents();
+    g.flushEvents();
     if (g.closePending && g.callbackDepth == 0) {
       g.closePending = false;
-      requestClose();
+      g.requestClose();
     }
     if (g.quitting) break;
-    bool anim = callAnimating();
+    bool anim = g.callAnimating();
     if (g.quitting) break;
     int timeout = -1;
     if (g.mapped && (g.dirty || anim)) {

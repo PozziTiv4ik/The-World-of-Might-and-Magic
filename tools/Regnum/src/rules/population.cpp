@@ -1,5 +1,5 @@
-// Regnum — население и рабы: распределение людей между провинциями только целыми числами (ТЗ «Фиксы», п.4),
-// рабы государства и на работах, колонизация, пустошь нежити и осквернение (ТЗ «Виды государств»).
+// Regnum — население и рабы: распределение людей между провинциями только целыми числами,
+// рабы государства и на работах, колонизация, пустошь нежити и осквернение.
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -7,14 +7,6 @@ namespace rg::rules {
 using namespace detail;
 
 namespace {
-
-constexpr i64 kMaxCount = 1000000000000000LL;
-
-i64 provincePop(const Province& p) {
-  i64 n = 0;
-  for (const RacePop& r : p.races) n += std::max<i64>(0, r.pop);
-  return n;
-}
 
 // Сухопутные провинции государства по возрастанию ID.
 std::vector<Id> ownedProvinces(const World& w, Id state, Id except = 0) {
@@ -256,20 +248,44 @@ void setSlaveWork(Tx& tx, Id province, Id race, i64 count) {
 }
 
 // ================================================================ колонизация
-void colonize(Tx& tx, Id province, Id state) {
+i64 settlersAvailable(const World& w, Id state, Id exceptProvince) {
+  i64 n = 0;
+  w.provinces.each([&](const Province& p) {
+    if (p.owner == state && !p.sea && p.id != exceptProvince) n += provincePop(p);
+  });
+  return n;
+}
+
+namespace {
+
+// Переселенцев не меньше 500 и не больше, чем жителей у государства.
+void needSettlers(const World& w, Id state, Id province, i64 settlers) {
+  if (settlers < schema::kMinSettlers) fail("Переселенцев — не меньше " + fmtInt(schema::kMinSettlers));
+  const i64 have = settlersAvailable(w, state, province);
+  if (settlers > have) fail("У государства " + facName(w, state) + " " + fmtInt(have) + " жителей в других провинциях — переселенцев не может быть больше");
+}
+
+}  // namespace
+
+void colonize(Tx& tx, Id province, Id state, i64 settlers) {
   const Province& p = needProvince(tx.w(), province);
   needState(tx.w(), state);
   if (p.sea) fail("Морскую провинцию нельзя колонизировать");
   if (p.owner) fail("У провинции уже есть владелец — " + facName(tx.w(), p.owner));
   if (hasModKey(tx.w(), p.modifiers, schema::mod::Devastated)) fail("Опустошённую провинцию нельзя назначить ни одному государству");
+  needSettlers(tx.w(), state, province, settlers);
   const double cost = std::max(0.0, constantOf(tx.w(), schema::cst::ColonizationCost).num);
   const Faction& f = *tx.w().faction(state);
   if (cost > 0 && f.treasury() + 1e-9 < cost)
     fail("Недостаточно золота у " + facName(tx.w(), state) + ": колонизация стоит " + amount(cost) + " тыс., в казне " + amount(f.treasury()) + " тыс.");
+  // Жители берутся до смены владельца (провинция ещё не входит в государство).
+  std::map<Id, i64> moved = takePopulation(tx, state, settlers, province);
   setProvinceOwner(tx, province, state);
+  givePopulation(tx, state, settlers, province, moved);
   if (cost > 0) addStock(tx.faction(state), kGold, -cost);
   addLog(tx, LogKind::Province,
-         facName(tx.w(), state) + " колонизирует провинцию " + provName(tx.w(), province) + (cost > 0 ? ": " + amount(cost) + " тыс. золота" : std::string()),
+         facName(tx.w(), state) + " колонизирует провинцию " + provName(tx.w(), province) + ": переселенцев " + fmtInt(settlers) +
+             (cost > 0 ? ", " + amount(cost) + " тыс. золота" : std::string()),
          LogRefs{province, 0, {state}});
 }
 
@@ -298,15 +314,12 @@ void cleanseWasteland(Tx& tx, Id province, i64 settlers) {
   for (Id m : p.modifiers)
     if (const Modifier* x = tx.w().modifier(m); x && x->key == schema::mod::UndeadWaste) mid = m;
   if (!mid) fail("Провинция не пустошь нежити");
-  if (settlers < 0) fail("Переселенцев не может быть меньше нуля");
   const Id owner = p.owner;
+  needSettlers(tx.w(), owner, province, settlers);
   dropModifier(tx, ModTarget::Province, province, mid);
-  if (settlers > 0) {
-    std::map<Id, i64> moved = takePopulation(tx, owner, settlers, province);
-    givePopulation(tx, owner, settlers, province, moved);
-  }
-  addLog(tx, LogKind::Province,
-         "Пустошь нежити в провинции " + provName(tx.w(), province) + " очищена" + (settlers > 0 ? ", переселено " + fmtInt(settlers) : std::string()),
+  std::map<Id, i64> moved = takePopulation(tx, owner, settlers, province);
+  givePopulation(tx, owner, settlers, province, moved);
+  addLog(tx, LogKind::Province, "Пустошь нежити в провинции " + provName(tx.w(), province) + " очищена, переселено " + fmtInt(settlers),
          LogRefs{province, 0, {owner}});
 }
 

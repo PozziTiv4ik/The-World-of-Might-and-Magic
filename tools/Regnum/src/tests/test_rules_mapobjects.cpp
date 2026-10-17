@@ -150,7 +150,7 @@ TEST(rules_map_shapes) {
   CHECK(!s.world().shape(lake));
 }
 
-TEST(rules_paint_terrain_drops_empty_provinces) {
+TEST(rules_map_paint_terrain_drops_empty_provinces) {
   Fix f;
   // Провинция целиком уходит под море: запись удаляется, название — в ответе.
   const auto fs = geo::buildFaces(f.w());

@@ -1,39 +1,14 @@
 // Сценарии панели «Провинции» (поиск, отбор по владельцу и морские, сортировка, выбор с показом на карте,
-// контекстное меню с удалением) и вкладки «Модификаторы» (добавление модификатора, сводка эффектов), снимки.
-#include "tests/test_app_util.h"
+// контекстное меню с удалением) и вкладки «Модификаторы» (добавление модификатора, сводка эффектов, модификатор только
+// с глобальными эффектами помечен и не предлагается), снимки.
+#include "app/widgets.h"
+#include "tests/test_app_trees_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
+using namespace rg::apptest::trees;
 
 namespace {
-
-struct HideTestRegs {
-  std::vector<app::TabDef> tabs;
-  std::vector<app::HeaderDef> headers;
-  std::vector<app::DrawerDef> drawers;
-  template <class T>
-  static void strip(std::vector<T>& v) {
-    v.erase(std::remove_if(v.begin(), v.end(), [](const T& d) { return std::string_view(d.id).starts_with("test."); }), v.end());
-  }
-  HideTestRegs() {
-    auto& t = const_cast<std::vector<app::TabDef>&>(app::tabs());
-    auto& h = const_cast<std::vector<app::HeaderDef>&>(app::headers());
-    auto& d = const_cast<std::vector<app::DrawerDef>&>(app::drawers());
-    tabs = t;
-    headers = h;
-    drawers = d;
-    strip(t);
-    strip(h);
-    strip(d);
-  }
-  ~HideTestRegs() {
-    const_cast<std::vector<app::TabDef>&>(app::tabs()) = tabs;
-    const_cast<std::vector<app::HeaderDef>&>(app::headers()) = headers;
-    const_cast<std::vector<app::DrawerDef>&>(app::drawers()) = drawers;
-  }
-};
-
-const Province* prov(Harness& h, Id pid) { return h->world().province(pid); }
 
 // Провинции, строки которых видны в списке (по отметкам прошлого кадра), сверху вниз.
 std::vector<Id> visibleRows(Harness& h) {
@@ -50,7 +25,6 @@ std::vector<Id> visibleRows(Harness& h) {
 }  // namespace
 
 TEST(app_province_list_filter_search_select) {
-  HideTestRegs hide;
   Harness h("province_list", 1440, 1000);
   h.demo();
   // Ctrl+1 — панель «Провинции».
@@ -160,7 +134,6 @@ TEST(app_province_list_filter_search_select) {
 }
 
 TEST(app_province_modifiers_tab) {
-  HideTestRegs hide;
   Harness h("province_modifiers", 1440, 1000);
   h.demo();
   // Провинция с собственным модификатором и модификаторами государства.
@@ -196,4 +169,45 @@ TEST(app_province_modifiers_tab) {
   CHECK(h.shot("province_modifiers"));
   h.key(Key::Z, ctrl());
   CHECK_EQ(prov(h, pid)->modifiers.size(), n0);
+}
+
+// ТЗ 1.g.ii.2: глобальные эффекты «применяются только к государству». Список модификаторов провинции предлагает
+// любые модификаторы (app/widgets.cpp modifierList — без фильтра по локальным эффектам), и глобальный модификатор,
+// добавленный провинции, молча ничего не делает, хотя его фишка и подсказка («+6 % дохода в казну») видны в списке.
+TEST(app_province_modifiers_global_only_marked) {
+  Harness h("audit_tbmt_global_on_province");
+  h.demo();
+  // Модификатор только с глобальными эффектами из демонстрационного мира.
+  Id global = 0;
+  h->world().modifiers.each([&](const Modifier& m) {
+    if (global) return;
+    bool anyLocal = false, anyGlobal = false;
+    for (int f = 0; f < kFxCount; f++)
+      if (m.has(Fx(f))) (schema::kEffects[f].local ? anyLocal : anyGlobal) = true;
+    if (anyGlobal && !anyLocal) global = m.id;
+  });
+  CHECK(global != 0);
+  BuildPick pk = pickBuild(h->world());
+  CHECK(pk.pid != 0);
+  auto fBefore = rules::calc(h->world())->faction(pk.owner);
+  const double netBefore = fBefore->net;
+  CHECK(h->act("Модификатор провинции", [&](Tx& tx) {
+    auto& v = tx.province(pk.pid).modifiers;
+    if (std::find(v.begin(), v.end(), global) == v.end()) v.push_back(global);
+  }));
+  auto fAfter = rules::calc(h->world())->faction(pk.owner);
+  // Эффект не действует (так задумано правилами), но интерфейс не предупреждает и не мешает добавить.
+  CHECK_NEAR(fAfter->net, netBefore, 1e-6);
+  h->ui.tabOf[app::SelType::Province] = "province.modifiers";
+  h->select(app::SelType::Province, pk.pid);
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("audit_tbmt_global_mod_on_province"));
+  // Регрессия: фишка такого модификатора в провинции помечена предупреждением, а выбор «Добавить модификатор» его
+  // не предлагает (w::modifierList с ModScope::Local).
+  CHECK(app::w::modifierInert(*h->world().modifier(global), app::w::ModScope::Local));
+  CHECK(!app::w::modifierInert(*h->world().modifier(global), app::w::ModScope::Any));
+  CHECK_MSG(h->uiRect("mods.warn." + std::to_string(global)) != nullptr,
+            std::string("модификатор «") + h->world().modifier(global)->name +
+                "» только с глобальными эффектами добавлен в список провинции без предупреждения и ни на что не влияет");
 }

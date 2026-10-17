@@ -132,10 +132,7 @@ class ExportDialog final : public Dialog {
       s.exp.reset();
       s.saving = true;
       s.save = jobs::submit([img = std::move(img), path = s.path]() mutable -> std::string {
-        codec::RgbaImage out;
-        out.w = img.w;
-        out.h = img.h;
-        out.rgba = img.toRgba();
+        const codec::RgbaImage out = img.toRgbaImage();
         img = gfx::Image();
         return codec::writePngFile(path, out, 6) ? std::string() : "не удалось записать «" + path + "»";
       });

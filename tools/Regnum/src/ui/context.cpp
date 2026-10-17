@@ -234,7 +234,6 @@ Window* beginWindow(WidgetId id, WinKind kind, int rank, u32 order, RectF r) {
   if (w->lastFrame != c.frame) {
     w->list.clear();
     w->prevContentSize = w->contentSize;
-    w->wasHidden = w->hidden;
     w->hidden = false;
     w->blur = false;
     w->backdrop = false;
@@ -353,7 +352,6 @@ void beginFrame(float logicalW, float logicalH, float dpiScale, double timeSec) 
   c.ds = c.dpi * c.uiScale;
   c.view = RectF{0, 0, std::max(1.f, logicalW) / c.uiScale, std::max(1.f, logicalH) / c.uiScale};
   c.dt = c.frame == 0 ? 1.f / 60 : float(clamp(timeSec - c.time, 0.0, 0.25));
-  c.prevTime = c.time;
   c.time = timeSec;
   c.frame++;
 
@@ -398,9 +396,7 @@ void beginFrame(float logicalW, float logicalH, float dpiScale, double timeSec) 
     }
   }
   if (!c.hoveredWin && modalRank < 0) c.hoveredWin = c.root;
-  for (Window* w : c.frameWins) w->prevRect = w->rect;
 
-  c.prevFocusList.swap(c.focusList);
   c.focusList.clear();
   c.focusSeen = false;
   c.seenIds.clear();
@@ -660,31 +656,6 @@ float animate(WidgetId id, float target, float duration) {
   if (t >= 1 || !std::isfinite(t)) a.value = a.to;
   else {
     a.value = a.from + (a.to - a.from) * easeOut(t);
-    c.animating = true;
-  }
-  return a.value;
-}
-
-Color animateColor(WidgetId id, Color target, float duration) {
-  struct CA {
-    Color from, to, value;
-    double start = 0;
-    bool init = false;
-  };
-  Ctx& c = C();
-  CA& a = state<CA>(id);
-  if (!a.init) {
-    a.from = a.to = a.value = target;
-    a.init = true;
-  } else if (!(a.to == target)) {
-    a.from = a.value;
-    a.to = target;
-    a.start = c.time;
-  }
-  float t = duration > 0 ? float((c.time - a.start) / duration) : 1.f;
-  if (t >= 1) a.value = a.to;
-  else {
-    a.value = Color::mix(a.from, a.to, easeOut(t));
     c.animating = true;
   }
   return a.value;

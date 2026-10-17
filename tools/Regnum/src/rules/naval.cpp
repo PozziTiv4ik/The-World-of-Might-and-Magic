@@ -1,4 +1,4 @@
-// Regnum — флот (ТЗ «Доработки №3», п.3, 6; «Доработки №4», п.9): вместимость, посадка войска на флот и высадка,
+// Regnum — флот: вместимость, посадка войска на флот и высадка,
 // обмен отрядами между объектами одной фракции, возврат войска из союзного объекта, новый флот у верфи.
 //
 // Войско на борту — обычная запись Army с carrier (флот), у флота — cargo (войско). Его положение всегда равно
@@ -12,20 +12,6 @@ namespace rg::rules {
 using namespace detail;
 
 namespace {
-
-std::vector<Id> factionsOf(const Army& a) {
-  std::vector<Id> r;
-  for (const ArmyGroup& g : a.groups)
-    if (!contains(r, g.faction)) r.push_back(g.faction);
-  return r;
-}
-
-i64 unitsOf(const Army& a) {
-  i64 n = 0;
-  for (const ArmyGroup& g : a.groups)
-    for (const ArmyUnit& u : g.units) n += u.count;
-  return n;
-}
 
 // Все фракции a есть в b.
 bool subsetOf(const Army& a, const Army& b) {
@@ -232,7 +218,7 @@ void combineCargo(Tx& tx, Id target, Id source) {
   // Полководец — прежний у войска target; нет — полководец войска source (одна фракция) или первый герой лидера.
   if (!m.commander && B.commander && sameState) m.commander = B.commander;
   if (!m.commander && !m.groups.empty() && !m.groups[0].heroes.empty()) m.commander = m.groups[0].heroes.front();
-  if (!wasAllied && m.allied()) m.name = "Союзное войско";
+  if (!wasAllied && m.allied()) m.name = kAlliedArmy;
   addLog(tx, LogKind::Army, "Войска на борту объединены: " + an + " и " + bn, LogRefs{0, ct, factionsOf(m)});
 }
 
@@ -568,7 +554,7 @@ Id returnGroup(Tx& tx, Id army, Id faction) {
   keep.groups.erase(std::remove_if(keep.groups.begin(), keep.groups.end(), [&](const ArmyGroup& x) { return x.faction == faction; }), keep.groups.end());
   const bool cmdMoves = a.commander && contains(g.heroes, a.commander);
   if (cmdMoves) keep.commander = 0;
-  if (!keep.allied() && (keep.name == "Союзное войско" || keep.name == "Союзный флот")) keep.name = defaultArmyName(tx.w(), a.kind, keep.groups[0].faction);
+  if (!keep.allied() && isAlliedName(keep.name)) keep.name = defaultArmyName(tx.w(), a.kind, keep.groups[0].faction);
   Army n;
   n.kind = a.kind;
   n.name = defaultArmyName(tx.w(), a.kind, faction);

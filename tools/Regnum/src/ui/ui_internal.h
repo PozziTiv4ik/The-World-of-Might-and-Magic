@@ -67,11 +67,8 @@ struct Window {
   int rank = 0;
   u32 order = 0;
   RectF rect;             // этого кадра
-  RectF prevRect;         // прошлого кадра (наведение)
-  RectF inputRect;        // прямоугольник для наведения (по прошлому кадру)
   u64 lastFrame = 0;
   bool hidden = false;    // кадр замера: не рисуется, ввод не принимает
-  bool wasHidden = false;
   float alpha = 1;
   float dy = 0;           // сдвиг появления
   WidgetId scope = 0;     // область фокуса (0 — основная)
@@ -107,7 +104,7 @@ struct Frame {
   float stackH = 0;
   Align align = Align::Left;
   WidgetId stackId = 0;
-  float stackStart = 0, flexAt = -1, flexShift = 0;
+  float stackStart = 0, flexAt = -1;
   // прокрутка
   WidgetId scrollId = 0;
   float scrollY = 0;
@@ -123,7 +120,7 @@ struct Frame {
   float pad = 0;
   float headerH = 0;
   bool horizontal = false;
-  bool card = true;
+  bool card = true;       // раздел — карточкой; у карточки (CardK) — подсветка рамки при наведении (CardOpt::hoverable)
   bool placed = false;    // что-то размещено
   Color surface{0, 0, 0, 0};   // цвет подложки (для затуханий у краёв прокрутки); a = 0 — как у родителя
 };
@@ -197,7 +194,7 @@ struct Ctx {
   // кадр
   float dpi = 1, ds = 1;       // ds = dpi × uiScale
   RectF view;
-  double time = 0, prevTime = 0;
+  double time = 0;
   float dt = 0;
   u64 frame = 0;
   bool inFrame = false;
@@ -227,11 +224,9 @@ struct Ctx {
   WidgetId focus = 0;
   bool focusVisible = false;
   bool focusSeen = false;
-  WidgetId focusScope = 0;
   bool focusJustMoved = false;  // фокус перешёл с клавиатуры — прокрутить к элементу
-  WidgetId autofocusDone = 0;
   struct Focusable { WidgetId id; WidgetId scope; };
-  std::vector<Focusable> focusList, prevFocusList;
+  std::vector<Focusable> focusList;
   // окна
   std::unordered_map<WidgetId, std::unique_ptr<Window>> windows;
   std::vector<Window*> winStack;
@@ -321,7 +316,6 @@ struct DisableGuard {
 };
 
 // ---------------------------------------------------------------- служебное
-inline Color withAlpha(Color c, float k) { return c.alpha(k); }
 inline Color mixc(Color a, Color b, float t) { return Color::mix(a, b, clamp(t, 0.f, 1.f)); }
 float easeOut(float t);
 const gfx::TextStyle& styleOf(Font f);

@@ -1,4 +1,4 @@
-// Regnum — таблицы археологии (ТЗ «Доработки №2» и «№4», п.1): слоты археологических мест и шансы мест в них,
+// Regnum — таблицы археологии: слоты археологических мест и шансы мест в них,
 // уровни археологических групп, этапы исследования и их награды, трагедии и пробуждение бедствий, раскопки.
 //
 // Здесь только данные и чистые функции над справочниками (без изменения мира): их используют базовые записи мира
@@ -28,7 +28,7 @@ struct BaseSite {
   const char* name;
   const char* icon;
 };
-const std::vector<BaseSite>& baseSites();   // десять мест в порядке ТЗ (п.4)
+const std::vector<BaseSite>& baseSites();   // десять мест в постоянном порядке
 namespace site {
 constexpr const char* Ruins = "ruins";
 constexpr const char* Crypt = "crypt";
@@ -42,13 +42,13 @@ constexpr const char* Labyrinth = "labyrinth";
 constexpr const char* Vault = "vault";
 }  // namespace site
 
-// Шансы мест в слоте (п.5): ключ места и целый процент.
+// Шансы мест в слоте: ключ места и целый процент.
 struct SiteChance {
   const char* key;
   int pct;
 };
 const std::vector<SiteChance>& slotTable(int slot);
-// Шансы мест слота с учётом уже занятых мест провинции (п.7): занятые убираются, их проценты (и недостача до 100 %)
+// Шансы мест слота с учётом уже занятых мест провинции: занятые убираются, их проценты (и недостача до 100 %)
 // раздаются оставшимся поровну целыми числами (остаток — по одному по порядку), сумма — ровно 100. Место без записи
 // в справочнике пропускается. Возвращает (место, %).
 std::vector<std::pair<Id, int>> slotChances(const Catalogs& c, int slot, const std::vector<Id>& taken);
@@ -56,7 +56,7 @@ std::vector<std::pair<Id, int>> slotChances(const Catalogs& c, int slot, const s
 Id pickSite(const std::vector<std::pair<Id, int>>& chances, Rng& rng);
 // Сокровище слота: случайный сундук из «списка наград» места для этого слота (0 — список пуст).
 Id pickChest(const Catalogs& c, Id site, int slot, Rng& rng);
-// Четыре слота новой провинции (п.6–8): места без повторов, сокровища по спискам наград; все слоты закрыты.
+// Четыре слота новой провинции: места без повторов, сокровища по спискам наград; все слоты закрыты.
 std::array<ArchSlot, kArchSlots> rollSlots(const Catalogs& c, u64 seed);
 // Зерно слотов провинции (детерминированно по ID).
 u64 provinceSeed(Id province);
@@ -65,7 +65,7 @@ bool slotDone(const ArchSlot& s, int slot);
 bool allDone(const Province& p);
 
 // ---------------------------------------------------------------- археологические группы
-// Уровни (п.2): опыт, содержание (золото за ход), дополнительный шанс успеха и живучесть, %.
+// Уровни: опыт, содержание (золото за ход), дополнительный шанс успеха и живучесть, %.
 struct LevelInfo {
   int minExp, maxExp;
   double upkeep, success, vitality;
@@ -77,7 +77,7 @@ constexpr double kMaxBonus = 25;          // шанс успеха и живуч
 int levelOf(int exp);                     // 1…5
 int levelMinExp(int level);               // наименьший опыт уровня
 
-// ---------------------------------------------------------------- этапы исследования (п.15)
+// ---------------------------------------------------------------- этапы исследования
 struct StageInfo {
   int lo = 0, hi = 0;                     // археологические сокровища lo…hi (0 — нет)
   std::vector<const char*> chests;        // «или один из сундуков» (ключи базовых сундуков); пусто — только сокровища
@@ -90,11 +90,11 @@ constexpr int kFailExp = 5;               // «Неудача»: +5 опыта (
 // Шанс «Успеха» этапа stage (1…) с бонусом группы, %, в пределах 0…100.
 double stageSuccess(int slot, int stage, double bonus);
 
-// ---------------------------------------------------------------- трагедии и бедствия (п.18–19)
+// ---------------------------------------------------------------- трагедии и бедствия
 constexpr double kTragedyWound = 70, kTragedyDanger = 25, kTragedyCalamity = 5;   // %
+static_assert(kTragedyWound + kTragedyDanger + kTragedyCalamity == 100, "исходы трагедии делят 100 %");
 constexpr double kDangerWound = 50;       // смертельная опасность: ранение 50 % + живучесть, иначе гибель или спасение
 constexpr double kDivineCost = 1000;      // «божественное вмешательство»: 1000 эссенции любого вида
-constexpr int kWoundTurns = 2, kPlagueTurns = 4;
 // Отряд войска без государства.
 struct WildUnit {
   const char* name;
@@ -114,7 +114,7 @@ constexpr const char* kPlagueTitle = "Древняя чума вышла на в
 constexpr const char* kGuardsTitle = "Стражи пробуждены!";
 const std::vector<WildUnit>& guardsArmy();   // «Древние стражи» 5000, тяжёлая пехота, «Механический»
 
-// ---------------------------------------------------------------- раскопки (п.17)
+// ---------------------------------------------------------------- раскопки
 struct DigOutcome {
   enum Kind : u8 { Nothing, Treasure, Scroll, Relic } kind = Nothing;
   int lo = 0, hi = 0;
@@ -122,7 +122,7 @@ struct DigOutcome {
 // Исход раскопок по броску 1…100: 50 % — 50–100 сокровищ, 25 % — 100–200, 9 % — 1 свиток, 1 % — реликвия, иначе ничего.
 DigOutcome digOutcome(int roll);
 
-// ---------------------------------------------------------------- базовые сундуки (п.10, 12)
+// ---------------------------------------------------------------- базовые сундуки
 struct BaseChestItem {
   ChestItemKind kind;
   double amount;
@@ -138,7 +138,7 @@ struct BaseChest {
   std::vector<BaseChestItem> items;
 };
 const std::vector<BaseChest>& baseChests();
-// Списки наград мест по слотам (п.12): ключ места → 4 списка ключей сундуков.
+// Списки наград мест по слотам: ключ места → 4 списка ключей сундуков.
 const std::vector<const char*>& baseRewards(std::string_view siteKey, int slot);
 
 }  // namespace rg::arch

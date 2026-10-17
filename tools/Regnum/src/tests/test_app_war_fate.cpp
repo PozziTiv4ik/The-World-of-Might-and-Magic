@@ -9,7 +9,6 @@ using namespace rg::apptest;
 // Битва: войско Хельдвига с двумя героями уничтожено — окно судьбы; один убит, другой взят в плен Валь-Кетрой.
 TEST(app_war_fate_after_battle) {
   Harness h("war_fate_battle", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   Id vk = factionByName(h->world(), "Валь-Кетра");

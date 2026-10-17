@@ -41,8 +41,8 @@ void drawVassals(App& a, Id id) {
     const bool rebel = rules::canVassalRebel(w, v);
     RectF rr = ui::next(74);
     a.markUi("vassals.row." + std::to_string(v), rr);
-    ui::draw::rect(rr, rebel ? t.danger.alpha(t.dark ? 0.09f : 0.07f) : (t.dark ? t.stripe : t.surface3.alpha(0.55f)), t.radiusCard);
-    ui::draw::rectStroke(rr, rebel ? t.danger.alpha(0.35f) : (t.dark ? t.hover : t.border), t.radiusCard, 1);
+    ui::draw::rect(rr, rebel ? t.danger.alpha(0.09f) : t.stripe, t.radiusCard);
+    ui::draw::rectStroke(rr, rebel ? t.danger.alpha(0.35f) : t.hover, t.radiusCard, 1);
     ui::Area area(rr.inset(12, 8), 0);
     ui::gap(4);
     {
@@ -70,7 +70,7 @@ bool hasVassals(App& a, Id id) {
   return f && f->isState() && !rules::vassalsOf(a.world(), id).empty();
 }
 
-TabReg tab({kTabVassals, "banner", "Вассалы", 45, SelType::Faction, hasVassals, drawVassals});
+TabReg tab({kTabVassals, "banner", "Вассалы", 46, SelType::Faction, hasVassals, drawVassals});
 
 }  // namespace
 }  // namespace rg::app

@@ -112,14 +112,14 @@ struct SplitDialog final : Dialog {
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     a.markUi("split.cancel");
-    ui::Disabled dis(a.readOnly());
+    ui::Disabled dis(!playsLeader(a, w, army));   // разделение — за лидера объекта
     if (ui::button("Разделить", {.variant = ui::Variant::Primary, .icon = "split", .disabled = !why.empty()}) && why.empty()) {
       rules::SplitSpec spec;
       for (auto& [k, v] : take)
         if (v > 0) spec.units[k] = v;
       spec.heroes = heroes;
       Id nid = 0, src = army;
-      if (a.act(fleet ? "Разделить флот" : "Разделить войско", [&](Tx& tx) { nid = rules::splitArmy(tx, src, spec); })) {
+      if (playsLeader(a, w, src) && a.play(fleet ? "Разделить флот" : "Разделить войско", [&](Tx& tx) { nid = rules::splitArmy(tx, src, spec); })) {
         a.select(SelType::Army, nid);
         if (const Army* n = a.world().army(nid)) a.toast("Выделено: «" + objectName(*n) + "»", ToastKind::Success, "split");
         return false;
@@ -143,11 +143,7 @@ DialogReg reg({"army.split", makeRegistered});
 
 void openSplit(App& a, Id army) {
   const Army* ar = a.world().army(army);
-  if (!ar) return;
-  if (a.readOnly()) {
-    a.act("Разделить", [](Tx&) {});
-    return;
-  }
+  if (!ar || !w::checkPlay(a, ar->leader())) return;   // разделение — за лидера объекта
   if (unitCount(*ar) < 2) {
     a.toast(std::string("Делить нечего: в ") + (ar->isFleet() ? "флоте" : "войске") + " меньше двух " + (ar->isFleet() ? "кораблей" : "воинов"),
             ToastKind::Info, "split");

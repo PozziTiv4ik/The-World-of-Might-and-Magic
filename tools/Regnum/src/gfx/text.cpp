@@ -550,8 +550,6 @@ bool initFonts(std::string* error) {
   return ok;
 }
 
-bool fontsReady() { return ensureFonts(); }
-
 std::vector<std::string> fontReport() {
   std::vector<std::string> out;
   if (!ensureFonts()) {

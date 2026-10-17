@@ -1,4 +1,4 @@
-// Regnum — формирование и резерв войск и флота (ТЗ «Общие доработки», п.10–11, 14; «Ввод новых механик», п.1–4):
+// Regnum — формирование и резерв войск и флота:
 // отряды из населения (нежить — из трупов, демоны — из демонической энергии; звери, чудовища, механизмы и элементали —
 // без людей), ключевой и дополнительные ресурсы, эссенции элементов, особые отряды — при постройке доступа; корабли
 // за ресурсы констант стоимости, 2 хода до резерва; роспуск резерва в население; флот в торговле; оккупационный
@@ -11,15 +11,13 @@ using namespace detail;
 
 namespace {
 
-constexpr i64 kMaxCount = 1000000000000000LL;
-
 i64 getOr0(const std::map<Id, i64>& m, Id k) {
   auto it = m.find(k);
   return it == m.end() ? 0 : it->second;
 }
 
 // Что стоит один воин строки армии: людей (1 — живые и прочие) или ресурса (трупы, энергия). Звери, чудовища,
-// военные механизмы и элементали не требуют ни населения, ни трупов, ни энергии (ТЗ «Ввод новых механик», п.3).
+// военные механизмы и элементали не требуют ни населения, ни трупов, ни энергии.
 struct Price {
   i64 people = 0;
   Id res = 0;
@@ -92,15 +90,13 @@ Id mirrorRow(Tx& tx, Id rebelState, Id origin, const ArmyRow& src) {
       return r.id;
   Id id = addArmyRow(tx, rebelState, src.type, src.name, 0, src.upkeep);
   setRowRace(tx, rebelState, id, race);
-  for (ArmyRow& r : tx.faction(rebelState).army)
-    if (r.id == id) {   // цена найма и особый отряд — как у прежней строки
-      r.keyRes = src.keyRes;
-      r.keyPer = src.keyPer;
-      r.extra = src.extra;
-      r.essence = src.essence;
-      r.essUpkeep = src.essUpkeep;
-      r.special = src.special;
-    }
+  ArmyRow& r = *findById(tx.faction(rebelState).army, id);   // цена найма и особый отряд — как у прежней строки
+  r.keyRes = src.keyRes;
+  r.keyPer = src.keyPer;
+  r.extra = src.extra;
+  r.essence = src.essence;
+  r.essUpkeep = src.essUpkeep;
+  r.special = src.special;
   return id;
 }
 
@@ -144,7 +140,7 @@ RecruitCost recruitCost(const World& w, Id faction, Id row, i64 count) {
     return c;
   }
   if (const ArmyRow* r = f->armyRow(row); r && r->merc) {
-    // Наёмники (ТЗ «Доработки №3», п.13): только золото за найм, без населения и ресурсов; лимит — гильдии наёмников.
+    // Наёмники: только золото за найм, без населения и ресурсов; лимит — гильдии наёмников.
     const i64 limit = mercLimit(w, faction), have = mercCount(w, faction);
     if (limit <= 0) c.problems.push_back("Нужна достроенная «Гильдия Наемников»");
     else if (have + count > limit)
@@ -158,7 +154,7 @@ RecruitCost recruitCost(const World& w, Id faction, Id row, i64 count) {
     return c;
   }
   if (const ArmyRow* r = f->armyRow(row)) {
-    // Особый отряд нанимается, пока у государства есть достроенная постройка доступа (ТЗ «Ввод новых механик», п.4).
+    // Особый отряд нанимается, пока у государства есть достроенная постройка доступа.
     if (r->special) {
       const SpecialUnit* s = w.special(r->special);
       if (s && !hasSpecialAccess(w, faction, r->special)) {
@@ -220,7 +216,7 @@ RecruitCost recruitCost(const World& w, Id faction, Id row, i64 count) {
     return c;
   }
   if (const FleetRow* r = f->fleetRow(row)) {
-    // Корабли строят верфи (ТЗ «Доработки №3», п.2): уровень верфи открывает типы кораблей. У гильдии верфей нет —
+    // Корабли строят верфи: уровень верфи открывает типы кораблей. У гильдии верфей нет —
     // её флот формируется без верфи.
     if (f->isState() && !(shipyardAccess(w, faction) & (1u << int(r->type)))) {
       if (!shipyardAccess(w, faction)) c.problems.push_back("Нужна достроенная верфь: без неё корабли не строятся");
@@ -324,16 +320,13 @@ void disbandReserve(Tx& tx, Id faction, Id row, i64 count) {
   if (count > reserve) fail("В резерве только " + fmtInt(std::max<i64>(0, reserve)));
   std::string name;
   if (fleet) {
-    for (FleetRow& r : tx.faction(faction).fleet)
-      if (r.id == row) {
-        r.total -= count;
-        name = r.name;
-      }
+    FleetRow& r = *findById(tx.faction(faction).fleet, row);
+    r.total -= count;
+    name = r.name;
   } else {
     const ArmyRow src = *f.armyRow(row);
     name = src.name;
-    for (ArmyRow& r : tx.faction(faction).army)
-      if (r.id == row) r.total -= count;
+    findById(tx.faction(faction).army, row)->total -= count;
     returnWarriors(tx, faction, src, count);
   }
   const bool people = !fleet && schema::needsPeople(f.armyRow(row)->type);
@@ -342,12 +335,7 @@ void disbandReserve(Tx& tx, Id faction, Id row, i64 count) {
          LogRefs{0, 0, {faction}});
 }
 
-// ================================================================ наёмники и верфи (ТЗ «Доработки №3», п.2, 12–13)
-bool mercType(UnitType t) {
-  return t == UnitType::LightInf || t == UnitType::MediumInf || t == UnitType::HeavyInf || t == UnitType::LightCav ||
-         t == UnitType::MediumCav || t == UnitType::HeavyCav;
-}
-
+// ================================================================ наёмники и верфи
 i64 mercLimit(const World& w, Id state) {
   const Faction* f = w.faction(state);
   if (!f || !f->isState()) return 0;
@@ -372,33 +360,6 @@ i64 mercCount(const World& w, Id state) {
   for (const Formation& q : f->forming)
     if (const ArmyRow* r = f->armyRow(q.row); r && r->merc) n += std::max<i64>(0, q.count);
   return n;
-}
-
-Id addMercRow(Tx& tx, Id state, UnitType type, const std::string& name, double hire) {
-  needState(tx.w(), state);
-  if (!mercType(type)) fail("Наёмники — только пехота (лёгкая, средняя, тяжёлая) и кавалерия (лёгкая, средняя, тяжёлая)");
-  if (mercLimit(tx.w(), state) <= 0) fail("Нужна достроенная «Гильдия Наемников»");
-  const double price = hire >= 0 ? hire : std::max(0.0, constantOf(tx.w(), schema::cst::MercHire).num);
-  needFinite(price, "Найм");
-  const std::string n = trim(name);
-  const Id id = addArmyRow(tx, state, type, n.empty() ? std::string("Наёмники: ") + schema::unitType(type).name : n);
-  for (ArmyRow& r : tx.faction(state).army)
-    if (r.id == id) {
-      r.merc = true;
-      r.hire = price;
-      r.race = schema::kRaceMercenary;
-    }
-  return id;
-}
-
-void setMercHire(Tx& tx, Id state, Id row, double hire) {
-  const Faction& f = needFaction(tx.w(), state);
-  const ArmyRow* r = f.armyRow(row);
-  if (!r || !r->merc) fail("Строка — не наёмники");
-  needFinite(hire, "Найм");
-  if (hire < 0) fail("Цена найма не может быть меньше нуля");
-  for (ArmyRow& x : tx.faction(state).army)
-    if (x.id == row) x.hire = hire;
 }
 
 u32 shipyardAccess(const World& w, Id state) {
@@ -478,7 +439,7 @@ void setArmyLoyalty(Tx& tx, Id army, double loyalty) {
   tx.army(army).loyalty = loyalty;
 }
 
-// ================================================================ верность гарнизона (ТЗ «Доработки», п.1)
+// ================================================================ верность гарнизона
 namespace {
 bool undeadOwner(const World& w, const Province& p) {
   const Faction* o = w.faction(p.owner);

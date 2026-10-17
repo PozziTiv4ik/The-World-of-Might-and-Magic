@@ -54,6 +54,7 @@ const EnumInfo kBuildingCats[int(BuildingCat::Count)] = {
   {"residential", "Жилые и сельско-хозяйственные", "b-residential", 0, 0x4f9d69},
   {"religious", "Религиозные", "b-religious", 0, 0x5b8fd6},
   {"cult", "Культовые", "b-cult", 0, 0x9b5bd6},
+  {"infrastructure", "Инфраструктурные", "b-infrastructure", 0, 0x3fae9f},
 };
 
 const EnumInfo kFactionKinds[3] = {
@@ -181,6 +182,16 @@ const BuiltinResource* builtinResource(std::string_view key) {
   return nullptr;
 }
 
+CatalogItem builtinResourceItem(const BuiltinResource& b) {
+  CatalogItem it;
+  it.name = b.name;
+  it.color = Color::hex(b.color);
+  it.icon = b.icon;
+  it.key = b.key;
+  it.builtin = true;
+  return it;
+}
+
 const EnumInfo kRarities[int(Rarity::Count)] = {
   {"common", "Обычная", "relic", 0, 0xe9e6dc},
   {"rare", "Редкая", "relic", 1, 0x3f8cff},
@@ -217,6 +228,32 @@ KeyRule shipKeyRule(ShipType t) {
   KeyRule k;
   if (t == ShipType::SeaMonster) k.group = grp::SeaMonsters;
   return k;
+}
+
+bool keyAllowed(const Catalogs& c, UnitType t, Id res) {
+  const KeyRule k = keyRule(t);
+  if (!res || !Catalogs::find(c.resources, res)) return false;
+  if (k.resKey) return c.resourceId(k.resKey) == res;
+  if (!k.group) return false;
+  const Id g = c.groupId(k.group);
+  if (!g || !c.resourceIn(res, g)) return false;
+  if (k.exclude)
+    if (Id x = c.groupId(k.exclude); x && c.resourceIn(res, x)) return false;
+  if (k.exclude2)
+    if (Id x = c.groupId(k.exclude2); x && c.resourceIn(res, x)) return false;
+  return true;
+}
+
+bool shipKeyAllowed(const Catalogs& c, ShipType t, Id res) {
+  const KeyRule k = shipKeyRule(t);
+  if (!res || !k.group || !Catalogs::find(c.resources, res)) return false;
+  const Id g = c.groupId(k.group);
+  return g && c.resourceIn(res, g);
+}
+
+bool isMercType(UnitType t) {
+  return t == UnitType::LightInf || t == UnitType::MediumInf || t == UnitType::HeavyInf || t == UnitType::LightCav ||
+         t == UnitType::MediumCav || t == UnitType::HeavyCav;
 }
 
 bool needsKeyResource(UnitType t) {
@@ -305,7 +342,7 @@ const std::vector<Modifier>& builtinModifiers() {
                    "Истекая сама, распространяется на соседние провинции.", {{F::PopGrowthPct, -5}}));
     v.push_back(mk(mod::PlagueImmunity, "Временный иммунитет", ModKind::Province, kImmunityTurns, "heal", 0x4fb09a,
                    "Пока действует, чуму установить нельзя."));
-    v.push_back(mk(mod::ArchWounded, "Ранение в ходе исследования", ModKind::ArchGroup, 2, "warning", 0xb5523b,
+    v.push_back(mk(mod::ArchWounded, "Ранение в ходе исследования", ModKind::ArchGroup, kWoundTurns, "warning", 0xb5523b,
                    "Группу нельзя отправлять на исследования."));
     v.push_back(mk(mod::ArchPlague, "Заражение чумой", ModKind::ArchGroup, kPlagueTurns, "plague", 0x7f8f2a,
                    "Группа заражает чумой провинцию, на которую её назначают."));
@@ -424,42 +461,60 @@ int findEnum(const EnumInfo* list, int n, std::string_view id) {
   return -1;
 }
 
-const char* idPrefix(Seq s) {
-  switch (s) {
-    case Seq::Province: return "p";
-    case Seq::Faction: return "f";
-    case Seq::Character: return "c";
-    case Seq::Modifier: return "m";
-    case Seq::Building: return "b";
-    case Seq::Tech: return "t";
-    case Seq::Army: return "a";
-    case Seq::Route: return "r";
-    case Seq::Deal: return "d";
-    case Seq::Log: return "l";
-    case Seq::Row: return "u";
-    case Seq::Council: return "k";
-    case Seq::Node: return "";
-    case Seq::Edge: return "";
-    case Seq::Resource: return "rs";
-    case Seq::Race: return "rc";
-    case Seq::Culture: return "cu";
-    case Seq::Religion: return "rl";
-    case Seq::Government: return "gv";
-    case Seq::Position: return "po";
-    case Seq::Symbol: return "";
-    case Seq::Shape: return "";
-    case Seq::Essence: return "es";
-    case Seq::Relic: return "re";
-    case Seq::Special: return "su";
-    case Seq::ResGroup: return "rg";
-    case Seq::HeroClass: return "hc";
-    case Seq::Talent: return "tl";
-    case Seq::RelicGroup: return "rlg";
-    case Seq::ArchSite: return "as";
-    case Seq::Chest: return "ch";
-    case Seq::ArchGroup: return "ag";
-    default: return "x";
-  }
+const SeqInfo kSeqs[kSeqCount] = {
+  {"province", "p", "провинции"},
+  {"faction", "f", "фракции"},
+  {"character", "c", "персонажа"},
+  {"modifier", "m", "модификатора"},
+  {"building", "b", "постройки"},
+  {"tech", "t", "технологии"},
+  {"army", "a", "войска"},
+  {"route", "r", "маршрута"},
+  {"deal", "d", "сделки"},
+  {"log", "l", "записи хроники"},
+  {"row", "u", "строки войск"},
+  {"council", "k", "места совета"},
+  {"node", "", "узла"},
+  {"edge", "", "дуги"},
+  {"resource", "rs", "ресурса"},
+  {"race", "rc", "расы"},
+  {"culture", "cu", "культуры"},
+  {"religion", "rl", "религии"},
+  {"government", "gv", "формы правления"},
+  {"position", "po", "должности"},
+  {"symbol", "", "знака карты"},
+  {"shape", "", "фигуры карты"},
+  {"essence", "es", "эссенции"},
+  {"relic", "re", "реликвии"},
+  {"special", "su", "особого отряда"},
+  {"resGroup", "rg", "группы ресурсов"},
+  {"heroClass", "hc", "класса героя"},
+  {"talent", "tl", "таланта"},
+  {"relicGroup", "rlg", "группы реликвий"},
+  {"archSite", "as", "археологического места"},
+  {"chest", "ch", "сундука сокровищ"},
+  {"archGroup", "ag", "археологической группы"},
+  {"subClass", "sc", "подкласса героя"},
+};
+
+const SeqInfo& seqInfo(Seq s) {
+  static const SeqInfo kUnknown{"", "x", "объекта"};
+  return int(s) >= 0 && int(s) < kSeqCount ? kSeqs[int(s)] : kUnknown;
+}
+
+const CatalogListInfo kCatalogLists[kCatalogListCount] = {
+  {CatalogList::Resources, "resources", Seq::Resource, &Catalogs::resources, "Ресурс", "Новый ресурс"},
+  {CatalogList::Races, "races", Seq::Race, &Catalogs::races, "Раса", "Новая раса"},
+  {CatalogList::Cultures, "cultures", Seq::Culture, &Catalogs::cultures, "Культура", "Новая культура"},
+  {CatalogList::Religions, "religions", Seq::Religion, &Catalogs::religions, "Религия", "Новая религия"},
+  {CatalogList::Governments, "governments", Seq::Government, &Catalogs::governments, "Форма правления", "Новая форма правления"},
+  {CatalogList::Positions, "positions", Seq::Position, &Catalogs::positions, "Должность", "Новая должность"},
+  {CatalogList::Essences, "essences", Seq::Essence, &Catalogs::essences, "Эссенция", "Новая эссенция"},
+};
+
+const CatalogListInfo& catalogListInfo(CatalogList l) {
+  if (int(l) < 0 || int(l) >= kCatalogListCount) fail("Неизвестный справочник");
+  return kCatalogLists[int(l)];
 }
 
 }  // namespace rg::schema

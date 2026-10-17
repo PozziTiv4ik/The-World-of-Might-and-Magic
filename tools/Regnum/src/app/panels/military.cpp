@@ -150,6 +150,19 @@ std::string fmtMoney(double v) { return fmtNum(v, 3); }   // лишние нул
 
 Color leaderColor(const World& w, const Army& a) { return w::factionColor(w, a.leader()); }
 
+bool playsLeader(App& a, const World& w, Id army) {
+  const Army* ar = w.army(army);
+  return ar && a.canPlay(ar->leader());
+}
+
+bool playsAny(App& a, const World& w, Id army) {
+  const Army* ar = w.army(army);
+  if (!ar) return false;
+  for (const ArmyGroup& g : ar->groups)
+    if (a.canPlay(g.faction)) return true;
+  return false;
+}
+
 Color allyColor(const World& w, const Army& a) {
   if (!a.allied()) return Color(0, 0, 0, 0);
   return w::factionColor(w, a.groups[1].faction);
@@ -201,7 +214,7 @@ void objectBadgeIn(const World& w, const Army& a, RectF r, bool selected) {
     }
     ui::draw::pathStroke(arc, allyColor(w, a), ring, gfx::Cap::Butt);
   }
-  ui::draw::ring(cx, cy, R, 1, Color(0, 0, 0, t.dark ? 90 : 50));
+  ui::draw::ring(cx, cy, R, 1, Color(0, 0, 0, 90));
   // Крупный значок: вид объекта (войско или флот) — в уголке.
   if (d >= 40) {
     const float bs = std::round(d * 0.36f);
@@ -217,8 +230,6 @@ void figure(const World& w, const Army& a, float size, bool selected) {
   RectF r = ui::next(size, size);
   objectBadgeIn(w, a, r, selected);
 }
-
-void cellTip(std::string_view key, RectF r, std::string_view text) { ui::hoverTip(key, r, text); }
 
 void factionFlag(const World& w, Id faction, float width, float height) {
   const Faction* f = w.faction(faction);
@@ -295,7 +306,7 @@ void nameCell(RectF r, std::string_view name, std::string_view caption) {
     ui::draw::text(name.substr(cut + 1), RectF{r.x, y0 + h, r.w, h}, ui::Font::Body, t.text);
     clipped = ui::measure(name.substr(cut + 1), ui::Font::Body) > r.w + 0.5f;
   }
-  if (clipped) cellTip("##name", r, name);
+  if (clipped) ui::hoverTip("##name", r, name);
 }
 
 void unitCell(RectF r, const UnitRow& row, bool accent, std::string_view caption, bool hire) {
@@ -339,11 +350,7 @@ void unitCell(RectF r, const UnitRow& row, bool accent, std::string_view caption
 // ================================================================ действия
 void askDisband(App& a, Id army) {
   const Army* ar = a.world().army(army);
-  if (!ar) return;
-  if (a.readOnly()) {
-    a.act("Расформировать", [](Tx&) {});   // сообщение о просмотре прошлого хода
-    return;
-  }
+  if (!ar || !w::checkPlay(a, ar->leader())) return;   // расформирование — за лидера объекта
   bool fleet = ar->isFleet();
   i64 n = unitCount(*ar);
   std::string title = fleet ? "Расформировать флот?" : "Расформировать войско?";
@@ -353,16 +360,16 @@ void askDisband(App& a, Id army) {
                      " в резерв. Герои останутся у фракции.";
   std::string label = std::string(fleet ? "Расформировать флот " : "Расформировать войско ") + objectName(*ar);
   a.confirm(title, text, "Расформировать", true, [army, label](App& x) {
-    if (x.act(label, [&](Tx& tx) { rules::disband(tx, army); })) x.toast("Отряды возвращены в резерв", ToastKind::Success, "disband");
+    if (x.play(label, [&](Tx& tx) { rules::disband(tx, army); })) x.toast("Отряды возвращены в резерв", ToastKind::Success, "disband");
   });
 }
 
 void dissolveAllied(App& a, Id army) {
   const Army* ar = a.world().army(army);
-  if (!ar || !ar->allied()) return;
+  if (!ar || !ar->allied() || !w::checkPlay(a, ar->leader())) return;   // союзом управляет лидер
   bool fleet = ar->isFleet();
   std::vector<Id> out;
-  if (a.act(fleet ? "Распустить союзный флот" : "Распустить союзное войско", [&](Tx& tx) { out = rules::dissolveAllied(tx, army); })) {
+  if (a.play(fleet ? "Распустить союзный флот" : "Распустить союзное войско", [&](Tx& tx) { out = rules::dissolveAllied(tx, army); })) {
     a.toast(std::string(fleet ? "Союзный флот распущен: " : "Союзное войско распущено: ") + std::to_string(out.size()) + " " +
                 plural(i64(out.size()), "объект", "объекта", "объектов") + " на карте",
             ToastKind::Success, "dissolve");
@@ -371,11 +378,7 @@ void dissolveAllied(App& a, Id army) {
 
 void askRemoveRow(App& a, Id faction, Id row, bool fleet) {
   auto r = unitRow(a.world(), faction, row, fleet);
-  if (!r) return;
-  if (a.readOnly()) {
-    a.act("Удалить строку", [](Tx&) {});
-    return;
-  }
+  if (!r || !w::checkPlay(a, faction)) return;   // роспуск строки — игровое действие за фракцию
   const World& w = a.world();
   auto c = rules::calc(w);
   const rules::RowCalc* rc = rowCalc(*c, faction, row, fleet);
@@ -398,7 +401,7 @@ void askRemoveRow(App& a, Id faction, Id row, bool fleet) {
   if (forming > 0) parts.push_back("Формирование " + fmtCount(forming) + " отменится с возвратом.");
   std::string text = parts.empty() ? std::string("Строка будет удалена из таблицы.") : join(parts, " ");
   a.confirm(std::string(fleet ? "Удалить судно «" : "Удалить отряд «") + r->name + "»?", text, "Удалить", true, [faction, row, fleet](App& x) {
-    x.act(fleet ? "Удалить судно из таблицы флота" : "Удалить отряд из таблицы войск", [&](Tx& tx) { rules::removeRow(tx, faction, row); });
+    x.play(fleet ? "Удалить судно из таблицы флота" : "Удалить отряд из таблицы войск", [&](Tx& tx) { rules::removeRow(tx, faction, row); });
   });
 }
 

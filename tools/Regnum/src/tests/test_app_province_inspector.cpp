@@ -1,52 +1,13 @@
 // Сценарии инспектора провинции на демонстрационном мире: шапка (переименование, меню, удаление с подтверждением),
-// смена владельца (цвет карты, отмена), галочка «Морская провинция», величина и тип города (слоты), оккупация,
-// снимки вкладки «Обзор» (тёмная и светлая темы) и морской провинции.
+// смена владельца (цвет карты, отмена), галочка «Морская провинция» (столица переходит, оккупация снимается),
+// величина и тип города (слоты), оккупация, снимки вкладки «Обзор» (цветокор по умолчанию и другой) и морской
+// провинции, просмотр прошлого хода.
 #include "tests/test_app_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
 
 namespace {
-
-// Тестовые регистрации других сценариев («test.*») на время сценария убираются из реестров.
-struct HideTestRegs {
-  std::vector<app::TabDef> tabs;
-  std::vector<app::HeaderDef> headers;
-  std::vector<app::DrawerDef> drawers;
-  template <class T>
-  static void strip(std::vector<T>& v) {
-    v.erase(std::remove_if(v.begin(), v.end(), [](const T& d) { return std::string_view(d.id).starts_with("test."); }), v.end());
-  }
-  HideTestRegs() {
-    auto& t = const_cast<std::vector<app::TabDef>&>(app::tabs());
-    auto& h = const_cast<std::vector<app::HeaderDef>&>(app::headers());
-    auto& d = const_cast<std::vector<app::DrawerDef>&>(app::drawers());
-    tabs = t;
-    headers = h;
-    drawers = d;
-    strip(t);
-    strip(h);
-    strip(d);
-  }
-  ~HideTestRegs() {
-    const_cast<std::vector<app::TabDef>&>(app::tabs()) = tabs;
-    const_cast<std::vector<app::HeaderDef>&>(app::headers()) = headers;
-    const_cast<std::vector<app::DrawerDef>&>(app::drawers()) = drawers;
-  }
-};
-
-const Province* prov(Harness& h, Id pid) { return h->world().province(pid); }
-
-// Выбрать провинцию щелчком по карте и открыть вкладку.
-Id openProvince(Harness& h, const char* tab, Id skip = 0) {
-  auto vp = h.visibleProvince(skip);
-  CHECK(vp.has_value());
-  h->ui.tabOf[app::SelType::Province] = tab;
-  h.click(vp->second.x, vp->second.y);
-  h.settle();
-  CHECK(h->ui.sel == (app::Selection{app::SelType::Province, vp->first}));
-  return vp->first;
-}
 
 bool clickMark(Harness& h, const std::string& name) { return h.clickUi(name); }
 
@@ -70,13 +31,12 @@ std::vector<u32> sample(Harness& h, gfx::Pt c) {
 }  // namespace
 
 TEST(app_province_owner_change_and_undo) {
-  HideTestRegs hide;
   Harness h("province_owner");
   h.demo();
   h.waitMap();
   auto vp = h.visibleProvince();
   CHECK(vp.has_value());
-  Id pid = openProvince(h, "province.overview");
+  Id pid = clickProvince(h, "province.overview");
   CHECK_EQ(pid, vp->first);
   CHECK(h->uiRect("province.owner") != nullptr);
   CHECK(h->uiRect("province.ownerPill") != nullptr);
@@ -131,10 +91,9 @@ TEST(app_province_owner_change_and_undo) {
 }
 
 TEST(app_province_sea_checkbox_hides_info) {
-  HideTestRegs hide;
   Harness h("province_sea");
   h.demo();
-  Id pid = openProvince(h, "province.overview");
+  Id pid = clickProvince(h, "province.overview");
   Province before = *prov(h, pid);
   CHECK(!before.sea);
   CHECK(h->uiRect("province.owner") != nullptr);
@@ -175,11 +134,42 @@ TEST(app_province_sea_checkbox_hides_info) {
   CHECK(!prov(h, pid)->sea);
 }
 
+// ---------------------------------------------------------------- ТЗ 1.a.iii: столичная провинция становится морской
+TEST(app_province_sea_toggle_capital) {
+  Harness h("audit_tzprov_seacap", 1440, 900);
+  h.demo();
+  const World& w = h->world();
+  Id st = 0, cap = 0;
+  w.factions.each([&](const Faction& f) {
+    if (!st && f.isState() && f.capital && w.province(f.capital)) {
+      st = f.id;
+      cap = f.capital;
+    }
+  });
+  CHECK(st != 0);
+  h->select(app::SelType::Province, cap);
+  h.settle();
+  CHECK(h.clickUi("province.sea"));
+  h.settle();
+  CHECK(h->world().province(cap)->sea);
+  Id capNow = h->world().faction(st)->capital;
+  bool occupiedLeft = h->world().province(cap)->occupied;
+  std::printf("  capital of state after sea toggle: %lld (sea province %lld); occupied flag kept %d; owner kept %lld\n", (long long)capNow, (long long)cap,
+              int(occupiedLeft), (long long)h->world().province(cap)->owner);
+  CHECK_MSG(capNow != cap, "морская провинция осталась столицей государства (setCapital запрещает морскую столицу)");
+  CHECK_MSG(!occupiedLeft, "у морской провинции осталась оккупация");
+  // Сведения о государстве: вкладка «Обзор» государства показывает столицу.
+  h->select(app::SelType::Faction, st);
+  h.settle();
+  h.waitMap();
+  h.dropToasts();
+  CHECK(h.shot("audit_tzprov_sea_capital_faction"));
+}
+
 TEST(app_province_overview_fields) {
-  HideTestRegs hide;
   Harness h("province_overview", 1440, 1180);
   h.demo();
-  Id pid = openProvince(h, "province.overview");
+  Id pid = clickProvince(h, "province.overview");
   const Province* p = prov(h, pid);
   // Величина: «Большая» — третий сегмент; слоты пересчитаны.
   const RectF* sz = h->uiRect("province.size");
@@ -191,12 +181,13 @@ TEST(app_province_overview_fields) {
   CHECK_EQ(int(prov(h, pid)->size), int(ProvSize::Large));
   int slots1 = rules::calc(h->world())->province(pid)->slots;
   CHECK_EQ(slots1 - slots0, schema::kProvSizes[2].value - schema::kProvSizes[was].value);
-  // Тип города: «Аванпост» — первый сегмент.
+  // Тип города — по населению: сегменты только показывают его, щелчок ничего не меняет.
   const RectF* ct = h->uiRect("province.city");
   CHECK(ct != nullptr);
+  const CityType before = rules::cityType(*prov(h, pid));
   h.click(ct->x + ct->w * (0.5f / 4), ct->cy());
   h.settle();
-  CHECK_EQ(int(prov(h, pid)->city), int(CityType::Outpost));
+  CHECK_EQ(int(rules::cityType(*prov(h, pid))), int(before));
   // Столица: ввод и Enter.
   const RectF* cap = h->uiRect("province.capital");
   CHECK(cap != nullptr);
@@ -222,16 +213,13 @@ TEST(app_province_overview_fields) {
   h.key(Key::Z, ctrl());
   CHECK(prov(h, pid)->capital != "Новоград");
   h.key(Key::Z, ctrl());
-  CHECK_EQ(int(prov(h, pid)->city), int(p->city));
-  h.key(Key::Z, ctrl());
   CHECK_EQ(int(prov(h, pid)->size), was);
 }
 
 TEST(app_province_rename_and_menu) {
-  HideTestRegs hide;
   Harness h("province_rename");
   h.demo();
-  Id pid = openProvince(h, "province.overview");
+  Id pid = clickProvince(h, "province.overview");
   std::string old = prov(h, pid)->name;
   // F2 — переименование на месте.
   h.key(Key::F2);
@@ -298,7 +286,6 @@ TEST(app_province_rename_and_menu) {
 }
 
 TEST(app_province_overview_screens) {
-  HideTestRegs hide;
   {
     Harness h("province_shot_dark", 1440, 1000);
     h.demo();
@@ -338,7 +325,7 @@ TEST(app_province_overview_screens) {
   {
     Harness h("province_shot_light", 1440, 1000, 1, kAltScheme);
     h.demo();
-    Id pid = openProvince(h, "province.overview");
+    Id pid = clickProvince(h, "province.overview");
     (void)pid;
     h.waitMap();
     h.dropToasts();
@@ -348,7 +335,6 @@ TEST(app_province_overview_screens) {
 }
 
 TEST(app_province_read_only_history) {
-  HideTestRegs hide;
   Harness h("province_readonly");
   h.demo();
   CHECK(h->endTurnNow());
@@ -357,7 +343,7 @@ TEST(app_province_read_only_history) {
   CHECK(h->viewTurn(1));
   h.settle();
   CHECK(h->readOnly());
-  Id pid = openProvince(h, "province.overview");
+  Id pid = clickProvince(h, "province.overview");
   // Прошлый ход: правка недоступна — нет карандаша, галочка и команды не меняют мир.
   CHECK(h->uiRect("province.name") != nullptr);
   CHECK(h->uiRect("province.renameBtn") == nullptr);

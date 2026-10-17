@@ -192,14 +192,14 @@ void TileStore::available(u64 style, const Box2& box, std::vector<TileView>& out
   out.clear();
   std::lock_guard<std::mutex> lk(s_->mu);
   for (const auto& [k, e] : s_->tiles)
-    if (e.img && (style == 0 || k.style == style) && e.box.intersects(box)) out.push_back({k, e.img, e.have < e.want});
+    if (e.img && (style == 0 || k.style == style) && e.box.intersects(box)) out.push_back({k, e.img});
 }
 
 bool TileStore::get(const TileKey& k, TileView& out) const {
   std::lock_guard<std::mutex> lk(s_->mu);
   auto it = s_->tiles.find(k);
   if (it == s_->tiles.end() || !it->second.img) return false;
-  out = {k, it->second.img, it->second.have < it->second.want};
+  out = {k, it->second.img};
   return true;
 }
 

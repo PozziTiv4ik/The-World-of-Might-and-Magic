@@ -486,7 +486,7 @@ void renderAll(gfx::Canvas& cv) {
     if (layers[i].backdrop && layers[i].scrim >= 0.999f) { firstBackdrop = int(i); break; }
   if (firstBackdrop >= 0) {
     // Всё ниже модального окна неподвижно (ввод перекрыт) — размытый фон берётся из кеша, пока команды те же.
-    u64 h = hashMix(hashMix(u64(target.w) << 32 | u64(target.h), u64(std::bit_cast<u32>(ds))), c.th.dark ? 1 : 2);
+    u64 h = hashMix(hashMix(u64(target.w) << 32 | u64(target.h), u64(std::bit_cast<u32>(ds))), 1);
     for (int i = 0; i < firstBackdrop; i++) {
       h = hashMix(h, u64(layers[size_t(i)].rank) << 32 | layers[size_t(i)].order);
       h = mixF(mixF(h, layers[size_t(i)].alpha), layers[size_t(i)].dy);

@@ -52,7 +52,6 @@ const SchemeInfo& schemeInfo(int i) { return kSchemes[clampScheme(i)]; }
 Theme schemeTheme(int i) {
   const Tokens& k = kTokens[clampScheme(i)];
   Theme t;
-  t.dark = true;
   t.bg = Color::hex(k.bg);
   t.surface1 = Color::hex(k.surface1);
   t.surface2 = Color::hex(k.surface2);

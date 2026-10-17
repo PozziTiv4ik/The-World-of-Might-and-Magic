@@ -71,10 +71,11 @@ $Summary
 - Уточнить.
 "@
 
-Set-Content -LiteralPath $targetPath -Encoding UTF8 -Value $content
+# Bytes as written by Set-Content: the text and one platform line break.
+Write-WmmaText $targetPath ($content + [Environment]::NewLine)
 
 $mapPath = Join-Path $root '04_Локации\00_Карта_и_регионы.md'
-$mapText = Get-Content -Raw -Encoding UTF8 -LiteralPath $mapPath
+$mapText = Read-WmmaText $mapPath
 $row = "- ``$relativePath`` - $Summary"
 
 if ($mapText -notmatch [regex]::Escape($relativePath)) {
@@ -89,15 +90,10 @@ $row
         $mapText = $mapText.TrimEnd() + "`r`n$row"
     }
 
-    Set-Content -LiteralPath $mapPath -Encoding UTF8 -Value $mapText
+    Write-WmmaText $mapPath ($mapText + [Environment]::NewLine)
 }
 
-& (Join-Path $root 'tools\Собрать_индекс_локаций.ps1') -SkipCheck
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_индекс_локаций' -SkipCheck:$SkipCheck
 
 "Created location: $relativePath"
 }

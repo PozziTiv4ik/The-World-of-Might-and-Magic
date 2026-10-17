@@ -1,14 +1,22 @@
-// Regnum — помощники тестов geo: синтетические берега, проверка инвариантов, отладочные PNG.
+// Regnum — помощники тестов geo (и правил, которые от geo зависят): синтетические берега, проверка инвариантов,
+// запросы к граням, граф вручную, отладочные PNG.
+//
+//   Store s = geotest::initStore();                       // мир на синтетическом береге sampleCoast(), без истории
+//   geotest::provArea(w, p), terrainArea(w, Terrain::Land), allTerrain(w, p, Terrain::Sea), countKind(w, EdgeKind::Coast)
+//   geotest::errorOf(s, [&](Tx& tx) { ... })              // текст отказа; отказ не меняет мир
+//   geotest::addRing(tx, circle({50, 50}, 20, 12), EdgeKind::Coast, {0, Terrain::Land}, {0, Terrain::Sea})
 #pragma once
+#include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
-#include "codec/png.h"
 #include "core/world.h"
 #include "geo/geom.h"
 #include "geo/ops.h"
 #include "geo/topo.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
 
 namespace rg::geotest {
 
@@ -89,6 +97,122 @@ inline std::string issuesText(const std::vector<geo::Issue>& is, size_t max = 5)
     CHECK_NEAR(::rg::geotest::faceAreaSum(*_fs), double(W) * double(H), 1e-6 * double(W) * double(H)); \
   } while (0)
 
+// ---------------------------------------------------------------- контуры
+// Прямоугольник [x0, x1] × [y0, y1].
+inline std::vector<Vec2> rect(double x0, double y0, double x1, double y1) { return {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}; }
+
+// Правильный n-угольник, вписанный в окружность (c, r).
+inline std::vector<Vec2> circle(Vec2 c, double r, int n = 40) {
+  std::vector<Vec2> v;
+  for (int i = 0; i < n; i++) v.push_back({c.x + r * std::cos(2 * kPi * i / n), c.y + r * std::sin(2 * kPi * i / n)});
+  return v;
+}
+
+// ---------------------------------------------------------------- мир и запросы
+// Хранилище с миром на синтетическом береге sampleCoast(W, H), история отмены пуста.
+inline Store initStore(double W = 1000, double H = 600) {
+  Store s;
+  s.transact("init", [&](Tx& tx) { geo::initFromCoast(tx, sampleCoast(W, H)); });
+  s.clearHistory();
+  return s;
+}
+
+// Площадь области провинции (0 — области нет).
+inline double provArea(const World& w, Id p) {
+  auto fs = geo::buildFaces(w);
+  auto* s = fs->shape(p);
+  return s ? s->area : 0;
+}
+
+// Число граней провинции.
+inline size_t provFaces(const World& w, Id p) {
+  auto fs = geo::buildFaces(w);
+  auto* s = fs->shape(p);
+  return s ? s->faces.size() : 0;
+}
+
+// Площадь граней рельефа t: всех или только провинции prov.
+inline double terrainArea(const World& w, Terrain t, Id prov = Id(-1)) {
+  auto fs = geo::buildFaces(w);   // держать указатель: грани живут, пока жив FaceSet
+  double a = 0;
+  for (auto& f : fs->faces)
+    if (f.terrain == t && (prov == Id(-1) || f.province == prov)) a += f.area;
+  return a;
+}
+
+// Все грани провинции имеют рельеф t.
+inline bool allTerrain(const World& w, Id p, Terrain t) {
+  auto fs = geo::buildFaces(w);
+  auto* s = fs->shape(p);
+  if (!s) return false;
+  for (int f : s->faces)
+    if (fs->faces[size_t(f)].terrain != t) return false;
+  return true;
+}
+
+// Площадь грани, содержащей точку (0 — точка вне граней).
+inline double faceAreaAt(const World& w, Vec2 p) {
+  auto fs = geo::buildFaces(w);
+  int f = fs->locate(p);
+  return f < 0 ? 0 : fs->faces[size_t(f)].area;
+}
+
+// Число дуг вида k.
+inline int countKind(const World& w, EdgeKind k) {
+  int n = 0;
+  w.edges.each([&](const Edge& e) { n += e.kind == k; });
+  return n;
+}
+
+// Среди замечаний проверки графа есть замечание с кодом code.
+inline bool hasCode(const std::vector<geo::Issue>& is, const std::string& code) {
+  for (auto& i : is)
+    if (i.code == code) return true;
+  return false;
+}
+
+inline bool contains(const std::string& s, const char* sub) { return s.find(sub) != std::string::npos; }
+
+// Сообщение отказа операции над s (пусто — операция прошла). Отказ не меняет мир.
+template <class F> std::string errorOf(Store& s, F&& fn) {
+  World before = s.world();
+  try {
+    s.transact("probe", fn);
+  } catch (const UserError& e) {
+    CHECK_EQ(World::diff(before, s.world()), 0u);
+    return e.what();
+  }
+  return {};
+}
+
+// ---------------------------------------------------------------- граф вручную
+// Сторона дуги: провинция и рельеф.
+struct Lbl { Id p = 0; Terrain t = Terrain::Land; };
+
+inline Id addNode(Tx& tx, Vec2 p) { return tx.add(Node{0, p}).id; }
+
+inline Id addEdge(Tx& tx, Id a, Id b, std::vector<Vec2> pts, EdgeKind k, Lbl l, Lbl r) {
+  Edge e;
+  e.a = a;
+  e.b = b;
+  e.pts = std::move(pts);
+  e.kind = k;
+  e.pl = l.p;
+  e.tl = l.t;
+  e.pr = r.p;
+  e.tr = r.t;
+  return tx.add(e).id;
+}
+
+// Кольцо против часовой (математически) из двух дуг: слева — inside, справа — outside.
+inline void addRing(Tx& tx, const std::vector<Vec2>& ring, EdgeKind k, Lbl inside, Lbl outside) {
+  size_t h = ring.size() / 2;
+  Id n0 = addNode(tx, ring[0]), n1 = addNode(tx, ring[h]);
+  std::vector<Vec2> p1(ring.begin() + 1, ring.begin() + long(h)), p2(ring.begin() + long(h) + 1, ring.end());
+  addEdge(tx, n0, n1, p1, k, inside, outside);
+  addEdge(tx, n1, n0, p2, k, inside, outside);
+}
+
 // ---------------------------------------------------------------- отладочный растр
 struct Raster {
   int w = 0, h = 0;
@@ -143,7 +267,7 @@ struct Raster {
     img.w = w;
     img.h = h;
     img.rgba = rgba;
-    return codec::writePngFile(test::outDir() + "/" + name, img);
+    return test::savePng(name, img);
   }
 };
 

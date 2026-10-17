@@ -337,7 +337,7 @@ std::string macRomanToUtf8(Bytes b) {
 struct Font::Impl {
   std::shared_ptr<const std::string> data;
   Bytes file;
-  Bytes head, hhea, hmtx, maxp, loca, glyf, cmap, kern, gpos, os2, name, post, fvar;
+  Bytes head, hhea, hmtx, maxp, loca, glyf, cmap, kern, gpos, os2, name, post;
   u32 id = 0;
   int numH = 0;
   int locFormat = 0;
@@ -680,7 +680,6 @@ std::shared_ptr<const Font> Font::load(std::shared_ptr<const std::string> data, 
     else if (tg == tag4("OS/2")) d.os2 = t;
     else if (tg == tag4("name")) d.name = t;
     else if (tg == tag4("post")) d.post = t;
-    else if (tg == tag4("fvar")) d.fvar = t;
     else if (tg == tag4("CFF ") || tg == tag4("CFF2")) hasCff = true;
   }
   if (d.glyf.empty() || d.loca.empty()) return bad(hasCff ? "шрифт с контурами CFF не поддерживается" : "в шрифте нет контуров glyf");
@@ -741,7 +740,6 @@ std::shared_ptr<const Font> Font::load(std::shared_ptr<const std::string> data, 
   if (f.descender_ == 0) f.descender_ = -f.upem_ / 5;
   if (f.lineGap_ < 0) f.lineGap_ = 0;
   f.monospace_ = d.post.n >= 16 && d.post.u32at(12) != 0;
-  f.variable_ = !d.fvar.empty();
 
   // cmap: предпочтение полного Юникода (формат 12), затем BMP (формат 4), затем прочие.
   {
@@ -843,12 +841,6 @@ int Font::advance(u16 g) const {
   const Impl& d = *d_;
   int i = g < d.numH ? g : d.numH - 1;
   return d.hmtx.u16at(size_t(i) * 4);
-}
-
-int Font::leftSideBearing(u16 g) const {
-  const Impl& d = *d_;
-  if (g < d.numH) return d.hmtx.i16at(size_t(g) * 4 + 2);
-  return d.hmtx.i16at(size_t(d.numH) * 4 + size_t(g - d.numH) * 2);
 }
 
 bool Font::hasKerning() const { return !d_->gposKern.empty() || !d_->kernPairs.empty(); }
@@ -1291,17 +1283,6 @@ void GlyphCache::getMany(const GlyphRequest* req, size_t n, std::shared_ptr<cons
     auto k = Impl::keyOf(req[i]);
     if (auto b = d_->findLocked(k)) { out[i] = b; d_->hits--; continue; }
     d_->insertLocked(k, out[i]);
-  }
-}
-
-void GlyphCache::setCapacity(size_t b) {
-  std::lock_guard lk(d_->mu);
-  d_->capacity = b;
-  while (d_->bytes > d_->capacity && !d_->lru.empty()) {
-    auto& e = d_->lru.back();
-    d_->bytes -= e.bytes;
-    d_->map.erase(e.key);
-    d_->lru.pop_back();
   }
 }
 

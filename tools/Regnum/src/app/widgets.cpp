@@ -1,6 +1,7 @@
 // Regnum — общие виджеты предметной области (см. widgets.h).
 #include "app/widgets.h"
 
+#include "app/panels/character_common.h"
 #include "base/jobs.h"
 #include "codec/jpeg.h"
 #include "gfx/icons.h"
@@ -9,14 +10,6 @@
 #include <future>
 #include <map>
 #include <unordered_map>
-
-namespace rg::app {
-namespace edkit {   // поток фишек с переносом строк (editors/modifiers.cpp)
-void chipsBegin();
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
-void chipsEnd();
-}  // namespace edkit
-}  // namespace rg::app
 
 namespace rg::app::w {
 
@@ -28,44 +21,94 @@ std::map<ui::WidgetId, Id>& pendingCreated() {
   return m;
 }
 
-// Хранилище подписей на время вызова виджета (ui::Option ссылается на строки).
-struct Options {
-  std::vector<std::string> labels, hints;
-  std::vector<ui::Option> opts;
-  std::vector<Id> ids;
-  void reserve(size_t n) { labels.reserve(n); hints.reserve(n); opts.reserve(n); ids.reserve(n); }
-  void add(Id id, std::string label, const char* icon, Color color, std::string hint = {}, bool disabled = false) {
-    ids.push_back(id);
-    labels.push_back(std::move(label));
-    hints.push_back(std::move(hint));
-    ui::Option o;
-    o.icon = icon;
-    o.color = color;
-    o.disabled = disabled;
-    opts.push_back(o);
-  }
-  // Строки переезжают при росте векторов — ссылки проставляются в конце.
-  std::span<const ui::Option> finish() {
-    for (size_t i = 0; i < opts.size(); i++) { opts[i].label = labels[i]; opts[i].hint = hints[i]; }
-    return opts;
-  }
-  int indexOf(Id id) const {
-    if (id == 0) return -1;
-    for (size_t i = 0; i < ids.size(); i++) if (ids[i] == id) return int(i);
-    return -1;
-  }
-};
-
-std::string orUnnamed(const std::string& s, const char* fallback) { return s.empty() ? std::string(fallback) : s; }
-
 constexpr Id kCreate = 0xFFFFFFFFu;
 
 }  // namespace
+
+void IdOptions::reserve(size_t n) {
+  labels.reserve(n);
+  hints.reserve(n);
+  opts.reserve(n);
+  ids.reserve(n);
+}
+
+void IdOptions::add(Id id, std::string label, const char* icon, Color color, std::string hint, bool disabled) {
+  ids.push_back(id);
+  labels.push_back(std::move(label));
+  hints.push_back(std::move(hint));
+  ui::Option o;
+  o.icon = icon;
+  o.color = color;
+  o.disabled = disabled;
+  opts.push_back(o);
+}
+
+// Строки переезжают при росте векторов — ссылки проставляются в конце.
+std::span<const ui::Option> IdOptions::finish() {
+  for (size_t i = 0; i < opts.size(); i++) {
+    opts[i].label = labels[i];
+    opts[i].hint = hints[i];
+  }
+  return opts;
+}
+
+int IdOptions::indexOf(Id id) const {
+  if (id == 0) return -1;
+  for (size_t i = 0; i < ids.size(); i++)
+    if (ids[i] == id) return int(i);
+  return -1;
+}
+
+Id IdOptions::idAt(int i) const { return i >= 0 && i < int(ids.size()) ? ids[size_t(i)] : 0; }
+
+bool idCombo(std::string_view id, Id& value, IdOptions& o, const ui::ComboOpt& co) {
+  int idx = o.indexOf(value);
+  if (!ui::combo(id, idx, o.finish(), co)) return false;
+  const Id nv = o.idAt(idx);
+  if (nv == value) return false;
+  value = nv;
+  return true;
+}
+
+Id addCombo(std::string_view id, IdOptions& o, const ui::ComboOpt& co) {
+  int idx = -1;
+  if (!ui::combo(id, idx, o.finish(), co)) return 0;
+  return o.idAt(idx);
+}
 
 Color factionColor(const World& w, Id faction) {
   const Faction* f = w.faction(faction);
   return f ? f->color : Color::hex(0x8a8f99);
 }
+
+const World& frameWorld(App& a) {
+  // Копии мира живут до начала следующего кадра (после endFrame текущего).
+  static std::vector<std::unique_ptr<World>> keep;
+  static u64 frame = ~0ull;
+  if (ui::frameIndex() != frame) {
+    keep.clear();
+    frame = ui::frameIndex();
+  }
+  keep.push_back(std::make_unique<World>(a.world()));
+  return *keep.back();
+}
+
+std::string orName(const std::string& s, const char* fallback) { return s.empty() ? std::string(fallback) : s; }
+
+std::string resourceName(const World& w, Id res, std::string_view fallback) {
+  const CatalogItem* c = w.resource(res);
+  return c && !c->name.empty() ? c->name : std::string(fallback);
+}
+
+std::string essenceName(const World& w, Id essence, std::string_view fallback) {
+  const CatalogItem* c = w.essence(essence);
+  return c && !c->name.empty() ? c->name : std::string(fallback);
+}
+
+std::string amountText(Id res, double v) { return fmtNum(v, 3) + (res == kGold ? " тыс." : ""); }
+const char* amountUnit(Id res) { return res == kGold ? "тыс." : nullptr; }
+
+Color legible(Color c, float threshold) { return c.luminance() < threshold ? c.lighten(0.45f) : c; }
 
 bool factionPicker(std::string_view id, Id& value, FactionFilter filter, std::string_view noneLabel, Id exclude, bool disabled) {
   const World& w = app().world();
@@ -81,20 +124,15 @@ bool factionPicker(std::string_view id, Id& value, FactionFilter filter, std::st
     if (a->kind != b->kind) return a->kind < b->kind;
     return compareRu(a->name, b->name) < 0;
   });
-  Options o;
+  IdOptions o;
   o.reserve(list.size());
-  for (const Faction* f : list) o.add(f->id, orUnnamed(f->name, "Без названия"), nullptr, f->color, f->isGuild() ? "гильдия" : "");
-  int idx = o.indexOf(value);
+  for (const Faction* f : list) o.add(f->id, orName(f->name, "Без названия"), nullptr, f->color, f->isGuild() ? "гильдия" : "");
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
   co.disabled = disabled || app().readOnly();
   co.icon = filter == FactionFilter::Guilds ? "guild" : "crown";
   co.placeholder = noneLabel.empty() ? std::string_view("—") : noneLabel;
-  if (!ui::combo(id, idx, o.finish(), co)) return false;
-  Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
-  if (nv == value) return false;
-  value = nv;
-  return true;
+  return idCombo(id, value, o, co);
 }
 
 bool provincePicker(std::string_view id, Id& value, Id owner, std::string_view noneLabel, bool disabled) {
@@ -106,19 +144,14 @@ bool provincePicker(std::string_view id, Id& value, Id owner, std::string_view n
     list.push_back(&p);
   });
   std::sort(list.begin(), list.end(), [](const Province* a, const Province* b) { return compareRu(a->name, b->name) < 0; });
-  Options o;
+  IdOptions o;
   o.reserve(list.size());
-  for (const Province* p : list) o.add(p->id, orUnnamed(p->name, "Без названия"), "province", factionColor(w, p->owner), p->capital);
-  int idx = o.indexOf(value);
+  for (const Province* p : list) o.add(p->id, orName(p->name, "Без названия"), "province", factionColor(w, p->owner), p->capital);
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
   co.disabled = disabled || app().readOnly();
   co.icon = "province";
-  if (!ui::combo(id, idx, o.finish(), co)) return false;
-  Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
-  if (nv == value) return false;
-  value = nv;
-  return true;
+  return idCombo(id, value, o, co);
 }
 
 bool characterPicker(std::string_view id, Id& value, Id faction, std::string_view noneLabel, bool allowCreate, bool disabled) {
@@ -131,14 +164,14 @@ bool characterPicker(std::string_view id, Id& value, Id faction, std::string_vie
     list.push_back(&c);
   });
   std::sort(list.begin(), list.end(), [](const Character* x, const Character* y) { return compareRu(x->name, y->name) < 0; });
-  Options o;
+  IdOptions o;
   o.reserve(list.size() + 2);
   // Уже назначенный, но недоступный (чужой, мёртвый, пленный) — виден в поле, выбрать его снова нельзя.
   if (const Character* cur = w.character(value); faction && cur && std::find(list.begin(), list.end(), cur) == list.end()) {
     std::string hint = rules::characterHas(w, cur->id, schema::mod::Dead)      ? std::string("мёртв")
                        : rules::characterHas(w, cur->id, schema::mod::Captive) ? std::string("в плену")
                                                                                : w.factionName(cur->faction);
-    o.add(cur->id, orUnnamed(cur->name, "Без имени"), "character", cur->faction ? factionColor(w, cur->faction) : Color(0, 0, 0, 0), hint, true);
+    o.add(cur->id, orName(cur->name, "Без имени"), "character", cur->faction ? factionColor(w, cur->faction) : Color(0, 0, 0, 0), hint, true);
   }
   for (const Character* c : list) {
     std::string hint = c->title;
@@ -146,9 +179,9 @@ bool characterPicker(std::string_view id, Id& value, Id faction, std::string_vie
       if (!hint.empty()) hint += " · ";
       hint += w.factionName(c->faction);
     }
-    o.add(c->id, orUnnamed(c->name, "Без имени"), c->hero ? "hero" : "character", c->faction ? factionColor(w, c->faction) : Color(0, 0, 0, 0), hint);
+    o.add(c->id, orName(c->name, "Без имени"), c->hero ? "hero" : "character", c->faction ? factionColor(w, c->faction) : Color(0, 0, 0, 0), hint);
   }
-  if (allowCreate) o.add(kCreate, "Новый персонаж", "user-plus", Color(0, 0, 0, 0));
+  if (allowCreate && a.canEdit()) o.add(kCreate, "Новый персонаж", "user-plus", Color(0, 0, 0, 0));   // создание — правка мира
   int idx = o.indexOf(value);
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
@@ -170,7 +203,7 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
   App& a = app();
   const World& w = a.world();
   const auto& items = rules::catalogList(*w.catalogs, list);
-  Options o;
+  IdOptions o;
   o.reserve(items.size() + 1);
   const char* defIcon = nullptr;
   switch (list) {
@@ -185,9 +218,9 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
   bool colored = list != rules::CatalogList::Governments && list != rules::CatalogList::Positions;
   for (const auto& c : items) {
     const char* icon = !c.icon.empty() && gfx::hasIcon(c.icon) ? c.icon.c_str() : (colored ? nullptr : defIcon);
-    o.add(c.id, orUnnamed(c.name, "Без названия"), icon, colored ? c.color : Color(0, 0, 0, 0));
+    o.add(c.id, orName(c.name, "Без названия"), icon, colored ? c.color : Color(0, 0, 0, 0));
   }
-  if (allowCreate) o.add(kCreate, "Добавить…", "plus", Color(0, 0, 0, 0));
+  if (allowCreate && a.canEdit()) o.add(kCreate, "Добавить…", "plus", Color(0, 0, 0, 0));   // справочники — только администратору
   const ui::WidgetId wid = ui::id(id);
   if (auto it = pendingCreated().find(wid); it != pendingCreated().end()) {
     Id created = it->second;
@@ -269,11 +302,11 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
   const std::string mark(id);
   ui::IdScope scope(id);
   bool changed = false;
-  disabled = disabled || a.readOnly();
+  disabled = disabled || !a.canEdit();   // модификаторы вручную — правка мира (ТЗ «Доработки №4», п.5)
   bool anyChip = false;
   for (Id mid : ids) if (w.modifier(mid)) anyChip = true;
   if (anyChip) {
-    edkit::chipsBegin();
+    ui::ChipFlow chipFlow;
     for (size_t i = 0; i < ids.size(); i++) {
       const Modifier* m = w.modifier(ids[i]);
       if (!m) continue;
@@ -282,14 +315,16 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
       co.icon = m->icon.empty() || !gfx::hasIcon(m->icon) ? "sparkles" : m->icon.c_str();
       co.color = m->color;
       co.removable = !disabled;
-      co.clickable = true;
+      co.clickable = turns || a.admin();   // без срока щелчок открывает редактор — только администратору
       std::string tip;
+      // Список провинции — эффекты, действующие в ней («Чума» при «Здании чумы» даёт прирост).
+      const Modifier view = edit && edit->province ? rules::provinceModView(w, edit->province, m->id) : *m;
       for (int f = 0; f < kFxCount; f++) {
-        if (!m->has(Fx(f))) continue;
+        if (!view.has(Fx(f))) continue;
         if (!tip.empty()) tip += "\n";
-        tip += effectText(Fx(f), m->fx[size_t(f)]);
+        tip += effectText(Fx(f), view.fx[size_t(f)]);
       }
-      if (!m->desc.empty()) tip = m->desc + (tip.empty() ? "" : "\n" + tip);
+      if (!view.desc.empty()) tip = view.desc + (tip.empty() ? "" : "\n" + tip);
       int left = 0;
       if (turns)
         if (auto it = turns->find(m->id); it != turns->end()) left = it->second;
@@ -303,8 +338,8 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
         tip = std::string(inertTip(where)) + "\n" + tip;
       }
       co.tooltip = tip;
-      const std::string label = orUnnamed(m->name, "Модификатор") + (left > 0 ? " · " + std::to_string(left) : std::string());
-      ui::ChipAction act = edkit::chip(label, co);
+      const std::string label = orName(m->name, "Модификатор") + (left > 0 ? " · " + std::to_string(left) : std::string());
+      ui::ChipAction act = ui::flowChip(label, co);
       a.markUi(mark + ".chip." + std::to_string(i));
       if (inert) a.markUi(mark + ".warn." + std::to_string(m->id));
       if (act == ui::ChipAction::Remove) {
@@ -314,10 +349,10 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
       }
       if (act == ui::ChipAction::Click) {
         if (turns) ui::openPopup("term");   // срок и переход в редактор
-        else a.openEditor("modifiers", m->id);
+        else if (a.admin()) a.openEditor("modifiers", m->id);
       }
       if (turns && ui::beginPopup("term", {.side = ui::Side::Below, .width = 280})) {
-        ui::label(orUnnamed(m->name, "Модификатор"), {.font = ui::Font::Strong, .icon = co.icon});
+        ui::label(orName(m->name, "Модификатор"), {.font = ui::Font::Strong, .icon = co.icon});
         ui::prop("Срок", "hourglass");
         int n = left;
         if (ui::numberField("turns", n, {.min = 0, .max = 1000, .unit = "ход|хода|ходов", .steppers = true, .disabled = disabled || !edit,
@@ -327,17 +362,16 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
           edit->turns = std::max(0, n);
         }
         a.markUi(mark + ".term");
-        if (ui::button("Открыть в редакторе", {.icon = "sparkles", .fill = true})) {
+        if (a.admin() && ui::button("Открыть в редакторе", {.icon = "sparkles", .fill = true})) {
           ui::closePopup();
           a.openEditor("modifiers", m->id);
         }
         ui::endPopup();
       }
     }
-    edkit::chipsEnd();
   }
   if (!disabled) {
-    Options o;
+    IdOptions o;
     int hidden = 0;   // не действующие здесь (в провинции — только с глобальными эффектами) не предлагаются
     w.modifiers.each([&](const Modifier& m) {
       if (std::find(ids.begin(), ids.end(), m.id) != ids.end()) return;
@@ -346,7 +380,7 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
         hidden++;
         return;
       }
-      o.add(m.id, orUnnamed(m.name, "Модификатор"), m.icon.empty() || !gfx::hasIcon(m.icon) ? "sparkles" : m.icon.c_str(), m.color);
+      o.add(m.id, orName(m.name, "Модификатор"), m.icon.empty() || !gfx::hasIcon(m.icon) ? "sparkles" : m.icon.c_str(), m.color);
     });
     // Встроенные модификаторы, которых ещё нет в мире (запись создаёт вызывающий — edit->addKey).
     constexpr Id kTpl = 0xF0000000u;
@@ -364,7 +398,7 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
       std::vector<size_t> order(o.ids.size());
       for (size_t k = 0; k < order.size(); k++) order[k] = k;
       std::stable_sort(order.begin(), order.end(), [&](size_t x, size_t y) { return compareRu(o.labels[x], o.labels[y]) < 0; });
-      Options s;
+      IdOptions s;
       s.reserve(order.size());
       for (size_t k : order) s.add(o.ids[k], o.labels[k], o.opts[k].icon, o.opts[k].color, o.hints[k], o.opts[k].disabled);
       o = std::move(s);
@@ -374,14 +408,12 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
                                             std::to_string(hidden) + ")"
                                       : "Модификаторы, эффекты которых здесь не действуют, не предлагаются (скрыто: " + std::to_string(hidden) + ")";
     if (!o.ids.empty()) {
-      int idx = -1;
       ui::ComboOpt co;
       co.placeholder = "Добавить модификатор";
       co.icon = "plus";
       co.search = 1;   // поиск по названию при любой длине списка
       if (hidden > 0) co.tooltip = hiddenTip;
-      if (ui::combo("add", idx, o.finish(), co) && idx >= 0 && idx < int(o.ids.size())) {
-        const Id pick = o.ids[size_t(idx)];
+      if (const Id pick = addCombo("add", o, co)) {
         if (pick >= kTpl && edit) {
           edit->addKey = schema::builtinModifiers()[size_t(pick - kTpl)].key;
         } else {
@@ -394,6 +426,13 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
     }
   }
   return changed;
+}
+
+bool checkPlay(App& a, Id faction) {
+  if (a.canPlay(faction)) return true;
+  if (a.readOnly()) a.play("", [](Tx&) {});   // сообщение о просмотре прошлого хода
+  else a.toast("Только за своё государство", ToastKind::Warning, "lock");
+  return false;
 }
 
 std::string heroState(const World& w, const Character& c) {
@@ -417,7 +456,7 @@ void factionChip(Id faction, bool showKind) {
   co.icon = showKind ? (f->isGuild() ? "guild" : f->isWild() ? "skull" : "crown") : nullptr;
   co.tooltip = f->isWild() ? "Войска без государства: враждебны всем государствам"
                : f->isGuild() ? "Торговая гильдия — открыть" : "Государство — открыть";
-  if (ui::chip(orUnnamed(f->name, "Без названия"), co) == ui::ChipAction::Click) a.select(SelType::Faction, faction);
+  if (ui::chip(orName(f->name, "Без названия"), co) == ui::ChipAction::Click) a.select(SelType::Faction, faction);
 }
 
 void provinceChip(Id province) {
@@ -434,7 +473,7 @@ void provinceChip(Id province) {
   co.color = p->owner ? factionColor(w, p->owner) : Color(0, 0, 0, 0);
   co.clickable = true;
   co.tooltip = "Провинция — открыть и показать на карте";
-  if (ui::chip(orUnnamed(p->name, "Без названия"), co) == ui::ChipAction::Click) a.select(SelType::Province, province, true);
+  if (ui::chip(orName(p->name, "Без названия"), co) == ui::ChipAction::Click) a.select(SelType::Province, province, true);
 }
 
 void characterChip(Id character) {
@@ -451,7 +490,7 @@ void characterChip(Id character) {
   co.color = c->faction ? factionColor(w, c->faction) : Color(0, 0, 0, 0);
   co.clickable = true;
   co.tooltip = c->title.empty() ? std::string_view("Персонаж — открыть") : std::string_view(c->title);
-  if (ui::chip(orUnnamed(c->name, "Без имени"), co) == ui::ChipAction::Click) a.select(SelType::Character, character);
+  if (ui::chip(orName(c->name, "Без имени"), co) == ui::ChipAction::Click) a.select(SelType::Character, character);
 }
 
 std::string effectText(Fx f, double v) {
@@ -491,28 +530,6 @@ bool effectGood(Fx f, double v) {
   return bad ? v < 0 : v > 0;
 }
 
-void effectChips(const Modifier& m) {
-  ui::IdScope s(i64(m.id) + 0x40000000LL);
-  bool any = false;
-  for (int f = 0; f < kFxCount; f++) if (m.has(Fx(f)) && m.fx[size_t(f)] != 0) any = true;
-  if (!any) {
-    ui::label("Без эффектов", {.ink = ui::Ink::Muted});
-    return;
-  }
-  edkit::chipsBegin();
-  for (int f = 0; f < kFxCount; f++) {
-    if (!m.has(Fx(f))) continue;
-    double v = m.fx[size_t(f)];
-    if (v == 0) continue;
-    ui::IdScope s2(f);
-    ui::ChipOpt co;
-    co.icon = schema::effect(Fx(f)).icon;
-    co.tone = effectGood(Fx(f), v) ? ui::Tone::Success : ui::Tone::Danger;
-    edkit::chip(effectText(Fx(f), v), co);
-  }
-  edkit::chipsEnd();
-}
-
 const char* resourceIcon(const World& w, Id res) {
   if (res == kGold) return "coins";
   const CatalogItem* c = w.resource(res);
@@ -527,9 +544,15 @@ Color resourceColor(const World& w, Id res) {
 
 // ---------------------------------------------------------------- группы ресурсов, эссенции, реликвии, портреты
 namespace {
-// Группы в порядке дерева (родитель, затем его подгруппы) с глубиной.
+// Группы в порядке дерева (родитель, затем его подгруппы) с глубиной; соседи — по названию (ТЗ «Доработки №4», п.13).
 void groupTree(const World& w, Id parent, int depth, std::vector<std::pair<Id, int>>& out) {
-  for (Id g : rules::childGroups(w, parent)) {
+  std::vector<Id> kids = rules::childGroups(w, parent);
+  std::stable_sort(kids.begin(), kids.end(), [&](Id x, Id y) {
+    const ResGroup* a = w.catalogs->group(x);
+    const ResGroup* b = w.catalogs->group(y);
+    return compareRu(a ? a->name : std::string(), b ? b->name : std::string()) < 0;
+  });
+  for (Id g : kids) {
     out.push_back({g, depth});
     if (depth < 16) groupTree(w, g, depth + 1, out);
   }
@@ -544,41 +567,35 @@ std::vector<std::pair<Id, int>> groupOrder(const World& w) {
 
 bool resGroupPicker(std::string_view id, Id& group, std::string_view noneLabel, bool disabled) {
   const World& w = app().world();
-  Options o;
+  IdOptions o;
   for (auto [g, depth] : groupOrder(w)) {
     const ResGroup* x = w.catalogs->group(g);
     std::string pad;
     for (int i = 0; i < depth; i++) pad += "    ";
-    o.add(g, pad + orUnnamed(x ? x->name : std::string(), "Без названия"), depth ? nullptr : "folder", Color(0, 0, 0, 0),
+    o.add(g, pad + orName(x ? x->name : std::string(), "Без названия"), depth ? nullptr : "folder", Color(0, 0, 0, 0),
           std::to_string(rules::resourcesIn(w, g).size()));
   }
-  int idx = o.indexOf(group);
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
   co.placeholder = noneLabel.empty() ? std::string_view("Группа") : noneLabel;
   co.disabled = disabled;
   co.icon = "folder";
   co.tooltip = "Группа ресурсов";
-  if (!ui::combo(id, idx, o.finish(), co)) return false;
-  const Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
-  if (nv == group) return false;
-  group = nv;
-  return true;
+  return idCombo(id, group, o, co);
 }
 
 bool resourceFrom(std::string_view id, Id& value, const std::vector<Id>& ids, std::string_view placeholder, bool disabled,
                   std::string_view tooltip, std::string_view noneLabel) {
   const World& w = app().world();
-  Options o;
+  IdOptions o;
   o.reserve(ids.size());
   for (Id r : ids) {
     const CatalogItem* c = w.resource(r);
     if (!c) continue;
     // Справа — группа ресурса (без пути: путь виден в справочнике и в подсказке поля).
     const ResGroup* g = w.catalogs->group(c->group);
-    o.add(r, orUnnamed(c->name, "Без названия"), resourceIcon(w, r), Color(0, 0, 0, 0), g ? orUnnamed(g->name, "Без названия") : std::string());
+    o.add(r, orName(c->name, "Без названия"), resourceIcon(w, r), Color(0, 0, 0, 0), g ? orName(g->name, "Без названия") : std::string());
   }
-  int idx = o.indexOf(value);
   ui::ComboOpt co;
   co.placeholder = placeholder;
   co.noneLabel = noneLabel;
@@ -587,11 +604,7 @@ bool resourceFrom(std::string_view id, Id& value, const std::vector<Id>& ids, st
   co.tooltip = tooltip;
   co.popupWidth = 340;
   co.search = 1;   // поиск по названию в любом списке (Enter выбирает найденное)
-  if (!ui::combo(id, idx, o.finish(), co)) return false;
-  const Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
-  if (nv == value) return false;
-  value = nv;
-  return true;
+  return idCombo(id, value, o, co);
 }
 
 bool resourceByGroup(std::string_view id, Id& value, bool disabled, const std::vector<Id>* only) {
@@ -613,6 +626,11 @@ bool resourceByGroup(std::string_view id, Id& value, bool disabled, const std::v
   std::vector<Id> list;
   for (Id r : rules::resourcesIn(w, st.group))
     if (!only || std::find(only->begin(), only->end(), r) != only->end()) list.push_back(r);
+  std::stable_sort(list.begin(), list.end(), [&](Id x, Id y) {   // по названию
+    const CatalogItem* a = w.resource(x);
+    const CatalogItem* b = w.resource(y);
+    return a && b ? compareRu(a->name, b->name) < 0 : a != nullptr;
+  });
   if (value && std::find(list.begin(), list.end(), value) == list.end() && w.resource(value)) list.insert(list.begin(), value);
   changed = resourceFrom("res", value, list, "Ресурс", disabled, {});
   return changed;
@@ -620,20 +638,15 @@ bool resourceByGroup(std::string_view id, Id& value, bool disabled, const std::v
 
 bool essencePicker(std::string_view id, Id& value, std::string_view noneLabel, bool disabled) {
   const World& w = app().world();
-  Options o;
-  for (const CatalogItem& e : w.catalogs->essences) o.add(e.id, orUnnamed(e.name, "Без названия"), nullptr, e.color);
-  int idx = o.indexOf(value);
+  IdOptions o;
+  for (const CatalogItem& e : w.catalogs->essences) o.add(e.id, orName(e.name, "Без названия"), nullptr, e.color);
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
   co.placeholder = noneLabel.empty() ? std::string_view("Эссенция") : noneLabel;
   co.disabled = disabled;
   co.icon = "essence";
   co.tooltip = "Эссенция элемента";
-  if (!ui::combo(id, idx, o.finish(), co)) return false;
-  const Id nv = idx >= 0 && idx < int(o.ids.size()) ? o.ids[size_t(idx)] : 0;
-  if (nv == value) return false;
-  value = nv;
-  return true;
+  return idCombo(id, value, o, co);
 }
 
 Color essenceColor(const World& w, Id essence) {
@@ -653,7 +666,7 @@ ui::ChipAction relicChip(const Relic& r, bool removable, std::string_view toolti
   if (!tooltip.empty()) tip = std::string(tooltip);
   co.tooltip = tip;
   ui::IdScope s{i64(r.id) + 0x7e000000LL};
-  return edkit::chip(orUnnamed(r.name, "Без названия"), co);
+  return ui::flowChip(orName(r.name, "Без названия"), co);
 }
 
 // ---------------------------------------------------------------- значок реликвии с изображением
@@ -684,7 +697,7 @@ std::shared_ptr<gfx::Image> decodeRelic(const std::string& bytes) {
 }
 
 std::string relicTip(const Relic& r) {
-  std::string tip = orUnnamed(r.name, "Без названия") + "\n" + schema::rarity(r.rarity).name + " реликвия";
+  std::string tip = orName(r.name, "Без названия") + "\n" + schema::rarity(r.rarity).name + " реликвия";
   if (!r.desc.empty()) tip += "\n" + r.desc;
   return tip;
 }
@@ -736,16 +749,6 @@ void drawRelicIcon(const Relic& r, RectF rect, float radius) {
   }
 }
 
-bool relicIcon(const Relic& r, float size, std::string_view tooltip) {
-  ui::IdScope s{i64(r.id) + 0x7e100000LL};
-  const RectF rect = ui::next(size, size);
-  drawRelicIcon(r, rect);
-  const ui::Interaction it = ui::interact(ui::id("##relicicon"), rect);
-  if (it.hovered) ui::setCursor(platform::Cursor::Hand);
-  ui::hoverTip("##relictip", rect, tooltip.empty() ? relicTip(r) : std::string(tooltip));
-  return it.clicked;
-}
-
 bool relicRow(const Relic& r, std::string_view sub, float right, RectF* rowOut) {
   const ui::Theme& th = ui::theme();
   ui::IdScope s{i64(r.id) + 0x7e200000LL};
@@ -759,34 +762,17 @@ bool relicRow(const Relic& r, std::string_view sub, float right, RectF* rowOut) 
   const float lh = ui::lineHeight(ui::Font::Strong), sh = ui::lineHeight(ui::Font::Small);
   const float y0 = std::round(row.cy() - (lh + sh) * 0.5f);
   const RectF nameR{x, y0, w, lh};
-  ui::draw::text(orUnnamed(r.name, "Без названия"), nameR, ui::Font::Strong, rarityColor(r.rarity));
+  ui::draw::text(orName(r.name, "Без названия"), nameR, ui::Font::Strong, rarityColor(r.rarity));
   ui::draw::text(sub.empty() ? std::string_view(schema::rarity(r.rarity).name) : sub, RectF{x, y0 + lh, w, sh}, ui::Font::Small, th.textMuted);
   ui::hoverTip("##relicrowtip", RectF{row.x, row.y, row.w - right, row.h}, relicTip(r));
   return it.clicked;
 }
-
-}  // namespace rg::app::w
-
-namespace rg::app::chars {
-const gfx::Image* portraitImage(const Character& c, bool square);   // panels/character_common.cpp
-}
-
-namespace rg::app::w {
 
 const gfx::Image* faceImage(const Character& c) { return chars::portraitImage(c, true); }
 
 void heroAvatar(const Character& c, float size, bool ring, std::string_view tooltip, Color initials) {
   ui::avatar(c.name.empty() ? std::string_view("?") : std::string_view(c.name),
              {.image = faceImage(c), .color = initials, .size = size, .ring = ring, .tooltip = tooltip});
-}
-
-void resourceAmount(Id res, double amount, ui::Ink ink) {
-  const World& w = app().world();
-  const CatalogItem* c = w.resource(res);
-  ui::HStack row(0, ui::Align::Left, ui::sp::xs);
-  ui::iconColored(resourceIcon(w, res), resourceColor(w, res), 16, c ? std::string_view(c->name) : std::string_view("Ресурс"));
-  // Золото и ресурсы — до тысячных (лишние нули не пишутся); золото — в тысячах (ТЗ «Доработки №1», п.12).
-  ui::label(res == kGold ? fmtGold(amount) : fmtNum(amount, 3), {.ink = ink});
 }
 
 }  // namespace rg::app::w

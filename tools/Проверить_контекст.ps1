@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $errors=[Collections.Generic.List[string]]::new();$warnings=[Collections.Generic.List[string]]::new()
+    $problems=New-WmmaProblemSet;$errors=$problems.Errors;$warnings=$problems.Warnings
     try{$data=New-WmmaReadModel $root}catch{
         if(-not $AsObject){throw}
         return [pscustomobject]@{Errors=@($_.Exception.Message);Warnings=@();Entities=0;Facts=0}
@@ -115,13 +115,12 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
             if((Get-WmmaHash $body) -cne $item.text_sha256){$errors.Add("Historical preservation check failed: $($item.history_path)")}
         }
     }
-    $selection=Get-WmmaSelection $root -Data $data
+    $panelItems=Select-WmmaPanelItems (Get-WmmaSelection $root -Data $data)
     $panel=Read-WmmaText (Join-Path $root '01_Кампания/07_Следующий_ход.md')
-    foreach($q in @($selection.questions|Select-Object -First 8)){if(-not $panel.Contains($q.id)){$errors.Add("Panel omits selected question: $($q.id)")}}
-    foreach($f in @($selection.fronts|Select-Object -First 10)){if(-not $panel.Contains($f.id)){$errors.Add("Panel omits selected front: $($f.id)")}}
-    $result=[pscustomobject]@{Errors=@($errors);Warnings=@($warnings);Entities=$graph.entities.Count;Facts=$knowledge.facts.Count}
-    if($AsObject){return $result}
-    $result|Format-List
+    foreach($q in $panelItems.questions){if(-not $panel.Contains($q.id)){$errors.Add("Panel omits selected question: $($q.id)")}}
+    foreach($f in $panelItems.fronts){if(-not $panel.Contains($f.id)){$errors.Add("Panel omits selected front: $($f.id)")}}
+    if($AsObject){return [pscustomobject]@{Errors=@($errors);Warnings=@($warnings);Entities=$graph.entities.Count;Facts=$knowledge.facts.Count}}
+    Write-WmmaProblemReport ([pscustomobject]@{Entities=$graph.entities.Count;Facts=$knowledge.facts.Count;Errors=$errors.Count;Warnings=$warnings.Count})
     if($errors.Count){throw 'Context checks failed.'}
     'Context checks completed successfully.'
 }

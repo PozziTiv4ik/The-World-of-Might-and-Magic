@@ -3,14 +3,19 @@
 // группе, удаление с переносом содержимого в родителя; «Археологические находки» — с замком), под ними — подгруппы и
 // реликвии группы по главенству редкости (эпохальная выше); реликвии без группы — «Без группы» в конце. Строка
 // реликвии: значок (изображение реликвии или знак) с обводкой цвета редкости, название цветом редкости (щелчок — правка
-// на месте), редкость, где лежит (герой, постройка, государство; спрятанная — только «спрятана»). Карточка реликвии:
-// название, редкость, группа, изображение из файла, владелец-герой, описание, раздел «Канон» (карточка актива проекта:
-// описание и изображение из неё). Карточка группы: название, родитель без циклов, подгруппы и реликвии.
+// на месте), редкость, где лежит (место со ссылкой и «× N»; у копируемой в нескольких местах — «3 места · 12 шт.»;
+// спрятанная — только «спрятана»). Карточка реликвии: вид (уникальная — легендарная и эпохальная, копируемая — эпическая
+// и ниже, ТЗ «Доработки №4», п.3), название, редкость, группа, изображение из файла, «Где лежит» (все места с
+// количеством; уникальная — «У героя», копируемая — количество в каждом месте и у выбранного государства или героя),
+// описание, раздел «Канон» (карточка актива проекта: описание и изображение из неё). Карточка группы: название, родитель
+// без циклов, подгруппы и реликвии. Справочник — правка мира (App::canEdit). 50 «Археологических находок» и 50 «Общих»
+// базовых — таблица строит только видимые строки, места всех реликвий считаются одним проходом за кадр.
 #include <algorithm>
 #include <functional>
 #include <unordered_set>
 
-#include "app/canon.h"
+#include "app/common/canon.h"
+#include "app/common/relics.h"
 #include "app/editors/catalogs_internal.h"
 #include "base/fs.h"
 #include "gfx/icons.h"
@@ -21,7 +26,7 @@ using platform::Key;
 
 namespace {
 
-constexpr float kRowH = 44, kHeadH = 32, kIndent = 20, kChevW = 18;
+constexpr float kRowH = 44, kHeadH = 32, kIndent = kTreeIndent, kChevW = kTreeChevW;
 enum Col : int { cName, cRarity, cPlace, cActions };
 
 const char* rarityName(Rarity r) { return schema::rarity(r).name; }
@@ -54,7 +59,7 @@ struct TRow {
   int count = 0;                       // группа: реликвий с подгруппами
   const RelicGroup* g = nullptr;
   const Relic* r = nullptr;
-  rules::RelicPlace place;
+  const std::vector<rules::RelicAt>* at = nullptr;   // реликвия: места с количеством
 };
 struct Tree {
   std::vector<TRow> rows;
@@ -62,7 +67,7 @@ struct Tree {
   std::vector<Id> loose;               // реликвии без группы (по главенству редкости)
 };
 
-Tree buildTree(const World& w, const State& st) {
+Tree buildTree(const World& w, const State& st, const relics::Places& pl) {
   const Catalogs& c = *w.catalogs;
   const bool searching = !st.query.empty();
   Tree t;
@@ -106,7 +111,7 @@ Tree buildTree(const World& w, const State& st) {
     row.id = rid;
     row.depth = depth;
     row.r = w.relic(rid);
-    row.place = rules::relicPlace(w, rid);
+    row.at = &pl.of(rid);
     t.rows.push_back(row);
   };
   std::unordered_set<Id> seen;
@@ -221,9 +226,8 @@ void askRemoveRelic(App& a, const World& w, Id id) {
   if (!r) return;
   std::string text = "Реликвия «" + orName(r->name) + "» будет удалена";
   if (const Id who = rules::relicHolder(w, id)) text += " и убрана из инвентаря: " + w.characterName(who);
-  text += ". Действие можно отменить Ctrl+Z.";
-  a.confirm("Удалить реликвию?", text, "Удалить", true,
-            [id](App& x) { x.act("Удалить реликвию", [&](Tx& tx) { rules::removeRelic(tx, id); }); });
+  text += ".";
+  a.confirmAct("Удалить реликвию?", text, "Удалить", "Удалить реликвию", [id](Tx& tx) { rules::removeRelic(tx, id); });
 }
 
 void askRemoveGroup(App& a, const World& w, Id gid) {
@@ -244,17 +248,16 @@ void askRemoveGroup(App& a, const World& w, Id gid) {
     if (direct) what.push_back(nb(direct, "реликвия", "реликвии", "реликвий"));
     text += " " + join(what, " и ") + (parent ? " перейдут в группу «" + orName(groupOf(w, parent)->name) + "»." : " перейдут на верхний уровень.");
   }
-  text += " Действие можно отменить Ctrl+Z.";
-  a.confirm("Удалить группу реликвий?", text, "Удалить", true, [gid, parent](App& x) {
-    if (!x.act("Удалить группу реликвий", [&](Tx& tx) { rules::removeRelicGroup(tx, gid); })) return;
-    State& s = state(x);
-    if (s.relGroup == gid) s.relGroup = parent;
-  });
+  a.confirmAct("Удалить группу реликвий?", text, "Удалить", "Удалить группу реликвий", [gid](Tx& tx) { rules::removeRelicGroup(tx, gid); },
+               [gid, parent](App& x) {
+                 State& s = state(x);
+                 if (s.relGroup == gid) s.relGroup = parent;
+               });
 }
 
 // Изображение реликвии из файла пользователя (PNG/JPEG; большие уменьшаются до 256 точек).
 void imageFromFile(App& a, Id relic) {
-  if (a.readOnly()) {
+  if (!a.canEdit()) {
     a.act("Изображение реликвии", [](Tx&) {});   // покажет отказ с подсказкой
     return;
   }
@@ -344,62 +347,61 @@ bool groupPicker(const World& w, std::string_view id, Id& group, std::string_vie
 }
 
 // ---------------------------------------------------------------- где лежит
-struct PlaceView {
-  std::string text;
-  const char* icon = "relic";
-  Color color{0, 0, 0, 0};
-  Selection go;                        // куда перейти по щелчку (пусто — некуда)
-  const char* tip = "";
-};
-PlaceView placeOf(const World& w, const rules::RelicPlace& p) {
-  PlaceView v;
-  switch (p.kind) {
-    case rules::RelicPlace::Hero: {
-      const Character* c = w.character(p.id);
-      v.text = orName(c ? c->name : std::string(), "Без имени");
-      v.icon = c && c->hero ? "hero" : "character";
-      v.color = w::factionColor(w, p.owner);
-      v.go = {SelType::Character, p.id};
-      v.tip = "В инвентаре героя — открыть";
-      break;
-    }
-    case rules::RelicPlace::Building: {
-      const Building* b = w.building(p.building);
-      v.text = orName(b ? b->name : std::string(), "Постройка") + " · " + w.provinceName(p.id);
-      v.icon = "building";
-      v.color = w::factionColor(w, p.owner);
-      v.go = {SelType::Province, p.id};
-      v.tip = "В хранилище постройки — открыть провинцию";
-      break;
-    }
-    case rules::RelicPlace::State:
-      v.text = w.factionName(p.id);
-      v.icon = "crown";
-      v.color = w::factionColor(w, p.id);
-      v.go = {SelType::Faction, p.id};
-      v.tip = "У государства — открыть";
-      break;
-    case rules::RelicPlace::Hidden: v.text = "спрятана"; break;   // место тайника не показывается
-    case rules::RelicPlace::Free: v.text = "свободна"; break;
+// Выбор государства или персонажа для количества в карточке: поиск всегда, подпись справа — сколько у него штук.
+bool holderCombo(std::string_view id, const World& w, Id relic, Id& value, bool states) {
+  w::IdOptions o;
+  std::vector<std::pair<std::string, Id>> list;
+  if (states) {
+    w.factions.each([&](const Faction& f) {
+      if (f.isState()) list.push_back({orName(f.name), f.id});
+    });
+  } else {
+    w.characters.each([&](const Character& c) { list.push_back({orName(c.name, "Без имени"), c.id}); });
   }
-  return v;
+  std::stable_sort(list.begin(), list.end(), [](const auto& x, const auto& y) { return compareRu(x.first, y.first) < 0; });
+  o.reserve(list.size());
+  for (const auto& [name, id2] : list) {
+    const i64 n = states ? rules::relicCountAt(w, relic, rules::RelicPlace{rules::RelicPlace::State, id2, 0, id2})
+                         : relicCount(w.character(id2)->inventory, relic);
+    const Color col = states ? w::factionColor(w, id2) : w::factionColor(w, w.character(id2)->faction);
+    o.add(id2, name, nullptr, col, n ? relics::times(n) : std::string());
+  }
+  return w::idCombo(id, value, o, {.placeholder = "Выбрать", .search = 1, .icon = states ? "crown" : "hero", .popupWidth = 300,
+                                   .tooltip = states ? "Инвентарь государства" : "Инвентарь героя"});
 }
 
-// Фишка места в прямоугольнике ячейки; щелчок — перейти.
-void placeChip(App& a, const World& w, const rules::RelicPlace& p, RectF cell) {
-  const PlaceView v = placeOf(w, p);
-  if (!v.go) {
-    ui::draw::text(v.text, cell, ui::Font::Body, ui::theme().textMuted);
+// Ячейка «Где»: уникальная или одно место — фишка места (щелчок — перейти) и «× N»; несколько мест копируемой — «3 места ·
+// 12 шт.» (в подсказке — места); нигде — приглушённо.
+void placeCell(App& a, const World& w, const std::vector<rules::RelicAt>& at, RectF cell) {
+  const ui::Theme& th = ui::theme();
+  if (at.empty()) {
+    ui::draw::text("нигде", cell, ui::Font::Body, th.textMuted);
     return;
   }
-  const float cw = std::min(cell.w, std::ceil(ui::measure(v.text, ui::Font::Small)) + 40);
-  ui::at(RectF{cell.x, cell.cy() - 13, cw, 26});
-  ui::ChipOpt co;
-  co.icon = v.icon;
-  co.color = v.color;
-  co.clickable = true;
-  co.tooltip = v.tip;
-  if (ui::chip(v.text, co) == ui::ChipAction::Click) edkit::goTo(a, v.go);
+  if (at.size() == 1) {
+    const rules::RelicAt& x = at.front();
+    const relics::PlaceView v = relics::placeView(w, x.place);
+    if (!v.go) {
+      ui::draw::text(v.text, cell, ui::Font::Body, th.textMuted);
+      return;
+    }
+    const std::string text = x.count > 1 ? v.text + " · " + relics::times(x.count) : v.text;
+    const float cw = std::min(cell.w, std::ceil(ui::measure(text, ui::Font::Small)) + 40);
+    ui::at(RectF{cell.x, cell.cy() - 13, cw, 26});
+    relics::placeChip(a, w, x.place, x.count);
+    return;
+  }
+  i64 n = 0;
+  std::vector<std::string> lines;
+  for (const rules::RelicAt& x : at) {
+    n += x.count;
+    lines.push_back(relics::placeView(w, x.place).text + (x.count > 1 ? " · " + relics::times(x.count) : std::string()));
+  }
+  const std::string text = nb(i64(at.size()), "место", "места", "мест") + " · " + fmtInt(n) + " шт.";
+  const RectF ic{cell.x, cell.cy() - 8, 16, 16};
+  ui::draw::icon("map-pin", ic, th.textDim);
+  ui::draw::text(text, RectF{ic.right() + 6, cell.y, cell.w - 22, cell.h}, ui::Font::Body, th.textDim);
+  ui::hoverTip("##places", cell, join(lines, "\n"));
 }
 
 // ---------------------------------------------------------------- строки
@@ -411,31 +413,6 @@ struct Ctx {
   int toggled = -1;
 };
 
-void guides(RectF cell, int depth) {
-  const ui::Theme& th = ui::theme();
-  for (int k = 0; k < depth; k++) {
-    const float x = std::round(cell.x + float(k) * kIndent + kChevW * 0.5f) + 0.5f;
-    ui::draw::line(x, cell.y - 3, x, cell.bottom() + 3, th.border, 1);
-  }
-}
-
-void pill(RectF r, std::string_view text, bool sel) {
-  const ui::Theme& th = ui::theme();
-  ui::draw::rect(r, sel ? th.accent.alpha(0.22f) : th.surface3, r.h * 0.5f);
-  ui::draw::text(text, r, ui::Font::Caption, sel ? th.accent : th.textDim, ui::Align::Center);
-}
-float pillW(std::string_view text) { return std::max(22.f, std::ceil(ui::measure(text, ui::Font::Caption)) + 12); }
-
-bool newSubButton(bool disabled) {
-  const bool r = ui::iconButton("folder", "Новая подгруппа", {.size = ui::Size::Small, .disabled = disabled});
-  const RectF b = ui::lastItem().rect;
-  const ui::Theme& th = ui::theme();
-  const float cx = b.right() - 6, cy = b.bottom() - 6;
-  ui::draw::circle(cx, cy, 5.5f, th.surface2);
-  ui::draw::icon("plus", RectF{cx - 4.5f, cy - 4.5f, 9, 9}, disabled ? th.textMuted : th.accent);
-  return r;
-}
-
 void groupRow(Ctx& c, ui::Table& t, const TRow& row, int i, bool sel, bool hovered) {
   const ui::Theme& th = ui::theme();
   const bool none = row.kind == TRow::NoGroup;
@@ -443,7 +420,7 @@ void groupRow(Ctx& c, ui::Table& t, const TRow& row, int i, bool sel, bool hover
   ui::draw::rect(rr, th.text.alpha(row.depth == 0 ? 0.035f : 0.018f), 6);
   const std::string mark = none ? std::string("catalogs.relicNogroup") : "catalogs.relicGroup." + std::to_string(row.id);
   const RectF cell = t.cell();
-  guides(cell, row.depth);
+  treeGuides(cell, row.depth);
   const float x0 = cell.x + float(row.depth) * kIndent;
   {
     const RectF hit{x0 - 4, rr.y + 4, kChevW + 6, rr.h - 8};
@@ -461,7 +438,7 @@ void groupRow(Ctx& c, ui::Table& t, const TRow& row, int i, bool sel, bool hover
     ui::draw::icon(row.open ? "folder-open" : "folder", tl.inset(6), tint);
   }
   const std::string cnt = std::to_string(row.count);
-  const float pw = pillW(cnt);
+  const float pw = countPillW(cnt);
   const float nx = tl.right() + 10;
   const RectF nameR{nx, rr.cy() - 15, std::max(40.f, cell.right() - nx - pw - 8), 30};
   if (!none && c.st.pendingRelGroup == row.id && !ui::mouse().down[0]) {
@@ -491,7 +468,7 @@ void groupRow(Ctx& c, ui::Table& t, const TRow& row, int i, bool sel, bool hover
       else c.toggled = i;
     }
   }
-  pill(RectF{cell.right() - pw, rr.cy() - 9, pw, 18}, cnt, sel);
+  countPill(RectF{cell.right() - pw, rr.cy() - 9, pw, 18}, cnt, sel);
   c.a.markUi(mark, rr);
   t.cell();
   t.cell();
@@ -525,15 +502,14 @@ void groupRow(Ctx& c, ui::Table& t, const TRow& row, int i, bool sel, bool hover
 }
 
 void itemRow(Ctx& c, ui::Table& t, const TRow& row, int& selIdx, int i) {
-  const ui::Theme& th = ui::theme();
   const Relic& r = *row.r;
   const Id id = r.id;
   const Color rc = w::rarityColor(r.rarity);
   const RectF rr = t.rowRect();
   // Подсветка редкостью: мягкая заливка слева.
-  ui::draw::gradient(RectF{rr.x, rr.y, std::round(rr.w * 0.5f), rr.h}, rc.alpha(th.dark ? 0.10f : 0.08f), rc.alpha(0), 6, true);
+  ui::draw::gradient(RectF{rr.x, rr.y, std::round(rr.w * 0.5f), rr.h}, rc.alpha(0.10f), rc.alpha(0), 6, true);
   const RectF cell = t.cell();
-  guides(cell, row.depth);
+  treeGuides(cell, row.depth);
   const float x0 = cell.x + float(row.depth) * kIndent + kChevW;
   w::drawRelicIcon(r, RectF{x0, rr.cy() - 15, 30, 30}, 8);
   // Название цветом редкости; щелчок — правка на месте (после отпускания кнопки).
@@ -576,7 +552,7 @@ void itemRow(Ctx& c, ui::Table& t, const TRow& row, int& selIdx, int i) {
     if (rarityPicker("rarity", rar, c.ro)) editRelic(c.a, id, "Редкость реликвии", [&](Relic& x) { x.rarity = rar; });
     c.a.markUi("catalogs.relic." + std::to_string(id) + ".rarity");
   }
-  placeChip(c.a, c.w, row.place, t.cell());
+  placeCell(c.a, c.w, *row.at, t.cell());
   c.a.markUi("catalogs.relic." + std::to_string(id) + ".place");
   t.cell();
   if (ui::iconButton("trash", "Удалить реликвию", {.size = ui::Size::Small, .disabled = c.ro, .tone = ui::Tone::Danger})) askRemoveRelic(c.a, c.w, id);
@@ -585,7 +561,7 @@ void itemRow(Ctx& c, ui::Table& t, const TRow& row, int& selIdx, int i) {
 
 // ---------------------------------------------------------------- карточки
 void relicChips(State& st, const World& w, const std::vector<Id>& ids) {
-  ChipFlow cf;
+  ui::ChipFlow cf;
   for (Id rid : ids) {
     const Relic* r = w.relic(rid);
     if (!r) continue;
@@ -596,11 +572,88 @@ void relicChips(State& st, const World& w, const std::vector<Id>& ids) {
   }
 }
 
-void relicCard(App& a, State& st, const World& w, const Relic& r) {
-  const bool ro = a.readOnly();
+// Раздел «Где лежит» карточки (ТЗ «Доработки №4», п.3–4): все места реликвии со ссылками и количеством. Уникальная — одно
+// место и «У героя» (выбор героя передаёт её ему); копируемая — количество в каждом месте (поле у администратора) и
+// «Инвентарь государства» / «Инвентарь героя»: выбор государства или героя и сколько у него штук (правка мира).
+void placesSection(App& a, State& st, const World& w, const Relic& r, const std::vector<rules::RelicAt>& at) {
+  const bool ro = !a.canEdit();
+  const Id id = r.id;
+  i64 total = 0;
+  for (const rules::RelicAt& x : at) total += x.count;
+  ui::Section s("Где лежит", "map-pin", {.badge = r.unique() || !total ? std::string() : fmtInt(total) + " шт."});
+  a.markUi("catalogs.relicCard.places");
+  if (!s) return;
+  if (at.empty()) ui::label(r.unique() ? "Свободна" : "Нигде", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+  for (const rules::RelicAt& x : at) {
+    ui::IdScope sc{i64(x.place.kind) * 0x1000000000LL + i64(x.place.id) * 0x10000LL + i64(x.place.building)};
+    if (r.unique() || x.place.kind == rules::RelicPlace::Hidden) {
+      ui::ChipFlow cf;
+      relics::placeChip(a, w, x.place, x.count);
+      continue;
+    }
+    ui::Row row({ui::fr(1), ui::px(relics::kCountW)}, 30, 8);
+    relics::placeChip(a, w, x.place, ro ? x.count : 0);
+    if (ro) {
+      ui::next(relics::kCountW, 30);
+      continue;
+    }
+    i64 n = x.count;
+    if (relics::countField("count", ui::next(relics::kCountW, 30), n)) {
+      const rules::RelicPlace p = x.place;
+      a.act("Количество реликвий", [&](Tx& tx) { rules::setRelicCount(tx, id, p, n); },
+            {.coalesce = "relic.count:" + std::to_string(id) + ":" + std::to_string(int(p.kind)) + ":" + std::to_string(p.id) + ":" + std::to_string(p.building)});
+    }
+  }
+  if (ro) return;
+  ui::spacer(2);
+  if (r.unique()) {
+    // У героя: выбор передаёт реликвию (с места, где она лежит), «Не у героя» — в инвентарь государства героя.
+    const rules::RelicPlace place = at.empty() ? rules::RelicPlace{} : at.front().place;
+    const Id holder = place.kind == rules::RelicPlace::Hero ? place.id : 0;
+    ui::Row row({ui::px(118), ui::fr(1)}, 30, 8);
+    ui::label("У героя", {.ink = ui::Ink::Dim, .icon = "hero"});
+    Id who = holder;
+    if (w::characterPicker("holder", who, 0, "Не у героя", false, ro)) setHolder(a, id, holder, who);
+    a.markUi("catalogs.relicCard.holder");
+    return;
+  }
+  // Копируемая: количество у выбранного государства и героя.
+  if (st.relState && !w.faction(st.relState)) st.relState = 0;
+  if (st.relHero && !w.character(st.relHero)) st.relHero = 0;
+  {
+    ui::Row row({ui::px(118), ui::fr(1), ui::px(relics::kCountW)}, 30, 8);
+    ui::label("Государство", {.ink = ui::Ink::Dim, .icon = "crown"});
+    holderCombo("cardstate", w, id, st.relState, true);
+    a.markUi("catalogs.relicCard.state");
+    const rules::RelicPlace p{rules::RelicPlace::State, st.relState, 0, st.relState};
+    i64 n = st.relState ? rules::relicCountAt(w, id, p) : 0;
+    ui::Disabled d(!st.relState);
+    if (relics::countField("statecount", ui::next(relics::kCountW, 30), n))
+      a.act("Количество реликвий государства", [&](Tx& tx) { rules::setRelicCount(tx, id, p, n); },
+            {.coalesce = "relic.statecount:" + std::to_string(id) + ":" + std::to_string(p.id)});
+    a.markUi("catalogs.relicCard.stateCount");
+  }
+  {
+    ui::Row row({ui::px(118), ui::fr(1), ui::px(relics::kCountW)}, 30, 8);
+    ui::label("Герой", {.ink = ui::Ink::Dim, .icon = "hero"});
+    holderCombo("cardhero", w, id, st.relHero, false);
+    a.markUi("catalogs.relicCard.hero");
+    const Character* c = w.character(st.relHero);
+    const rules::RelicPlace p{rules::RelicPlace::Hero, st.relHero, 0, c ? c->faction : 0};
+    i64 n = c ? rules::relicCountAt(w, id, p) : 0;
+    ui::Disabled d(!c);
+    if (relics::countField("herocount", ui::next(relics::kCountW, 30), n))
+      a.act("Количество реликвий у героя", [&](Tx& tx) { rules::setRelicCount(tx, id, p, n); },
+            {.coalesce = "relic.herocount:" + std::to_string(id) + ":" + std::to_string(p.id)});
+    a.markUi("catalogs.relicCard.heroCount");
+  }
+}
+
+void relicCard(App& a, State& st, const World& w, const Relic& r, const relics::Places& places) {
+  const bool ro = !a.canEdit();
   const Id id = r.id;
   const Color rc = w::rarityColor(r.rarity);
-  const rules::RelicPlace place = rules::relicPlace(w, id);
+  const std::vector<rules::RelicAt>& at = places.of(id);
   ui::Scroll sc("card");
   {
     ui::Row head({ui::px(72), ui::fr(1)}, 72, 14);
@@ -613,27 +666,26 @@ void relicCard(App& a, State& st, const World& w, const Relic& r) {
     if (const RelicGroup* gr = groupOf(w, r.group)) ui::label(rules::relicGroupPath(w, gr->id), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "folder"});
   }
   {
-    // Где лежит: состояние, место (фишка-переход), находка археологов — фишками с переносом.
-    const PlaceView v = placeOf(w, place);
-    const char* label = place.kind == rules::RelicPlace::Hero       ? "У героя"
-                        : place.kind == rules::RelicPlace::Building ? "В хранилище"
-                        : place.kind == rules::RelicPlace::State    ? "У государства"
-                        : place.kind == rules::RelicPlace::Hidden   ? "Спрятана"
-                                                                    : "Свободна";
-    ChipFlow cf;
-    edkit::chip(label, {.icon = place.kind == rules::RelicPlace::Hidden ? "eye-off" : "inventory",
-                        .tone = place.kind == rules::RelicPlace::Free ? ui::Tone::Neutral : ui::Tone::Info});
-    a.markUi("catalogs.relicCard.place");
-    if (v.go) {
-      ui::ChipOpt co;
-      co.icon = v.icon;
-      co.color = v.color;
-      co.clickable = true;
-      co.tooltip = v.tip;
-      if (edkit::chip(v.text, co) == ui::ChipAction::Click) edkit::goTo(a, v.go);
+    // Вид реликвии и состояние: уникальная — где лежит; копируемая — сколько штук в мире; находка археологов.
+    ui::ChipFlow cf;
+    if (r.unique()) {
+      const rules::RelicPlace place = at.empty() ? rules::RelicPlace{} : at.front().place;
+      const char* label = place.kind == rules::RelicPlace::Hero       ? "У героя"
+                          : place.kind == rules::RelicPlace::Building ? "В хранилище"
+                          : place.kind == rules::RelicPlace::State    ? "У государства"
+                          : place.kind == rules::RelicPlace::Hidden   ? "Спрятана"
+                                                                      : "Свободна";
+      ui::flowChip("Уникальная", {.icon = "star", .tone = ui::Tone::Accent, .tooltip = "Одна штука в одном месте"});
+      ui::flowChip(label, {.icon = place.kind == rules::RelicPlace::Hidden ? "eye-off" : "inventory",
+                          .tone = place.kind == rules::RelicPlace::Free ? ui::Tone::Neutral : ui::Tone::Info});
+    } else {
+      ui::flowChip("Копируемая", {.icon = "duplicate", .tooltip = "Сколько угодно штук у скольких угодно героев и в любых местах"});
+      const i64 n = places.total(id);
+      ui::flowChip(n ? "В мире " + fmtInt(n) + " шт." : std::string("В мире нет"), {.icon = "inventory", .tone = n ? ui::Tone::Info : ui::Tone::Neutral});
     }
+    a.markUi("catalogs.relicCard.place");
     if (rules::isArchFind(w, id))
-      edkit::chip("Находка археологов", {.icon = "shovel", .tone = ui::Tone::Warning, .tooltip = "Героям — только из владений их государства"});
+      ui::flowChip("Находка археологов", {.icon = "shovel", .tone = ui::Tone::Warning, .tooltip = "Героям — только из владений их государства"});
   }
   {
     ui::prop("Название", "edit", 0.34f);
@@ -672,26 +724,16 @@ void relicCard(App& a, State& st, const World& w, const Relic& r) {
       a.act("Убрать изображение реликвии", [&](Tx& tx) { rules::setRelicImage(tx, id, ""); });
     a.markUi("catalogs.relicCard.clearImage");
   }
-  {
-    ui::prop("Владелец", "inventory", 0.34f);
-    const Id holder = place.kind == rules::RelicPlace::Hero ? place.id : 0;
-    Id who = holder;
-    if (w::characterPicker("holder", who, 0, "Не у героя", false, ro)) setHolder(a, id, holder, who);
-    a.markUi("catalogs.relicCard.holder");
-  }
+  placesSection(a, st, w, r, at);
   ui::caption("Описание");
   canon::relicDescField(a, id, 96);
   if (ui::Section s("Канон", "book", {.defaultOpen = true}); s) canon::relicSection(a, id);
   ui::spacer(4);
-  {
-    ui::Disabled dis(ro);
-    if (ui::button("Удалить: " + orName(r.name, "реликвия"), {.variant = ui::Variant::Danger, .icon = "trash", .fill = true})) askRemoveRelic(a, w, id);
-    a.markUi("catalogs.delete");
-  }
+  if (deleteButton(a, orName(r.name, "реликвия"))) askRemoveRelic(a, w, id);
 }
 
 void groupCard(App& a, State& st, const World& w, const Tree& tree, const RelicGroup& g) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Id gid = g.id;
   const ui::Theme& th = ui::theme();
   const Id parent = parentOf(w, gid);
@@ -739,7 +781,7 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const RelicG
   if (!subs.empty()) {
     ui::Section sec("Подгруппы", "folder", {.badge = std::to_string(subs.size())});
     if (sec) {
-      ChipFlow cf;
+      ui::ChipFlow cf;
       for (Id s : subs) {
         const RelicGroup* x = groupOf(w, s);
         if (!x) continue;
@@ -749,7 +791,7 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const RelicG
         co.clickable = true;
         co.tooltip = "Выбрать подгруппу";
         const int n = tree.count.count(s) ? tree.count.at(s) : 0;
-        if (edkit::chip(orName(x->name) + " · " + std::to_string(n), co) == ui::ChipAction::Click) {
+        if (ui::flowChip(orName(x->name) + " · " + std::to_string(n), co) == ui::ChipAction::Click) {
           st.relGroup = s;
           revealGroup(st, w, gid);
           st.relScrollGroup = s;
@@ -773,7 +815,7 @@ void groupCard(App& a, State& st, const World& w, const Tree& tree, const RelicG
 }
 
 void noGroupCard(App& a, State& st, const World& w, const Tree& tree) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const ui::Theme& th = ui::theme();
   ui::Scroll sc("card");
   cardHead("folder", th.textMuted, "Реликвии", "Без группы");
@@ -791,7 +833,7 @@ void noGroupCard(App& a, State& st, const World& w, const Tree& tree) {
 
 // ================================================================ вкладка
 void drawRelics(App& a, State& st) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   {
     const World w0 = a.world();
     // Группа новой реликвии: выбранная группа или группа выбранной реликвии.
@@ -824,9 +866,7 @@ void drawRelics(App& a, State& st) {
     if (ui::button("Новая группа", {.icon = "folder", .disabled = ro})) addGroupAct(a, st, w0, 0);
     a.markUi("catalogs.relicNewGroup");
     const std::string tip = target ? "Новая реликвия в группе «" + orName(groupOf(w0, target)->name) + "»" : std::string("Новая реликвия без группы");
-    if (ui::button("Новая реликвия", {.variant = ui::Variant::Primary, .icon = "plus", .disabled = ro, .tooltip = tip, .shortcut = {Key::Insert, 0}}))
-      addRelicAct(a, st, w0, target);
-    a.markUi("catalogs.add");
+    if (newButton(a, "Новая реликвия", tip)) addRelicAct(a, st, w0, target);
   }
   ui::spacer(2);
   const World w = a.world();   // снимок кадра (после кнопок: новая запись уже в нём)
@@ -839,7 +879,8 @@ void drawRelics(App& a, State& st) {
   }
   if (st.relScrollGroup) revealGroup(st, w, parentOf(w, st.relScrollGroup));
   if (st.relGroup && !groupOf(w, st.relGroup)) st.relGroup = 0;
-  const Tree tree = buildTree(w, st);
+  const relics::Places places(w);   // места всех реликвий — один проход по миру
+  const Tree tree = buildTree(w, st, places);
   const int n = int(tree.rows.size());
   int selIdx = -1;
   for (int i = 0; i < n; i++)
@@ -906,7 +947,7 @@ void drawRelics(App& a, State& st) {
     } else if (st.relNoGroup) {
       noGroupCard(a, st, w, tree);
     } else if (cur) {
-      relicCard(a, st, w, *cur);
+      relicCard(a, st, w, *cur, places);
     } else {
       ui::spacer(std::max(0.f, sp.card.h * 0.3f));
       if (st.query.empty() && w.catalogs->relics.empty()) {
@@ -934,3 +975,19 @@ void drawRelics(App& a, State& st) {
 }
 
 }  // namespace rg::app::cat
+
+namespace rg::app::relics {
+
+void openCatalog(App& a, Id relic) {
+  cat::State& st = cat::state(a);
+  st.query.clear();
+  if (a.world().relic(relic)) {
+    st.relGroup = 0;
+    st.relNoGroup = false;
+    st.sel[cat::kRelics] = relic;
+    st.relScroll = relic;
+  }
+  a.openEditor("catalogs", Id(cat::kRelics + 1));
+}
+
+}  // namespace rg::app::relics

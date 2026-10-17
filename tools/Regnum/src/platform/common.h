@@ -1,11 +1,48 @@
 // Regnum — общие внутренние помощники реализаций платформы (не для кода вне src/platform).
 #pragma once
+#include <atomic>
+#include <deque>
+#include <exception>
 #include <optional>
 #include <string>
 
 #include "platform/platform.h"
 
 namespace rg::platform::detail {
+
+// Очередь событий и вызовы приложения — общее ядро оконных реализаций (win32, x11, cocoa); только главный поток,
+// кроме dirty. Состояние реализации наследует Dispatch.
+struct Dispatch {
+  App* app = nullptr;
+  bool ready = false;              // окно создано, события можно доставлять
+  std::atomic<bool> dirty{true};   // нужен новый кадр
+  int callbackDepth = 0;           // мы внутри обработчика приложения (вложенные циклы диалогов)
+  bool quitting = false;
+  bool closePending = false;       // закрытие запрошено внутри обработчика — выполнить после выхода из него
+  int exitCode = 0;
+  std::exception_ptr error;        // первое исключение обработчика (run() пробрасывает его)
+  std::deque<Event> queue;
+
+  // В очередь; подряд идущий ввод текста склеивается (IME, вставка суррогатов).
+  void push(Event e);
+  // Вызов обработчика приложения: исключение запоминается и завершает цикл событий.
+  template <class F>
+  void guarded(F&& f) {
+    callbackDepth++;
+    try {
+      f();
+    } catch (...) {
+      if (!error) error = std::current_exception();
+      quitting = true;
+    }
+    callbackDepth--;
+  }
+  // Доставить очередь приложению (не изнутри обработчика); каждое событие — новый кадр.
+  void flushEvents();
+  bool callAnimating();
+  // Запрос закрытия окна: App::onCloseRequest; изнутри обработчика — отложить (closePending).
+  void requestClose();
+};
 
 // Монотонные секунды (steady_clock).
 double monotonicSeconds();

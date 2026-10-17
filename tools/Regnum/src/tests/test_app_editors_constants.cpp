@@ -1,12 +1,14 @@
 // Сценарии «Глобальных констант» (ТЗ «Общие доработки», п.1–2): окно раздела «Справочники» — встроенные видны
 // всегда, первая правка создаёт запись мира (Ctrl+Z возвращает шаблон), золото до тысячных, список ресурсов,
 // список значений (базовые расы закреплены; переименование и удаление своей расы правит строки войск),
-// своя константа (создание по типу, переименование, удаление с подтверждением), просмотр прошлого хода.
+// своя константа (создание по типу, переименование, удаление с подтверждением), просмотр прошлого хода; базовая
+// стоимость кораблей и эссенции.
 #include "tests/test_app_editors_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
 using namespace rg::apptest::editors;
+namespace ed = rg::apptest::editors;
 
 namespace {
 
@@ -39,12 +41,6 @@ std::string rowRace(const World& w, std::pair<Id, Id> fr) {
   const Faction* f = w.faction(fr.first);
   const ArmyRow* r = f ? f->armyRow(fr.second) : nullptr;
   return r ? r->race : std::string("?");
-}
-
-Id resByName(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->resources)
-    if (c.name == name) return c.id;
-  return 0;
 }
 
 bool hasValue(const World& w, const char* key, const std::string& v) {
@@ -87,7 +83,7 @@ TEST(app_editors_constants_builtin) {
   // Стоимость линкора — список ресурсов с базовой стоимостью (ТЗ «Доработки №3», п.7): древесина 1000, золото 100,
   // ткань 1000, сталь 250 — меньше нельзя, убрать нельзя (замок); увеличить можно, свой ресурс — добавить и убрать.
   CHECK(sel(h, schema::cst::ShipLineCost));
-  const Id wood = resByName(h->world(), "Древесина");
+  const Id wood = test::idByName(h->world().catalogs->resources, "Древесина");
   CHECK(wood != 0);
   {
     const Constant& c = rules::constantOf(h->world(), schema::cst::ShipLineCost);
@@ -105,7 +101,7 @@ TEST(app_editors_constants_builtin) {
   CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(kGold), "250.125", kArea, kTop));
   CHECK_NEAR(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.at(kGold), 250.125, 1e-9);
   CHECK(pickInCombo(h, "constants.shipLineCost.addres", "Уголь", kArea, kTop));
-  const Id coal = resByName(h->world(), "Уголь");
+  const Id coal = test::idByName(h->world().catalogs->resources, "Уголь");
   CHECK(coal != 0);
   CHECK_EQ(rules::constantOf(h->world(), schema::cst::ShipLineCost).res.size(), size_t(5));
   CHECK(enterValue(h, "constants.shipLineCost.res." + std::to_string(coal), "7.5", kArea, kTop));
@@ -219,4 +215,40 @@ TEST(app_editors_constants_user_and_window) {
   CHECK_NEAR(num(h->store.world(), schema::cst::ColonizationCost), was, 1e-12);
   h->backToCurrent();
   quick(h);
+}
+
+// ---------------------------------------------------------------- константы: морское чудовище и новые константы
+TEST(app_editors_constants_ships) {
+  Harness h("econ2_constants", 1600, 1000);
+  h.demo();
+  h.dropToasts();
+  h->openEditor("constants");
+  ed::quick(h);
+  for (const char* k : {schema::cst::FrigateCapacity, schema::cst::LineCapacity, schema::cst::MercPerGuild, schema::cst::MercHire,
+                        schema::cst::ArchGroupPeople, schema::cst::ArchGroupGold, schema::cst::SeaMonsterCost})
+    CHECK_MSG(h->uiRect(std::string("constants.list.") + k) != nullptr, k);
+  // Морское чудовище: эссенция воды 750 — базовая (замок, меньше нельзя), ещё одна эссенция — добавить и убрать.
+  CHECK(ed::clickRevealed(h, "constants.list." + std::string(schema::cst::SeaMonsterCost)));
+  ed::quick(h);
+  const Id water = test::idByName(h->world().catalogs->essences, "Эссенция воды"), fire = test::idByName(h->world().catalogs->essences, "Эссенция пламени");
+  CHECK(water && fire);
+  const std::string base = "constants." + std::string(schema::cst::SeaMonsterCost);
+  CHECK(h->uiRect(base + ".ess." + std::to_string(water) + ".lock") != nullptr);
+  CHECK(ed::enterValue(h, base + ".ess." + std::to_string(water), "500"));
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::SeaMonsterCost).ess.at(water), 750.0, 1e-9);
+  CHECK(ed::enterValue(h, base + ".ess." + std::to_string(water), "900"));
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::SeaMonsterCost).ess.at(water), 900.0, 1e-9);
+  shotClean(h, "econ2_constants_sea_monster_base");
+  CHECK(ed::pickInCombo(h, base + ".addess", "пламени"));
+  CHECK(rules::constantOf(h->world(), schema::cst::SeaMonsterCost).ess.count(fire) == 1);
+  shotClean(h, "econ2_constants_sea_monster");
+  CHECK(ed::clickRevealed(h, base + ".ess." + std::to_string(fire) + ".remove"));
+  ed::quick(h);
+  CHECK(rules::constantOf(h->world(), schema::cst::SeaMonsterCost).ess.count(fire) == 0);
+  // Вместимость фрегата — целое число.
+  CHECK(ed::clickRevealed(h, "constants.list." + std::string(schema::cst::FrigateCapacity)));
+  ed::quick(h);
+  CHECK(ed::enterValue(h, "constants." + std::string(schema::cst::FrigateCapacity) + ".num", "1200"));
+  CHECK_NEAR(rules::constantOf(h->world(), schema::cst::FrigateCapacity).num, 1200.0, 1e-9);
+  shotClean(h, "econ2_constants_capacity");
 }

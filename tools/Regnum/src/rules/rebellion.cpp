@@ -1,5 +1,5 @@
-// Regnum — мятеж войск и восстания провинций (ТЗ «Механика мятежа»): мятежное государство «Мятеж (Название)»,
-// отделение неверной части войск по их верности (нежить и механизмы остаются верными, ТЗ «Виды государств», п.2),
+// Regnum — мятеж войск и восстания провинций: мятежное государство «Мятеж (Название)»,
+// отделение неверной части войск по их верности (нежить и механизмы остаются верными),
 // переход героев с «Недовольством правителем», восставшие крестьяне и рабы, переход неверных войск перед боем.
 #include "rules/internal.h"
 
@@ -9,8 +9,6 @@ using namespace detail;
 
 namespace {
 
-constexpr i64 kMaxCount = 1000000000000000LL;
-
 // Строка флота мятежного государства с теми же названием, типом и содержанием.
 Id mirrorFleetRow(Tx& tx, Id rebelState, const FleetRow& src) {
   for (const FleetRow& r : tx.w().faction(rebelState)->fleet)
@@ -18,7 +16,7 @@ Id mirrorFleetRow(Tx& tx, Id rebelState, const FleetRow& src) {
   return addFleetRow(tx, rebelState, src.type, src.name, 0, src.upkeep);
 }
 
-// Верная при мятеже раса: нежить, механизмы и наёмники (наёмники верны нанимателю, ТЗ «Доработки №3», п.13).
+// Верная при мятеже раса: нежить, механизмы и наёмники (наёмники верны нанимателю).
 bool alwaysLoyal(const World& w, Id faction, const ArmyRow* r) {
   if (!r) return false;
   if (r->merc) return true;
@@ -34,17 +32,13 @@ void moveUnits(Tx& tx, Id origin, Id rebelState, bool fleet, Id row, i64 count, 
   if (fleet) {
     const FleetRow src = *tx.w().faction(origin)->fleetRow(row);
     mrow = mirrorFleetRow(tx, rebelState, src);
-    for (FleetRow& r : tx.faction(origin).fleet)
-      if (r.id == row) r.total = std::max<i64>(0, r.total - count);
-    for (FleetRow& r : tx.faction(rebelState).fleet)
-      if (r.id == mrow) r.total = std::min(kMaxCount, r.total + count);
+    if (FleetRow* r = findById(tx.faction(origin).fleet, row)) r->total = std::max<i64>(0, r->total - count);
+    if (FleetRow* r = findById(tx.faction(rebelState).fleet, mrow)) r->total = std::min(kMaxCount, r->total + count);
   } else {
     const ArmyRow src = *tx.w().faction(origin)->armyRow(row);
     mrow = mirrorRow(tx, rebelState, origin, src);
-    for (ArmyRow& r : tx.faction(origin).army)
-      if (r.id == row) r.total = std::max<i64>(0, r.total - count);
-    for (ArmyRow& r : tx.faction(rebelState).army)
-      if (r.id == mrow) r.total = std::min(kMaxCount, r.total + count);
+    if (ArmyRow* r = findById(tx.faction(origin).army, row)) r->total = std::max<i64>(0, r->total - count);
+    if (ArmyRow* r = findById(tx.faction(rebelState).army, mrow)) r->total = std::min(kMaxCount, r->total + count);
   }
   for (ArmyUnit& u : dst.units)
     if (u.row == mrow) {
@@ -95,8 +89,7 @@ void addSlaveRebels(Tx& tx, Id rebelState, Id province, ArmyGroup& g) {
   const i64 n = takeUnhappySlaves(tx, province);
   if (n <= 0) return;
   Id row = rebelRow(tx, rebelState, "Восставшие рабы");
-  for (ArmyRow& r : tx.faction(rebelState).army)
-    if (r.id == row) r.total = std::min(kMaxCount, r.total + n);
+  if (ArmyRow* r = findById(tx.faction(rebelState).army, row)) r->total = std::min(kMaxCount, r->total + n);
   g.units.push_back(ArmyUnit{row, n});
 }
 
@@ -106,12 +99,9 @@ void addSlaveRebels(Tx& tx, Id rebelState, Id province, ArmyGroup& g) {
 Id rebelStateFor(Tx& tx, Id origin) {
   const Faction& o = needState(tx.w(), origin);
   if (o.rebelOf) fail(facName(tx.w(), origin) + " — само мятежное государство");
-  Id found = 0;
-  tx.w().factions.each([&](const Faction& f) {
-    if (!found && f.isState() && f.rebelOf == origin) found = f.id;
-  });
+  Id found = tx.w().factions.firstId([&](const Faction& f) { return f.isState() && f.rebelOf == origin; });
   if (!found) {
-    const std::string name = "Мятеж (" + (o.name.empty() ? std::string("Без названия") : o.name) + ")";
+    const std::string name = "Мятеж (" + nameOr(o.name) + ")";
     const StateKind kind = o.stateKind;
     const Color base = o.color;
     found = createFaction(tx, FactionKind::State, name);
@@ -138,7 +128,7 @@ bool canMutiny(const World& w, Id army, std::string* why) {
   const Army* a = w.army(army);
   if (!a) return no("Войско не найдено");
   if (a->allied()) return no("В союзном войске мятежа не бывает — сначала распустите союз");
-  // Войско на борту и флот с войском на борту (ТЗ «Доработки №3», п.6) восстают только после высадки.
+  // Войско на борту и флот с войском на борту восстают только после высадки.
   if (carrierOf(w, army) || cargoOf(w, army)) return no(a->isFleet() ? "На борту флота войско — мятеж после высадки" : "Войско на борту флота — мятеж после высадки");
   const Faction* f = w.faction(a->leader());
   if (!f || !f->isState()) return no("Мятеж бывает только в войсках государства");
@@ -220,7 +210,7 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id 
       loyalKeep.push_back(aid);
     }
   }
-  // Гарнизон провинции (ТЗ «Доработки», п.1): отделяется |верность| % каждого отряда (нежить и механизмы верны),
+  // Гарнизон провинции: отделяется |верность| % каждого отряда (нежить и механизмы верны),
   // герои с «Недовольством правителем» уходят к мятежникам; оставшиеся — с верностью 0 %.
   if (!fleet && garrison) {
     const Province P = *tx.w().province(garrison);
@@ -254,7 +244,7 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id 
       tx.province(garrison).garrisonLoyalty = res.garrisonLoyal ? 0.0 : schema::kMaxLoyalty;
     }
   }
-  // Восставшие рабы провинции (с довольством ниже нуля) присоединяются к мятежникам (ТЗ «Мятеж», п.6).
+  // Восставшие рабы провинции (с довольством ниже нуля) присоединяются к мятежникам.
   if (!fleet && province) addSlaveRebels(tx, R, province, rebels);
 
   // Верная часть: всё — в одно войско (по возможности то, у которого нажали «Мятеж»), верность — 0 %.
@@ -316,7 +306,7 @@ MutinyResult mutiny(Tx& tx, Id army) {
   const Army& a = *tx.w().army(army);
   const Id origin = a.leader();
   const Id province = provinceAtTx(tx, a.pos);
-  // Все войска государства в провинции восстают разом (ТЗ «Мятеж», п.1.3), и её гарнизон — по своей верности.
+  // Все войска государства в провинции восстают разом, и её гарнизон — по своей верности.
   std::vector<Id> list{army};
   if (province)
     tx.w().armies.each([&](const Army& x) {
@@ -328,7 +318,7 @@ MutinyResult mutiny(Tx& tx, Id army) {
   return mutinyArmies(tx, list, army, garrison);
 }
 
-// ================================================================ мятеж гарнизона (ТЗ «Доработки», п.1)
+// ================================================================ мятеж гарнизона
 bool canGarrisonMutiny(const World& w, Id province, std::string* why) {
   auto no = [&](std::string s) {
     if (why) *why = std::move(s);
@@ -473,8 +463,7 @@ Id provinceUprising(Tx& tx, Id province) {
     Province& m = tx.province(province);
     for (size_t i = 0; i < m.races.size(); i++) m.races[i].pop = std::max<i64>(0, m.races[i].pop - part[i]);
     Id row = rebelRow(tx, R, "Мятежные крестьяне");
-    for (ArmyRow& r : tx.faction(R).army)
-      if (r.id == row) r.total = std::min(kMaxCount, r.total + peasants);
+    if (ArmyRow* r = findById(tx.faction(R).army, row)) r->total = std::min(kMaxCount, r->total + peasants);
     g.units.push_back(ArmyUnit{row, peasants});
   }
   addSlaveRebels(tx, R, province, g);

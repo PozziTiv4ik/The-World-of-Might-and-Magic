@@ -1,9 +1,13 @@
 // Regnum — вкладка государства «Археология» (ТЗ «Доработки №2», п.1–3, 14–17): слева — археологические группы
 // («Сформировать археологическую группу» при достроенной «Гильдии Археологов», название, опыт и уровень, содержание,
 // шанс успеха и живучесть, модификаторы групп со сроками, отметки «занята в этом ходу», «ранена», «заражена чумой»,
-// роспуск) и реликвии государства (находки археологов: герою, в хранилище постройки, освободить); справа — провинции
+// роспуск) и инвентарь государства (ТЗ «Доработки №4», п.3–4: находки и полученные реликвии стопками — отдать героям,
+// положить в хранилище постройки, у администратора — количество, «Убрать» и новые из справочника); справа — провинции
 // государства с четырьмя слотами: «Найти археологическое место», щелчок по найденному месту — «Назначить
-// археологическую группу», «Проводить раскопки», когда все места провинции исследованы полностью.
+// археологическую группу», «Проводить раскопки», когда все места провинции исследованы полностью. Задания, группы и
+// раздача реликвий — игровые действия за государство (canPlay); опыт и модификаторы групп, количество реликвий —
+// правка мира (canEdit).
+#include "app/common/relics.h"
 #include "app/panels/arch_common.h"
 #include "app/panels/faction_common.h"
 
@@ -32,7 +36,9 @@ void tagTip(std::string_view text, ui::Tone tone, const char* icon, std::string_
   ui::hoverTip(std::string("##tag") + std::string(text), ui::lastItem().rect, tip);
 }
 
+// ro — нет игровых действий за государство; правка опыта и модификаторов — только администратору (canEdit).
 void groupCard(App& a, const World& w, Id fid, const ArchGroup& g, bool ro) {
+  const bool edit = a.canEdit();
   ui::IdScope sc{i64(g.id)};
   const Id gid = g.id;
   const rules::ArchStats st = rules::archStats(w, fid, gid);
@@ -41,17 +47,17 @@ void groupCard(App& a, const World& w, Id fid, const ArchGroup& g, bool ro) {
     ui::Row r({ui::fr(1), ui::px(92), ui::px(30)}, 30, 6);
     std::string name = g.name;
     if (ui::textField("name", name, {.placeholder = "Название группы", .icon = "pickaxe", .disabled = ro}))
-      a.act("Название археологической группы", [&](Tx& tx) { rules::renameArchGroup(tx, fid, gid, name); });
+      a.play("Название археологической группы", [&](Tx& tx) { rules::renameArchGroup(tx, fid, gid, name); });
     a.markUi("arch.group.name." + std::to_string(gid));
     int exp = g.exp;
-    if (ui::numberField("exp", exp, {.min = 0, .max = arch::kMaxExp, .icon = "star", .disabled = ro, .tooltip = "Опыт группы (0–1000)"}))
+    if (ui::numberField("exp", exp, {.min = 0, .max = arch::kMaxExp, .icon = "star", .readOnly = !edit, .tooltip = "Опыт группы (0–1000)"}))
       a.act("Опыт археологической группы", [&](Tx& tx) { rules::setArchGroupExp(tx, fid, gid, exp); },
             {.coalesce = "arch.exp:" + std::to_string(gid)});
     a.markUi("arch.group.exp." + std::to_string(gid));
     if (ui::iconButton("trash", "Распустить группу", {.disabled = ro, .tone = ui::Tone::Danger})) {
       const std::string nm = groupName(g);
       a.confirm("Распустить группу «" + nm + "»?", "Население и золото не вернутся.", "Распустить", true,
-                [fid, gid](App& x) { x.act("Распустить археологическую группу", [&](Tx& tx) { rules::disbandArchGroup(tx, fid, gid); }); });
+                [fid, gid](App& x) { x.play("Распустить археологическую группу", [&](Tx& tx) { rules::disbandArchGroup(tx, fid, gid); }); });
     }
     a.markUi("arch.group.disband." + std::to_string(gid));
   }
@@ -92,7 +98,7 @@ void groupCard(App& a, const World& w, Id fid, const ArchGroup& g, bool ro) {
   {
     std::vector<Id> ids = g.modifiers;
     w::ModEdit ed;
-    if (w::modifierList("mods", ids, ro, w::ModScope::ArchGroup, &g.modTurns, &ed))
+    if (w::modifierList("mods", ids, !edit, w::ModScope::ArchGroup, &g.modTurns, &ed))
       a.act("Модификаторы археологической группы", [&](Tx& tx) {
         if (!ed.addKey.empty()) ids.push_back(rules::ensureBuiltinMod(tx, ed.addKey));
         rules::setArchGroupModifiers(tx, fid, gid, ids);
@@ -114,14 +120,14 @@ void groupsSection(App& a, const World& w, const Faction& f, bool ro) {
                 {.badge = f.archGroups.empty() ? std::string() : std::to_string(f.archGroups.size()), .actionIcon = !ro && guild ? "plus" : nullptr,
                  .actionTooltip = tip});
   a.markUi("arch.groups");
-  if (s.action()) a.act("Сформировать археологическую группу", [&](Tx& tx) { rules::createArchGroup(tx, fid); });
+  if (s.action()) a.play("Сформировать археологическую группу", [&](Tx& tx) { rules::createArchGroup(tx, fid); });
   if (!s) return;
   if (!guild) ui::label("Нет «" + rules::buildingKeyName(w, fid, schema::bld::ArchGuild) + "»", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
   if (f.archGroups.empty()) {
     if (guild) {
       ui::Disabled d(ro);
       if (ui::emptyState("pickaxe", "Групп нет.", "Сформировать", "plus"))
-        a.act("Сформировать археологическую группу", [&](Tx& tx) { rules::createArchGroup(tx, fid); });
+        a.play("Сформировать археологическую группу", [&](Tx& tx) { rules::createArchGroup(tx, fid); });
       ui::tooltip(tip);
       a.markUi("arch.groups.create");
     }
@@ -130,68 +136,122 @@ void groupsSection(App& a, const World& w, const Faction& f, bool ro) {
   for (const ArchGroup& g : f.archGroups) groupCard(a, w, fid, g, ro);
 }
 
-void relicsSection(App& a, const World& w, const Faction& f, bool ro) {
+// Инвентарь государства (ТЗ «Доработки №4», п.3–4): полученные реликвии стопками по главенству редкости. Игровые
+// действия (canPlay): «Отдать герою» и «Положить в хранилище» — окно «куда и сколько» (герои государства, достроенные
+// хранилища реликвий). Администратор (правка мира): количество в стопке, «Убрать» (штуки исчезают из мира), новые из
+// справочника.
+void relicsSection(App& a, const World& w, const Faction& f) {
   const Id fid = f.id;
-  ui::Section s("Реликвии государства", "relic", {.badge = f.relics.empty() ? std::string() : std::to_string(f.relics.size())});
+  const bool play = a.canPlay(fid), admin = a.admin(), edit = a.canEdit();
+  const std::vector<RelicStack> list = relics::sorted(w, f.relics);
+  const i64 total = relics::pieces(w, f.relics);
+  ui::Section s("Инвентарь государства", "inventory", {.badge = total ? fmtInt(total) : std::string()});
   a.markUi("arch.relics");
   if (!s) return;
-  if (f.relics.empty()) {
-    ui::label("Нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-    return;
+  if (list.empty()) ui::label("Пусто", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+  const rules::RelicPlace here{rules::RelicPlace::State, fid, 0, fid};
+  // Куда: доступные герои государства (по имени) и достроенные хранилища реликвий его провинций.
+  std::vector<const Character*> heroes;
+  struct Store {
+    Id pid, bid;
+    std::string label;
+    const std::vector<RelicStack>* relics;
+  };
+  std::vector<Store> stores;
+  if (play && !list.empty()) {
+    w.characters.each([&](const Character& c) {
+      if (c.faction == fid && rules::heroAvailable(w, c.id)) heroes.push_back(&c);
+    });
+    std::sort(heroes.begin(), heroes.end(), [](const Character* x, const Character* y) {
+      if (x->hero != y->hero) return x->hero;
+      return compareRu(x->name, y->name) < 0;
+    });
+    w.provinces.each([&](const Province& p) {
+      if (p.owner != fid || p.sea) return;
+      for (const ProvBuilding& pb : p.buildings)
+        if (const Building* b = w.building(pb.building); b && b->relicStore && pb.builtLevel() >= 1)
+          stores.push_back(Store{p.id, b->id, w::orName(b->name, "Постройка") + " · " + w::orName(p.name), &pb.relics});
+    });
+    std::sort(stores.begin(), stores.end(), [](const Store& x, const Store& y) { return compareRu(x.label, y.label) < 0; });
   }
-  const std::vector<Id> list = f.relics;
-  for (Id rid : list) {
-    const Relic* r = w.relic(rid);
-    if (!r) continue;
+  for (const RelicStack& st : list) {
+    const Relic& r = *w.relic(st.relic);
+    const Id rid = r.id;
     ui::IdScope sc{i64(rid)};
-    const RectF top = ui::avail();
-    const RectF row{top.x, top.y, top.w, 40};
-    w::relicRow(*r, rules::isArchFind(w, rid) ? std::string("Археологическая находка") : std::string(), 3 * 30 + 12);
-    float x = row.right() - 3 * 30 - 8;
-    ui::at(RectF{x, row.cy() - 15, 30, 30});
-    if (ui::iconButton("hero", "Отдать герою", {.disabled = ro})) ui::openPopup("give");
-    a.markUi("arch.relic.give." + std::to_string(rid));
-    if (ui::beginMenu("give")) {
-      ui::menuHeader("Отдать герою");
-      int n = 0;
-      w.characters.each([&](const Character& c) {
-        if (c.faction != fid || !rules::heroAvailable(w, c.id)) return;
-        ui::IdScope s2{i64(c.id)};
-        const Id cid = c.id;
-        if (ui::menuItem(c.name.empty() ? std::string("Без имени") : c.name, {.icon = "hero"}))
-          a.act("Отдать реликвию герою", [&](Tx& tx) { rules::giveRelic(tx, cid, rid); });
-        n++;
-      });
-      if (!n) ui::menuItem("Нет героев", {.disabled = true});
-      ui::endMenu();
+    const bool count = admin && !r.unique();
+    const float right = (play ? 60.f : 0.f) + (edit ? 30.f : 0.f) + (count ? relics::kCountW + 6 : 0.f);
+    const std::string sub = rules::isArchFind(w, rid) ? std::string("Находка археологов") : relics::kindText(r);
+    RectF rr;
+    if (relics::stackRow(r, count ? 0 : st.count, sub, right, &rr) && admin) relics::openCatalog(a, rid);
+    a.markUi("arch.relic." + std::to_string(rid), rr);
+    float x = rr.right() - 2;
+    if (edit) {
+      x -= 30;
+      ui::at(RectF{x, rr.cy() - 14, 28, 28});
+      if (ui::iconButton("trash", st.count > 1 ? "Убрать все " + fmtInt(st.count) + " шт. из мира" : std::string("Убрать из мира"),
+                         {.size = ui::Size::Small, .tone = ui::Tone::Danger}))
+        a.act("Убрать реликвию государства", [&](Tx& tx) { rules::releaseStateRelic(tx, fid, rid, st.count); });
+      a.markUi("arch.relic.release." + std::to_string(rid));
     }
-    x += 32;
-    ui::at(RectF{x, row.cy() - 15, 30, 30});
-    if (ui::iconButton("building", "Положить в хранилище постройки", {.disabled = ro})) ui::openPopup("store");
-    a.markUi("arch.relic.store." + std::to_string(rid));
-    if (ui::beginMenu("store")) {
-      ui::menuHeader("Положить в хранилище");
-      int n = 0;
-      w.provinces.each([&](const Province& p) {
-        if (p.owner != fid || p.sea) return;
-        for (const ProvBuilding& pb : p.buildings) {
-          const Building* b = w.building(pb.building);
-          if (!b || !b->relicStore || pb.builtLevel() < 1) continue;
-          ui::IdScope s2{i64(p.id) * 100000 + i64(b->id)};
-          const Id pid = p.id, bid = b->id;
-          if (ui::menuItem(b->name + " · " + p.name, {.icon = "building"}))
-            a.act("Положить реликвию в хранилище", [&](Tx& tx) { rules::storeRelic(tx, pid, bid, rid); });
-          n++;
-        }
-      });
-      if (!n) ui::menuItem("Нет хранилищ реликвий", {.disabled = true});
-      ui::endMenu();
+    if (play) {
+      x -= 30;
+      ui::at(RectF{x, rr.cy() - 14, 28, 28});
+      if (ui::iconButton("building", "Положить в хранилище постройки", {.size = ui::Size::Small})) ui::openPopup("store");
+      a.markUi("arch.relic.store." + std::to_string(rid));
+      std::vector<relics::Dest> sd;
+      for (const Store& k : stores) {
+        const i64 have = relicCount(*k.relics, rid);
+        sd.push_back(relics::Dest{k.label, have ? "есть " + fmtInt(have) : std::string(), "building"});
+      }
+      i64 n = 1;
+      if (const int k = relics::destPopup(a, "store", "Положить в хранилище", sd, st.count, n, "arch.storeTo." + std::to_string(rid)); k >= 0) {
+        const Id pid = stores[size_t(k)].pid, bid = stores[size_t(k)].bid;
+        a.play("Положить реликвию в хранилище", [&](Tx& tx) { rules::storeRelic(tx, pid, bid, rid, here, n); });
+      }
+      x -= 30;
+      ui::at(RectF{x, rr.cy() - 14, 28, 28});
+      if (ui::iconButton("hero", "Отдать герою", {.size = ui::Size::Small})) ui::openPopup("give");
+      a.markUi("arch.relic.give." + std::to_string(rid));
+      std::vector<relics::Dest> hd;
+      for (const Character* c : heroes) {
+        const i64 have = relicCount(c->inventory, rid);
+        hd.push_back(relics::Dest{w::orName(c->name, "Без имени"), have ? "есть " + fmtInt(have) : c->title, c->hero ? "hero" : "character"});
+      }
+      n = 1;
+      if (const int k = relics::destPopup(a, "give", "Отдать герою", hd, r.unique() ? 1 : st.count, n, "arch.giveTo." + std::to_string(rid)); k >= 0) {
+        const Id cid = heroes[size_t(k)]->id, faction = heroes[size_t(k)]->faction;
+        a.play("Отдать реликвию герою", [&](Tx& tx) {
+          rules::giveRelic(tx, cid, rid, here);   // проверки правил и запись в хронике — за первую штуку
+          if (n > 1) rules::moveRelic(tx, rid, here, rules::RelicPlace{rules::RelicPlace::Hero, cid, 0, faction}, n - 1);
+        });
+      }
     }
-    x += 32;
-    ui::at(RectF{x, row.cy() - 15, 30, 30});
-    if (ui::iconButton("unlink", "Освободить реликвию", {.disabled = ro}))
-      a.act("Освободить реликвию", [&](Tx& tx) { rules::releaseStateRelic(tx, fid, rid); });
-    a.markUi("arch.relic.release." + std::to_string(rid));
+    if (count) {
+      x -= relics::kCountW + 6;
+      i64 n = st.count;
+      if (relics::countField("count", RectF{x, rr.cy() - 15, relics::kCountW, 30}, n))
+        a.act("Количество реликвий государства", [&](Tx& tx) { rules::setRelicCount(tx, rid, here, n); },
+              {.coalesce = "state.relicCount:" + std::to_string(fid) + ":" + std::to_string(rid)});
+      a.markUi("arch.relic.count." + std::to_string(rid));
+    }
+  }
+  if (!edit) return;
+  // Новые из справочника: копируемые — всегда, уникальные — пока нигде не лежат.
+  std::vector<relics::Source> src;
+  for (const Relic& r : w.catalogs->relics)
+    if (rules::relicFree(w, r.id)) src.push_back(relics::Source{r.id, rules::RelicPlace{}, 0, 3});
+  std::stable_sort(src.begin(), src.end(), [&](const relics::Source& x, const relics::Source& y) {
+    const Relic& p = *w.relic(x.relic);
+    const Relic& q = *w.relic(y.relic);
+    if (p.rarity != q.rarity) return rules::rarityAbove(p.rarity, q.rarity);
+    return compareRu(p.name, q.name) < 0;
+  });
+  const int idx = relics::sourceCombo("add", w, fid, src, src.empty() ? "Свободных реликвий нет" : "Добавить из справочника",
+                                      "Новая реликвия в инвентарь государства");
+  a.markUi("arch.relic.add");
+  if (idx >= 0) {
+    const Id rid = src[size_t(idx)].relic;
+    a.act("Реликвия в инвентарь государства", [&](Tx& tx) { rules::moveRelic(tx, rid, rules::RelicPlace{}, here, 1); });
   }
 }
 
@@ -291,7 +351,7 @@ void drawArch(App& a, Id fid) {
   const Faction* f = w.faction(fid);
   if (!f || !f->isState()) return;
   ui::IdScope scope("arch");
-  const bool ro = a.readOnly();
+  const bool ro = !a.canPlay(fid);   // задания и группы — игровые действия за государство
   const float aw = ui::avail().w;
   if (aw >= kWide) {
     const float left = std::clamp(std::round(aw * 0.4f), 360.f, 440.f);
@@ -300,7 +360,7 @@ void drawArch(App& a, Id fid) {
       ui::Group g(0, 8);
       stats(w, *f);
       groupsSection(a, w, *f, ro);
-      relicsSection(a, w, *f, ro);
+      relicsSection(a, w, *f);
     }
     {
       ui::Group g(0, 8);
@@ -309,7 +369,7 @@ void drawArch(App& a, Id fid) {
   } else {
     stats(w, *f);
     groupsSection(a, w, *f, ro);
-    relicsSection(a, w, *f, ro);
+    relicsSection(a, w, *f);
     provincesSection(a, w, *f, ro, aw >= 420);
   }
 }

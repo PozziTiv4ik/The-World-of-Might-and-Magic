@@ -115,20 +115,6 @@ TEST(ui_number_focus_without_typing_keeps_exact_value) {
   CHECK_EQ(changes, 1);
 }
 
-// Прокрутка к элементу, который уже виден, не просит перерисовку (иначе вызов каждый кадр не даёт окну простаивать).
-TEST(ui_scroll_to_visible_item_is_idle) {
-  H h;
-  h.build = [&] {
-    ui::Area ar({20, 20, 300, 300});
-    ui::VirtualList vl("list", 50, 30, 200);
-    vl.scrollToRow(1);
-    for (int i : vl) (void)ui::next(30), (void)i;
-  };
-  h.settle();
-  h.frame();
-  CHECK(!ui::needsRedraw());
-}
-
 TEST(ui_number_arrows_wheel_steppers) {
   H h;
   double v = 3;
@@ -503,6 +489,20 @@ TEST(ui_scroll_nested_inner_first) {
   for (int i = 0; i < 10; i++) h.wheel(100, 60, -3);
   h.frames(30);
   CHECK(outer > 0);
+}
+
+// Прокрутка к элементу, который уже виден, не просит перерисовку (иначе вызов каждый кадр не даёт окну простаивать).
+TEST(ui_scroll_to_visible_item_is_idle) {
+  H h;
+  h.build = [&] {
+    ui::Area ar({20, 20, 300, 300});
+    ui::VirtualList vl("list", 50, 30, 200);
+    vl.scrollToRow(1);
+    for (int i : vl) (void)ui::next(30), (void)i;
+  };
+  h.settle();
+  h.frame();
+  CHECK(!ui::needsRedraw());
 }
 
 TEST(ui_virtual_list_visible_rows) {

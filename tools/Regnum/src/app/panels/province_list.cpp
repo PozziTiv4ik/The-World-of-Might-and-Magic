@@ -1,17 +1,7 @@
 // Regnum — выдвижная панель «Провинции»: поиск, отбор по владельцу (все / государство / без владельца / морские),
 // сортировка (название, население, торговая ценность, восстание), виртуальный список с цветом владельца,
 // щелчок — выбор и показ на карте, контекстное меню (показать, удалить).
-#include "app/widgets.h"
-
-namespace rg::app::prov {
-// province_common.cpp
-std::string provinceTitle(const Province& p);
-std::string num(double v);
-std::string pct(double v, bool sign = false);
-void showProvince(App& a, Id pid);
-void askDelete(App& a, Id pid);
-extern const char* const kDeleteNeedsEdit;
-}  // namespace rg::app::prov
+#include "app/panels/province_common.h"
 
 namespace rg::app {
 namespace {
@@ -97,7 +87,7 @@ void rebuild(App& a, ListState& s) {
 void drawList(App& a) {
   const World& wd = a.world();
   ListState& s = listState(a);
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // новая и удаление провинции — правка мира
 
   // Государства для отбора (по алфавиту).
   std::vector<const Faction*> states;
@@ -227,10 +217,12 @@ void drawList(App& a) {
       ui::menuHeader(name);
       if (ui::menuItem("Показать на карте", {.icon = "target"})) prov::showProvince(a, pid);
       if (own && ui::menuItem("Открыть государство", {.icon = "crown"})) a.select(SelType::Faction, own->id);
-      ui::menuSeparator();
-      if (ui::menuItem("Удалить провинцию", {.icon = "trash", .danger = true, .disabled = ro || !a.ui.editBorders})) prov::askDelete(a, pid);
-      if (!ro && !a.ui.editBorders) ui::tooltip(prov::kDeleteNeedsEdit);
-      a.markUi("provinces.ctx.delete");
+      if (a.admin()) {   // удаление провинции — правка мира
+        ui::menuSeparator();
+        if (ui::menuItem("Удалить провинцию", {.icon = "trash", .danger = true, .disabled = ro || !a.ui.editBorders})) prov::askDelete(a, pid);
+        if (!ro && !a.ui.editBorders) ui::tooltip(prov::kDeleteNeedsEdit);
+        a.markUi("provinces.ctx.delete");
+      }
       ui::endMenu();
     }
   }

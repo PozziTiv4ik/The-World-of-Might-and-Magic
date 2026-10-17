@@ -10,7 +10,6 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$today = Get-Date -Format 'yyyy-MM-dd'
 $branchesRoot = Join-Path $root '01_Кампания\Ветки'
 $archiveRoot = Join-Path $root '06_Архив_канона'
 $targetPath = Join-Path $root '01_Кампания\00_Индекс_сцен.md'
@@ -18,7 +17,7 @@ $targetPath = Join-Path $root '01_Кампания\00_Индекс_сцен.md'
 $sceneRows = New-Object 'System.Collections.Generic.List[object]'
 
 foreach ($file in Get-ChildItem -LiteralPath $branchesRoot -Recurse -File -Filter '*.md') {
-    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $text = Read-WmmaText $file.FullName
     if ($text -notmatch '(?m)^type:\s*scene\s*$') {
         continue
     }
@@ -38,19 +37,27 @@ foreach ($file in Get-ChildItem -LiteralPath $branchesRoot -Recurse -File -Filte
     }) | Out-Null
 }
 
+function ConvertTo-SceneCells([object]$Row) {
+    ,@($Row.Branch, $Row.Chapter, $Row.Status, $Row.FrontId, $Row.Title, "``$($Row.File)``")
+}
+
 $activeRows = @(
     $sceneRows |
         Where-Object { $_.Status -notin @('closed', 'archived') } |
-        Sort-Object Branch, Chapter, File
+        Sort-Object Branch, Chapter, File |
+        ForEach-Object { ConvertTo-SceneCells $_ }
 )
+if ($activeRows.Count -eq 0) {
+    $activeRows = @(,@('-', '-', '-', '-', 'Активных сцен не найдено', '-'))
+}
 
-$allRows = @($sceneRows | Sort-Object Branch, Chapter, File)
+$allRows = @($sceneRows | Sort-Object Branch, Chapter, File | ForEach-Object { ConvertTo-SceneCells $_ })
 $archiveRows = @()
 if (Test-Path -LiteralPath $archiveRoot) {
     $archiveRows = @(
         Get-ChildItem -LiteralPath $archiveRoot -Recurse -File -Filter '*.md' |
             ForEach-Object {
-                $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName
+                $text = Read-WmmaText $_.FullName
                 if ($text -match '(?m)^type:\s*archived_chapter\s*$') {
                     [pscustomobject]@{
                         Title = Get-WmmaTitle -Text $text
@@ -59,64 +66,26 @@ if (Test-Path -LiteralPath $archiveRoot) {
                     }
                 }
             } |
-            Sort-Object File
+            Sort-Object File |
+            ForEach-Object { ,@($_.Title, $_.Status, "``$($_.File)``") }
     )
 }
 
-$lines = New-Object 'System.Collections.Generic.List[string]'
-$lines.Add('# Индекс сцен') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('---') | Out-Null
-$lines.Add('type: scene_index') | Out-Null
-$lines.Add('status: active') | Out-Null
-$lines.Add('canon_level: support') | Out-Null
-$lines.Add("generated_real_date: $today") | Out-Null
-$lines.Add('generated_by: tools/Собрать_индекс_сцен.ps1') | Out-Null
-$lines.Add('---') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('Этот файл генерируется автоматически. Для пересборки используй `.\tools\Собрать_индекс_сцен.ps1`.') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('## Активные сцены') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('| Ветка | Глава | Статус | FRONT-ID | Сцена | Файл |') | Out-Null
-$lines.Add('| --- | --- | --- | --- | --- | --- |') | Out-Null
+$sceneHeader = @('Ветка', 'Глава', 'Статус', 'FRONT-ID', 'Сцена', 'Файл')
+$lines = New-WmmaGeneratedHeader -Title 'Индекс сцен' -Type 'scene_index' -CanonLevel 'support' -Script 'Собрать_индекс_сцен' `
+    -Intro 'Этот файл генерируется автоматически. Для пересборки используй `.\tools\Собрать_индекс_сцен.ps1`.'
+$lines.Add('')
+$lines.Add('## Активные сцены')
+$lines.Add('')
+Add-WmmaMarkdownTable $lines $sceneHeader $activeRows
+$lines.Add('')
+$lines.Add('## Все сцены по веткам')
+$lines.Add('')
+Add-WmmaMarkdownTable $lines $sceneHeader $allRows
+$lines.Add('')
+$lines.Add('## Архивные главы')
+$lines.Add('')
+Add-WmmaMarkdownTable $lines @('Глава', 'Статус', 'Файл') $archiveRows
 
-if ($activeRows.Count -eq 0) {
-    $lines.Add('| - | - | - | - | Активных сцен не найдено | - |') | Out-Null
-} else {
-    foreach ($row in $activeRows) {
-        $lines.Add("| $($row.Branch) | $($row.Chapter) | $($row.Status) | $($row.FrontId) | $($row.Title) | ``$($row.File)`` |") | Out-Null
-    }
-}
-
-$lines.Add('') | Out-Null
-$lines.Add('## Все сцены по веткам') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('| Ветка | Глава | Статус | FRONT-ID | Сцена | Файл |') | Out-Null
-$lines.Add('| --- | --- | --- | --- | --- | --- |') | Out-Null
-
-foreach ($row in $allRows) {
-    $lines.Add("| $($row.Branch) | $($row.Chapter) | $($row.Status) | $($row.FrontId) | $($row.Title) | ``$($row.File)`` |") | Out-Null
-}
-
-$lines.Add('') | Out-Null
-$lines.Add('## Архивные главы') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('| Глава | Статус | Файл |') | Out-Null
-$lines.Add('| --- | --- | --- |') | Out-Null
-
-foreach ($row in $archiveRows) {
-    $lines.Add("| $($row.Title) | $($row.Status) | ``$($row.File)`` |") | Out-Null
-}
-
-Write-WmmaGeneratedText -Path $targetPath -Text (($lines -join "`n")+"`n")
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-}
-
-"Built scene index: $(Get-WmmaRelativePath -Root $root $targetPath)"
+Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'scene index' -SkipCheck:$SkipCheck
 }

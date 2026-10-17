@@ -5,6 +5,8 @@
 // Промежуточные строки хранятся в кольцевом буфере, поэтому память — O(ширина × число отсчётов).
 #include "gfx/image.h"
 
+#include "codec/image.h"
+
 namespace rg::gfx {
 
 namespace {
@@ -87,6 +89,14 @@ std::vector<u8> Image::toRgba() const {
     u8* o = out.data() + i * 4;
     o[0] = c.r; o[1] = c.g; o[2] = c.b; o[3] = c.a;
   }
+  return out;
+}
+
+codec::RgbaImage Image::toRgbaImage() const {
+  codec::RgbaImage out;
+  out.w = w;
+  out.h = h;
+  out.rgba = toRgba();
   return out;
 }
 

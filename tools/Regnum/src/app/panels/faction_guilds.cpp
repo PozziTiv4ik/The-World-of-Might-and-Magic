@@ -11,7 +11,7 @@ void drawGuilds(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // учреждение гильдии — создание фракции, правка мира
   auto calc = rules::calc(w);
   std::vector<const Faction*> list;
   w.factions.each([&](const Faction& g) {
@@ -60,9 +60,7 @@ void drawGuilds(App& a, Id id) {
   }
 }
 
-bool stateOnly(App& a, Id id) { return isState(a, id); }
-
-TabReg tab({kTabGuilds, "guild", "Гильдии", 70, SelType::Faction, stateOnly, drawGuilds});
+TabReg tab({kTabGuilds, "guild", "Гильдии", 70, SelType::Faction, isState, drawGuilds});
 
 }  // namespace
 }  // namespace rg::app

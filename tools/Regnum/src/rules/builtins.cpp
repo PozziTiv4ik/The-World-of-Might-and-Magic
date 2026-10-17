@@ -1,5 +1,5 @@
 // Regnum — встроенные записи (модификаторы, ресурсы, глобальные константы), расы отрядов и модификаторы сущностей
-// (провинции, государства, войска, герои) со сроками и правилами ТЗ «Модификаторы».
+// (провинции, государства, войска, герои) со сроками и правилами модификаторов.
 //
 // Встроенные модификаторы, ресурсы и константы создаются в мире при первом обращении: мир прежней версии не
 // переписывается при открытии, а пока записи нет, действует шаблон schema (builtinModifiers, builtinConstants).
@@ -10,21 +10,29 @@ namespace rg::rules {
 using namespace detail;
 
 // ================================================================ встроенные записи
+namespace {
+
+// Генерация встроенного модификатора по умолчанию (некромант, лич — эссенция смерти, ценности археологии —
+// сокровища): по названию записи справочника мира.
+std::map<Id, double> builtinGenOf(const World& w, std::string_view key, bool essence) {
+  std::map<Id, double> out;
+  for (const schema::BuiltinGen& g : schema::builtinGens()) {
+    if (key != g.key || g.essence != essence) continue;
+    const std::string k = utf8::searchKey(g.name);
+    for (const CatalogItem& c : essence ? w.catalogs->essences : w.catalogs->resources)
+      if (utf8::searchKey(c.name) == k) out[c.id] = g.perTurn;
+  }
+  return out;
+}
+
+}  // namespace
+
 const Modifier* builtinMod(const World& w, std::string_view key) {
-  const Modifier* found = nullptr;
-  w.modifiers.each([&](const Modifier& m) {
-    if (!found && m.key == key) found = &m;
-  });
+  const Modifier* found = w.modifiers.findIf([&](const Modifier& m) { return m.key == key; });
   return found ? found : schema::builtinModifier(key);
 }
 
-Id builtinModId(const World& w, std::string_view key) {
-  Id id = 0;
-  w.modifiers.each([&](const Modifier& m) {
-    if (!id && m.key == key) id = m.id;
-  });
-  return id;
-}
+Id builtinModId(const World& w, std::string_view key) { return w.modifiers.firstId([&](const Modifier& m) { return m.key == key; }); }
 
 Id ensureBuiltinMod(Tx& tx, std::string_view key) {
   if (Id id = builtinModId(tx.w(), key)) return id;
@@ -35,17 +43,6 @@ Id ensureBuiltinMod(Tx& tx, std::string_view key) {
   m.essGen = builtinGenOf(tx.w(), key, true);
   m.resGen = builtinGenOf(tx.w(), key, false);
   return tx.add(std::move(m)).id;
-}
-
-std::map<Id, double> builtinGenOf(const World& w, std::string_view key, bool essence) {
-  std::map<Id, double> out;
-  for (const schema::BuiltinGen& g : schema::builtinGens()) {
-    if (key != g.key || g.essence != essence) continue;
-    const std::string k = utf8::searchKey(g.name);
-    for (const CatalogItem& c : essence ? w.catalogs->essences : w.catalogs->resources)
-      if (utf8::searchKey(c.name) == k) out[c.id] = g.perTurn;
-  }
-  return out;
 }
 
 std::map<Id, double> modEssGen(const World& w, const Modifier& m) {
@@ -64,20 +61,13 @@ Id resourceId(const World& w, std::string_view key) {
 
 Id ensureResource(Tx& tx, std::string_view key) {
   if (Id id = resourceId(tx.w(), key)) return id;
-  for (const auto& b : schema::kBuiltinResources) {
-    if (key != b.key) continue;
-    CatalogItem it;
-    it.id = tx.nextId(Seq::Resource);
-    it.name = b.name;
-    it.color = Color::hex(b.color);
-    it.icon = b.icon;
-    it.key = b.key;
-    it.builtin = true;
-    if (b.group) it.group = tx.w().catalogs->groupId(b.group);
-    tx.catalogs().resources.push_back(it);
-    return it.id;
-  }
-  fail("Неизвестный встроенный ресурс «" + std::string(key) + "»");
+  const schema::BuiltinResource* b = schema::builtinResource(key);
+  if (!b) fail("Неизвестный встроенный ресурс «" + std::string(key) + "»");
+  CatalogItem it = schema::builtinResourceItem(*b);
+  it.id = tx.nextId(Seq::Resource);
+  if (b->group) it.group = tx.w().catalogs->groupId(b->group);
+  tx.catalogs().resources.push_back(it);
+  return it.id;
 }
 
 const Constant& constantOf(const World& w, std::string_view key) {
@@ -188,9 +178,10 @@ std::vector<Id> talentModifiers(const World& w, Id character) {
   const Character* c = w.character(character);
   if (!c || c->talents.empty()) return out;
   const HeroClass* hc = w.heroClass(c->heroClass);
-  if (!hc) return out;
+  const SubClass* sc = hc ? hc->subclass(c->subclass) : nullptr;
+  if (!sc) return out;
   for (Id t : c->talents)
-    if (const Talent* x = hc->talent(t))
+    if (const Talent* x = sc->talent(t))
       for (Id m : x->modifiers)
         if (std::find(out.begin(), out.end(), m) == out.end()) out.push_back(m);
   return out;
@@ -289,7 +280,7 @@ void dropModifier(Tx& tx, ModTarget t, Id target, Id modifier) {
     if (key == schema::mod::Dead) c.burial = 0;
     if (key == schema::mod::Captive) c.captor = 0;
   }
-  // Любое снятие «Чумы» даёт провинции «Временный иммунитет» (ТЗ «Доработки №3», п.4).
+  // Любое снятие «Чумы» даёт провинции «Временный иммунитет».
   if (t == ModTarget::Province && key == schema::mod::Plague) {
     const Id imm = ensureBuiltinMod(tx, schema::mod::PlagueImmunity);
     if (!contains(tx.w().province(target)->modifiers, imm)) {
@@ -304,7 +295,7 @@ void addModifier(Tx& tx, ModTarget t, Id target, Id modifier, int turns) {
   needTarget(tx.w(), t, target);
   const Modifier* m = tx.w().modifier(modifier);
   if (!m) fail(modifier ? "Модификатор не найден" : "Не выбран модификатор");
-  const std::string key = m->key, name = q(m->name.empty() ? std::string("Без названия") : m->name);
+  const std::string key = m->key, name = q(nameOr(m->name));
   if (!kindFits(m->kind, t)) fail(name + " — " + utf8::lower(schema::modKind(m->kind).name) + ": его нельзя назначить " + targetNoun(t));
   if (!key.empty() && schema::isAutoKey(key)) fail(name + " ставится и снимается автоматически");
   const std::vector<Id>& cur = currentMods(tx.w(), t, target);
@@ -313,7 +304,7 @@ void addModifier(Tx& tx, ModTarget t, Id target, Id modifier, int turns) {
     return;
   }
   const World& w = tx.w();
-  // Правила ТЗ «Модификаторы».
+  // Правила модификаторов.
   if (t == ModTarget::Character) {
     if (key == schema::mod::Loyalist && hasModKey(w, cur, schema::mod::Discontent))
       fail("«Непреклонный лоялист» нельзя назначить вместе с «Недовольство правителем»");
@@ -335,7 +326,7 @@ void addModifier(Tx& tx, ModTarget t, Id target, Id modifier, int turns) {
   if (n > 0) (*s.turns)[modifier] = n;
   else s.turns->erase(modifier);
   if (t == ModTarget::Character && (key == schema::mod::Dead || key == schema::mod::Captive)) {
-    // Мёртвый и пленный снимаются со всех назначений (ТЗ «Модификаторы», 1.6, 1.12).
+    // Мёртвый и пленный снимаются со всех назначений.
     if (key == schema::mod::Dead) {
       if (Id cap = modByKey(tx.w(), tx.w().character(target)->modifiers, schema::mod::Captive)) dropModifier(tx, t, target, cap);
     }
@@ -413,29 +404,29 @@ std::vector<AutoMod> autoModifiers(const World& w, Id faction) {
     a.why = std::move(why);
     if (a.m) out.push_back(std::move(a));
   };
-  // Совет (ТЗ «Общие доработки», п.6): нет назначений — «Децентрализация», 1–3 — «Слабый контроль», больше — «Централизованная власть».
+  // Совет: нет назначений — «Децентрализация», 1–3 — «Слабый контроль», больше — «Централизованная власть».
   const int n = councilAssigned(w, faction);
   const std::string seats = std::to_string(n) + " " + plural(n, "назначение", "назначения", "назначений") + " в совете";
   if (n == 0) addKey(schema::mod::Decentralization, "В совете нет назначений");
   else if (n <= 3) addKey(schema::mod::WeakControl, seats);
   else {
     addKey(schema::mod::Centralized, seats);
-    // «Влияние совета» (ТЗ «Доработки №1», п.4): вместе с «Централизованной властью» — значение модификатора за каждую
+    // «Влияние совета»: вместе с «Централизованной властью» — значение модификатора за каждую
     // должность в совете.
     const int posts = int(f->council.size());
     addKey(schema::mod::CouncilInfluence, std::to_string(posts) + " " + plural(posts, "должность", "должности", "должностей") + " в совете");
     if (!out.empty() && out.back().key == schema::mod::CouncilInfluence) out.back().scale = double(posts);
   }
-  // Голод (п.7): недостача провизии (ресурсов группы «Провизия» не хватило на расход населения).
+  // Голод: недостача провизии (ресурсов группы «Провизия» не хватило на расход населения).
   if (f->provisionDebt > 1e-9) addKey(schema::mod::Famine, "Недостача провизии " + fmtNum(f->provisionDebt, 2));
-  // Должности (п.4–5): модификатор занятой или пустующей должности.
+  // Должности: модификатор занятой или пустующей должности.
   for (const CatalogItem& pos : w.catalogs->positions) {
     if (pos.modifiers.empty() && pos.vacantModifiers.empty()) continue;
     bool taken = false;
     const std::string key = utf8::searchKey(pos.name);
     for (const CouncilSeat& s : f->council)
       if (s.character && heroAvailable(w, s.character) && utf8::searchKey(s.position) == key) taken = true;
-    const std::string nm = "«" + (pos.name.empty() ? std::string("Без названия") : pos.name) + "»";
+    const std::string nm = q(nameOr(pos.name));
     for (Id mid : taken ? pos.modifiers : pos.vacantModifiers) {
       const Modifier* m = w.modifier(mid);
       if (!m) continue;

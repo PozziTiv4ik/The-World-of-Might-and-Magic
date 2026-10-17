@@ -1,7 +1,8 @@
 // Сценарии модификаторов провинции (ТЗ «Модификаторы», п.1.1–1.3, 1.11): «Столица государства» — автоматически,
 // только чтение с причиной (+3 слота); список — общий список модификаторов через правило: встроенный модификатор без
 // записи мира создаётся при выборе, срок по умолчанию модификатора, оставшиеся ходы на фишке и их правка (0 —
-// бессрочно), ход уменьшает срок, удаление крестиком; источники эффектов — с автоматическими модификаторами.
+// бессрочно), ход уменьшает срок, удаление крестиком; источники эффектов — с автоматическими модификаторами. «Чума» в
+// провинции со «Зданием чумы» — везде с действующим эффектом: прирост населения (rules::provinceModView).
 #include "tests/test_app_economy_util.h"
 
 using namespace rg;
@@ -33,7 +34,6 @@ bool setTerm(Harness& h, Id pid, Id mid, const std::string& value) {
 }  // namespace
 
 TEST(app_economy_province_modifiers) {
-  HideTestRegs hide;
   Harness h("economy_province_mods", 1440, 1100);
   h.demo();
   const Id st = biggestState(h->world());
@@ -94,4 +94,58 @@ TEST(app_economy_province_modifiers) {
   // Источники эффектов показываются (с автоматическими).
   h.settle();
   CHECK(h->uiRect("province.effects") != nullptr);
+}
+
+// «Чума» при «Здании чумы» (чумная лаборатория) даёт прирост населения: подсказка фишки модификатора, источник эффекта,
+// итог эффектов и прирост во вкладке «Население» — с положительным приростом; без постройки — убыль.
+TEST(app_economy_province_plague_building) {
+  Harness h("economy_plague_building", 1440, 1100);
+  h.demo();
+  h.dropToasts();
+  const Id st = biggestState(h->world());
+  const Id pid = populousProvince(h->world(), st);
+  const Id lab = test::buildingByKey(h->world(), schema::bld::PlagueLab);
+  CHECK(st && pid && lab);
+  CHECK(h->act("Чума и чумная лаборатория", [&](Tx& tx) {
+    tx.province(pid).buildings.clear();
+    rules::placeBuilding(tx, pid, lab, 1);
+    CHECK(rules::infectPlague(tx, pid));
+  }));
+  const Id plague = rules::builtinModId(h->world(), schema::mod::Plague);
+  CHECK(plague != 0);
+  CHECK_NEAR(rules::provinceModView(h->world(), pid, plague).fx[size_t(Fx::PopGrowthPct)], schema::kPlagueBuildingGrowth, 1e-9);
+  // Источник «Чума» в расчёте — с приростом.
+  {
+    auto c = rules::calc(h->world());
+    double fromPlague = 0;
+    for (const rules::EffectSource& s : c->province(pid)->fx.sources)
+      if (s.kind == rules::EffectSource::Province && s.modifier == plague) fromPlague = rules::provinceModView(h->world(), pid, s.modifier).get(Fx::PopGrowthPct);
+    CHECK(fromPlague > 0);
+  }
+  // Вкладка «Модификаторы»: подсказка фишки «Чума» — прирост и причина.
+  openProvince(h, pid, "province.modifiers");
+  const int idx = chipIndex(*prov(h, pid), plague);
+  CHECK(idx >= 0);
+  const std::string chip = "mods.chip." + std::to_string(idx);
+  CHECK(ensureVisible(h, chip));
+  const RectF* r = h->uiRect(chip);
+  CHECK(r != nullptr);
+  if (r) {
+    const RectF rr = *r;
+    h.move(rr.x + 20, rr.cy());
+    for (int i = 0; i < 40; i++) h.frame();
+    const std::string tip = ui::tooltipText();
+    CHECK_MSG(tip.find("Здание чумы") != std::string::npos, tip);
+    CHECK_MSG(tip.find("+2,5") != std::string::npos, tip);
+  }
+  shotClean(h, "economy_plague_building_mods");
+  // Вкладка «Население»: прирост за ход — положительный.
+  openProvince(h, pid, "province.population");
+  CHECK(h->uiRect("province.population") != nullptr);
+  CHECK(h->uiRect("province.growth") != nullptr);
+  CHECK(rules::calc(h->world())->province(pid)->fx[Fx::PopGrowthPct] > 0);
+  shotClean(h, "economy_plague_building_population");
+  // Без постройки — «Чума» снова уменьшает население.
+  CHECK(h->act("Снести лабораторию", [&](Tx& tx) { rules::demolish(tx, pid, lab); }));
+  CHECK(rules::provinceModView(h->world(), pid, plague).get(Fx::PopGrowthPct) < 0);
 }

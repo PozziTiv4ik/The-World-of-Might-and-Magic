@@ -1,48 +1,12 @@
-// Regnum — помощники сценариев панелей государств и гильдий (test_app_faction_*.cpp).
+// Regnum — помощники сценариев страниц государств и гильдий (test_app_faction_*.cpp, test_app_diplomacy_*.cpp):
+// вкладка фракции с начала прокрутки, прокрутка инспектора к элементу, ввод числа и выбор в списке с поиском, ответ
+// в окне запроса строки.
 #pragma once
 #include "tests/test_app_util.h"
 
 namespace rg::factest {
 
 using namespace rg::apptest;
-
-// Тестовые регистрации других сценариев («test.*»: вкладки, шапка, выдвижная панель) на время сценария
-// убираются из реестров и возвращаются после.
-struct HideTestRegs {
-  std::vector<app::TabDef> tabs;
-  std::vector<app::HeaderDef> headers;
-  std::vector<app::DrawerDef> drawers;
-  template <class T>
-  static void strip(std::vector<T>& v) {
-    v.erase(std::remove_if(v.begin(), v.end(), [](const T& d) { return std::string_view(d.id).starts_with("test."); }), v.end());
-  }
-  HideTestRegs() {
-    auto& t = const_cast<std::vector<app::TabDef>&>(app::tabs());
-    auto& h = const_cast<std::vector<app::HeaderDef>&>(app::headers());
-    auto& d = const_cast<std::vector<app::DrawerDef>&>(app::drawers());
-    tabs = t;
-    headers = h;
-    drawers = d;
-    strip(t);
-    strip(h);
-    strip(d);
-  }
-  ~HideTestRegs() {
-    const_cast<std::vector<app::TabDef>&>(app::tabs()) = tabs;
-    const_cast<std::vector<app::HeaderDef>&>(app::headers()) = headers;
-    const_cast<std::vector<app::DrawerDef>&>(app::drawers()) = drawers;
-  }
-  HideTestRegs(const HideTestRegs&) = delete;
-  HideTestRegs& operator=(const HideTestRegs&) = delete;
-};
-
-inline Id findFaction(const World& w, std::string_view name) {
-  Id r = 0;
-  w.factions.each([&](const Faction& f) {
-    if (f.name == name) r = f.id;
-  });
-  return r;
-}
 
 // Прокрутить тело инспектора колесом (положительное — вверх).
 inline void scrollInspector(Harness& h, float notches) {
@@ -52,17 +16,8 @@ inline void scrollInspector(Harness& h, float notches) {
   h.settle();
 }
 
-// Выбрать фракцию, открыть вкладку и вернуть прокрутку инспектора к началу (она общая для вкладок).
-inline void openTab(Harness& h, Id faction, const char* tab) {
-  h->ui.tabOf[app::SelType::Faction] = tab;
-  h->select(app::SelType::Faction, faction);
-  h.settle();
-  h.dropToasts();
-  if (const RectF* r = h->uiRect("inspector")) {
-    h.wheel(r->cx(), r->bottom() - 120, 40);
-    h.frames(24);   // плавная прокрутка — 120–180 мс
-  }
-}
+// Выбрать фракцию, открыть вкладку и вернуть прокрутку инспектора к началу.
+inline void openTab(Harness& h, Id faction, const char* tab) { apptest::openTab(h, app::SelType::Faction, faction, tab); }
 
 // Прокрутить инспектор так, чтобы элемент оболочки name был виден целиком.
 inline bool ensureVisible(Harness& h, const std::string& name) {

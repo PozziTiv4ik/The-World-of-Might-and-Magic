@@ -7,8 +7,6 @@ using namespace detail;
 
 namespace {
 
-constexpr i64 kMaxCount = 1000000000000000LL;
-
 // Зерно броска восстания: «ход + провинция»; нападения пиратов: «ход + фракция».
 u64 rebellionSeed(int turn, Id province) { return hashMix(hashMix(0x5245424C4C494F4Eull, u64(u32(turn))), u64(province)); }
 u64 pirateSeed(int turn, Id faction) { return hashMix(hashMix(0x5049524154455321ull, u64(u32(turn))), u64(faction)); }
@@ -24,7 +22,7 @@ std::string dealDoneText(const World& w, const Deal& d) {
 
 std::string modName(const World& w, Id m) {
   const Modifier* x = w.modifier(m);
-  return q(x && !x->name.empty() ? x->name : std::string("Без названия"));
+  return q(nameOr(x ? x->name : std::string()));
 }
 
 }  // namespace
@@ -37,6 +35,7 @@ TurnReport endTurn(Tx& tx) {
   auto log = [&](LogKind kind, const std::string& text, LogRefs refs) { rep.logIds.push_back(addLog(tx, kind, text, refs)); };
 
   // Расчёт по состоянию на начало процедуры.
+  const World start = tx.w();
   const std::shared_ptr<const Calc> c = calc(tx);
   const std::vector<Id> factionIds = tx.w().factions.ids();
   std::vector<std::map<Id, double>> before, beforeEss;
@@ -65,7 +64,7 @@ TurnReport endTurn(Tx& tx) {
           LogRefs{0, 0, {id}});
   }
 
-  // 2а. Провизия государств живых (ТЗ «Добавления в справочники», п.3): 0,001 на жителя и недостача прошлых ходов —
+  // 2а. Провизия государств живых: 0,001 на жителя и недостача прошлых ходов —
   // поровну со всех ресурсов группы «Провизия»; чего не хватило — недостача («Голод», пока она не покрыта).
   for (Id id : factionIds) {
     const FactionCalc* fc = c->faction(id);
@@ -85,8 +84,8 @@ TurnReport endTurn(Tx& tx) {
       log(LogKind::Economy, facName(tx.w(), id) + ": недостача провизии покрыта — голод закончился", LogRefs{0, 0, {id}});
   }
 
-  // 2б. Постройки преобразования (ТЗ «Доработки», п.3): начало цикла списывает ресурсы на входе, завершение даёт
-  // ресурс на выходе (план расчёта на начало хода).
+  // 2б. Постройки преобразования: начало цикла списывает ресурсы на входе (эссенции — в шаге 2в, вместе с потоком
+  // эссенций), завершение даёт ресурс на выходе (план расчёта на начало хода).
   for (Id id : factionIds) {
     const FactionCalc* fc = c->faction(id);
     if (!fc || fc->conversions.empty()) continue;
@@ -108,7 +107,8 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 2в. Эссенции элементов: генерация построек и содержание элементалей (запас может уйти в долг).
+  // 2в. Эссенции элементов: генерация построек и иссушения, содержание элементалей, расход преобразования (запас может
+  // уйти в долг).
   for (Id id : factionIds) {
     const FactionCalc* fc = c->faction(id);
     if (!fc) continue;
@@ -125,6 +125,28 @@ TurnReport endTurn(Tx& tx) {
     }
     if (!debts.empty())
       log(LogKind::Economy, facName(tx.w(), id) + ": не хватает эссенций на содержание элементалей — " + join(debts, ", "), LogRefs{0, 0, {id}});
+  }
+
+  // 2г. Постройки иссушения: у выбранной расы провинции отнимаются жители (эссенции получены в шаге 2в).
+  for (Id id : factionIds) {
+    const FactionCalc* fc = c->faction(id);
+    if (!fc || fc->drains.empty()) continue;
+    std::map<Id, i64> taken;
+    for (const DrainStep& d : fc->drains) {
+      if (!tx.w().province(d.province)) continue;
+      i64 got = 0;
+      for (RacePop& r : tx.province(d.province).races)
+        if (r.race == d.race && got < d.pop) {
+          const i64 t = std::min(d.pop - got, std::max<i64>(0, r.pop));
+          r.pop -= t;
+          got += t;
+        }
+      taken[d.province] += got;
+    }
+    std::vector<std::string> parts;
+    for (auto& [pid, n] : taken)
+      if (n > 0) parts.push_back(provName(tx.w(), pid) + " −" + fmtInt(n));
+    if (!parts.empty()) log(LogKind::Population, facName(tx.w(), id) + ": иссушение населения — " + join(parts, ", "), LogRefs{0, 0, {id}});
   }
 
   // 3. Сделки «каждый ход»: ресурсы кроме золота; оставшиеся ходы; завершение.
@@ -213,7 +235,7 @@ TurnReport endTurn(Tx& tx) {
       log(LogKind::Tech, facName(tx.w(), faction) + ": изучена технология " + techName(tx.w(), tid), LogRefs{0, 0, {faction}});
     }
   }
-  // 5а. Общие технологии: каждая фракция исследует общее дерево сама (ТЗ «Доработки», п.6).
+  // 5а. Общие технологии: каждая фракция исследует общее дерево сама.
   for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) {
          return std::any_of(f.techs.begin(), f.techs.end(), [](const auto& kv) { return kv.second.research && !kv.second.studied; });
        })) {
@@ -290,7 +312,7 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 9. Формирование отрядов и кораблей: через 2 хода — в резерв (ТЗ «Общие доработки», п.10.2).
+  // 9. Формирование отрядов и кораблей: через 2 хода — в резерв.
   for (Id id : idsWhere(tx.w().factions, [](const Faction& f) { return !f.forming.empty(); })) {
     std::vector<Formation> keep, done;
     for (Formation q : tx.w().faction(id)->forming) {
@@ -319,7 +341,7 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 10. Верность войск (эффекты — на начало хода). Верность −100 % — войско восстаёт целиком (ТЗ «Мятеж», п.1.2).
+  // 10. Верность войск (эффекты — на начало хода). Верность −100 % — войско восстаёт целиком.
   std::vector<Id> rebelled;
   for (Id aid : tx.w().armies.ids()) {
     const Army& a = *tx.w().army(aid);
@@ -344,7 +366,7 @@ TurnReport endTurn(Tx& tx) {
     e.heroes = m.loyalHeroes;
     rep.events.push_back(std::move(e));
   }
-  // 10а. Верность гарнизонов (ТЗ «Доработки», п.1): как у войск — эффекты государства и «Непреклонный лоялист»;
+  // 10а. Верность гарнизонов: как у войск — эффекты государства и «Непреклонный лоялист»;
   // у государства нежити — всегда 100 %. Гарнизон с верностью −100 % восстаёт целиком (событие хода).
   {
     std::vector<Id> risen;
@@ -407,7 +429,7 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 12. Пираты (ТЗ «Общие доработки», п.11): бросок по вероятности, сгенерированной в конце прошлого хода;
+  // 12. Пираты: бросок по вероятности, сгенерированной в конце прошлого хода;
   // затем новая вероятность по кораблям в торговле.
   for (Id id : factionIds) {
     const Faction* f0 = tx.w().faction(id);
@@ -419,7 +441,7 @@ TurnReport endTurn(Tx& tx) {
         i64 galleons = 0;
         for (const GarrisonEntry& g : f0->tradeFleet)
           if (const FleetRow* r = f0->fleetRow(g.row); r && r->type == ShipType::Galleon) galleons += g.count;
-        // Меньше 100 галеонов в торговле — пираты забирают 20 галеонов (не больше, чем есть), иначе 5 % (ТЗ «Доработки №3», п.10).
+        // Меньше 100 галеонов в торговле — пираты забирают 20 галеонов (не больше, чем есть), иначе 5 %.
         i64 lost = galleons < schema::kPirateFlatBelow ? std::min(galleons, schema::kPirateFlatLoss)
                                                         : i64(std::ceil(double(galleons) * schema::kPirateLossPct / 100.0 - 1e-9));
         if (lost > 0) {
@@ -446,7 +468,7 @@ TurnReport endTurn(Tx& tx) {
     if (tx.w().faction(id)->pirateRisk != next) tx.faction(id).pirateRisk = next;
   }
 
-  // 13. Оккупация без гарнизона и войск оккупанта 5 ходов подряд снимается (ТЗ «Общие доработки», п.14).
+  // 13. Оккупация без гарнизона и войск оккупанта 5 ходов подряд снимается.
   {
     std::unordered_map<Id, std::vector<Id>> armiesIn;   // провинция → фракции, чьи войска в ней
     auto fs = facesFor(tx);
@@ -504,7 +526,7 @@ TurnReport endTurn(Tx& tx) {
       }
       return goneKeys;
     };
-    std::vector<Id> plagueEnded;   // чума закончилась сама — распространяется на соседей (ТЗ «Доработки №3», п.4)
+    std::vector<Id> plagueEnded;   // чума закончилась сама — распространяется на соседей
     for (Id pid : idsWhere(tx.w().provinces, [](const Province& p) { return !p.modTurns.empty(); })) {
       const Province& p = *tx.w().province(pid);
       const auto keys =
@@ -555,10 +577,14 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 15. Постройки сверх слотов (слоты уменьшились) сносятся с конца списка.
-  trimExcessBuildings(tx);
+  // 15. Постройки сверх слотов (слоты уменьшились модификаторами) сносятся с конца списка; тип города, упавший вместе с
+  // населением, построек не сносит.
+  {
+    const std::vector<SlotLoss> loss = slotLosses(start, tx.w());
+    if (!loss.empty()) trimExcessBuildings(tx, &loss);
+  }
 
-  // 16. Мятежное государство без армий и провинций упраздняется (ТЗ «Мятеж», п.7; записи хроники сохраняются).
+  // 16. Мятежное государство без армий и провинций упраздняется.
   for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) { return f.rebelOf != 0; })) {
     bool any = false;
     tx.w().armies.each([&](const Army& a) {

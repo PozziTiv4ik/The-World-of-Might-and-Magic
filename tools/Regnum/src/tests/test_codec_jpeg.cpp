@@ -5,9 +5,11 @@
 
 #include "base/fs.h"
 #include "codec/jpeg.h"
+#include "codec/png.h"
 #include "codec/zlib.h"
 #include "tests/test.h"
 #include "tests/test_codec_util.h"
+#include "tests/test_png.h"
 
 using namespace rg;
 using namespace rg::codec;
@@ -39,7 +41,7 @@ TEST(codec_jpeg_fixtures_vs_pillow) {
       if (i % 4 != 3) maxDiff = std::max(maxDiff, std::abs(int(img->rgba[i]) - int(ref->rgba[i])));
     std::printf("       %-9s %3d x %-3d  MAE %.3f  макс. %d\n", name.c_str(), w, h, mae, maxDiff);
     if (name == "p422_big" || name == "cmyk" || name == "exif6" || name == "c440_big")
-      CHECK(writePngFile(test::outDir() + "/codec/jpeg_" + name + ".png", *img, 1));
+      CHECK(test::savePng("codec/jpeg_" + name + ".png", *img, 1));
     CHECK_MSG(mae <= tol, name + strf(": MAE %.3f > %.1f", mae, tol));
     if (mae > worst) { worst = mae; worstName = name; }
     n++;
@@ -177,7 +179,7 @@ TEST(codec_jpeg_speed) {
     auto img = decodeJpeg(*bytes);
     best = std::min(best, nowSeconds() - t0);
     CHECK(img.has_value());
-    if (i == 0) CHECK(writePngFile(test::outDir() + "/codec/portrait.png", *img, 1));
+    if (i == 0) CHECK(test::savePng("codec/portrait.png", *img, 1));
   }
   std::printf("       портрет %.0f KB: декодирование %.1f ms\n", bytes->size() / 1024.0, best * 1000);
 }

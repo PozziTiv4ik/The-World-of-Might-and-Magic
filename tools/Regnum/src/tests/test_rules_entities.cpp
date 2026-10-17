@@ -1,20 +1,14 @@
-// Тесты rules: создание и удаление сущностей с очисткой всех ссылок, справочники, владение и оккупация,
-// удаление, объединение и разделение провинций, строки войск и флота.
+// Тесты rules: создание и удаление сущностей с очисткой всех ссылок, базовые записи нового мира и встроенные записи по
+// первому обращению, содержимое новых государств и провинций, справочники и группы ресурсов, владение и оккупация
+// (снятие без гарнизона), удаление, объединение и разделение провинций, строки войск и флота, записи хроники.
+#include "core/content.h"
 #include "tests/test_rules_util.h"
 
 using namespace rg;
 using namespace rg::rules;
 using namespace rg::rulestest;
 
-namespace {
-
-double provArea(const World& w, Id p) {
-  auto fs = geo::buildFaces(w);
-  auto* s = fs->shape(p);
-  return s ? s->area : 0;
-}
-
-}  // namespace
+using geotest::provArea;
 
 TEST(rules_entities_create_defaults) {
   Fix f;
@@ -47,6 +41,95 @@ TEST(rules_entities_create_defaults) {
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { createBuilding(tx, f.G); }); }), "только у государств"));
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { createTech(tx, 999); }); }), "не найдена"));
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { createCharacter(tx, 999); }); }), "не найдена"));
+}
+
+TEST(rules_entities_new_world_content) {
+  World w = newWorld("Мир");
+  CHECK_EQ(w.meta->content, content::kVersion);
+  const auto& pos = w.catalogs->positions;
+  CHECK_EQ(pos.size(), size_t(10));
+  CHECK_EQ(pos[0].name, std::string("Десница"));
+  CHECK_EQ(pos[5].name, std::string("Хранитель знаний"));
+  CHECK_EQ(pos[9].name, std::string("Верховный друид"));
+  CHECK_EQ(w.catalogs->essences.size(), size_t(18));
+  CHECK_EQ(w.catalogs->religions.size(), size_t(70));
+  CHECK_EQ(w.catalogs->resGroups.size(), content::baseGroups().size());
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::OreCommon)).size(), size_t(10));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::OreSpecial)).size(), size_t(9));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Ore)).size(), size_t(19));   // группа — с подгруппами
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::MountsGround)).size(), size_t(23));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::MountsFlying)).size(), size_t(13));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::WarBeasts)).size(), size_t(15));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Monsters)).size(), size_t(31));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Beasts)).size(), size_t(87));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::SeaMonsters)).size(), size_t(5));
+  CHECK_EQ(provisionResources(w).size(), size_t(17));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Materials)).size(), size_t(35));
+  // Трупы и демоническая энергия — сразу в справочнике (начальные запасы задаются без первого начисления).
+  CHECK(w.catalogs->resourceId(schema::kResCorpses) && w.catalogs->resourceId(schema::kResEnergy));
+  const Id parts = w.catalogs->resourceId(schema::kResMechParts);
+  CHECK(parts && w.resource(parts)->name == "Запчасти механизмов" && w.catalogs->resourceIn(parts, w.catalogs->groupId(schema::grp::MatIndustrial)));
+  // «Драконы Бездны» и «Цитадель Бездны» (общее дерево).
+  CHECK_EQ(w.catalogs->specials.size(), size_t(10));   // «Драконы Бездны» и 9 особых отрядов ТЗ «Доработки №4»
+  const SpecialUnit& d = w.catalogs->specials[0];
+  CHECK_EQ(d.name, std::string("Драконы Бездны"));
+  CHECK(d.type == UnitType::Monsters);
+  CHECK_EQ(d.keyRes, test::idByName(w.catalogs->resources, "Черные Драконы"));
+  CHECK_NEAR(d.extra.at(test::idByName(w.catalogs->resources, "Обсидиановая сталь")), 100, 1e-12);
+  CHECK_NEAR(d.essence.at(test::idByName(w.catalogs->essences, "Эссенция бездны")), 1000, 1e-12);
+  bool citadel = false;
+  w.buildings.each([&](const Building& b) {
+    if (b.name == "Цитадель Бездны" && b.owner == 0 && b.specialAccess && b.specials == std::vector<Id>{d.id}) citadel = true;
+  });
+  CHECK(citadel);
+}
+
+TEST(rules_entities_builtins_lazy) {
+  Fix f;
+  CHECK_EQ(builtinModId(f.w(), schema::mod::Plundered), Id(0));
+  CHECK(builtinMod(f.w(), schema::mod::Plundered) != nullptr);   // шаблон
+  Id m1 = 0, m2 = 0, r1 = 0, r2 = 0;
+  f.tx([&](Tx& tx) {
+    m1 = ensureBuiltinMod(tx, schema::mod::Plundered);
+    m2 = ensureBuiltinMod(tx, schema::mod::Plundered);
+    r1 = ensureResource(tx, schema::kResCorpses);
+    r2 = ensureResource(tx, schema::kResCorpses);
+  });
+  CHECK(m1 != 0 && m1 == m2);
+  CHECK_EQ(f.w().modifier(m1)->duration, 5);
+  CHECK(r1 != 0 && r1 == r2);
+  CHECK_EQ(resourceId(f.w(), schema::kResCorpses), r1);
+  CHECK_NEAR(constantOf(f.w(), schema::cst::ColonizationCost).num, 0, 1e-9);
+  CHECK_NEAR(constantOf(f.w(), schema::cst::EnergyPerUnit).num, 100, 1e-9);
+  f.tx([&](Tx& tx) { ensureConstant(tx, schema::cst::ColonizationCost).num = 500; });
+  CHECK_NEAR(constantOf(f.w(), schema::cst::ColonizationCost).num, 500, 1e-9);
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { removeConstant(tx, schema::cst::ColonizationCost); }); }), "встроенная"));
+  std::string key;
+  f.tx([&](Tx& tx) { key = addConstant(tx, ConstType::Values, "Свои"); });
+  CHECK_EQ(key, std::string("user1"));
+  f.tx([&](Tx& tx) { removeConstant(tx, key); });
+  CHECK(f.w().constants->find(key) == nullptr);
+}
+
+TEST(rules_entities_new_state_and_province_content) {
+  Fix f;
+  Id s = 0, p = 0;
+  f.tx([&](Tx& tx) {
+    s = createFaction(tx, FactionKind::State, "Новое");
+    p = splitProvince(tx, f.p[0], {{150, 50}, {150, 550}});
+  });
+  int guilds = 0;
+  f.w().buildings.each([&](const Building& b) { guilds += b.owner == s && b.key == schema::bld::ArchGuild && b.cat == BuildingCat::Cult; });
+  CHECK_EQ(guilds, 1);
+  CHECK(has(errorOf([&] {
+          f.tx([&](Tx& tx) {
+            f.w().buildings.each([&](const Building& b) {
+              if (b.owner == s) removeBuilding(tx, b.id);
+            });
+          });
+        }),
+        "постоянная"));
+  for (const ArchSlot& sl : f.w().province(p)->arch) CHECK(sl.site != 0);
 }
 
 TEST(rules_entities_remove_faction_cleanup) {
@@ -306,6 +389,35 @@ TEST(rules_entities_catalogs) {
   CHECK(!Catalogs::find(w.catalogs->positions, pos));
 }
 
+TEST(rules_entities_resource_groups) {
+  Fix f;
+  Id metals = 0, light = 0, heavy = 0, gold = 0, iron = 0, lead = 0;
+  f.tx([&](Tx& tx) {
+    metals = addResGroup(tx, "Металлы");
+    light = addResGroup(tx, "Лёгкие", metals);
+    heavy = addResGroup(tx, "Тяжёлые", metals);
+    gold = addCatalogItem(tx, CatalogList::Resources, "Алюминий");
+    iron = addCatalogItem(tx, CatalogList::Resources, "Свинец");
+    lead = addCatalogItem(tx, CatalogList::Resources, "Сплав");
+    setResourceGroup(tx, gold, light);
+    setResourceGroup(tx, iron, heavy);
+    setResourceGroup(tx, lead, metals);
+  });
+  CHECK((resourcesIn(f.w(), light) == std::vector<Id>{gold}));   // подгруппа — только её ресурсы
+  CHECK((resourcesIn(f.w(), metals) == std::vector<Id>{gold, iron, lead}));
+  CHECK_EQ(groupPath(f.w(), heavy), std::string("Металлы / Тяжёлые"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setGroupParent(tx, metals, light); }); }), "в свою подгруппу"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { addResGroup(tx, "Лёгкие", metals); }); }), "уже есть"));
+  // Удаление группы: подгруппы и ресурсы — в родителя.
+  f.tx([&](Tx& tx) { removeResGroup(tx, light); });
+  CHECK_EQ(f.w().resource(gold)->group, metals);
+  f.tx([&](Tx& tx) { removeResGroup(tx, metals); });
+  CHECK_EQ(f.w().catalogs->group(heavy)->parent, Id(0));
+  CHECK_EQ(f.w().resource(lead)->group, Id(0));
+  // Группы правил удалить нельзя.
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { removeResGroup(tx, tx.w().catalogs->groupId(schema::grp::Provisions)); }); }), "нельзя удалить"));
+}
+
 TEST(rules_entities_province_owner) {
   Fix f;
   Id r1 = 0;
@@ -354,6 +466,26 @@ TEST(rules_entities_occupation) {
   CHECK(has(lastLog(f.w()), "снята"));
 }
 
+TEST(rules_entities_occupation_lifts_without_garrison) {
+  Fix f;
+  Id row = 0;
+  f.tx([&](Tx& tx) {
+    tx.province(f.p[0]).owner = f.A;
+    tx.province(f.p[1]).owner = f.A;
+    setOccupied(tx, f.p[0], f.B);
+    setOccupied(tx, f.p[1], f.B);
+    row = addArmyRow(tx, f.B, UnitType::LightInf, "", 50, 1);
+    setOccupationGarrison(tx, f.p[1], row, 20);
+  });
+  CHECK_EQ(reserveOf(f.w(), f.B, row), 30);
+  for (int i = 0; i < 4; i++) f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK(f.w().province(f.p[0])->occupied);
+  CHECK_EQ(f.w().province(f.p[0])->occIdle, 4);
+  f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK(!f.w().province(f.p[0])->occupied);
+  CHECK(f.w().province(f.p[1])->occupied);   // с гарнизоном — остаётся
+}
+
 TEST(rules_entities_delete_province) {
   Fix f;
   f.tx([&](Tx& tx) {
@@ -391,7 +523,7 @@ TEST(rules_entities_merge_provinces) {
     Province& t = tx.province(f.p[0]);
     t.name = "Цель";
     t.owner = f.A;
-    t.size = ProvSize::Small;  // 1 + 1 = 2 слота
+    t.size = ProvSize::Medium;  // 2 + аванпост (население меньше 1000) 0 = 2 слота
     t.baseTrade = 77;
     t.races = {RacePop{human, 100}};
     t.buildings = {ProvBuilding{b1, 1, false, 0}};
@@ -508,3 +640,18 @@ TEST(rules_entities_rows) {
   CHECK(w.army(fleet)->groups[0].units.empty());
   CHECK(w.faction(f.A)->fleet.empty());
 }
+
+TEST(rules_entities_log_add) {
+  Fix f;
+  Id id = 0;
+  f.tx([&](Tx& tx) { id = addLog(tx, LogKind::Note, "  Заметка  ", LogRefs{f.p[0], 0, {f.A, f.A, 0, f.B}}); });
+  const LogEntry& e = *f.w().log.get(id);
+  CHECK_EQ(e.text, std::string("Заметка"));
+  CHECK_EQ(e.turn, 1);
+  CHECK_EQ(e.province, f.p[0]);
+  CHECK(e.factions == std::vector<Id>({f.A, f.B}));
+  CHECK(!e.at.empty());
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { addLog(tx, LogKind::Note, "   "); }); }), "пустой"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { addLog(tx, LogKind::Count, "x"); }); }), "Неизвестный"));
+}
+

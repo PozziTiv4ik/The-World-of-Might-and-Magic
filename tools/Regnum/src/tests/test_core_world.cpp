@@ -1,10 +1,10 @@
-// Тесты модели мира: транзакции, откат, отмена, объединение, грязные таблицы, базовые утилиты.
+// Тесты модели мира: транзакции, откат, отмена, объединение, грязные таблицы, отношения, ID без повторов.
 #include "core/world.h"
 #include "tests/test.h"
 
 using namespace rg;
 
-TEST(world_tx_add_edit_undo) {
+TEST(core_world_tx_add_edit_undo) {
   Store s;
   Id pid = s.transact("add", [](Tx& tx) {
     Province p; p.name = "Арден";
@@ -22,7 +22,7 @@ TEST(world_tx_add_edit_undo) {
   CHECK(s.world().province(pid) != nullptr);
 }
 
-TEST(world_tx_exception_rolls_back) {
+TEST(core_world_tx_exception_rolls_back) {
   Store s;
   Id pid = s.transact("add", [](Tx& tx) { return tx.add(Province{}).id; });
   World before = s.world();
@@ -31,7 +31,7 @@ TEST(world_tx_exception_rolls_back) {
   CHECK_EQ(World::diff(before, s.world()), 0u);
 }
 
-TEST(world_structural_sharing) {
+TEST(core_world_structural_sharing) {
   Store s;
   std::vector<Id> ids;
   s.transact("many", [&](Tx& tx) { for (int i = 0; i < 500; i++) ids.push_back(tx.add(Province{}).id); });
@@ -46,7 +46,7 @@ TEST(world_structural_sharing) {
   CHECK_EQ(World::diff(a, b), u32(TB_PROVINCES));
 }
 
-TEST(world_coalesce) {
+TEST(core_world_coalesce) {
   Store s;
   Id pid = s.transact("add", [](Tx& tx) { return tx.add(Province{}).id; });
   TxOptions o; o.coalesce = "drag";
@@ -58,7 +58,7 @@ TEST(world_coalesce) {
   CHECK(!s.canUndo());
 }
 
-TEST(world_dirty_and_relations) {
+TEST(core_world_dirty_and_relations) {
   Store s;
   s.markSaved();
   CHECK(!s.dirty());
@@ -73,7 +73,7 @@ TEST(world_dirty_and_relations) {
   CHECK(!s.dirty());
 }
 
-TEST(world_ids_not_reused) {
+TEST(core_world_ids_not_reused) {
   Store s;
   Id a = s.transact("a", [](Tx& tx) { return tx.add(Army{}).id; });
   s.transact("del", [&](Tx& tx) { tx.eraseArmy(a); });
@@ -82,32 +82,7 @@ TEST(world_ids_not_reused) {
   CHECK_EQ(s.world().armies.size(), 1u);
 }
 
-TEST(base_format_ru) {
-  CHECK_EQ(fmtNum(1234567), std::string("1\xE2\x80\xAF" "234\xE2\x80\xAF" "567"));
-  CHECK_EQ(fmtNum(1234), std::string("1234"));
-  CHECK_EQ(fmtNum(-5.5, 1), std::string("\xE2\x88\x92" "5,5"));
-  CHECK_EQ(fmtSigned(3), std::string("+3"));
-  CHECK_EQ(nTurns(3), std::string("3 хода"));
-  CHECK_EQ(nTurns(11), std::string("11 ходов"));
-  CHECK_EQ(nTurns(21), std::string("21 ход"));
-  CHECK(parseNum("1 234,5").value() == 1234.5);
-  CHECK(!parseNum("abc").has_value());
-}
-
-TEST(base_utf8_and_search) {
-  std::string s = "Ёжик в Тумане";
-  CHECK_EQ(utf8::count(s), size_t(13));
-  CHECK_EQ(utf8::lower(s), std::string("ёжик в тумане"));
-  CHECK(utf8::matches(s, "ежик туман"));
-  CHECK(!utf8::matches(s, "лес"));
-  CHECK(compareRu("Арден", "беррин") < 0);
-  CHECK(compareRu("ель", "ёж") < 0);
-  CHECK(compareRu("ёж", "жук") < 0);
-  CHECK(compareRu("Провинция 2", "Провинция 10") < 0);
-  CHECK_EQ(utf8::fromWide(utf8::toWide("Мир 🌍")), std::string("Мир 🌍"));
-}
-
-TEST(world_tx_replace_world_undo) {
+TEST(core_world_tx_replace_world_undo) {
   Store s;
   Id a = s.transact("a", [](Tx& tx) { Province p; p.name = "Старая"; return tx.add(p).id; });
   World snap = s.world();

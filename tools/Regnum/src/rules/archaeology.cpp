@@ -1,10 +1,10 @@
-// Regnum — археология (ТЗ «Доработки №2»; «№4», п.1): археологические группы государства (цена, опыт и уровни,
+// Regnum — археология: археологические группы государства (цена, опыт и уровни,
 // модификаторы групп, одно задание за ход), «Найти археологическое место», исследование мест по этапам с наградами и
 // финальным сокровищем провинции, трагедии при исследовании (ранение, смертельная опасность, пробуждение бедствия с
 // чумой группы и войсками без государства), «Проводить раскопки», сундуки сокровищ (вложенные — с ограничением
 // глубины), тайник реликвий провинции, режим правки слотов и справочники мест и сундуков.
 //
-// Таблицы и числа ТЗ — core/arch.h. Случайность детерминирована: зерно — счётчик мира Meta::rng (каждое событие
+// Таблицы и числа — core/arch.h. Случайность детерминирована: зерно — счётчик мира Meta::rng (каждое событие
 // увеличивает его, отмена возвращает) и ID участников.
 #include <set>
 
@@ -19,7 +19,7 @@ namespace {
 
 constexpr int kMaxChestDepth = 4;   // вложенные сундуки: не глубже (защита от циклов списков)
 
-std::string groupTitle(const std::string& name) { return q(name.empty() ? std::string("Без названия") : name); }
+std::string groupTitle(const std::string& name) { return q(nameOr(name)); }
 
 const ArchGroup& needGroup(const World& w, Id state, Id group) {
   const Faction& f = needState(w, state);
@@ -30,8 +30,7 @@ const ArchGroup& needGroup(const World& w, Id state, Id group) {
 
 ArchGroup& groupMut(Tx& tx, Id state, Id group) {
   needGroup(tx.w(), state, group);
-  for (ArchGroup& g : tx.faction(state).archGroups)
-    if (g.id == group) return g;
+  if (ArchGroup* g = findById(tx.faction(state).archGroups, group)) return *g;
   fail("Археологическая группа не найдена");
 }
 
@@ -72,24 +71,12 @@ void needSlot(int slot) {
 
 std::string siteName(const World& w, Id site) {
   const ArchSite* s = w.catalogs->archSite(site);
-  return s ? q(s->name.empty() ? std::string("Без названия") : s->name) : std::string("«?»");
+  return s ? q(nameOr(s->name)) : std::string("«?»");
 }
 
 std::string chestName(const World& w, Id chest) {
   const Chest* c = w.catalogs->chest(chest);
   return c ? (c->name.empty() ? std::string("Сундук") : c->name) : std::string("Сундук");
-}
-
-// Реликвии, которые где-то лежат (у героя, в постройке, у государства, в тайнике).
-std::set<Id> placedRelics(const World& w) {
-  std::set<Id> s;
-  w.characters.each([&](const Character& c) { s.insert(c.inventory.begin(), c.inventory.end()); });
-  w.provinces.each([&](const Province& p) {
-    if (p.hiddenRelic) s.insert(p.hiddenRelic);
-    for (const ProvBuilding& pb : p.buildings) s.insert(pb.relics.begin(), pb.relics.end());
-  });
-  w.factions.each([&](const Faction& f) { s.insert(f.relics.begin(), f.relics.end()); });
-  return s;
 }
 
 void give(Tx& tx, Id state, Id res, double amount, int depth, std::vector<ArchGain>& out) {
@@ -132,10 +119,9 @@ void openRec(Tx& tx, Id state, Id chest, Rng& rng, double pct, int depth, std::v
         break;
       }
       case ChestItemKind::Relic: {
-        const std::set<Id> placed = placedRelics(tx.w());
         std::vector<Id> pool;
         for (const Relic& r : tx.w().catalogs->relics) {
-          if (placed.count(r.id)) continue;
+          if (!relicFree(tx.w(), r.id)) continue;
           if (it.relicGroup && !tx.w().catalogs->inRelicGroup(r.group, it.relicGroup)) continue;
           if (it.rarities && !((it.rarities >> unsigned(r.rarity)) & 1u)) continue;
           pool.push_back(r.id);
@@ -145,7 +131,7 @@ void openRec(Tx& tx, Id state, Id chest, Rng& rng, double pct, int depth, std::v
           break;
         }
         const Id pick = pickOne(rng, pool);
-        moveRelic(tx, pick, RelicPlace{RelicPlace::State, state, 0, state});
+        moveRelic(tx, pick, RelicPlace{}, RelicPlace{RelicPlace::State, state, 0, state}, 1);
         out.push_back(ArchGain{ArchGain::Relic, pick, 1, d});
         break;
       }
@@ -172,16 +158,16 @@ void gainExp(Tx& tx, Id state, Id group, int base, double expPct, ArchReport& r)
 }
 
 void wound(Tx& tx, Id state, Id group, ArchReport& r) {
-  addArchGroupModifier(tx, state, group, ensureBuiltinMod(tx, schema::mod::ArchWounded), arch::kWoundTurns);
+  addArchGroupModifier(tx, state, group, ensureBuiltinMod(tx, schema::mod::ArchWounded), schema::kWoundTurns);
   r.wounded = true;
 }
 
-// Смертельная опасность (п.18.2): ранение с шансом 50 % + живучесть, иначе — решение о спасении.
+// Смертельная опасность: ранение с шансом 50 % + живучесть, иначе — решение о спасении.
 void danger(Tx& tx, Id state, Id group, double vitality, Rng& rng, ArchReport& r) {
   r.lines.push_back("Группа в смертельной опасности");
   if (chance(rng, std::clamp(arch::kDangerWound + vitality, 0.0, 100.0))) {
     wound(tx, state, group, r);
-    r.lines.push_back("Группа спаслась, но ранена: " + nTurns(arch::kWoundTurns) + " без исследований");
+    r.lines.push_back("Группа спаслась, но ранена: " + nTurns(schema::kWoundTurns) + " без исследований");
   } else {
     groupMut(tx, state, group).danger = true;
     r.awaiting = true;
@@ -210,7 +196,7 @@ Id spawnUnits(Tx& tx, Id province, const std::vector<arch::WildUnit>& units, Arc
   return army;
 }
 
-// Пробуждение бедствия (п.19).
+// Пробуждение бедствия.
 void calamity(Tx& tx, Id state, Id group, Id province, const ArchSite& site, double vitality, Rng& rng, ArchReport& r) {
   const arch::Calamity& c = arch::calamityOf(site.key);
   if (c.specialPct > 0 && chance(rng, c.specialPct)) {
@@ -220,9 +206,9 @@ void calamity(Tx& tx, Id state, Id group, Id province, const ArchSite& site, dou
   } else if (rng.range(0, 1) == 0) {
     r.calamity = arch::kPlagueTitle;
     r.lines.push_back(r.calamity);
-    addArchGroupModifier(tx, state, group, ensureBuiltinMod(tx, schema::mod::ArchPlague), arch::kPlagueTurns);
+    addArchGroupModifier(tx, state, group, ensureBuiltinMod(tx, schema::mod::ArchPlague), schema::kPlagueTurns);
     r.plague = true;
-    r.lines.push_back("Группа заражена чумой на " + nTurns(arch::kPlagueTurns));
+    r.lines.push_back("Группа заражена чумой на " + nTurns(schema::kPlagueTurns));
   } else {
     r.calamity = arch::kGuardsTitle;
     r.lines.push_back(r.calamity);
@@ -231,7 +217,7 @@ void calamity(Tx& tx, Id state, Id group, Id province, const ArchSite& site, dou
   }
 }
 
-// Трагедия при исследовании (п.18): 70 % ранение, 25 % смертельная опасность, 5 % пробуждение бедствия.
+// Трагедия при исследовании: 70 % ранение, 25 % смертельная опасность, 5 % пробуждение бедствия.
 void tragedy(Tx& tx, Id state, Id group, Id province, const ArchSite& site, double vitality, Rng& rng, ArchReport& r) {
   r.tragedyLine = int(r.lines.size());
   r.lines.push_back("Трагедия при исследовании");
@@ -239,7 +225,7 @@ void tragedy(Tx& tx, Id state, Id group, Id province, const ArchSite& site, doub
   if (roll < arch::kTragedyWound) {
     r.tragedy = ArchReport::Wound;
     wound(tx, state, group, r);
-    r.lines.push_back("Группа ранена: " + nTurns(arch::kWoundTurns) + " без исследований");
+    r.lines.push_back("Группа ранена: " + nTurns(schema::kWoundTurns) + " без исследований");
   } else if (roll < arch::kTragedyWound + arch::kTragedyDanger) {
     r.tragedy = ArchReport::Danger;
     danger(tx, state, group, vitality, rng, r);
@@ -545,16 +531,15 @@ ArchReport excavate(Tx& tx, Id state, Id group, Id province) {
       const Province& p = *tx.w().province(province);
       if (p.hiddenRelic && p.hiddenBy != state) {
         const Id relic = p.hiddenRelic;
-        moveRelic(tx, relic, RelicPlace{RelicPlace::State, state, 0, state});
+        moveRelic(tx, relic, RelicPlace{RelicPlace::Hidden, province, 0, p.owner}, RelicPlace{RelicPlace::State, state, 0, state}, 1);
         r.gains.push_back(ArchGain{ArchGain::Relic, relic, 1, 0});
         r.lines.push_back("Откопана реликвия, спрятанная другим государством");
         break;
       }
       // Случайная свободная находка случайной редкости (из редкостей, у которых есть свободные находки).
-      const std::set<Id> placed = placedRelics(tx.w());
       std::map<int, std::vector<Id>> byRarity;
       for (const Relic& x : tx.w().catalogs->relics)
-        if (!placed.count(x.id) && isArchFind(tx.w(), x.id)) byRarity[int(x.rarity)].push_back(x.id);
+        if (relicFree(tx.w(), x.id) && isArchFind(tx.w(), x.id)) byRarity[int(x.rarity)].push_back(x.id);
       if (byRarity.empty()) {
         r.gains.push_back(ArchGain{ArchGain::NoRelic, 0, 0, 0});
         break;
@@ -562,7 +547,7 @@ ArchReport excavate(Tx& tx, Id state, Id group, Id province) {
       std::vector<int> rarities;
       for (auto& [k, v] : byRarity) rarities.push_back(k);
       const Id relic = pickOne(rng, byRarity[pickOne(rng, rarities)]);
-      moveRelic(tx, relic, RelicPlace{RelicPlace::State, state, 0, state});
+      moveRelic(tx, relic, RelicPlace{}, RelicPlace{RelicPlace::State, state, 0, state}, 1);
       r.gains.push_back(ArchGain{ArchGain::Relic, relic, 1, 0});
       break;
     }
@@ -584,7 +569,7 @@ void resolveArchDanger(Tx& tx, Id state, Id group, Id essence) {
     const std::string en = e->name;
     tx.faction(state).ess[essence] -= arch::kDivineCost;
     groupMut(tx, state, group).danger = false;
-    addArchGroupModifier(tx, state, group, ensureBuiltinMod(tx, schema::mod::ArchWounded), arch::kWoundTurns);
+    addArchGroupModifier(tx, state, group, ensureBuiltinMod(tx, schema::mod::ArchWounded), schema::kWoundTurns);
     addLog(tx, LogKind::Archaeology,
            "Божественное вмешательство спасло археологическую группу " + title + " (" + tx.w().factionName(state) + ", " + en + " " +
                amount(arch::kDivineCost) + "): группа ранена",
@@ -631,6 +616,27 @@ std::string archGainText(const World& w, const ArchGain& g) {
 }
 
 // ================================================================ тайник
+namespace {
+
+// Откуда спрятать штуку реликвии государства: инвентарь государства, его хранилища, его герои (Free — неоткуда).
+RelicPlace ownedSource(const World& w, Id state, Id relic) {
+  RelicPlace best;
+  int rank = 9;
+  for (const RelicAt& a : relicPlaces(w, relic)) {
+    int k = 9;
+    if (a.place.kind == RelicPlace::State && a.place.id == state) k = 0;
+    else if (a.place.kind == RelicPlace::Building && a.place.owner == state) k = 1;
+    else if (a.place.kind == RelicPlace::Hero && a.place.owner == state) k = 2;
+    if (k < rank) {
+      rank = k;
+      best = a.place;
+    }
+  }
+  return best;
+}
+
+}  // namespace
+
 std::vector<Id> hideableRelics(const World& w, Id province) {
   std::vector<Id> out;
   const Province* p = w.province(province);
@@ -642,14 +648,14 @@ std::vector<Id> hideableRelics(const World& w, Id province) {
   };
   w.characters.each([&](const Character& c) {
     if (c.faction == o->id)
-      for (Id r : c.inventory) add(r);
+      for (const RelicStack& st : c.inventory) add(st.relic);
   });
   w.provinces.each([&](const Province& q2) {
     if (q2.owner != o->id || q2.sea) return;
     for (const ProvBuilding& pb : q2.buildings)
-      for (Id r : pb.relics) add(r);
+      for (const RelicStack& st : pb.relics) add(st.relic);
   });
-  for (Id r : o->relics) add(r);
+  for (const RelicStack& st : o->relics) add(st.relic);
   return out;
 }
 
@@ -661,8 +667,8 @@ void hideRelic(Tx& tx, Id province, Id relic) {
   if (p.hiddenRelic) fail("В провинции уже спрятана реликвия");
   if (!tx.w().relic(relic)) fail("Реликвия не найдена");
   if (!contains(hideableRelics(tx.w(), province), relic))
-    fail("Спрятать можно реликвию героя, постройки или государства " + facName(tx.w(), o->id));
-  moveRelic(tx, relic, RelicPlace{RelicPlace::Hidden, province, 0, o->id});
+    fail("Спрятать можно реликвию героя, постройки или инвентаря государства " + facName(tx.w(), o->id));
+  moveRelic(tx, relic, ownedSource(tx.w(), o->id, relic), RelicPlace{RelicPlace::Hidden, province, 0, o->id}, 1);
 }
 
 bool canUnearth(const World& w, Id province, std::string* why) {
@@ -675,30 +681,13 @@ bool canUnearth(const World& w, Id province, std::string* why) {
   return false;
 }
 
-void unearthRelic(Tx& tx, Id province, const RelicPlace& to) {
+void unearthRelic(Tx& tx, Id province) {
   std::string why;
   if (!canUnearth(tx.w(), province, &why)) fail(why);
   const Province& p = *tx.w().province(province);
   const Id owner = p.owner, relic = p.hiddenRelic;
-  if (to.kind == RelicPlace::Hero) {
-    const Character& c = needCharacter(tx.w(), to.id);
-    if (c.faction != owner) fail("Герой не служит государству " + facName(tx.w(), owner));
-    if (!heroAvailable(tx.w(), c.id)) fail("Герой " + q(c.name) + " недоступен");
-    moveRelic(tx, relic, RelicPlace{RelicPlace::Hero, c.id, 0, owner});
-    return;
-  }
-  if (to.kind == RelicPlace::Building) {
-    const Province& q2 = needProvince(tx.w(), to.id);
-    if (q2.owner != owner) fail("Постройка не принадлежит государству " + facName(tx.w(), owner));
-    const Building& b = needBuilding(tx.w(), to.building);
-    if (!b.relicStore) fail(buildingName(tx.w(), b.id) + " — не хранилище реликвий");
-    bool built = false;
-    for (const ProvBuilding& pb : q2.buildings) built = built || (pb.building == b.id && pb.builtLevel() >= 1);
-    if (!built) fail(buildingName(tx.w(), b.id) + " ещё не достроена");
-    moveRelic(tx, relic, RelicPlace{RelicPlace::Building, q2.id, b.id, owner});
-    return;
-  }
-  fail("Откопанную реликвию кладут в инвентарь героя или в хранилище постройки");
+  // Полученная реликвия — в инвентарь государства.
+  moveRelic(tx, relic, RelicPlace{RelicPlace::Hidden, province, 0, owner}, RelicPlace{RelicPlace::State, owner, 0, owner}, 1);
 }
 
 // ================================================================ режим правки
@@ -735,11 +724,9 @@ void setArchSite(Tx& tx, Id site, const std::string& name, const std::string& ic
   if (nm.empty()) fail("Название места не может быть пустым");
   for (const ArchSite& s : tx.w().catalogs->archSites)
     if (s.id != site && utf8::searchKey(s.name) == utf8::searchKey(nm)) fail("Место " + q(nm) + " уже есть в справочнике");
-  for (ArchSite& s : tx.catalogs().archSites)
-    if (s.id == site) {
-      s.name = nm;
-      if (!trim(icon).empty()) s.icon = trim(icon);
-    }
+  ArchSite& s = *findById(tx.catalogs().archSites, site);
+  s.name = nm;
+  if (!trim(icon).empty()) s.icon = trim(icon);
 }
 
 void setArchSiteRewards(Tx& tx, Id site, int slot, const std::vector<Id>& chests) {
@@ -750,8 +737,7 @@ void setArchSiteRewards(Tx& tx, Id site, int slot, const std::vector<Id>& chests
     if (!tx.w().catalogs->chest(c)) fail("Сундук не найден");
     if (!contains(clean, c)) clean.push_back(c);
   }
-  for (ArchSite& s : tx.catalogs().archSites)
-    if (s.id == site) s.rewards[size_t(slot)] = std::move(clean);
+  findById(tx.catalogs().archSites, site)->rewards[size_t(slot)] = std::move(clean);
 }
 
 Id addChest(Tx& tx, const std::string& name) {

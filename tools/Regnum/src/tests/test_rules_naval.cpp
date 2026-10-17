@@ -1,12 +1,12 @@
 // Regnum — правила флота (ТЗ «Доработки №3», п.3, 6; «Доработки №4», п.9): вместимость, посадка и высадка, войско на
-// борту на карте и в бою, обмен отрядами, союзные объекты и «Вернуть войско», флот у верфи.
+// борту на карте и в бою, обмен отрядами, союзные объекты и «Вернуть войско», флот у верфи, найм на верфи и морские
+// чудовища.
 #include "rules/internal.h"
 #include "tests/test_rules_util.h"
 
 using namespace rg;
 using namespace rg::rules;
 using namespace rg::rulestest;
-using rg::rules::detail::contains;
 
 namespace {
 
@@ -32,16 +32,6 @@ struct Naval : Fix {
     });
   }
 };
-
-i64 unitsIn(const World& w, Id army, Id faction, Id row) {
-  i64 n = 0;
-  if (const Army* a = w.army(army))
-    for (const ArmyGroup& g : a->groups)
-      if (g.faction == faction)
-        for (const ArmyUnit& u : g.units)
-          if (u.row == row) n += u.count;
-  return n;
-}
 
 }  // namespace
 
@@ -227,7 +217,7 @@ TEST(rules_naval_fleet_sunk_with_army) {
   f.tx([&](Tx& tx) { out = resolveBattle(tx, r); });
   CHECK(!f.w().army(f.fleet));
   CHECK(!f.w().army(f.army));
-  CHECK(contains(out.fallenHeroes, f.hero));
+  CHECK(has(out.fallenHeroes, f.hero));
   CHECK_EQ(f.w().faction(f.A)->armyRow(f.inf)->total, i64(20000 - 1500));
   CHECK(has(lastLog(f.w(), "погибло"), "войско на борту"));
 }
@@ -384,7 +374,7 @@ TEST(rules_naval_allied_return_group) {
   CHECK(w.army(aC)->name != "Союзное войско");
   CHECK_EQ(w.army(back)->leader(), f.A);
   CHECK_EQ(unitsIn(w, back, f.A, f.inf), i64(400));
-  CHECK(contains(w.army(back)->groups[0].heroes, hA2));
+  CHECK(has(w.army(back)->groups[0].heroes, hA2));
   CHECK_EQ(w.army(back)->commander, hA2);
   CHECK(dist(w.army(back)->pos, w.army(aC)->pos) < 400);
   CHECK(validPosition(w, ArmyKind::Army, w.army(back)->pos, back));
@@ -473,3 +463,53 @@ TEST(rules_naval_place_fleet_at_shipyard) {
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { placeFleet(tx, f.A, f.p[5]); }); }), "верфи"));
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { placeFleet(tx, f.A, f.p[3]); }); }), "не провинция"));
 }
+
+TEST(rules_naval_shipyard_and_sea_monster) {
+  Fix f;
+  Id yard = 0, monster = 0, galleon = 0, frigate = 0;
+  const Id water = test::idByName(f.w().catalogs->essences, "Эссенция воды"), kraken = test::idByName(f.w().catalogs->resources, "Кракены");
+  f.tx([&](Tx& tx) {
+    tx.province(f.p[0]).owner = f.A;
+    yard = createBuilding(tx, 0, "Верфь");
+    setBuildingFlag(tx, yard, BuildingFlag::Shipyard, true);
+    tx.building(yard).levels.push_back(BuildingLevel{});
+    setLevelShips(tx, yard, 1, (1u << int(ShipType::Galleon)) | (1u << int(ShipType::SeaMonster)));
+    setLevelShips(tx, yard, 2, (1u << int(ShipType::Galleon)) | (1u << int(ShipType::Frigate)) | (1u << int(ShipType::SeaMonster)));
+    placeBuilding(tx, f.p[0], yard, 1);
+    monster = addFleetRow(tx, f.A, ShipType::SeaMonster);
+    galleon = addFleetRow(tx, f.A, ShipType::Galleon);
+    frigate = addFleetRow(tx, f.A, ShipType::Frigate);
+    for (Constant* c : {&ensureConstant(tx, schema::cst::GalleonCost), &ensureConstant(tx, schema::cst::FrigateCost)}) {
+      c->res.clear();
+      c->minRes.clear();
+    }
+    tx.faction(f.A).ess[water] = 1000;
+    tx.faction(f.A).res[kraken] = 1;
+  });
+  CHECK_EQ(shipyardAccess(f.w(), f.A), (1u << int(ShipType::Galleon)) | (1u << int(ShipType::SeaMonster)));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { recruit(tx, f.A, frigate, 1); }); }), "верфь более высокого уровня"));
+  f.tx([&](Tx& tx) { recruit(tx, f.A, galleon, 2); });
+  // Морское чудовище: ресурс подгруппы «Морские чудовища» и 750 эссенции воды.
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { recruit(tx, f.A, monster, 1); }); }), "Морские чудовища"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setFleetRowKey(tx, f.A, monster, kGold); }); }), "Морские чудовища"));
+  f.tx([&](Tx& tx) { setFleetRowKey(tx, f.A, monster, kraken); });
+  f.tx([&](Tx& tx) { recruit(tx, f.A, monster, 1); });
+  CHECK_NEAR(f.w().faction(f.A)->essence(water), 250, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->stock(kraken), 0, 1e-9);
+  // Базовая стоимость кораблей: меньше базовой нельзя, базовую позицию не убрать.
+  const Id wood = test::idByName(f.w().catalogs->resources, "Древесина");
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setConstantRes(tx, schema::cst::ShipLineCost, wood, 10); }); }), "не меньше"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { removeConstantRes(tx, schema::cst::ShipLineCost, wood); }); }), "нельзя убрать"));
+  f.tx([&](Tx& tx) { setConstantRes(tx, schema::cst::ShipLineCost, wood, 1500); });
+  CHECK_NEAR(constantOf(f.w(), schema::cst::ShipLineCost).res.at(wood), 1500, 1e-9);
+  // Галеоны не присоединяются к флотам на карте.
+  CHECK(has(errorOf([&] {
+          f.tx([&](Tx& tx) {
+            tx.faction(f.A).fleet[1].total = 5;
+            Id fl = createArmy(tx, ArmyKind::Fleet, f.A, kSeaNorth);
+            setUnits(tx, fl, f.A, galleon, 1);
+          });
+        }),
+        "галеоны"));
+}
+

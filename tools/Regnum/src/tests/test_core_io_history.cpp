@@ -1,6 +1,6 @@
 // Тесты core/io — история ходов с ветвями (снимки с номерами: уникальные файлы, время создания сохраняется,
 // head — ветвь сохранённого мира), замена истории при записи в чужое место, отпечаток архива .regnum
-// (внешние изменения), время последнего сохранения, отдельная очередь резервных копий автосохранения.
+// (внешние изменения), время последнего сохранения.
 #include <chrono>
 #include <thread>
 
@@ -34,7 +34,7 @@ io::NewSnapshot snap(const World& w, u64 seq, const char* kind, u64 parent, cons
 
 }  // namespace
 
-TEST(io_history_numbered_snapshots_folder_and_bundle) {
+TEST(core_io_history_numbered_snapshots_folder_and_bundle) {
   std::string dir = tempDir("history_numbered");
   World w = richWorld();
   std::string folder = fs::join(dir, "Мир");
@@ -56,13 +56,12 @@ TEST(io_history_numbered_snapshots_folder_and_bundle) {
   CHECK_EQ(h.list[3].seq, u64(4));
   CHECK_NEAR(io::loadSnapshotFile(folder, h.list[2].file).world.province(1)->contentment, 20, 1e-9);
   CHECK_NEAR(io::loadSnapshotFile(folder, h.list[3].file).world.province(1)->contentment, 25, 1e-9);
-  CHECK_NEAR(io::loadSnapshot(folder, 2).world.province(1)->contentment, 25, 1e-9);   // последний снимок хода
   CHECK_THROWS(io::loadSnapshotFile(folder, "history/turn-0009-000009.json.gz"));
-  // Старый снимок без номера читается рядом с новыми.
-  io::writeSnapshot(folder, turnWorld(w, 3, 30), "Старый");
+  // Старый снимок без номера (turn-NNNN.json.gz) читается рядом с новыми; ветвь не теряется.
+  CHECK(fs::writeFileAtomic(fs::join(folder, "history/turn-0003.json.gz"), io::pack(turnWorld(w, 3, 30), 6)));
   h = io::listHistory(folder);
   CHECK_EQ(h.list.size(), size_t(5));
-  CHECK_EQ(h.head, u64(4));   // запись старым способом ветвь не теряет
+  CHECK_EQ(h.head, u64(4));
   CHECK_EQ(h.list.back().seq, u64(0));
   // Архив из папки: история как есть (номера, время, ветвь), плюс новый снимок.
   std::string bundle = fs::join(dir, "Мир.regnum");
@@ -84,7 +83,7 @@ TEST(io_history_numbered_snapshots_folder_and_bundle) {
   CHECK(io::listHistory(bundle).list.empty());
 }
 
-TEST(io_history_replace_folder_history) {
+TEST(core_io_history_replace_folder_history) {
   std::string dir = tempDir("history_replace");
   World w = richWorld();
   std::string a = fs::join(dir, "А"), b = fs::join(dir, "Б");
@@ -108,7 +107,7 @@ TEST(io_history_replace_folder_history) {
   CHECK_EQ(io::listHistory(a).list.size(), size_t(1));
 }
 
-TEST(io_history_bundle_stamp_and_saved_time) {
+TEST(core_io_history_bundle_stamp_and_saved_time) {
   std::string dir = tempDir("history_stamp");
   World w = richWorld();
   {
@@ -141,37 +140,3 @@ TEST(io_history_bundle_stamp_and_saved_time) {
   CHECK(!io::stampFile(bundle).exists);
 }
 
-TEST(io_backups_auto_queue) {
-  std::string dir = tempDir("backups_auto");
-  World w = richWorld();
-  io::save(dir, w, TB_ALL);
-  auto edit = [&](double v) {
-    Tx tx(w);
-    tx.province(1).contentment = v;
-    w = std::move(tx).finish();
-  };
-  edit(1);
-  io::save(dir, w, TB_PROVINCES);   // ручное: копия исходной версии — в общей очереди
-  edit(2);
-  io::SaveOptions so;
-  so.autoBackups = {};               // версия на диске записана вручную — её копия тоже в общей очереди
-  io::save(dir, w, TB_PROVINCES, nullptr, so);
-  so.autoBackups = {"data/provinces.json"};
-  for (int i = 3; i <= 12; i++) {
-    edit(i);
-    io::save(dir, w, TB_PROVINCES, nullptr, so);   // версии автосохранения — в своей очереди
-  }
-  auto manual = fs::list(fs::join(dir, ".regnum-backup/data"));
-  size_t files = 0;
-  for (auto& e : manual) files += e.dir ? 0 : 1;
-  CHECK_EQ(files, size_t(2));
-  CHECK_EQ(fs::list(fs::join(dir, ".regnum-backup/auto/data")).size(), size_t(io::kKeepBackups));
-  // Ручная версия (довольство 1) цела, хотя автосохранений было больше kKeepBackups.
-  bool kept = false;
-  for (auto& e : manual) {
-    if (e.dir) continue;
-    auto v = json::parse(fs::readFile(e.path).value_or("{}"));
-    kept = kept || v.arr("provinces")[0].num("contentment") == 1.0;
-  }
-  CHECK(kept);
-}

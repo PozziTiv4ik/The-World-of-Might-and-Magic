@@ -1,4 +1,4 @@
-// Regnum — общая часть платформы: названия клавиш, щелчки, UTF-16, положение окна.
+// Regnum — общая часть платформы: названия клавиш, щелчки, UTF-16, положение окна, очередь событий.
 #include "platform/common.h"
 
 #include <chrono>
@@ -288,6 +288,46 @@ std::string placementPath(const WindowConfig& cfg, const std::string& dataDir) {
   std::string d = dataDir;
   if (d.back() != '/' && d.back() != '\\') d += '/';
   return d + cfg.placementFile;
+}
+
+// ---------------------------------------------------------------- очередь событий
+void Dispatch::push(Event e) {
+  if (e.type == EventType::Text && !queue.empty() && queue.back().type == EventType::Text) {
+    queue.back().text += e.text;
+    return;
+  }
+  queue.push_back(std::move(e));
+}
+
+void Dispatch::flushEvents() {
+  if (!app || !ready || callbackDepth > 0) return;
+  while (!queue.empty() && !quitting) {
+    Event e = std::move(queue.front());
+    queue.pop_front();
+    dirty = true;
+    guarded([&] { app->onEvent(e); });
+  }
+}
+
+bool Dispatch::callAnimating() {
+  bool anim = false;
+  if (app && callbackDepth == 0) guarded([&] { anim = app->animating(); });
+  return anim;
+}
+
+void Dispatch::requestClose() {
+  if (!app || quitting) return;
+  if (callbackDepth > 0) {
+    closePending = true;
+    return;
+  }
+  flushEvents();
+  bool ok = false;
+  guarded([&] { ok = app->onCloseRequest(); });
+  if (ok && !quitting) {
+    quitting = true;
+    exitCode = 0;
+  }
 }
 
 }  // namespace detail

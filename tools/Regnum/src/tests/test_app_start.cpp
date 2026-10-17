@@ -1,4 +1,4 @@
-// Сценарии экрана запуска: снимки в тёмной и светлой темах, недавние миры с миниатюрами, восстановление
+// Сценарии экрана запуска: снимки в цветокорах по умолчанию и другом, недавние миры с миниатюрами, восстановление
 // автосохранения, новый мир в папке.
 #include "tests/test_app_util.h"
 
@@ -90,7 +90,7 @@ TEST(app_start_recovery) {
   CHECK(h->projectPath().empty());
 }
 
-TEST(app_new_world_in_folder) {
+TEST(app_start_new_world_in_folder) {
   Harness h("new_world");
   CHECK(h.clickUi("start.new"));
   h.settle();

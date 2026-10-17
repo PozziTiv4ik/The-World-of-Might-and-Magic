@@ -6,7 +6,7 @@
 #include <unordered_set>
 
 #include "codec/jpeg.h"
-#include "core/world.h"
+#include "base/flag.h"
 #include "gfx/emblems.h"
 
 namespace rg::gfx {

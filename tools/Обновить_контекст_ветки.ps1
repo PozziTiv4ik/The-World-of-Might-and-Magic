@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop';$provided=$PSBoundParameters
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
     $data=New-WmmaReadModel $root
-    $path=Join-Path $root '09_Реестры/Контекст.json';$state=$data.state
+    $state=$data.state
     $entry=Resolve-WmmaBranch $data $Branch
     $knownScenes=@($data.entities_by_type['scene']|ForEach-Object {$_.id})
     $knownFacts=@($data.facts_by_id.Keys)
@@ -16,7 +16,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         $entry.focus_ids=$FocusIds
     }
     if($provided.ContainsKey('Situation')){if([string]::IsNullOrWhiteSpace($Situation)){throw 'Situation cannot be empty.'};$entry.situation=$Situation}
-    Write-WmmaJson $path $state
-    if(-not $SkipCheck){& (Join-Path $root 'tools/Завершить_ход.ps1')}
+    Write-WmmaRegistry $root 'Контекст' $state
+    Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
     "Updated branch context: $($entry.name)"
 }

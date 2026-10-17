@@ -1,6 +1,8 @@
 # Shared primitives. All paths are relative to the explicit project root.
 function Read-WmmaText {
-    param([string]$Path)
+    param([string]$Path,[switch]$AllowMissing)
+    # -AllowMissing: an absent optional view reads as empty text.
+    if ($AllowMissing -and -not (Test-Path -LiteralPath $Path)) { return '' }
     return [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
 }
 
@@ -34,11 +36,22 @@ function Write-WmmaJson {
     Write-WmmaText $Path (($Value | ConvertTo-Json -Depth 50).TrimEnd() + "`n")
 }
 
+function Write-WmmaRegistry {
+    param([string]$Root,[string]$Name,[object]$Value)
+    Write-WmmaJson (Resolve-WmmaPath $Root "09_Реестры/$Name.json") $Value
+}
+
 function Get-WmmaHash {
     param([string]$Text)
     $sha = [Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text)))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }
+}
+
+# Identity of an author message: line endings normalized to LF, outer whitespace trimmed.
+function Get-WmmaMessageHash {
+    param([string]$Text)
+    return Get-WmmaHash ($Text.Replace("`r`n", "`n").Trim())
 }
 
 function Resolve-WmmaPath {
@@ -57,7 +70,39 @@ function Resolve-WmmaPath {
 
 function Get-WmmaRelativePath {
     param([string]$Root, [string]$Path)
-    return $Path.Substring($Root.TrimEnd('\', '/').Length).TrimStart('\', '/').Replace('\', '/')
+    $base = $Root.TrimEnd('\', '/')
+    # A path outside the project (an absolute reference in a card) is reported as is.
+    if (-not $Path.StartsWith($base, [StringComparison]::OrdinalIgnoreCase)) { return $Path }
+    return $Path.Substring($base.Length).TrimStart('\', '/').Replace('\', '/')
+}
+
+# A document reference: absolute, from the project root or, with -FromFile, from the
+# referencing document's folder. Returns the full path of the first existing candidate.
+function Resolve-WmmaReference {
+    param([string]$Root, [string]$Reference, [string]$FromFile)
+    if ([string]::IsNullOrWhiteSpace($Reference)) { return $null }
+    $normalized = [regex]::Replace($Reference, '[\\/]', [string][IO.Path]::DirectorySeparatorChar)
+    $candidates = if ([IO.Path]::IsPathRooted($normalized)) { @($normalized) } else {
+        @(Join-Path $Root $normalized) + @(if ($FromFile) { Join-Path (Split-Path -Parent $FromFile) $normalized })
+    }
+    foreach ($candidate in $candidates) { if (Test-Path -LiteralPath $candidate) { return [IO.Path]::GetFullPath($candidate) } }
+    return $null
+}
+
+function Test-WmmaReference {
+    param([string]$Root, [string]$Reference, [string]$FromFile)
+    if ($Reference -match '^[a-z][a-z0-9+.-]*://') { return $true }
+    return $null -ne (Resolve-WmmaReference $Root $Reference -FromFile $FromFile)
+}
+
+# Inline project reference for generated Markdown: backticked path with forward slashes;
+# URLs and already backticked values are kept.
+function Format-WmmaProjectReference {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $reference = $Value.Trim() -replace '\\', '/'
+    if ($reference -match '^`.+`$' -or $reference -match '^[a-z]+://') { return $reference }
+    return "``$reference``"
 }
 
 function Get-WmmaMeta {
@@ -187,7 +232,7 @@ function Get-WmmaRawMessage {
 function Test-WmmaSourcePayload {
     param([string]$Text,[string]$Hash)
     $raw=Get-WmmaRawMessage $Text
-    return $null -ne $raw -and (Get-WmmaHash ($raw.Replace("`r`n","`n").Trim())) -ceq $Hash
+    return $null -ne $raw -and (Get-WmmaMessageHash $raw) -ceq $Hash
 }
 
 function Assert-WmmaSingleLine {
@@ -261,6 +306,25 @@ function Get-WmmaPriority {
     switch ($Value) { 'критический' { 4 } 'высокий' { 3 } 'средний' { 2 } default { 1 } }
 }
 
+# Decision lifecycle. Pending: state pending or a DEC-PENDING-* ID; accepted: DEC-NNN in state accepted.
+function Test-WmmaPendingDecision {
+    param([object]$Decision)
+    return $Decision.state -eq 'pending' -or $Decision.id -like 'DEC-PENDING-*'
+}
+
+function Test-WmmaAcceptedDecision {
+    param([object]$Decision)
+    return $Decision.state -eq 'accepted' -and $Decision.id -match '^DEC-\d{3}$'
+}
+
+# Portrait column of the character index: card portrait_status -> index word.
+function Get-WmmaPortraitStatusWord {
+    param([AllowNull()][string]$Status, [AllowNull()][string]$Fallback = 'нужен')
+    switch ($Status) { 'available' { return 'есть' } 'planned' { return 'запланирован' } 'missing' { return 'нужен' } }
+    if ([string]::IsNullOrWhiteSpace($Fallback)) { return 'нужен' }
+    return $Fallback
+}
+
 function Get-WmmaIdPrefix {
     param([string]$Type)
     switch ($Type) { 'character' { 'CHAR' } 'location' { 'LOC' } 'character_asset' { 'ASSET' } 'scene' { 'SCENE' } { $_ -in @('source','source_note','source_compilation') } { 'SRC' } default { 'LORE' } }
@@ -279,19 +343,4 @@ function Save-WmmaReceipt {
     $registry=if(Test-Path -LiteralPath $path){Read-WmmaJson $path}else{[pscustomobject]@{schema_version=1;type='intake_registry';receipts=@()}}
     $registry.receipts=@($registry.receipts|Where-Object {$_.request_id -ne $Receipt.request_id})+@($Receipt)
     Write-WmmaJson $path $registry
-}
-
-# Compatibility names used by existing public scripts. Their implementations live here.
-function Read-Text {
-    param([string]$Path)
-    if(-not (Test-Path -LiteralPath $Path)){return ''}
-    return Read-WmmaText $Path
-}
-function Write-Utf8NoBom {
-    param([string]$Path,[string]$Text)
-    Write-WmmaText $Path $Text
-}
-function Get-SectionText {
-    param([string]$Text,[string]$Heading)
-    return Get-WmmaSection $Text $Heading
 }

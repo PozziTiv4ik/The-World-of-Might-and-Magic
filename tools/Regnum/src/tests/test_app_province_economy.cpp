@@ -1,46 +1,13 @@
 // Сценарии вкладки «Экономика» инспектора провинции: сумма влияния гильдий больше 100 % отклоняется с сообщением,
-// предел штабов (5 на провинцию), добавление гильдии, местный налог (общий не меньше 1 %), количество ресурса ≥ 0,
-// снимок вкладки.
-#include "tests/test_app_util.h"
+// предел штабов (5 на провинцию), добавление гильдии, местный налог (общий не меньше 1 % и не больше 100 % — при
+// налоге государства 100 % и местном до +100 %), количество ресурса ≥ 0, снимок вкладки, узкий инспектор.
+#include "tests/test_app_faction_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
+using namespace rg::factest;
 
 namespace {
-
-struct HideTestRegs {
-  std::vector<app::TabDef> tabs;
-  std::vector<app::HeaderDef> headers;
-  std::vector<app::DrawerDef> drawers;
-  template <class T>
-  static void strip(std::vector<T>& v) {
-    v.erase(std::remove_if(v.begin(), v.end(), [](const T& d) { return std::string_view(d.id).starts_with("test."); }), v.end());
-  }
-  HideTestRegs() {
-    auto& t = const_cast<std::vector<app::TabDef>&>(app::tabs());
-    auto& h = const_cast<std::vector<app::HeaderDef>&>(app::headers());
-    auto& d = const_cast<std::vector<app::DrawerDef>&>(app::drawers());
-    tabs = t;
-    headers = h;
-    drawers = d;
-    strip(t);
-    strip(h);
-    strip(d);
-  }
-  ~HideTestRegs() {
-    const_cast<std::vector<app::TabDef>&>(app::tabs()) = tabs;
-    const_cast<std::vector<app::HeaderDef>&>(app::headers()) = headers;
-    const_cast<std::vector<app::DrawerDef>&>(app::drawers()) = drawers;
-  }
-};
-
-const Province* prov(Harness& h, Id pid) { return h->world().province(pid); }
-
-bool hasToast(Harness& h, std::string_view part) {
-  for (auto& t : h->toasts())
-    if (t.text.find(part) != std::string::npos) return true;
-  return false;
-}
 
 // Открыть провинцию pid (выбор и показ на карте) на вкладке tab.
 void open(Harness& h, Id pid, const char* tab) {
@@ -85,7 +52,6 @@ void setNumber(Harness& h, const std::string& mark, const std::string& text) {
 }  // namespace
 
 TEST(app_province_influence_over_100_rejected) {
-  HideTestRegs hide;
   Harness h("province_influence", 1440, 1500);
   h.demo();
   // Провинция с влиянием двух и более гильдий.
@@ -139,7 +105,6 @@ TEST(app_province_influence_over_100_rejected) {
 }
 
 TEST(app_province_hq_limit_enforced) {
-  HideTestRegs hide;
   Harness h("province_hq", 1440, 1500);
   h.demo();
   Id pid = 0;
@@ -197,7 +162,6 @@ TEST(app_province_hq_limit_enforced) {
 }
 
 TEST(app_province_tax_and_resource) {
-  HideTestRegs hide;
   Harness h("province_tax", 1440, 1500);
   h.demo();
   Id pid = 0;
@@ -233,8 +197,85 @@ TEST(app_province_tax_and_resource) {
   CHECK_NEAR(prov(h, pid)->baseTrade, 150.125, 1e-9);
 }
 
+// ТЗ 1.d.iv: общий налог = налог государства (0…100 %) + местный (−100…100 %) без верхней границы. При общем
+// налоге больше 100 % чистый доход гильдии со штабом отрицателен, а налог государству превышает ценность провинции.
+TEST(app_province_total_tax_capped) {
+  Harness h("audit_tzmil_tax");
+  h.demo();
+  const World& w = h->world();
+  // Провинция со штабом гильдии и её влиянием.
+  Id pid = 0, guild = 0;
+  w.provinces.each([&](const Province& p) {
+    if (pid || p.sea || !p.owner) return;
+    for (const Influence& in : p.influence)
+      if (in.pct > 0 && std::find(p.hqs.begin(), p.hqs.end(), in.guild) != p.hqs.end()) {
+        pid = p.id;
+        guild = in.guild;
+        return;
+      }
+  });
+  CHECK(pid && guild);
+  Id owner = w.province(pid)->owner;
+  // Значения в пределах полей интерфейса: налог государства до 100 %, местный налог до 100 %.
+  CHECK(h->act("Налоги", [&](Tx& tx) {
+    tx.faction(owner).tax = 100;
+    tx.province(pid).localTax = 100;
+  }));
+  auto c = rules::calc(h->world());
+  const rules::ProvinceCalc* pc = c->province(pid);
+  CHECK(pc != nullptr);
+  double net = 0;
+  for (const rules::GuildShare& s : pc->guilds)
+    if (s.guild == guild) net = s.net;
+  std::printf("  [audit tzmil] общий налог %.1f %%, ценность %.2f, налог провинции %.2f, налог гильдий %.2f, чистый доход гильдии %.2f\n", pc->taxTotal,
+              pc->tradeValue, pc->provinceTax, pc->guildTax, net);
+  CHECK_MSG(pc->taxTotal <= 100.0 + 1e-9, "общий налог провинции больше 100 %");
+  CHECK_MSG(net >= 0, "чистый доход гильдии со штабом отрицателен (налог больше валового дохода)");
+  CHECK_MSG(pc->provinceTax + pc->guildTax <= pc->tradeValue + 1e-6, "налог государству больше торговой ценности провинции");
+  // Снимок вкладки «Экономика» провинции.
+  h->ui.tabOf[app::SelType::Province] = "province.economy";
+  h->select(app::SelType::Province, pid);
+  h.settle();
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("audit_tzmil_tax_over_100"));
+}
+
+// ---------------------------------------------------------------- 1.d.iv / 1.e.i: общий налог без верхней границы
+// Налог государства до 100 % и местный до +100 % дают общий налог до 200 %: государство забирает больше торговой
+// ценности провинции, чистый доход штаба гильдии становится отрицательным.
+TEST(app_province_total_tax_capped_by_state_tax) {
+  Harness h("audit_tzstates_tax");
+  h.demo();
+  h.waitMap();
+  Id alm = findFaction(h->world(), "Королевство Альмарин");
+  CHECK(alm);
+  openTab(h, alm, "faction.economy");
+  CHECK(typeNumber(h, "economy.tax", "100"));
+  CHECK_NEAR(h->world().faction(alm)->tax, 100, 1e-9);
+  // Провинция Альмарина со штабом гильдии; местный налог +30 (поле провинции допускает до +100).
+  Id pid = 0;
+  h->world().provinces.each([&](const Province& p) {
+    if (!pid && p.owner == alm && !p.hqs.empty() && !p.influence.empty()) pid = p.id;
+  });
+  CHECK(pid);
+  CHECK(h->act("Местный налог", [&](Tx& tx) { tx.province(pid).localTax = 30; }));
+  h.step();
+  auto c = rules::calc(h->store.world());
+  const rules::ProvinceCalc* pc = c->province(pid);
+  CHECK(pc != nullptr);
+  double guildNet = 0;
+  for (const rules::GuildShare& s : pc->guilds)
+    if (s.hq) guildNet += s.net;
+  CHECK_MSG(pc->taxTotal <= 100 + 1e-9, "общий налог провинции " + std::to_string(pc->taxTotal) + " % — больше 100 %");
+  CHECK_MSG(pc->provinceTax + pc->guildTax <= pc->tradeValue + 1e-9,
+        "налог провинции " + std::to_string(pc->provinceTax + pc->guildTax) + " больше её торговой ценности " + std::to_string(pc->tradeValue));
+  CHECK_MSG(guildNet >= -1e-9, "чистый доход штабов гильдий в провинции отрицательный: " + std::to_string(guildNet));
+  openTab(h, alm, "faction.economy");
+  shotClean(h, "audit_tzstates_tax_over_100");
+}
+
 TEST(app_province_economy_screen) {
-  HideTestRegs hide;
   Harness h("province_economy_shot", 1440, 1000);
   h.demo();
   // Провинция со штабами и влиянием нескольких гильдий.
@@ -264,7 +305,6 @@ TEST(app_province_economy_screen) {
 }
 
 TEST(app_province_narrow_inspector) {
-  HideTestRegs hide;
   Harness h("province_narrow", 1280, 900);
   h.demo();
   h->ui.inspectorWidth = 320;

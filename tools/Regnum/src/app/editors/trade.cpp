@@ -5,27 +5,18 @@
 // с остатком ходов и расторжением.
 // ТЗ 1.b.vii (вкладка торговли, безвозмездно, доход за ход на срок), 1.d.iii (гильдии торгуют), 1.e.ii (дань),
 // «Механика героев», п.2 (обмен пленными), «Механика войн», п.3 (обмен провинциями).
+// Роли (ТЗ «Доработки №4», п.5): игрок заключает и расторгает только сделки своего государства (App::play) — его
+// сторона в черновике закреплена; сделки мира видны для просмотра.
 #include "app/editors/trade.h"
 
 #include "app/app_internal.h"
-#include "app/dialogs/turn_ui.h"
+#include "app/turn/turn_ui.h"
 #include "app/widgets.h"
 
 namespace rg::app::trade {
 
 // ================================================================ черновик
-Draft& draft() {
-  static Draft d;
-  static u64 tag = 0;
-  if (hasApp()) {
-    u64 t = turnui::sessionTag(app());   // другой мир — чистый черновик
-    if (t != tag) {
-      tag = t;
-      d = Draft{};
-    }
-  }
-  return d;
-}
+Draft& draft() { return sessionState<Draft>(); }   // другой мир — чистый черновик
 
 void startDraft(Id a, Id b) {
   Draft& d = draft();
@@ -213,7 +204,7 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
       ui::label("ход " + std::to_string(d.turn), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "clock", .tooltip = since});
       if (active) {
         std::string tip = d.kind == DealKind::Trade ? "Расторгнуть сделку" : d.kind == DealKind::Tribute ? "Отменить дань" : "Отменить репарации";
-        if (ui::iconButton("trash", tip, {.size = ui::Size::Small, .disabled = a.readOnly(), .tone = ui::Tone::Danger})) cancel = true;
+        if (ui::iconButton("trash", tip, {.size = ui::Size::Small, .disabled = !a.canPlay(d.a) && !a.canPlay(d.b), .tone = ui::Tone::Danger})) cancel = true;
         a.markUi("trade.cancel." + std::to_string(d.id));
       }
     }
@@ -303,10 +294,11 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
 void askCancel(App& a, Id deal) {
   const Deal* d = a.world().deal(deal);
   if (!d) return;
+  if (!a.canPlay(d->a) && !w::checkPlay(a, d->b)) return;   // расторгает сторона сделки
   std::string title = d->kind == DealKind::Trade ? "Расторгнуть сделку?" : d->kind == DealKind::Tribute ? "Отменить дань?" : "Отменить репарации?";
   std::string text = "Выплаты «каждый ход» прекратятся; уже переданное не вернётся. Отменить можно Ctrl+Z.";
   a.confirm(title, text, d->kind == DealKind::Trade ? "Расторгнуть" : "Отменить выплаты", true, [deal](App& x) {
-    if (x.act("Расторгнуть сделку", [&](Tx& tx) { rules::cancelDeal(tx, deal); })) x.toast("Сделка расторгнута", ToastKind::Info, "trade");
+    if (x.play("Расторгнуть сделку", [&](Tx& tx) { rules::cancelDeal(tx, deal); })) x.toast("Сделка расторгнута", ToastKind::Info, "trade");
   });
 }
 
@@ -318,18 +310,7 @@ struct ListState {
   int kind = 0;     // 0 — все, 1 — торговля, 2 — дань и репарации
   Id faction = 0;
 };
-ListState& listState() {
-  static ListState s;
-  static u64 tag = 0;
-  if (hasApp()) {
-    u64 t = turnui::sessionTag(app());
-    if (t != tag) {
-      tag = t;
-      s = ListState{};
-    }
-  }
-  return s;
-}
+ListState& listState() { return sessionState<ListState>(); }
 
 // Выбор ресурса через группы и подгруппы (ТЗ «Доработки №1», п.3): группа (0 — все ресурсы), затем ресурс из неё —
 // точка цвета, запас плательщика справа, поиск. Выбранный ресурс вне группы остаётся в списке первым.
@@ -444,7 +425,7 @@ bool itemEditor(App& a, const World& w, DraftItem& it, Id payer) {
   {
     // Количество, режим (значки: разово / каждый ход), срок или запас плательщика.
     ui::Row r({ui::fr(1, 90), ui::px(64), ui::px(100)}, 28, 6);
-    ui::numberField("amount", it.amount, {.min = 0, .max = 1e12, .step = 10, .digits = it.res == kGold ? 3 : 1, .unit = it.res == kGold ? "тыс." : nullptr,
+    ui::numberField("amount", it.amount, {.min = 0, .max = 1e12, .step = 10, .digits = it.res == kGold ? 3 : 1, .unit = w::amountUnit(it.res),
                                           .tooltip = "Количество"});
     a.markUi(key + ".amount");
     int mode = int(it.mode);
@@ -495,7 +476,10 @@ void partyColumn(App& a, const World& w, Draft& d, DealSide side) {
   Id other = isA ? d.b : d.a;
   ui::Group g(0, 8);
   ui::caption(isA ? "Сторона А" : "Сторона Б");
-  if (w::factionPicker(isA ? "party.a" : "party.b", party, w::FactionFilter::Any, "Выберите фракцию", other)) {
+  // Игрок: своя сторона закреплена, у другой стороны его государство не выбирается.
+  const Id own = a.playerState();
+  const bool locked = own && party == own;
+  if (w::factionPicker(isA ? "party.a" : "party.b", party, w::FactionFilter::Any, "Выберите фракцию", locked ? other : own ? own : other, locked)) {
     d.highlight = 0;
     pruneRefs(w, d);
   }
@@ -548,6 +532,11 @@ void partyColumn(App& a, const World& w, Draft& d, DealSide side) {
 void composer(App& a, const World& w) {
   Draft& d = draft();
   ui::Disabled dis(a.readOnly());
+  // Игрок составляет только сделки своего государства: его сторона — А, если её нет в черновике.
+  if (const Id own = a.playerState(); own && d.a != own && d.b != own) {
+    d.a = own;
+    pruneRefs(w, d);
+  }
   {
     ui::HStack hs(30, ui::Align::Left, 8);
     ui::icon("handshake", ui::Ink::Accent, 20);
@@ -607,12 +596,14 @@ void composer(App& a, const World& w) {
   if (ready) a.markUi("trade.check");
   {
     ui::HStack hs(32, ui::Align::Left, 8);
-    if (ui::button("Дань или репарации", {.icon = "tribute", .tooltip = "Навязать выплаты золотом на срок"})) a.openDialog("tribute", d.a);
+    if (ui::button("Дань или репарации", {.icon = "tribute", .tooltip = "Навязать выплаты золотом на срок"}))
+      a.openDialog("tribute", a.playerState() ? a.playerState() : d.a);
     a.markUi("trade.tribute");
     ui::flex();
-    if (ui::button(gift ? "Подарить" : "Заключить сделку", {.variant = ui::Variant::Primary, .icon = gift ? "star" : "handshake", .disabled = !chk.ok})) {
+    const bool party = a.canPlay(d.a) || a.canPlay(d.b);   // сделку заключает её сторона
+    if (ui::button(gift ? "Подарить" : "Заключить сделку", {.variant = ui::Variant::Primary, .icon = gift ? "star" : "handshake", .disabled = !chk.ok || !party})) {
       Id nid = 0;
-      if (a.act(gift ? "Подарок" : "Торговая сделка", [&](Tx& tx) { nid = rules::concludeDeal(tx, deal); })) {
+      if (a.play(gift ? "Подарок" : "Торговая сделка", [&](Tx& tx) { nid = rules::concludeDeal(tx, deal); })) {
         const Deal* nd = a.store.world().deal(nid);
         bool perTurn = nd && nd->status == DealStatus::Active;
         a.toast(perTurn ? "Сделка заключена: выплаты каждый ход" : gift ? "Подарок передан" : "Обмен выполнен", ToastKind::Success, "handshake");
@@ -722,9 +713,9 @@ EditorReg editor({"trade", "Переговоры и торговля", drawEdito
 
 bool editorScreen(App& a) { return a.ui.screen == Screen::Editor; }
 CommandReg cmdTrade({"trade.open", "Переговоры и торговля: сделки, обмен пленными и провинциями", "trade", nullptr, [](App& a) { a.openEditor("trade"); },
-                     editorScreen, false, "Переговоры и торговля"});
+                     editorScreen, false, "Переговоры и торговля", 40});
 CommandReg cmdTribute({"trade.tribute", "Навязать дань или репарации…", "tribute", nullptr, [](App& a) { a.openDialog("tribute"); },
-                       [](App& a) { return editorScreen(a) && !a.readOnly(); }, false, "Переговоры и торговля"});
+                       [](App& a) { return editorScreen(a) && a.canPlay(a.playerState()); }, false, "Переговоры и торговля", 40});
 
 }  // namespace
 }  // namespace rg::app::trade

@@ -423,31 +423,48 @@ bool copyFile(const std::string& from, const std::string& to, std::string* error
 }
 
 // ================================================================ системные папки
-std::string exeDir() {
+std::string exePath() {
 #ifdef _WIN32
   std::wstring buf(512, L'\0');
   for (;;) {
     DWORD n = GetModuleFileNameW(nullptr, buf.data(), DWORD(buf.size()));
-    if (n == 0) return fromPath(stdfs::current_path());
+    if (n == 0) return {};
     if (n < buf.size()) { buf.resize(n); break; }
     buf.resize(buf.size() * 2);
   }
-  return fromPath(stdfs::path(buf).parent_path());
+  return fromPath(stdfs::path(buf));
 #elif defined(__APPLE__)
   uint32_t size = 0;
   _NSGetExecutablePath(nullptr, &size);
   std::string buf(size + 1, '\0');
-  if (_NSGetExecutablePath(buf.data(), &size) != 0) return fromPath(stdfs::current_path());
+  if (_NSGetExecutablePath(buf.data(), &size) != 0) return {};
   buf.resize(std::strlen(buf.c_str()));
   std::error_code ec;
   stdfs::path p = stdfs::canonical(stdfs::path(buf), ec);
   if (ec) p = stdfs::path(buf);
-  return fromPath(p.parent_path());
+  return fromPath(p);
 #else
   std::error_code ec;
   stdfs::path p = stdfs::read_symlink("/proc/self/exe", ec);
-  if (ec) return fromPath(stdfs::current_path(ec));
-  return fromPath(p.parent_path());
+  if (ec) return {};
+  return fromPath(p);
+#endif
+}
+
+std::string exeDir() {
+  std::string exe = exePath();
+  if (exe.empty()) {
+    std::error_code ec;
+    return fromPath(stdfs::current_path(ec));
+  }
+  return fromPath(path(exe).parent_path());
+}
+
+std::string env(const std::string& name) {
+#ifdef _WIN32
+  return utf8::fromWide(envW(utf8::toWide(name).c_str()));
+#else
+  return envU(name.c_str());
 #endif
 }
 

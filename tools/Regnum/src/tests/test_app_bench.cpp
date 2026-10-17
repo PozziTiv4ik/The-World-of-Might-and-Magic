@@ -78,8 +78,8 @@ double sharpMs(Harness& h) {
 
 }  // namespace
 
-TEST(bench_app_real_world) {
-  if (!std::getenv("REGNUM_BENCH")) {
+TEST(app_bench_real_world) {
+  if (!test::envFlag("REGNUM_BENCH")) {
     std::printf("  пропущено: запуск с REGNUM_BENCH=1\n");
     return;
   }

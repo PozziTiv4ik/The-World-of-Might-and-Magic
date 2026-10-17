@@ -1,4 +1,4 @@
-// Regnum — чума (ТЗ «Доработки №3», п.4–5; «Доработки №2», п.19.1.1): заражение, иммунитет, лечение постройкой
+// Regnum — чума: заражение, иммунитет, лечение постройкой
 // целительства, заражение постройкой чумы. Распространение при естественном окончании — в завершении хода (turn.cpp).
 #include "rules/internal.h"
 
@@ -57,10 +57,22 @@ bool infectPlague(Tx& tx, Id province) {
   return true;
 }
 
+namespace {
+
+// Снять чуму без распространения (любое снятие даёт «Временный иммунитет»).
 void curePlague(Tx& tx, Id province) {
   needProvince(tx.w(), province);
   if (Id m = modWithKey(tx.w(), tx.w().province(province)->modifiers, schema::mod::Plague))
-    dropModifier(tx, ModTarget::Province, province, m);   // снятие даёт «Временный иммунитет»
+    dropModifier(tx, ModTarget::Province, province, m);
+}
+
+}  // namespace
+
+Id healingHerbs(const World& w) {
+  const std::string k = utf8::searchKey("Лечебные травы");
+  for (const CatalogItem& r : w.catalogs->resources)
+    if (utf8::searchKey(r.name) == k) return r.id;
+  return 0;
 }
 
 void healProvince(Tx& tx, Id province, Id building, Id essence) {
@@ -71,15 +83,27 @@ void healProvince(Tx& tx, Id province, Id building, Id essence) {
   if (!hasModKey(tx.w(), p.modifiers, schema::mod::Plague)) fail("В провинции " + provName(tx.w(), province) + " нет чумы");
   const Faction* o = tx.w().faction(p.owner);
   if (!o || !o->isState()) fail("У провинции нет владельца — платить за лечение некому");
-  const CatalogItem* e = tx.w().essence(essence);
-  if (!e) fail("Не выбрана эссенция");
-  if (o->essence(essence) + 1e-9 < schema::kHealCost)
-    fail("Недостаточно эссенции «" + e->name + "»: нужно " + amount(schema::kHealCost) + ", есть " + amount(std::max(0.0, o->essence(essence))));
   const Id owner = o->id;
-  tx.faction(owner).ess[essence] -= schema::kHealCost;
+  std::string paid;
+  if (essence) {
+    const CatalogItem* e = tx.w().essence(essence);
+    if (!e) fail("Не выбрана эссенция");
+    if (o->essence(essence) + 1e-9 < schema::kHealCost)
+      fail("Недостаточно эссенции «" + e->name + "»: нужно " + amount(schema::kHealCost) + ", есть " + amount(std::max(0.0, o->essence(essence))));
+    tx.faction(owner).ess[essence] -= schema::kHealCost;
+    paid = e->name;
+  } else {
+    // Вместо эссенции — столько же лечебных трав.
+    const Id herbs = healingHerbs(tx.w());
+    if (!herbs) fail("В справочнике нет ресурса «Лечебные травы»");
+    if (o->stock(herbs) + 1e-9 < schema::kHealCost)
+      fail("Недостаточно ресурса «Лечебные травы»: нужно " + amount(schema::kHealCost) + ", есть " + amount(std::max(0.0, o->stock(herbs))));
+    addStock(tx.faction(owner), herbs, -schema::kHealCost);
+    paid = resName(tx.w(), herbs);
+  }
   curePlague(tx, province);
   addLog(tx, LogKind::Province,
-         "Провинция " + provName(tx.w(), province) + " вылечена от чумы (" + buildingName(tx.w(), building) + ", " + e->name + " " +
+         "Провинция " + provName(tx.w(), province) + " вылечена от чумы (" + buildingName(tx.w(), building) + ", " + paid + " " +
              amount(schema::kHealCost) + "): временный иммунитет " + nTurns(schema::kImmunityTurns),
          LogRefs{province, 0, {owner}});
 }

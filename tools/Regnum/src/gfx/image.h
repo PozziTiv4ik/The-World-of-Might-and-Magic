@@ -4,6 +4,10 @@
 #pragma once
 #include "base/base.h"
 
+namespace rg::codec {
+struct RgbaImage;
+}
+
 namespace rg::gfx {
 
 struct RectI {
@@ -56,6 +60,7 @@ struct Image {
   // Из обычного (не premultiplied) RGBA8 и обратно — для кодеков PNG/JPEG.
   static Image fromRgba(const u8* rgba, int w, int h);
   std::vector<u8> toRgba() const;
+  codec::RgbaImage toRgbaImage() const;   // то же вместе с размером (для записи PNG)
   // Масштабирование: высокое качество (область/бикубика) для уменьшения превью и пирамид.
   Image scaled(int nw, int nh) const;
   Image cropped(RectI r) const;

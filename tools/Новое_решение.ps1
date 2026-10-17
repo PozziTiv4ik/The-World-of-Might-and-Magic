@@ -43,31 +43,6 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
-$registryPath = Join-Path $root '09_Реестры\Решения.json'
-
-if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Decision registry is missing: 09_Реестры/Решения.json. Restore the authoritative JSON registry from a verified backup."
-}
-
-function Test-ProjectPath {
-    param([string]$Reference)
-
-    if ([string]::IsNullOrWhiteSpace($Reference)) {
-        return $false
-    }
-
-    $cleanReference = $Reference.Trim().Trim('`')
-    if ($cleanReference -match '^[a-z][a-z0-9+.-]*://') {
-        return $true
-    }
-
-    $normalized = $cleanReference -replace '/', '\'
-    if ([System.IO.Path]::IsPathRooted($normalized)) {
-        return Test-Path -LiteralPath $normalized
-    }
-
-    return Test-Path -LiteralPath (Join-Path $root $normalized)
-}
 
 function Format-LinkText {
     param([string[]]$RawLinks)
@@ -81,7 +56,7 @@ function Format-LinkText {
         }
 
         $clean = $link.Trim().Trim('`')
-        if (-not (Test-ProjectPath -Reference $clean)) {
+        if (-not (Test-WmmaReference $root $clean)) {
             throw "Decision link points to missing file: $clean"
         }
 
@@ -103,9 +78,9 @@ function Get-NextPendingDecisionId {
     $currentContextPath = Join-Path $root '01_Кампания\00_Текущий_контекст.md'
     $haystack = @(
         $Registry | ConvertTo-Json -Depth 8
-        Read-Text -Path $decisionLogPath
-        Read-Text -Path $openQuestionsPath
-        Read-Text -Path $currentContextPath
+        Read-WmmaText $decisionLogPath -AllowMissing
+        Read-WmmaText $openQuestionsPath -AllowMissing
+        Read-WmmaText $currentContextPath -AllowMissing
     ) -join "`n"
 
     $numbers = @(
@@ -216,8 +191,7 @@ function Update-CurrentContext {
         }
     }
 
-    $encoding = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($contextPath, ((@($before) + @($renumbered.ToArray()) + @($after)) -join "`n").TrimEnd() + "`n", $encoding)
+    Write-WmmaText $contextPath (((@($before) + @($renumbered.ToArray()) + @($after)) -join "`n").TrimEnd() + "`n")
 }
 
 if ([string]::IsNullOrWhiteSpace($Owner)) {
@@ -228,7 +202,7 @@ if ([string]::IsNullOrWhiteSpace($Choice)) {
     $Choice = "ожидает решения: $Question"
 }
 
-$registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $registryPath) | ConvertFrom-Json
+$registry = Read-WmmaRegistry $root 'Решения'
 $decisions = @($registry.decisions)
 
 if ([string]::IsNullOrWhiteSpace($Id)) {
@@ -274,21 +248,11 @@ $decisions += [pscustomobject][ordered]@{
 $registry.decisions = @($decisions)
 $registry.updated_real_date = $today
 
-$json = ($registry | ConvertTo-Json -Depth 8).TrimEnd() + "`n"
-$encoding = [System.Text.UTF8Encoding]::new($false)
-[System.IO.File]::WriteAllText($registryPath, $json, $encoding)
+Write-WmmaRegistry $root 'Решения' $registry
 
 Update-CurrentContext -PendingId $Id -PendingQuestion $Question -PendingOwner $Owner -PendingStatus $PanelStatus
 
-& (Join-Path $root 'tools\Собрать_решения.ps1') -SkipCheck
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
 
 "Created pending decision: $Id"
 }

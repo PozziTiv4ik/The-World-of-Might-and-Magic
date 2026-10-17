@@ -2,46 +2,13 @@
 // эссенции элементов от построек, базовая и текущая торговая ценность (маршруты: +10 % и +2,5 % за государство на
 // пути), местный и общий налог (не меньше 1 %), доход государству (налоги, рабы на работах, золото построек; пустошь
 // нежити и осквернение перекрывают доход с ценности), торговое влияние гильдий (сумма ≤ 100 %), штабы (≤ 5), доход
-// гильдий.
-#include "app/widgets.h"
+// гильдий. Ресурс, количество, ценность и влияние — правка мира (App::canEdit); местный налог — игровое действие
+// владельца, штаб — гильдии (App::canPlay, App::play).
+#include "app/panels/province_common.h"
 #include "gfx/text.h"
-
-namespace rg::app::prov {
-// province_common.cpp
-const World& frameWorld(App& a);
-struct TipLine {
-  std::string label, value;
-  ui::Tone tone = ui::Tone::Neutral;
-  bool total = false;
-};
-struct ChipSpec {
-  std::string label;
-  const char* icon = nullptr;
-  Color color{0, 0, 0, 0};
-  ui::Tone tone = ui::Tone::Neutral;
-  std::string tooltip;
-  bool clickable = false;
-};
-std::string num(double v);
-std::string pct(double v, bool sign = false);
-std::string gold(double v);
-double routePct(const rules::ProvinceCalc& pc);
-void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width = 300);
-int flowChips(std::string_view key, const std::vector<ChipSpec>& chips);
-std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
-std::vector<TipLine> productionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
-std::vector<TipLine> taxLines(const rules::ProvinceCalc& pc);
-}  // namespace rg::app::prov
 
 namespace rg::app {
 namespace {
-
-bool landOnly(App& a, Id pid) {
-  const Province* p = a.world().province(pid);
-  return p && !p->sea;
-}
-
-std::string key(const char* what, Id pid) { return std::string("province.") + what + ":" + std::to_string(pid); }
 
 // Строки таблицы влияния: гильдии с влиянием (в порядке записи), затем гильдии только со штабом.
 struct GuildRow {
@@ -74,7 +41,7 @@ std::vector<GuildRow> guildRows(const World& wd, const Province& p) {
 // Число ресурса: до тысячных (золото — ТЗ «Фиксы», п.13).
 std::string amountText(double v) { return fmtNum(v, 3); }
 
-void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
+void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {   // ro — нет правки мира
   const World& wd = prov::frameWorld(a);
   Id pid = p.id;
   ui::prop("Ресурс", "resource");
@@ -85,7 +52,7 @@ void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, b
   ui::prop("Количество", "pickaxe");
   double amount = p.resourceAmount;
   if (ui::numberField("amount", amount, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .disabled = ro || !p.resource}))
-    a.act("Количество ресурса", [&](Tx& tx) { tx.province(pid).resourceAmount = std::max(0.0, amount); }, {.coalesce = key("amount", pid)});
+    a.act("Количество ресурса", [&](Tx& tx) { tx.province(pid).resourceAmount = std::max(0.0, amount); }, {.coalesce = prov::key("amount", pid)});
   a.markUi("province.amount");
   ui::prop("Добыча за ход", "factory");
   {
@@ -94,6 +61,12 @@ void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, b
     ui::label(p.resource ? amountText(pc.production) : std::string("—"), {.font = ui::Font::Strong, .tooltip = "Добыча за ход"});
     if (p.resource) prov::breakdown("Добыча за ход", prov::productionLines(wd, p, pc));
     a.markUi("province.production");
+    // Постройки добычи (шахта): прибавка к добыче ресурса провинции.
+    if (p.resource && pc.extractPct > 0) {
+      ui::tag(prov::pct(pc.extractPct, true), ui::Tone::Success, "pickaxe");
+      ui::tooltip("Постройки добычи: добыча ресурса провинции больше на " + prov::pct(pc.extractPct));
+      a.markUi("province.extract");
+    }
   }
   // Ресурсы и эссенции элементов от достроенных построек — владельцу каждый ход.
   if (!pc.produce.empty() || !pc.essence.empty()) {
@@ -121,7 +94,7 @@ void tradeSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool
   ui::prop("Базовая ценность", "trade-value");
   double base = p.baseTrade;
   if (ui::numberField("baseTrade", base, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .disabled = ro}))
-    a.act("Базовая торговая ценность", [&](Tx& tx) { tx.province(pid).baseTrade = std::max(0.0, base); }, {.coalesce = key("base", pid)});
+    a.act("Базовая торговая ценность", [&](Tx& tx) { tx.province(pid).baseTrade = std::max(0.0, base); }, {.coalesce = prov::key("base", pid)});
   a.markUi("province.baseTrade");
   ui::prop("Текущая ценность", "trend-up");
   {
@@ -144,9 +117,10 @@ void tradeSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool
   }
 }
 
-void taxSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
+void taxSection(App& a, const Province& p, const rules::ProvinceCalc& pc) {
   const World& wd = prov::frameWorld(a);
   Id pid = p.id;
+  const bool ro = !(p.owner && a.canPlay(p.owner));   // местный налог задаёт владелец
   ui::prop("Налог государства", "crown");
   {
     ui::HStack hs(30, ui::Align::Left, 8);
@@ -157,7 +131,7 @@ void taxSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool r
   double local = p.localTax;
   if (ui::numberField("localTax", local, {.min = -100, .max = 100, .step = 1, .digits = 1, .unit = "%", .steppers = true, .sign = true, .disabled = ro,
                                           .tooltip = "Может быть отрицательным; общий налог — не меньше 1 %"}))
-    a.act("Местный налог", [&](Tx& tx) { tx.province(pid).localTax = clamp(local, -100.0, 100.0); }, {.coalesce = key("tax", pid)});
+    a.play("Местный налог", [&](Tx& tx) { tx.province(pid).localTax = clamp(local, -100.0, 100.0); }, {.coalesce = prov::key("tax", pid)});
   a.markUi("province.localTax");
   ui::prop("Общий налог", "scales");
   {
@@ -245,15 +219,16 @@ void influenceSection(App& a, const Province& p, bool ro) {
       t.cell();
       double v = r.pct;
       if (ui::numberField("pct", v, {.min = 0, .max = 100, .step = 1, .digits = 1, .unit = "%", .disabled = ro}))
-        a.act("Влияние гильдии", [&](Tx& tx) { rules::setInfluence(tx, pid, g, v); }, {.coalesce = key("inf", pid) + ":" + std::to_string(g)});
+        a.act("Влияние гильдии", [&](Tx& tx) { rules::setInfluence(tx, pid, g, v); }, {.coalesce = prov::key("inf", pid) + ":" + std::to_string(g)});
       a.markUi("province.inf." + std::to_string(g));
       t.cell();
       {
         ui::HStack hs(30, ui::Align::Center, 0);
         bool hq = r.hq;
-        if (ui::iconToggle("hq", hq ? "Штаб открыт — закрыть" : "Открыть штаб гильдии", hq, {.size = ui::Size::Small, .disabled = ro})) {
-          if (hq) a.act("Открыть штаб гильдии", [&](Tx& tx) { rules::buildHq(tx, g, pid); });
-          else a.act("Закрыть штаб гильдии", [&](Tx& tx) { rules::removeHq(tx, g, pid); });
+        // Штаб открывает и закрывает сама гильдия (игровое действие).
+        if (ui::iconToggle("hq", hq ? "Штаб открыт — закрыть" : "Открыть штаб гильдии", hq, {.size = ui::Size::Small, .disabled = !a.canPlay(g)})) {
+          if (hq) a.play("Открыть штаб гильдии", [&](Tx& tx) { rules::buildHq(tx, g, pid); });
+          else a.play("Закрыть штаб гильдии", [&](Tx& tx) { rules::removeHq(tx, g, pid); });
         }
         a.markUi("province.hq." + std::to_string(g));
       }
@@ -359,7 +334,7 @@ void drawEconomy(App& a, Id pid) {
   const Province* p = wd.province(pid);
   if (!p) return;
   ui::IdScope ps{i64(pid)};
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   auto calc = rules::calc(wd);
   rules::ProvinceCalc none;
   const rules::ProvinceCalc* pcp = calc->province(pid);
@@ -404,7 +379,7 @@ void drawEconomy(App& a, Id pid) {
 
   if (ui::Section s("Ресурс", "resource"); s) resourceSection(a, *p, pc, ro);
   if (ui::Section s("Торговля", "trade-value"); s) tradeSection(a, *p, pc, ro);
-  if (ui::Section s("Налоги", "percent"); s) taxSection(a, *p, pc, ro);
+  if (ui::Section s("Налоги", "percent"); s) taxSection(a, *p, pc);
   {
     std::vector<GuildRow> rows = guildRows(wd, *p);
     std::string badge = rows.empty() ? std::string() : fmtNum(double(rows.size()));
@@ -413,7 +388,7 @@ void drawEconomy(App& a, Id pid) {
   if (ui::Section s("Доход гильдий", "income"); s) guildIncome(a, pc);
 }
 
-TabReg tabEconomy({"province.economy", "coins", "Экономика", 30, SelType::Province, landOnly, drawEconomy});
+TabReg tabEconomy({"province.economy", "coins", "Экономика", 30, SelType::Province, prov::landOnly, drawEconomy});
 
 }  // namespace
 }  // namespace rg::app

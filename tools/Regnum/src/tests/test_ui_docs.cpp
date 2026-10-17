@@ -1,5 +1,5 @@
 // Regnum — примеры из docs/UI.md: должны компилироваться и работать как написано.
-#include "core/world.h"
+#include "base/flag.h"
 #include "tests/test_ui_util.h"
 
 using namespace rg;

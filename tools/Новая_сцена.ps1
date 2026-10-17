@@ -30,6 +30,7 @@ param(
 
     [string[]]$FrontIds = @(),
 
+    # Accepted for compatibility only: an existing scene is never replaced (its ID and history stay).
     [switch]$Force,
 
     [switch]$SkipCheck
@@ -74,7 +75,7 @@ $frontTrackerPath = Join-Path $root '01_Кампания\06_Фронты_и_та
 $declaredFrontIds = Get-DeclaredFrontIds -FrontTrackerPath $frontTrackerPath
 
 if ($FrontId -ne '-' -and $declaredFrontIds -notcontains $FrontId) {
-    throw "Unknown FRONT-ID: $FrontId. Add it to 01_Кампания/06_Фронты_и_таймеры.md first."
+    throw "Unknown FRONT-ID: $FrontId. Create it with tools/Новый_фронт.ps1 first."
 }
 foreach($id in $FrontIds){if($declaredFrontIds -notcontains $id){throw "Unknown front: $id"}}
 $entityGraph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
@@ -199,16 +200,7 @@ $Summary
 
 Write-WmmaText $targetPath $content
 
-$global:LASTEXITCODE = 0
-& (Join-Path $root 'tools\Собрать_индекс_сцен.ps1') -SkipCheck
-if (-not $? -or $LASTEXITCODE -ne 0) {
-    exit 1
-}
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_индекс_сцен' -SkipCheck:$SkipCheck
 
 "Created scene: $relativePath"
 }

@@ -31,6 +31,23 @@ const std::string& noText() {
 
 }  // namespace
 
+std::string findAssetsDir() {
+  const std::string exe = fs::exeDir(), cwd = fs::absolute(".");
+  const std::string roots[] = {
+      fs::join(exe, "assets"),           fs::join(exe, "../assets"),   fs::join(exe, "../../assets"),
+      fs::join(exe, "../share/regnum"), fs::join(exe, "../Resources"), fs::join(cwd, "tools/Regnum/assets"),
+      fs::join(cwd, "assets"),
+  };
+  for (const std::string& r : roots)
+    if (fs::isFile(fs::join(r, "basemap/map.json"))) return fs::absolute(r);
+  return {};
+}
+
+std::string findBasemapDir() {
+  const std::string a = findAssetsDir();
+  return a.empty() ? a : fs::join(a, "basemap");
+}
+
 Basemap::Basemap() = default;
 Basemap::~Basemap() = default;
 Basemap::Basemap(Basemap&&) noexcept = default;

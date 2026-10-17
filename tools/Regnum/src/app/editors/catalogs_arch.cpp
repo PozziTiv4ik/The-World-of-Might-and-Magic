@@ -157,7 +157,7 @@ bool chestListEdit(const World& w, std::string_view id, std::vector<Id>& list, I
   ui::IdScope scope(id);
   bool changed = false;
   if (!list.empty()) {
-    ChipFlow cf;
+    ui::ChipFlow cf;
     for (size_t i = 0; i < list.size(); i++) {
       const Chest* c = w.catalogs->chest(list[i]);
       if (!c) continue;
@@ -168,7 +168,7 @@ bool chestListEdit(const World& w, std::string_view id, std::vector<Id>& list, I
       std::string tip = orName(c->name);
       for (const ChestItem& it : c->items) tip += "\n· " + rules::chestItemText(w, it);
       co.tooltip = tip;
-      if (edkit::chip(orName(c->name), co) == ui::ChipAction::Remove) {
+      if (ui::flowChip(orName(c->name), co) == ui::ChipAction::Remove) {
         list.erase(list.begin() + long(i));
         changed = true;
         break;
@@ -176,25 +176,20 @@ bool chestListEdit(const World& w, std::string_view id, std::vector<Id>& list, I
     }
   }
   if (!ro) {
-    std::vector<ui::Option> opts;
-    std::vector<Id> ids;
-    for (const Chest& c : w.catalogs->chests) {
-      if (c.id == exclude || std::find(list.begin(), list.end(), c.id) != list.end()) continue;
-      ids.push_back(c.id);
-      opts.push_back(ui::Option{c.name, chestIcon(c)});
-    }
-    int idx = -1;
-    if (!ids.empty() && ui::combo("add", idx, opts, {.placeholder = "Добавить сундук", .search = 1, .icon = "plus"}) && idx >= 0 &&
-        idx < int(ids.size())) {
-      list.push_back(ids[size_t(idx)]);
-      changed = true;
-    }
+    w::IdOptions opts;
+    for (const Chest& c : w.catalogs->chests)
+      if (c.id != exclude && std::find(list.begin(), list.end(), c.id) == list.end()) opts.add(c.id, c.name, chestIcon(c));
+    if (!opts.ids.empty())
+      if (const Id pick = w::addCombo("add", opts, {.placeholder = "Добавить сундук", .search = 1, .icon = "plus"})) {
+        list.push_back(pick);
+        changed = true;
+      }
   }
   return changed;
 }
 
 void siteCard(App& a, State& st, const World& w, const ArchSite& s) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Id id = s.id;
   const ui::Theme& th = ui::theme();
   ui::Scroll sc("card");
@@ -271,8 +266,7 @@ void askRemoveChest(App& a, const World& w, Id id) {
   if (!u.sites.empty()) text += " Он уйдёт из " + nb(i64(u.sites.size()), "списка наград", "списков наград", "списков наград") + " мест.";
   if (!u.chests.empty()) text += " " + nb(i64(u.chests.size()), "сундук", "сундука", "сундуков") + " потеряют его в своих полях.";
   if (u.provinces) text += " Сокровища " + nb(u.provinces, "провинции", "провинций", "провинций") + " будут выбраны заново.";
-  text += " Действие можно отменить Ctrl+Z.";
-  a.confirm("Удалить сундук?", text, "Удалить", true, [id](App& x) { x.act("Удалить сундук сокровищ", [&](Tx& tx) { rules::removeChest(tx, id); }); });
+  a.confirmAct("Удалить сундук?", text, "Удалить", "Удалить сундук сокровищ", [id](Tx& tx) { rules::removeChest(tx, id); });
 }
 
 // Краткое содержимое строкой значков.
@@ -305,7 +299,7 @@ void contentGlyphs(const World& w, const Chest& c) {
 }
 
 void chestsTable(App& a, State& st, const World& w, const std::vector<const Chest*>& rows, RectF T) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const ui::Theme& th = ui::theme();
   Id& sel = st.sel[kChests];
   int selIdx = -1;
@@ -502,7 +496,7 @@ void itemEditor(App& a, const World& w, const Chest& c, size_t i, bool ro) {
         if (g != it.relicGroup) editChest(a, cid, "Группа артефакта сундука", [&](Chest& x) { x.items[i].relicGroup = g; });
       }
       a.markUi("catalogs.chest.item." + std::to_string(i) + ".relicGroup");
-      ChipFlow cf;
+      ui::ChipFlow cf;
       for (int k = 0; k < int(Rarity::Count); k++) {
         ui::IdScope rs(k);
         const bool on = (it.rarities >> unsigned(k)) & 1u;
@@ -512,7 +506,7 @@ void itemEditor(App& a, const World& w, const Chest& c, size_t i, bool ro) {
         co.clickable = !ro;
         co.selected = on;
         co.tooltip = on ? "Допустимая редкость — убрать" : "Добавить редкость";
-        if (edkit::chip(schema::kRarities[k].name, co) == ui::ChipAction::Click && !ro) {
+        if (ui::flowChip(schema::kRarities[k].name, co) == ui::ChipAction::Click && !ro) {
           const u32 bits = it.rarities ^ (1u << unsigned(k));
           editChest(a, cid, "Редкость артефакта сундука", [&](Chest& x) { x.items[i].rarities = bits; });
         }
@@ -531,7 +525,7 @@ void itemEditor(App& a, const World& w, const Chest& c, size_t i, bool ro) {
 }
 
 void chestCard(App& a, State& st, const World& w, const Chest& c) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Id id = c.id;
   const ui::Theme& th = ui::theme();
   ui::Scroll sc("card");
@@ -612,7 +606,7 @@ void chestCard(App& a, State& st, const World& w, const Chest& c) {
     ui::Section sec("Где используется", "link", {.badge = std::to_string(u.sites.size() + u.chests.size())});
     a.markUi("catalogs.chest.usage");
     if (sec) {
-      ChipFlow cf;
+      ui::ChipFlow cf;
       for (auto [sid, k] : u.sites) {
         const ArchSite* s = w.catalogs->archSite(sid);
         if (!s) continue;
@@ -621,7 +615,7 @@ void chestCard(App& a, State& st, const World& w, const Chest& c) {
         co.icon = siteIconOf(*s);
         co.clickable = true;
         co.tooltip = "Финальная награда — открыть место";
-        if (edkit::chip(orName(s->name) + " · " + arch::kSlots[k].shortName, co) == ui::ChipAction::Click) selectInTab(st, kArchSites, sid);
+        if (ui::flowChip(orName(s->name) + " · " + arch::kSlots[k].shortName, co) == ui::ChipAction::Click) selectInTab(st, kArchSites, sid);
       }
       for (Id oc : u.chests) {
         const Chest* o = w.catalogs->chest(oc);
@@ -631,16 +625,12 @@ void chestCard(App& a, State& st, const World& w, const Chest& c) {
         co.icon = chestIcon(*o);
         co.clickable = true;
         co.tooltip = "Вложенный сундук — открыть";
-        if (edkit::chip(orName(o->name), co) == ui::ChipAction::Click) selectInTab(st, kChests, oc);
+        if (ui::flowChip(orName(o->name), co) == ui::ChipAction::Click) selectInTab(st, kChests, oc);
       }
     }
   }
   ui::spacer(4);
-  {
-    ui::Disabled dis(ro);
-    if (ui::button("Удалить: " + orName(c.name, "сундук"), {.variant = ui::Variant::Danger, .icon = "trash", .fill = true})) askRemoveChest(a, w, id);
-    a.markUi("catalogs.delete");
-  }
+  if (deleteButton(a, orName(c.name, "сундук"))) askRemoveChest(a, w, id);
 }
 
 }  // namespace
@@ -656,7 +646,7 @@ void drawArchSites(App& a, State& st) {
   for (const ArchSite& s : w.catalogs->archSites)
     if (st.query.empty() || utf8::matches(s.name, st.query)) rows.push_back(&s);
   Id& sel = st.sel[kArchSites];
-  if (std::none_of(rows.begin(), rows.end(), [&](const ArchSite* x) { return x->id == sel; })) sel = rows.empty() ? 0 : rows.front()->id;
+  keepSelection(sel, rows, [](const ArchSite* x) { return x->id; });
   const Split sp = split(ui::avail());
   sitesTable(a, st, w, rows, sp.table);
   a.markUi("catalogs.table", sp.table);
@@ -671,13 +661,12 @@ void drawArchSites(App& a, State& st) {
 }
 
 void drawChests(App& a, State& st) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   {
     ui::HStack hs(30, ui::Align::Left, 8);
     searchBox(a, st, 300, "Поиск сундуков");
     ui::flex();
-    if (ui::button("Новый сундук", {.variant = ui::Variant::Primary, .icon = "plus", .disabled = ro, .shortcut = {Key::Insert, 0}})) addChestAct(a, st);
-    a.markUi("catalogs.add");
+    if (newButton(a, "Новый сундук")) addChestAct(a, st);
   }
   ui::spacer(2);
   const World w = a.world();
@@ -685,7 +674,7 @@ void drawChests(App& a, State& st) {
   for (const Chest& c : w.catalogs->chests)
     if (st.query.empty() || utf8::matches(c.name, st.query)) rows.push_back(&c);
   Id& sel = st.sel[kChests];
-  if (std::none_of(rows.begin(), rows.end(), [&](const Chest* x) { return x->id == sel; })) sel = rows.empty() ? 0 : rows.front()->id;
+  keepSelection(sel, rows, [](const Chest* x) { return x->id; });
   const Split sp = split(ui::avail());
   chestsTable(a, st, w, rows, sp.table);
   a.markUi("catalogs.table", sp.table);

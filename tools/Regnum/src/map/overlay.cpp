@@ -338,7 +338,22 @@ void drawArmies(const FrameCtx& f) {
       }
     }
     if (top->id == o.hoverArmy && !sel) f.c->fillCircle(c.x, c.y, size * 0.62f, Color(255, 255, 255, 70));
+    // Объект игрока без очка действий: фигурка приглушена, слева сверху — песочные часы (до следующего хода).
+    const bool dim = !o.dimArmies.empty() && std::binary_search(o.dimArmies.begin(), o.dimArmies.end(), top->id);
+    if (dim) {
+      f.c->save();
+      f.c->setOpacity(0.55f);
+    }
     drawFigure(f, *top, c, size, sel);
+    if (dim) {
+      f.c->restore();
+      const float d = std::round(15 * dpi);
+      const RectF hr{c.x - std::round(size * 0.46f) - std::round(d * 0.5f), c.y - std::round(size * 0.56f) - std::round(d * 0.5f), d, d};
+      f.c->boxShadow(hr, d * 0.5f, 4 * dpi, 0, Color(0, 0, 0, 80), gfx::Pt(0, 1 * dpi));
+      f.c->fillCircle(hr.cx(), hr.cy(), d * 0.5f, Color(20, 24, 31, 238));
+      f.c->strokeCircle(hr.cx(), hr.cy(), d * 0.5f - 0.5f * dpi, 1.0f * dpi, col.withA(230));
+      gfx::drawIcon(*f.c, "hourglass", hr.inset(std::round(3 * dpi)), Color(244, 240, 230));
+    }
     // Войско на борту флота: значок воина слева снизу (на месте, симметричном значку численности).
     if (top->isFleet() && top->cargo && rules::cargoOf(w, top->id)) {
       const float d = std::round(15 * dpi);

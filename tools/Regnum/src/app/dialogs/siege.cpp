@@ -4,6 +4,7 @@
 // Мятежники после битвы, мятежа или восстания в провинции прежнего государства без его войск — штурм или захват
 // (ТЗ «Механика мятежа», п.2 и 4); перед штурмом гарнизона с отрицательной верностью его неверная часть переходит к
 // мятежникам (ТЗ «Доработки», п.1). Герои гарнизона — в карточке гарнизона и в «Судьбе героев», если он уничтожен.
+// Роли (ТЗ «Доработки №4», п.5): итог штурма и отступление — участника (своё войско или владелец провинции; App::play).
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -30,6 +31,12 @@ i64 garrisonCount(const Province& p) {
   i64 n = 0;
   for (const GarrisonEntry& g : p.garrison) n += std::max<i64>(0, g.count);
   return n;
+}
+
+// Участник штурма: своя фракция в войске или владелец провинции.
+bool siegeParty(App& a, const World& w, Id army, Id province) {
+  const Province* p = w.province(province);
+  return playsAny(a, w, army) || (p && a.canPlay(p->owner));
 }
 
 struct SiegeDialog final : Dialog {
@@ -64,7 +71,7 @@ struct SiegeDialog final : Dialog {
     if (const Army* ar = w.army(army); ar && dist2(ar->pos, origin) > 1e-6 && std::isfinite(origin.x) && std::isfinite(origin.y)) {
       std::optional<Vec2> to = rules::validPosition(w, ar->kind, origin, army) ? std::optional<Vec2>(origin) : rules::findFreeSpot(w, ar->kind, origin, army);
       const Id id = army;
-      if (to) a.act("Отступить от стен: " + w.provinceName(province), [&](Tx& tx) { rules::moveArmy(tx, id, *to); });
+      if (to && siegeParty(a, w, army, province)) a.play("Отступить от стен: " + w.provinceName(province), [&](Tx& tx) { rules::moveArmy(tx, id, *to); });
       if (const Army* moved = a.world().army(army)) a.toast("«" + objectName(*moved) + "» отступает от стен", ToastKind::Info, "retreat");
     }
     finish(a, false);
@@ -95,7 +102,7 @@ struct SiegeDialog final : Dialog {
       bool sel = winner == i;
       float hv = ui::animate(wid ^ 1, it.hovered ? 1.f : 0.f);
       float sk = ui::animate(wid ^ 2, sel ? 1.f : 0.f, 0.14f);
-      ui::draw::rect(h, Color::mix(th.surface3, th.accent.alpha(th.dark ? 0.16f : 0.14f), sk), 10);
+      ui::draw::rect(h, Color::mix(th.surface3, th.accent.alpha(0.16f), sk), 10);
       if (hv > 0.01f && !sel) ui::draw::rect(h, th.hover.alpha(hv), 10);
       ui::draw::rectStroke(h, Color::mix(th.border, th.accent, sk), 10, 1 + sk * 0.75f);
       if (it.focused) ui::draw::rectStroke(h.expand(3), th.accent.alpha(0.5f), 12, 2);
@@ -106,7 +113,7 @@ struct SiegeDialog final : Dialog {
         const char* why = "Нет отрядов";
         float bw = ui::measure(why, ui::Font::Small) + 30;
         RectF b{right - bw, h.cy() - 12, bw, 24};
-        ui::draw::rect(b, th.danger.alpha(th.dark ? 0.18f : 0.12f), 12);
+        ui::draw::rect(b, th.danger.alpha(0.18f), 12);
         ui::draw::icon("skull", RectF{b.x + 7, b.cy() - 7, 14, 14}, th.danger);
         ui::draw::text(why, RectF{b.x + 24, b.y, bw - 28, b.h}, ui::Font::Small, th.danger);
         right = b.x - 10;
@@ -206,7 +213,7 @@ struct SiegeDialog final : Dialog {
         for (const ArmyUnit& u : g.units)
           if (auto r = unitRow(w, g.faction, u.row, false))
             lines.push_back(LossLine{*r, u.count, &armyLosses[{g.faction, u.row}], "siege.loss.army." + std::to_string(u.row)});
-      lossTable(a, lines, a.readOnly());
+      lossTable(a, lines, !siegeParty(a, w, army, province));
       sideTotals(unitCount(ar), sumOf(armyLosses), "Войско будет уничтожено");
     }
     cardsH = std::max(cardsH, ui::lastItem().rect.h);
@@ -243,7 +250,7 @@ struct SiegeDialog final : Dialog {
       for (const GarrisonEntry& g : p.garrison)
         if (auto r = unitRow(w, p.owner, g.row, false); r && g.count > 0)
           lines.push_back(LossLine{*r, g.count, &garrisonLosses[g.row], "siege.loss.garrison." + std::to_string(g.row)});
-      lossTable(a, lines, a.readOnly());
+      lossTable(a, lines, !siegeParty(a, w, army, province));
       sideTotals(garrisonCount(p), sumOf(garrisonLosses), "Гарнизон будет уничтожен");
     }
     cardsH = std::max(cardsH, ui::lastItem().rect.h);
@@ -266,7 +273,7 @@ struct SiegeDialog final : Dialog {
     const Id leader = A->leader();
     const std::string pn = w.provinceName(province);
     rules::BattleOutcome out;
-    if (!a.act("Штурм: " + pn, [&](Tx& tx) { out = rules::resolveSiege(tx, r); })) return;
+    if (!siegeParty(a, w, army, province) || !a.play("Штурм: " + pn, [&](Tx& tx) { out = rules::resolveSiege(tx, r); })) return;
     const bool won = out.winner == leader && a.world().army(army) != nullptr;
     if (won) a.toast("Гарнизон разбит: " + pn, ToastKind::Success, "castle");
     else if (out.winner) a.toast("Гарнизон устоял: " + pn, ToastKind::Warning, "castle");
@@ -336,7 +343,7 @@ struct SiegeDialog final : Dialog {
     }
     a.markUi("siege.retreat");
     {
-      ui::Disabled dis(a.readOnly());
+      ui::Disabled dis(!siegeParty(a, w, army, province));
       if (ui::button("Применить итог", {.variant = ui::Variant::Primary, .icon = "check"})) {
         apply(a);
         if (decided) return false;
@@ -365,7 +372,7 @@ void flow::openSiege(App& a, Id army, Id province, Vec2 origin, std::function<vo
   if (rules::willGarrisonDefect(w, army, province)) {
     const i64 g0 = garrisonCount(*w.province(province));
     const std::string pn = w.provinceName(province);
-    if (a.act("Переход к мятежникам: гарнизон " + pn, [&](Tx& tx) { rules::garrisonDefect(tx, army, province); })) {
+    if (siegeParty(a, w, army, province) && a.play("Переход к мятежникам: гарнизон " + pn, [&](Tx& tx) { rules::garrisonDefect(tx, army, province); })) {
       const Province* after = a.world().province(province);
       const i64 moved = g0 - (after ? garrisonCount(*after) : 0);
       a.toast("К мятежникам перешло " + fmtCount(moved) + " · гарнизон " + pn, ToastKind::Warning, "rebellion");

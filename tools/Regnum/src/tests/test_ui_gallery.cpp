@@ -3,7 +3,7 @@
 #include <chrono>
 #include <thread>
 
-#include "core/world.h"
+#include "base/flag.h"
 #include "gfx/icons.h"
 #include "tests/test_ui_util.h"
 
@@ -780,11 +780,7 @@ void saveZoom(const H& h, gfx::RectI r, int k, const std::string& name) {
   gfx::Image z(crop.w * k, crop.h * k);
   for (int y = 0; y < z.h; y++)
     for (int x = 0; x < z.w; x++) z.row(y)[x] = crop.row(y / k)[x / k];
-  codec::RgbaImage out;
-  out.w = z.w;
-  out.h = z.h;
-  out.rgba = z.toRgba();
-  CHECK(codec::writePngFile(test::outDir() + "/ui_" + name + ".png", out, 6));
+  CHECK(test::savePng("ui_" + name + ".png", z));
 }
 
 double timeFrames(H& h, int n) {

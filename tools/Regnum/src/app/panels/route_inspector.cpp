@@ -1,6 +1,6 @@
 // Regnum — инспектор торгового маршрута (ТЗ 1.d.v): название, гильдия-владелец, цвет линии, длина, провинции
 // на пути и их бонус: каждый маршрут через провинцию повышает её текущую торговую ценность на 10 % базовой.
-#include "app/tools_edit.h"
+#include "app/tools/edit.h"
 
 namespace rg::app {
 
@@ -38,7 +38,7 @@ Color lineColor(const World& w, const Route& r) {
 
 void askRemove(App& a, Id rid) {
   const Route* r = a.world().route(rid);
-  if (!r || a.readOnly()) return;
+  if (!r || !a.canEdit()) return;   // маршруты — правка мира
   a.confirm("Удалить маршрут?",
             "«" + routeName(*r) + "» исчезнет с карты; провинции на пути потеряют его +10 % торговой ценности. Ctrl+Z вернёт.", "Удалить", true,
             [rid](App& x) {
@@ -69,7 +69,7 @@ void overview(App& a, Id rid) {
   const World& w = a.world();
   const Route* r = w.route(rid);
   if (!r) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // маршруты гильдий — правка мира (ТЗ «Доработки №4», п.5)
   RouteInfo in = infoOf(w, *r);
   auto calc = rules::calc(w);
   {
@@ -162,6 +162,7 @@ void overview(App& a, Id rid) {
     }
   }
 
+  if (!a.admin()) return;   // игрок маршрут не правит — без кнопок
   ui::spacer(4);
   {
     ui::HStack hs(30, ui::Align::Left, 8);

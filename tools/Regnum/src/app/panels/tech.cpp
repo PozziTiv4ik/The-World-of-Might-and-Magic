@@ -2,7 +2,8 @@
 // доступные технологии и кнопка «Открыть дерево технологий» (у каждого государства и гильдии — своё дерево).
 // «Общие технологии» (ТЗ «Доработки», п.6): общее дерево фракция изучает сама — состояние для неё, исследование,
 // отметка изученности, переход в общее дерево. Сроки — с модификатором «Время исследования технологий» государства
-// (rules::researchTurns).
+// (rules::researchTurns). Роли (ТЗ «Доработки №4», п.5): начать и остановить исследование — игровое действие фракции
+// (App::play); отметка изученности — правка мира (администратор).
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
 #include "app/widgets.h"
@@ -61,8 +62,9 @@ std::string names(const World& w, const std::vector<Id>& ids) {
 }
 
 // Общие технологии: исследуемые и доступные — выше, изученные — ниже.
-void commonSection(App& a, Id fid, bool ro) {
+void commonSection(App& a, Id fid) {
   const World& w = a.world();
+  const bool ro = !a.canPlay(fid), admin = a.admin(), edit = a.canEdit();
   std::vector<T> ts = techsOf(w, 0, fid);
   auto rank = [](const T& t) { return t.research ? 0 : t.available ? 1 : !t.studied ? 2 : 3; };
   std::stable_sort(ts.begin(), ts.end(), [&](const T& x, const T& y) { return rank(x) < rank(y); });
@@ -71,6 +73,8 @@ void commonSection(App& a, Id fid, bool ro) {
   ui::Section s("Общие технологии", "globe", {.defaultOpen = true, .badge = std::to_string(studied) + " / " + std::to_string(ts.size())});
   a.markUi("faction.ctech");
   if (!s) return;
+  // Кнопки: исследование и (у администратора) отметка изученности.
+  const ui::Len cols[] = {ui::px(18), ui::fr(1), ui::px(30), ui::px(30)};
   for (const T& t : ts) {
     ui::IdScope sc{i64(t.id)};
     const std::string id = std::to_string(t.id);
@@ -85,7 +89,7 @@ void commonSection(App& a, Id fid, bool ro) {
                                         : std::string("закрыто");
     const std::string lockTip = !t.missing.empty() ? "Сначала изучите: " + names(w, t.missing) : join(t.problems, "\n");
     const Faction* payer = w.faction(fid);
-    ui::Row row({ui::px(18), ui::fr(1), ui::px(30), ui::px(30)}, ui::kAuto, 6);
+    ui::Row row(std::span<const ui::Len>(cols, admin ? 4 : 3), ui::kAuto, 6);
     ui::iconColored(icon, ui::toneColor(tone), 16);
     {
       ui::Group g(0, 1);
@@ -103,32 +107,41 @@ void commonSection(App& a, Id fid, bool ro) {
       }
     }
     const Id tid = t.id;
-    // Исследование: начать / остановить (стоимость возвращается); изученную — снять отметку.
-    if (t.research) {
+    // Исследование: начать / остановить (стоимость возвращается); изученную — снять отметку. Игрок у чужой фракции —
+    // без кнопок (только состояние).
+    if (ro && !admin) {
+      ui::next(28);
+    } else if (t.research) {
       if (ui::iconButton("close", t.cost.empty() ? std::string("Остановить исследование") : std::string("Остановить исследование: стоимость вернётся"),
                          {.disabled = ro}))
-        a.act("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid, fid); });
+        a.play("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid, fid); });
       a.markUi("faction.ctech.stop." + id);
     } else if (t.studied) {
-      if (ui::iconButton("check-circle", "Снять отметку изучения", {.toggled = true, .disabled = ro, .tone = ui::Tone::Success}))
-        a.act("Снять отметку изучения", [&](Tx& tx) { rules::setStudied(tx, tid, false, fid); });
-      a.markUi("faction.ctech.unstudy." + id);
+      if (admin) {
+        if (ui::iconButton("check-circle", "Снять отметку изучения", {.toggled = true, .disabled = !edit, .tone = ui::Tone::Success}))
+          a.act("Снять отметку изучения", [&](Tx& tx) { rules::setStudied(tx, tid, false, fid); });
+        a.markUi("faction.ctech.unstudy." + id);
+      } else {
+        ui::icon("check-circle", ui::Ink::Success, 18, "Изучено");
+      }
     } else {
       const std::string startTip = t.available ? std::string("Начать исследование: ") + nTurns(t.left()) +
                                                      (t.cost.empty() ? std::string() : "; стоимость спишется сразу")
                                    : lockTip.empty() ? std::string("Начать исследование")
                                                      : lockTip;
       if (ui::iconButton("play", startTip, {.disabled = ro || !t.available, .tone = ui::Tone::Accent}))
-        a.act("Начать исследование", [&](Tx& tx) { rules::startResearch(tx, tid, fid); });
+        a.play("Начать исследование", [&](Tx& tx) { rules::startResearch(tx, tid, fid); });
       a.markUi("faction.ctech.start." + id);
     }
-    // Отметить изученной сразу.
-    if (!t.studied) {
-      if (ui::iconButton("check", lockTip.empty() ? std::string("Отметить изученной") : lockTip, {.disabled = ro || !t.missing.empty(), .tone = ui::Tone::Success}))
-        a.act("Отметить изученной", [&](Tx& tx) { rules::setStudied(tx, tid, true, fid); });
-      a.markUi("faction.ctech.study." + id);
-    } else {
-      ui::next(28);
+    // Отметить изученной сразу — правка мира.
+    if (admin) {
+      if (!t.studied) {
+        if (ui::iconButton("check", lockTip.empty() ? std::string("Отметить изученной") : lockTip, {.disabled = !edit || !t.missing.empty(), .tone = ui::Tone::Success}))
+          a.act("Отметить изученной", [&](Tx& tx) { rules::setStudied(tx, tid, true, fid); });
+        a.markUi("faction.ctech.study." + id);
+      } else {
+        ui::next(28);
+      }
     }
   }
   if (ts.empty()) ui::label("Общее дерево пусто", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "globe"});
@@ -140,14 +153,14 @@ void drawTech(App& a, Id fid) {
   const World& w = a.world();
   const Faction* f = w.faction(fid);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canPlay(fid);   // исследование — игровое действие фракции
   std::vector<T> ts = techsOf(w, fid, 0);
   if (ts.empty()) {
     ui::spacer(8);
     if (ui::emptyState("tech-tree", f->isGuild() ? "У гильдии пока нет технологий." : "Дерево технологий пусто.", "Открыть дерево технологий", "tech-tree"))
       openTechTree(a, fid);
     a.markUi("faction.tech.open", tree::emptyActionRect("Открыть дерево технологий", "tech-tree"));
-    commonSection(a, fid, ro);
+    commonSection(a, fid);
     return;
   }
   int studied = 0, research = 0, avail = 0;
@@ -178,7 +191,8 @@ void drawTech(App& a, Id fid) {
           a.markUi("faction.tech.progress." + std::to_string(t.id));
         }
         Id tid = t.id;
-        if (ui::iconButton("close", "Остановить исследование", {.disabled = ro})) a.act("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid); });
+        if (ro && !a.admin()) continue;   // игрок у чужой фракции — без кнопок
+        if (ui::iconButton("close", "Остановить исследование", {.disabled = ro})) a.play("Остановить исследование", [&](Tx& tx) { rules::stopResearch(tx, tid); });
         a.markUi("faction.tech.stop." + std::to_string(t.id));
       }
     }
@@ -193,24 +207,25 @@ void drawTech(App& a, Id fid) {
         ui::label(nTurns(t.left()), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
         a.markUi("faction.tech.left." + std::to_string(t.id));
         Id tid = t.id;
+        if (ro && !a.admin()) continue;
         if (ui::iconButton("play", "Начать исследование", {.disabled = ro, .tone = ui::Tone::Accent}))
-          a.act("Начать исследование", [&](Tx& tx) { rules::startResearch(tx, tid); });
+          a.play("Начать исследование", [&](Tx& tx) { rules::startResearch(tx, tid); });
         a.markUi("faction.tech.start." + std::to_string(t.id));
       }
     }
   }
   if (studied > 0) {
     if (ui::Section s("Изучены", "check-circle", {.defaultOpen = studied <= 12, .badge = std::to_string(studied)}); s) {
-      tree::ChipFlow flow;
+      ui::ChipFlow flow(40);
       for (const T& t : ts) {
         if (!t.studied) continue;
         ui::IdScope sc{i64(t.id)};
-        if (tree::chip(t.name, {.icon = "check", .tone = ui::Tone::Success, .clickable = true, .tooltip = "Показать в дереве"}) == ui::ChipAction::Click)
+        if (ui::flowChip(t.name, {.icon = "check", .tone = ui::Tone::Success, .clickable = true, .tooltip = "Показать в дереве"}) == ui::ChipAction::Click)
           openTechTree(a, fid, t.id);
       }
     }
   }
-  commonSection(a, fid, ro);
+  commonSection(a, fid);
 }
 
 // Исследуются: своё дерево и общие технологии этой фракции.

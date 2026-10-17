@@ -8,26 +8,6 @@ using namespace rg::apptest;
 
 namespace {
 
-// Перетаскивание по шагам (snapshot — снимок, пока кнопка ещё зажата).
-void dragTo(Harness& h, gfx::Pt from, gfx::Pt to, const std::string& snapshot = {}) {
-  hl::mouseMove(from.x, from.y);
-  h.step();
-  hl::mouseDown(from.x, from.y, platform::MouseLeft);
-  h.step();
-  for (int i = 1; i <= 10; i++) {
-    hl::mouseMove(from.x + (to.x - from.x) * float(i) / 10, from.y + (to.y - from.y) * float(i) / 10);
-    h.step();
-  }
-  if (!snapshot.empty()) {
-    h.dropToasts();
-    h.settle();
-    CHECK(h.shot(snapshot));
-  }
-  hl::mouseUp(to.x, to.y, platform::MouseLeft);
-  h.step();
-  hl::advance(0.6);
-}
-
 // Новое войско фракции рядом с точкой near (с отрядами первой строки).
 Id spawnArmy(Harness& h, Id faction, Vec2 near, i64 units) {
   const World& w = h->world();
@@ -55,7 +35,6 @@ void focusOn(Harness& h, Id army, Vec2 at, double zoom = 0.6) {
 // Перемещение, отмена, вода (возврат с причиной), войско не взаимодействует с флотом.
 TEST(app_military_drag_move) {
   Harness h("military_drag_move");
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   Id x = armyOf(h->world(), hel, ArmyKind::Army);
@@ -132,7 +111,6 @@ TEST(app_military_drag_move) {
 // Флот: перемещение по морю, суша — возврат с причиной, битва флотов (потери кораблей из таблицы флота).
 TEST(app_military_drag_fleet) {
   Harness h("military_drag_fleet");
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   Id vk = factionByName(h->world(), "Валь-Кетра");
@@ -222,7 +200,6 @@ TEST(app_military_drag_fleet) {
 // Объединение войск одной фракции: отказ возвращает, согласие складывает численность.
 TEST(app_military_drag_merge) {
   Harness h("military_drag_merge");
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   Id x = armyOf(h->world(), hel, ArmyKind::Army);
@@ -257,7 +234,6 @@ TEST(app_military_drag_merge) {
 // Союзники: союзное войско с отдельными плитками фракций.
 TEST(app_military_drag_alliance) {
   Harness h("military_drag_alliance");
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   Id alm = factionByName(h->world(), "Альмарин");
@@ -287,7 +263,6 @@ TEST(app_military_drag_alliance) {
 // Статус-кво: объявление войны (−25, «в войне»), затем битва с потерями; проигравший смещается.
 TEST(app_military_drag_war_and_battle) {
   Harness h("military_drag_war");
-  RealArmyTools tools;
   h.demo();
   Id alm = factionByName(h->world(), "Альмарин");
   Id vk = factionByName(h->world(), "Валь-Кетра");
@@ -359,7 +334,6 @@ TEST(app_military_drag_war_and_battle) {
 // Война: сразу панель битвы; «Отступить» — нападавший на исходной позиции, мир не меняется.
 TEST(app_military_drag_battle_retreat) {
   Harness h("military_drag_retreat");
-  RealArmyTools tools;
   h.demo();
   Id hel = factionByName(h->world(), "Хельдвиг");
   Id vk = factionByName(h->world(), "Валь-Кетра");
@@ -388,7 +362,6 @@ TEST(app_military_drag_battle_retreat) {
 // Прошлый ход открыт только для просмотра: перетаскивание и правка недоступны.
 TEST(app_military_readonly_past_turn) {
   Harness h("military_readonly");
-  RealArmyTools tools;
   h.demo();
   CHECK(h->endTurnNow());
   h.dropToasts();

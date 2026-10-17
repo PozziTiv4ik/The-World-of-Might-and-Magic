@@ -20,6 +20,12 @@ class Index;
 struct Objects;
 }
 
+// Папка ресурсов assets (с basemap/map.json): рядом с программой (bin/<ОС>/../../assets, пакеты share/regnum и
+// Resources), затем от текущей папки (tools/Regnum/assets, assets). Пусто — не найдена.
+std::string findAssetsDir();
+// Папка базовой карты findAssetsDir()/basemap (абсолютный путь). Пусто — не найдена.
+std::string findBasemapDir();
+
 class Basemap {
  public:
   Basemap();
@@ -46,9 +52,6 @@ class Basemap {
 
   geo::Coast coast() const;            // кольца суши; не загружено — UserError
   bool isOcean(Vec2 p) const;          // по маске; вне карты — false
-  int maskWidth() const { return maskW_; }
-  int maskHeight() const { return maskH_; }
-  int maskScale() const { return kMaskScale; }
 
   // Карта целиком (суша, море, воды, знаки), нарисованная кодом в палитре p: превью шириной 2000 и миниатюра
   // шириной 480. Рисуются при первом обращении (потокобезопасно); не загружено — nullptr.

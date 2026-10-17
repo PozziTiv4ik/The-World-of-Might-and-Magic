@@ -1,14 +1,15 @@
-// regnum-cli icon — значок программы из векторного знака (app/logo.h): PNG 16/24/32/48/64/256 и ICO для Windows.
+// regnum-cli icon — значок программы из векторного знака (gfx/logo.h): PNG 16/24/32/48/64/256 и ICO для Windows.
 //
 //   regnum-cli icon [файл.ico] [--png=<папка>]
 //
 // ICO: размеры до 64 — 32-битный DIB с маской (совместимо со всеми версиями Windows), 256 — PNG.
 #include <cstdio>
 
-#include "app/logo.h"
 #include "base/fs.h"
 #include "cli/cli.h"
 #include "codec/png.h"
+#include "gfx/logo.h"
+#include "map/basemap.h"
 
 namespace rg::cli {
 namespace {
@@ -18,7 +19,7 @@ constexpr int kSizes[] = {16, 24, 32, 48, 64, 256};
 gfx::Image renderIcon(int size) {
   gfx::Image img(size, size, 0);
   gfx::Canvas c(img);
-  app::drawLogoTile(c, RectF{0, 0, float(size), float(size)});
+  gfx::drawLogoTile(c, RectF{0, 0, float(size), float(size)});
   return img;
 }
 
@@ -65,11 +66,7 @@ std::string dib(const gfx::Image& img) {
 }
 
 std::string pngBytes(const gfx::Image& img) {
-  codec::RgbaImage r;
-  r.w = img.w;
-  r.h = img.h;
-  r.rgba = img.toRgba();
-  std::vector<u8> b = codec::encodePng(r, 9);
+  std::vector<u8> b = codec::encodePng(img.toRgbaImage(), 9);
   return std::string(b.begin(), b.end());
 }
 
@@ -78,8 +75,8 @@ int runIcon(const std::vector<std::string>& args) {
   std::string out;
   if (!pos.empty()) out = pos[0];
   else {
-    std::string assets = fs::join(fs::exeDir(), "../../assets");
-    out = fs::isDir(assets) ? fs::join(assets, "regnum.ico") : std::string("regnum.ico");
+    const std::string assets = map::findAssetsDir();
+    out = assets.empty() ? std::string("regnum.ico") : fs::join(assets, "regnum.ico");
   }
   std::string pngDir = option(args, "--png");
   std::vector<std::string> images;
@@ -87,12 +84,8 @@ int runIcon(const std::vector<std::string>& args) {
     gfx::Image img = renderIcon(size);
     images.push_back(size >= 256 ? pngBytes(img) : dib(img));
     if (!pngDir.empty()) {
-      codec::RgbaImage r;
-      r.w = img.w;
-      r.h = img.h;
-      r.rgba = img.toRgba();
       std::string f = fs::join(pngDir, "regnum-" + std::to_string(size) + ".png");
-      if (!codec::writePngFile(f, r, 9)) fail("Не удалось записать " + f);
+      if (!codec::writePngFile(f, img.toRgbaImage(), 9)) fail("Не удалось записать " + f);
     }
   }
   std::string ico;

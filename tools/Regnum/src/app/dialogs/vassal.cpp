@@ -6,7 +6,8 @@
 //  3. У атакованного есть вассалы — их тоже можно призвать: «надо добавить возможность призывать вассалов не только
 //     когда сюзерен сам нападает на другое государство но и когда другое государство нападает на сюзерена» (то же
 //     окно призыва: сюзерен — атакованный, враг — зачинщик).
-// Закрытие окна без ответа ничего не меняет.
+// Закрытие окна без ответа ничего не меняет. Роли (ТЗ «Доработки №4», п.5): отвечает участник (сюзерен, вассал или
+// воюющее государство; App::play), остальные видят окно только для чтения.
 #include "app/flows.h"
 #include "app/panels/faction_common.h"
 
@@ -64,14 +65,15 @@ struct DefendDlg final : Dialog {
     }
     ui::ModalFooter f;
     const Id s = suzerain, v = vassal, at = attacker;
+    ui::Disabled dis(!a.canPlay(s) && !a.canPlay(v) && !a.canPlay(at));   // отвечает участник
     if (ui::button("Нет", {.icon = "close"})) {
-      a.act("Сюзерен не вступает в войну", [&](Tx& tx) { rules::suzerainDefends(tx, s, v, at, false); });
+      a.play("Сюзерен не вступает в войну", [&](Tx& tx) { rules::suzerainDefends(tx, s, v, at, false); });
       finish(a);
       return false;
     }
     a.markUi("vassal.defend.no");
     if (ui::button("Да", {.variant = ui::Variant::Primary, .icon = "war", .isDefault = true})) {
-      a.act("Сюзерен вступает в войну", [&](Tx& tx) { rules::suzerainDefends(tx, s, v, at, true); });
+      a.play("Сюзерен вступает в войну", [&](Tx& tx) { rules::suzerainDefends(tx, s, v, at, true); });
       finish(a);
       return false;
     }
@@ -127,7 +129,7 @@ struct CallDlg final : Dialog {
       ui::IdScope sc{i64(v->id)};
       const Relation rel = w.relation(suzerain, v->id);
       RectF rr = ui::next(46);
-      ui::draw::rect(rr, t.dark ? t.stripe : t.surface3.alpha(0.55f), t.radiusCard);
+      ui::draw::rect(rr, t.stripe, t.radiusCard);
       ui::Area area(rr.inset(10, 8), 0);
       ui::Row row({ui::px(30), ui::fr(1), ui::px(52), ui::px(210)}, 30, 10);
       ui::flag(v->flag, 30, 20, 2.5f);
@@ -144,12 +146,14 @@ struct CallDlg final : Dialog {
       return false;
     }
     a.markUi("vassal.call.cancel");
-    if (ui::button("Готово", {.variant = ui::Variant::Primary, .icon = "check", .disabled = answered == 0, .isDefault = true})) {
+    bool party = a.canPlay(suzerain) || a.canPlay(enemy);   // отвечает участник
+    for (Id v : vassals) party = party || a.canPlay(v);
+    if (ui::button("Готово", {.variant = ui::Variant::Primary, .icon = "check", .disabled = answered == 0 || !party, .isDefault = true})) {
       const Id s = suzerain, e = enemy;
       std::vector<std::pair<Id, bool>> list;
       for (size_t i = 0; i < vassals.size(); i++)
         if (answer[i] >= 0) list.push_back({vassals[i], answer[i] == 0});
-      if (a.act(defense ? "Призыв вассалов на защиту" : "Призыв вассалов", [&](Tx& tx) {
+      if (a.play(defense ? "Призыв вассалов на защиту" : "Призыв вассалов", [&](Tx& tx) {
             for (auto [v, agree] : list) rules::vassalAnswers(tx, s, v, e, agree);
           })) {
         finish(a);

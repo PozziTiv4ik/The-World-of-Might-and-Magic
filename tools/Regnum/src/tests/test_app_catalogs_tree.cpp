@@ -18,17 +18,6 @@ std::string gmark(Id g) { return "catalogs.group." + std::to_string(g); }
 std::string rmark(Id r) { return "catalogs.res." + std::to_string(r); }
 
 Id groupKey(const World& w, const char* key) { return w.catalogs->groupId(key); }
-Id resNamed(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->resources)
-    if (c.name == name) return c.id;
-  return 0;
-}
-Id groupNamed(const World& w, const std::string& name) {
-  for (const ResGroup& g : w.catalogs->resGroups)
-    if (g.name == name) return g.id;
-  return 0;
-}
-
 // Прокрутить таблицу к началу, затем вниз, пока не построится строка mark (таблица строит только видимые строки).
 bool scrollFind(Harness& h, const std::string& mark) {
   if (h->uiRect(mark)) return true;
@@ -70,7 +59,7 @@ TEST(app_catalogs_tree_collapse_search) {
   const World& w0 = h->world();
   const Id ore = groupKey(w0, schema::grp::Ore), oreCommon = groupKey(w0, schema::grp::OreCommon);
   const Id beasts = groupKey(w0, schema::grp::Beasts), mounts = groupKey(w0, schema::grp::MountsGround);
-  const Id iron = resNamed(w0, "Железо"), horses = resNamed(w0, "Лошади");
+  const Id iron = test::idByName(w0.catalogs->resources, "Железо"), horses = test::idByName(w0.catalogs->resources, "Лошади");
   CHECK(ore && oreCommon && beasts && mounts && iron && horses);
   // Верхний уровень свёрнут: видны строки групп, подгрупп и ресурсов нет; в конце — «Без группы».
   for (const char* k : {schema::grp::Ore, schema::grp::Beasts, schema::grp::Provisions, schema::grp::Materials})
@@ -114,10 +103,10 @@ TEST(app_catalogs_tree_collapse_search) {
   CHECK(h->uiRect(gmark(oreCommon)) != nullptr);
   CHECK(h->uiRect(gmark(beasts)) == nullptr);
   CHECK(h->uiRect(rmark(horses)) == nullptr);
-  // Поиск по названию группы показывает её содержимое: «ездовые наземные» — лошади.
+  // Поиск по названию группы показывает её содержимое: «ездовые наземные» — лошади (ресурсы группы — по алфавиту).
   h.retype("ездовые наземные");
   quick(h);
-  CHECK(h->uiRect(rmark(horses)) != nullptr);
+  CHECK(scrollFind(h, rmark(horses)));
   CHECK(h->uiRect(rmark(iron)) == nullptr);
   shotClean(h, "catalogs_tree_search");
   // Поиск очищен — прежнее раскрытие: «Обычная» снова свёрнута, «Звери» — тоже.
@@ -132,9 +121,10 @@ TEST(app_catalogs_tree_collapse_search) {
   // «Развернуть все» и «Свернуть все».
   CHECK(h.clickUi("catalogs.expandAll"));
   quick(h);
-  CHECK(h->uiRect(rmark(iron)) != nullptr);
+  CHECK(h->uiRect(gmark(beasts)) != nullptr);
   shotClean(h, "catalogs_tree_expanded");
-  CHECK(scrollFind(h, rmark(horses)));   // ниже — «Звери / Ездовые наземные»
+  CHECK(scrollFind(h, rmark(iron)));     // группы по алфавиту: «Руда» — последней
+  CHECK(scrollFind(h, rmark(horses)));   // «Звери / Ездовые наземные»
   CHECK(h.clickUi("catalogs.collapseAll"));
   quick(h);
   CHECK(h->uiRect(gmark(oreCommon)) == nullptr);
@@ -191,7 +181,7 @@ TEST(app_catalogs_tree_create_move_remove) {
   // Число ресурсов группы — с подгруппами.
   CHECK(rules::resourcesIn(h->world(), g).size() == 1);
   // Ресурс без группы → в «Трофеи» через карточку (выбор группы).
-  const Id spice = resNamed(h->world(), "Пряности");
+  const Id spice = test::idByName(h->world().catalogs->resources, "Пряности");
   CHECK(spice != 0);
   CHECK_EQ(h->world().resource(spice)->group, Id(0));
   CHECK(h.clickUi("catalogs.nogroup.toggle"));
@@ -287,7 +277,7 @@ TEST(app_catalogs_tree_rule_groups) {
   quick(h);
   CHECK_EQ(h->world().catalogs->group(prov)->name, std::string("Припасы"));
   CHECK_EQ(h->world().catalogs->groupId(schema::grp::Provisions), prov);
-  CHECK(groupNamed(h->world(), "Провизия") == 0);
+  CHECK(test::idByName(h->world().catalogs->resGroups, "Провизия") == 0);
 }
 
 // Сортировка по столбцу упорядочивает соседей внутри своих групп: дерево не разрывается.
@@ -298,15 +288,15 @@ TEST(app_catalogs_tree_sort) {
   openResources(h);
   const World& w0 = h->world();
   const Id ore = groupKey(w0, schema::grp::Ore), common = groupKey(w0, schema::grp::OreCommon), special = groupKey(w0, schema::grp::OreSpecial);
-  const Id iron = resNamed(w0, "Железо"), silver = resNamed(w0, "Серебро");
+  const Id iron = test::idByName(w0.catalogs->resources, "Железо"), silver = test::idByName(w0.catalogs->resources, "Серебро");
   CHECK(h.clickUi(gmark(ore) + ".toggle"));
   quick(h);
   auto y = [&](const std::string& mark) {
     const RectF* r = h->uiRect(mark);
     return r ? r->y : -1.f;
   };
-  // Без сортировки — порядок справочника: серебро выше железа.
-  CHECK(y(rmark(silver)) >= 0 && y(rmark(silver)) < y(rmark(iron)));
+  // Без сортировки — по названию внутри группы: железо выше серебра.
+  CHECK(y(rmark(iron)) >= 0 && y(rmark(iron)) < y(rmark(silver)));
   // «Добыча» по возрастанию, затем по убыванию: железо (добывается) — ниже, затем выше серебра; группа — над ними.
   CHECK(h.clickUi("catalogs.head.4"));
   quick(h);
@@ -336,7 +326,7 @@ TEST(app_catalogs_tree_usage) {
   h.demo();
   h.dropToasts();
   const World& w0 = h->world();
-  const Id black = resNamed(w0, "Черные Драконы"), steel = resNamed(w0, "Обсидиановая сталь");
+  const Id black = test::idByName(w0.catalogs->resources, "Черные Драконы"), steel = test::idByName(w0.catalogs->resources, "Обсидиановая сталь");
   Id dragons = 0, citadel = 0;
   for (const SpecialUnit& s : w0.catalogs->specials)
     if (s.name == "Драконы Бездны") dragons = s.id;
@@ -344,7 +334,7 @@ TEST(app_catalogs_tree_usage) {
     if (b.name == "Цитадель Бездны") citadel = b.id;
   });
   CHECK(black && steel && dragons && citadel);
-  auto [state, other] = twoStates(w0);
+  auto [state, other] = test::twoStates(w0);
   (void)other;
   Id row = 0, forge = 0;
   CHECK(h->act("Драконы и преобразование", [&](Tx& tx) {
@@ -360,7 +350,7 @@ TEST(app_catalogs_tree_usage) {
     rc.in = {ResAmount{steel, 5}};
     rc.out = ResAmount{black, 1};
     rc.turns = 2;
-    rules::setRecipe(tx, forge, rc);
+    rules::setRecipe(tx, forge, 0, rc);
   }));
   openResources(h);
   h.key(Key::F, ctrl());
@@ -396,7 +386,7 @@ TEST(app_catalogs_tree_perf) {
   openResources(h);
   CHECK(h.clickUi("catalogs.expandAll"));
   h.settle();
-  const Id iron = resNamed(h->world(), "Железо");
+  const Id iron = test::idByName(h->world().catalogs->resources, "Железо");
   CHECK(clickRow(h, rmark(iron)));
   h.settle();
   const RectF* tr = h->uiRect("catalogs.table");

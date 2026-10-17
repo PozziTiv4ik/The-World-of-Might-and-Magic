@@ -1,7 +1,7 @@
 // Сценарии правки карты (режим «Правка карты», T): горы, замки и башни — выбор, перетаскивание, рамка, удаление,
 // кисть; озеро, река и стена; точки фигуры; суша и море контуром; точки берега; инспектор; перенос объектов
 // базовой карты в мир при первой правке и его отмена; сохранение и чтение data/map.json.
-#include "app/tools_map.h"
+#include "app/tools/map/mapedit.h"
 #include "tests/test_app_tools_util.h"
 
 using namespace rg;
@@ -45,7 +45,7 @@ void look(Harness& h, Vec2 p, double zoom = kZoom) {
   h.settle();
 }
 
-gfx::Pt centerOf(Harness& h, const MapSymbol& s) { return scr(h, map::art::symbolBox(s).center()); }
+gfx::Pt centerOf(Harness& h, const MapSymbol& s) { return screenOf(h, map::art::symbolBox(s).center()); }
 
 double landArea(const World& w) {
   auto fs = geo::buildFaces(w);
@@ -58,7 +58,6 @@ double landArea(const World& w) {
 }  // namespace
 
 TEST(app_mapedit_mode_and_tools) {
-  ToolGuard guard;
   Harness h("mapedit_mode");
   mapMode(h);
   for (const char* n : {"tool.mapedit", "tool.map-objects", "tool.symbol", "tool.lake", "tool.river", "tool.wall", "tool.land-add", "tool.land-remove",
@@ -86,7 +85,6 @@ TEST(app_mapedit_mode_and_tools) {
 }
 
 TEST(app_mapedit_symbol_select_drag_undo) {
-  ToolGuard guard;
   Harness h("mapedit_symbol");
   mapMode(h);
   const MapSymbol* c = isolated(h, SymbolKind::Castle);
@@ -135,7 +133,6 @@ TEST(app_mapedit_symbol_select_drag_undo) {
 }
 
 TEST(app_mapedit_rubber_select_delete) {
-  ToolGuard guard;
   Harness h("mapedit_rubber");
   mapMode(h);
   // Гуща гор: самый населённый квадрат 120 × 120.
@@ -171,7 +168,6 @@ TEST(app_mapedit_rubber_select_delete) {
 }
 
 TEST(app_mapedit_place_symbols_brush) {
-  ToolGuard guard;
   Harness h("mapedit_brush");
   mapMode(h);
   // Свободная суша без знаков: середина самой большой ничьей грани, где знаков нет.
@@ -213,7 +209,6 @@ TEST(app_mapedit_place_symbols_brush) {
 }
 
 TEST(app_mapedit_lake_river_wall_points) {
-  ToolGuard guard;
   Harness h("mapedit_shapes");
   mapMode(h);
   auto fs = geo::faces(h->world());
@@ -257,7 +252,7 @@ TEST(app_mapedit_lake_river_wall_points) {
   dragMap(h, v0, v0 + Vec2(15, 10));
   CHECK(dist(h->world().shape(lake)->pts[2], v0 + Vec2(15, 10)) < 0.6);
   const Vec2 mid = (h->world().shape(lake)->pts[0] + h->world().shape(lake)->pts[1]) * 0.5;
-  gfx::Pt ms = scr(h, mid);
+  gfx::Pt ms = screenOf(h, mid);
   h.doubleClick(ms.x, ms.y);
   CHECK_EQ(h->world().shape(lake)->pts.size(), size_t(5));
   h.key(Key::Delete);
@@ -274,7 +269,6 @@ TEST(app_mapedit_lake_river_wall_points) {
 }
 
 TEST(app_mapedit_land_and_coast) {
-  ToolGuard guard;
   Harness h("mapedit_land");
   mapMode(h);
   const World& w0 = h->world();
@@ -340,7 +334,7 @@ TEST(app_mapedit_land_and_coast) {
     h->world().edges.each([&](const Edge& e) { n += e.kind == EdgeKind::Coast ? e.pts.size() : 0; });
     return n;
   }();
-  gfx::Pt em = scr(h, edgeMid);
+  gfx::Pt em = screenOf(h, edgeMid);
   h.doubleClick(em.x, em.y);
   size_t pts1 = 0;
   h->world().edges.each([&](const Edge& e) { pts1 += e.kind == EdgeKind::Coast ? e.pts.size() : 0; });
@@ -353,7 +347,6 @@ TEST(app_mapedit_land_and_coast) {
 }
 
 TEST(app_mapedit_inspector_and_save) {
-  ToolGuard guard;
   Harness h("mapedit_save");
   mapMode(h);
   const MapSymbol* t = isolated(h, SymbolKind::Tower);

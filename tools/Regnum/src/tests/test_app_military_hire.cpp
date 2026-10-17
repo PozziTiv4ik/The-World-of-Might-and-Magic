@@ -1,13 +1,14 @@
 // Сценарии найма (ТЗ «Ввод новых механик», п.1–5): ключевой ресурс юнита (кавалерия — из «Ездовых наземных»;
 // без него найм заблокирован с причиной), полная цена в окне «Сформировать», дополнительный ресурс через группу и
 // эссенции на юнит, элементали (только за эссенции, раса «Элементали», содержание эссенциями, а не золотом), особый
-// отряд из постройки доступа (недоступен без неё, найм и причина отказа); подсказки с полным текстом у обрезанных
-// названий в ячейке, поле и выпадающем списке.
+// отряд из постройки доступа (недоступен без неё, найм и причина отказа); наёмники (кнопка с причиной, окно, отметка
+// строки, цена найма, лимит); подсказки с полным текстом у обрезанных названий в ячейке, поле и выпадающем списке.
 #include "tests/test_app_war_util.h"
-#include "ui/ui_internal.h"
+#include "tests/test_app_trees_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
+namespace tr = rg::apptest::trees;
 
 namespace {
 
@@ -18,18 +19,6 @@ void openArmyTab(Harness& h, Id faction) {
   h.settle();
   h.dropToasts();
   h.settle();
-}
-
-Id resourceNamed(const World& w, std::string_view name) {
-  for (const CatalogItem& c : w.catalogs->resources)
-    if (c.name == name) return c.id;
-  return 0;
-}
-
-Id essenceNamed(const World& w, std::string_view name) {
-  for (const CatalogItem& c : w.catalogs->essences)
-    if (c.name == name) return c.id;
-  return 0;
 }
 
 int rowIndex(const World& w, Id faction, Id row) {
@@ -48,17 +37,6 @@ bool hasProblem(const rules::RecruitCost& c, std::string_view part) {
 double at(const std::map<Id, double>& m, Id k) {
   auto it = m.find(k);
   return it == m.end() ? 0 : it->second;
-}
-
-// Подсказка, показанная сейчас: увести указатель (после щелчка подсказка элемента ждёт нового наведения), навести
-// и подождать дольше задержки подсказки.
-std::string tipAt(Harness& h, float x, float y) {
-  h.move(2, 2);
-  h.move(x, y);
-  hl::advance(0.5);
-  h.frames(4);
-  const ui::in::Ctx& c = ui::in::C();
-  return c.tipRequested ? c.tipText : std::string();
 }
 
 // Ввести дробное число в поле (запятая — разделитель).
@@ -87,13 +65,12 @@ bool addFromMenu(Harness& h, const std::string& mark) {
 // с оплатой; отмена — возврат ресурсов и эссенций. В широкой таблице — столбцы ключевого ресурса и цены.
 TEST(app_military_hire_key_resource_and_cost) {
   Harness h("military_hire_key", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
   const Id cav = h->world().faction(hel)->army[1].id;
   CHECK(schema::isCavalry(h->world().faction(hel)->armyRow(cav)->type));
-  const Id horses = resourceNamed(h->world(), "Лошади"), iron = resourceNamed(h->world(), "Железо");
-  const Id fire = essenceNamed(h->world(), "Эссенция пламени");
+  const Id horses = test::idByName(h->world().catalogs->resources, "Лошади"), iron = test::idByName(h->world().catalogs->resources, "Железо");
+  const Id fire = test::idByName(h->world().catalogs->essences, "Эссенция пламени");
   CHECK(horses && iron && fire);
   CHECK(rules::keyAllowed(h->world(), UnitType::HeavyCav, horses));
   CHECK(!rules::keyAllowed(h->world(), UnitType::HeavyCav, iron));
@@ -256,10 +233,9 @@ TEST(app_military_hire_key_resource_and_cost) {
 // найм и содержание эссенциями (в показателях вкладки — по эссенциям).
 TEST(app_military_hire_elementals) {
   Harness h("military_hire_elementals", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id air = essenceNamed(h->world(), "Эссенция воздуха");
+  const Id air = test::idByName(h->world().catalogs->essences, "Эссенция воздуха");
   CHECK(air != 0);
   openArmyTab(h, hel);
   const size_t rows0 = h->world().faction(hel)->army.size();
@@ -322,7 +298,8 @@ TEST(app_military_hire_elementals) {
   CHECK_EQ(h->world().faction(hel)->armyRow(row.id)->total, 100);
   CHECK_NEAR(h->world().faction(hel)->essence(air), 0, 1e-9);
   auto calc = rules::calc(h->world());
-  CHECK_NEAR(calc->faction(hel)->essences.at(air).upkeep, 200, 1e-9);
+  const double cutK = 1 - calc->faction(hel)->upkeepCut / 100;   // казармы государства снижают и содержание эссенциями
+  CHECK_NEAR(calc->faction(hel)->essences.at(air).upkeep, 200 * cutK, 1e-9);
   CHECK_NEAR(calc->faction(hel)->expArmy, gold0, 1e-9);
   CHECK(reveal(h, "mil.army.editReserve"));
   CHECK(h.clickUi("mil.army.editReserve"));
@@ -355,7 +332,6 @@ TEST(app_military_hire_elementals) {
 // постройки — найм заблокирован с причиной; переход к справочнику.
 TEST(app_military_hire_special_unit) {
   Harness h("military_hire_special", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const World& w0 = h->world();
   const Id hel = factionByName(w0, "Хельдвиг");
@@ -419,8 +395,8 @@ TEST(app_military_hire_special_unit) {
   if (const RectF* insp = h->uiRect("inspector")) CHECK(cropShot("military_hire_special_card", *insp));
 
   // Найм: ключевой ресурс, обсидиановая сталь и эссенция бездны — из справочника.
-  const Id steel = resourceNamed(h->world(), "Обсидиановая сталь");
-  const Id abyss = essenceNamed(h->world(), "Эссенция бездны");
+  const Id steel = test::idByName(h->world().catalogs->resources, "Обсидиановая сталь");
+  const Id abyss = test::idByName(h->world().catalogs->essences, "Эссенция бездны");
   CHECK(steel && abyss);
   CHECK(h->act("Запасы", [&](Tx& tx) {
     tx.faction(hel).res[S.keyRes] = 10;
@@ -456,7 +432,6 @@ TEST(app_military_hire_special_unit) {
 // выпадающего списка показывают подсказку с полным текстом; щелчок по ячейке по-прежнему выделяет строку.
 TEST(app_military_hire_long_names) {
   Harness h("military_hire_names", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
   const Id cav = h->world().faction(hel)->army[1].id;
@@ -492,7 +467,7 @@ TEST(app_military_hire_long_names) {
 
   // Ключевой ресурс воздушной кавалерии с длинным названием: в карточке поле во всю ширину — название помещается,
   // подсказка — только своя (откуда ключевой ресурс).
-  const Id bats = resourceNamed(h->world(), "Гигантские летучие мыши");
+  const Id bats = test::idByName(h->world().catalogs->resources, "Гигантские летучие мыши");
   CHECK(bats != 0);
   CHECK(h->act("Воздушная кавалерия", [&](Tx& tx) {
     rules::setRowType(tx, hel, cav, UnitType::AirCav);
@@ -533,4 +508,84 @@ TEST(app_military_hire_long_names) {
     h.key(Key::Escape);
     h.settle();
   }
+}
+
+// ---------------------------------------------------------------- наёмники
+TEST(app_military_hire_mercenaries) {
+  Harness h("econ2_merc", 1600, 1000);
+  h.demo();
+  h.dropToasts();
+  const tr::StateProv sp = tr::stateWithFreeSlots(h->world(), 2);
+  CHECK(sp.state && sp.province);
+  factionTab(h, sp.state, "faction.army");
+  // Без «Гильдии Наемников» кнопка недоступна.
+  CHECK(tr::revealIn(h, "mil.merc.create"));
+  tr::clickQuick(h, "mil.merc.create");
+  CHECK(!h->hasDialog("mil.merc"));
+  CHECK(h->uiRect("mil.merc.limit") == nullptr);
+  const Id guild = test::buildingByKey(h->world(), schema::bld::MercGuild);
+  CHECK(guild != 0);
+  CHECK(h->act("Гильдия наёмников", [&](Tx& tx) { rules::placeBuilding(tx, sp.province, guild, 1); }));
+  CHECK_EQ(rules::mercLimit(h->world(), sp.state), i64(2500));
+  h.settle(40);
+  CHECK(tr::revealIn(h, "mil.merc.create"));
+  tr::clickQuick(h, "mil.merc.create");
+  CHECK(h->hasDialog("mil.merc"));
+  // Окно: тяжёлая пехота, название, найм 0,05 тыс. за юнит; содержание по умолчанию 0,001.
+  CHECK(clickPart(h, "mil.merc.type", 2, 6));
+  h.settle(20);
+  CHECK(h.clickUi("mil.merc.name"));
+  h.type("Чёрные клинки");
+  h.key(Key::Tab);
+  h.settle(20);
+  CHECK(h.clickUi("mil.merc.hire"));
+  h.key(Key::A, ctrl());
+  h.type("0,05");
+  h.key(Key::Tab);
+  h.settle(20);
+  shotClean(h, "econ2_merc_dialog", 60);
+  const size_t rows0 = h->world().faction(sp.state)->army.size();
+  CHECK(h.clickUi("mil.merc.ok"));
+  h.settle(40);
+  CHECK(!h->hasDialog("mil.merc"));
+  const Faction* f = h->world().faction(sp.state);
+  CHECK_EQ(f->army.size(), rows0 + 1);
+  const ArmyRow& r = f->army.back();
+  CHECK(r.merc);
+  CHECK(r.type == UnitType::HeavyInf);
+  CHECK_EQ(r.name, std::string("Чёрные клинки"));
+  CHECK_NEAR(r.hire, 0.05, 1e-12);
+  CHECK_NEAR(r.upkeep, schema::kNewRowUpkeep, 1e-12);
+  CHECK_EQ(r.race, std::string(schema::kRaceMercenary));
+  const Id row = r.id;
+  // Формирование — только золото: 100 × 0,05 = 5 тыс.; население не тратится.
+  const double gold0 = f->treasury();
+  const i64 pop0 = rules::statePopulation(h->world(), sp.state);
+  CHECK(h->act("Найм наёмников", [&](Tx& tx) { rules::recruit(tx, sp.state, row, 100); }));
+  CHECK_NEAR(h->world().faction(sp.state)->treasury(), gold0 - 5.0, 1e-9);
+  CHECK_EQ(rules::statePopulation(h->world(), sp.state), pop0);
+  CHECK_EQ(rules::mercCount(h->world(), sp.state), i64(100));
+  h.settle(40);
+  CHECK(tr::revealIn(h, "mil.merc.limit"));
+  // Строка в таблице: выбрать — в карточке цена найма правится.
+  int idx = -1;
+  for (size_t i = 0; i < h->world().faction(sp.state)->army.size(); i++)
+    if (h->world().faction(sp.state)->army[i].id == row) idx = int(i);
+  CHECK(idx >= 0);
+  // Широкая таблица страницы: щелчок по ячейке «Резерв» (слева от поля содержания) выбирает строку.
+  const std::string upMark = "mil.row." + std::to_string(idx) + ".upkeep";
+  CHECK(tr::revealIn(h, upMark));
+  {
+    const RectF ur = tr::rectOf(h.a(), upMark);
+    h.click(ur.x - 24, ur.cy());
+    h.settle(40);
+  }
+  CHECK(tr::revealIn(h, "mil.detail.hire"));
+  CHECK(h.clickUi("mil.detail.hire"));
+  h.key(Key::A, ctrl());
+  h.type("0,08");
+  h.key(Key::Enter);
+  h.settle(20);
+  CHECK_NEAR(h->world().faction(sp.state)->armyRow(row)->hire, 0.08, 1e-12);
+  shotClean(h, "econ2_merc_tab", 60);
 }

@@ -1,19 +1,12 @@
 param([switch]$KeepFixture)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
+. (Join-Path $PSScriptRoot 'lib/Testing.ps1')
 $root=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $fixture=Resolve-WmmaPath $root ('.wmma/link-tests/'+[guid]::NewGuid().ToString('N'))
 foreach($directory in @('01_Кампания/Главы','01_Кампания/Ветки','02_Лор','03_Персонажи','04_Локации','05_Активы_персонажей','08_Источники')){
     [void][IO.Directory]::CreateDirectory((Join-Path $fixture $directory))
 }
-$passed=[Collections.Generic.List[string]]::new()
-function Assert-True([bool]$Condition,[string]$Message){if(-not $Condition){throw $Message}}
-function Expect-Failure([scriptblock]$Action,[string]$Message){
-    $failed=$false
-    try{& $Action|Out-Null}catch{$failed=$true}
-    Assert-True $failed $Message
-}
-function Step([string]$Name,[scriptblock]$Action){& $Action;$passed.Add($Name);"PASS: $Name"}
 function Write-FixtureDocument([string]$Path,[string]$Type,[string]$Id,[string]$Body,[string[]]$Meta=@()){
     $text=(@("# $Id",'','---',"type: $Type",'status: active',"id: $Id")+$Meta+@('---','',$Body,'')) -join "`n"
     Write-WmmaText (Join-Path $fixture $Path) $text
@@ -181,7 +174,10 @@ Step 'Shared parsers preserve empty metadata filenames and table cells' {
     Assert-True ((Convert-WmmaFileName 'Тест / A?' -Lowercase) -ceq 'тест__a') 'Source filename convention changed'
     Expect-Failure {Read-WmmaRegistry $fixture 'Missing'} 'Missing registry silently reconstructed'
     foreach($script in @('Собрать_решения','Собрать_вопросы','Собрать_фронты')){
-        Expect-Failure {& (Join-Path $root "tools/$script.ps1") -ImportFromMarkdown -SkipCheck} 'Obsolete import flag was silently accepted'
+        # Parameter metadata only: a fixture suite never runs builders against the real project.
+        # Common parameters mark an advanced script, which rejects unknown flags instead of ignoring them.
+        $parameters=(Get-Command (Join-Path $root "tools/$script.ps1")).Parameters
+        Assert-True ($parameters.ContainsKey('Verbose') -and -not $parameters.ContainsKey('ImportFromMarkdown')) 'Obsolete import flag was silently accepted'
     }
 }
 Step 'Graph schema rejects mixed layers and missing evidence' {
@@ -194,5 +190,4 @@ Step 'Graph schema rejects mixed layers and missing evidence' {
     $invalid.edges[0].evidence=''
     Expect-Failure {Test-Json -Json ($invalid|ConvertTo-Json -Depth 30) -SchemaFile $schema -ErrorAction Stop} 'Unproven relationship accepted'
 }
-if(-not $KeepFixture){Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue}
-[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$(if(Test-Path -LiteralPath $fixture){$fixture})}|ConvertTo-Json -Depth 5
+Complete-WmmaTestRun $fixture -KeepFixture:$KeepFixture

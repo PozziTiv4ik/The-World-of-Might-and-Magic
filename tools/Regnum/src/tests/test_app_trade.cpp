@@ -1,11 +1,13 @@
-// Сценарии торговли: составление сделки в редакторе «Торговля» щелчками (стороны, позиции, режим, срок),
-// разовый обмен и отмена Ctrl+Z, сделка «каждый ход» на протяжении ходов, подарок, отказ при нехватке ресурса,
-// расторжение с подтверждением, дань через диалог на протяжении ходов, вкладка фракции и выдвижная панель.
+// Сценарии торговли: составление сделки в редакторе «Торговля» щелчками (стороны, позиции, режим, срок; ресурс —
+// через группы; ресурс с однозначным названием), разовый обмен и отмена Ctrl+Z, сделка «каждый ход» на протяжении ходов, подарок, отказ при нехватке
+// ресурса, расторжение с подтверждением, дань через диалог на протяжении ходов, вкладка фракции и выдвижная панель.
 #include "app/editors/trade.h"
 #include "tests/test_app_util.h"
+#include "tests/test_app_editors_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
+namespace ed = rg::apptest::editors;
 
 namespace {
 
@@ -17,16 +19,6 @@ void pick(Harness& h, const std::string& name, const std::string& text) {
   h.settle();
 }
 
-// Ввести число в поле: щелчок (ввод со всем выделенным), текст, Tab (фиксация уходом фокуса;
-// Enter в модальном окне нажал бы основную кнопку).
-void enter(Harness& h, const std::string& name, const std::string& value) {
-  CHECK_MSG(h.clickUi(name), name);
-  h.key(Key::A, ctrl());
-  h.type(value);
-  h.key(Key::Tab);
-  h.settle();
-}
-
 void clickRight(Harness& h, const std::string& name) {
   const RectF* r = h->uiRect(name);
   CHECK_MSG(r != nullptr, name);
@@ -35,11 +27,14 @@ void clickRight(Harness& h, const std::string& name) {
   h.click(c.x + c.w * 0.75f, c.cy());
 }
 
-void shotClean(Harness& h, const std::string& name) {
-  h.waitMap();
-  h.dropToasts();
-  h.settle();
-  CHECK(h.shot(name));
+// Название ресурса однозначно в поиске списка: ни одно другое название его не содержит (поиск «Железо» нашёл бы и
+// «Алое железо», которое по алфавиту выше).
+bool uniqueName(const World& w, Id res) {
+  const CatalogItem* c = w.resource(res);
+  if (!c || c->name.empty()) return false;
+  for (const CatalogItem& o : w.catalogs->resources)
+    if (o.id != res && utf8::matches(o.name, c->name)) return false;
+  return true;
 }
 
 struct Pair {
@@ -62,7 +57,8 @@ Pair twoStates(const World& w) {
   p.nb = st[1]->name;
   const std::vector<Id> provs = rules::provisionResources(w);   // провизию расходует население — не для сделок теста
   for (auto& [r, v] : st[0]->res)
-    if (r != kGold && std::find(provs.begin(), provs.end(), r) == provs.end() && v >= 60 && st[1]->stock(r) >= 60 && !p.res) p.res = r;
+    if (r != kGold && std::find(provs.begin(), provs.end(), r) == provs.end() && v >= 60 && st[1]->stock(r) >= 60 && !p.res && uniqueName(w, r))
+      p.res = r;
   if (const CatalogItem* c = w.resource(p.res)) p.rn = c->name;
   return p;
 }
@@ -87,12 +83,6 @@ u64 addItem(Harness& h, char side) {
 
 std::string item(u64 key, const char* field) { return "trade.item." + std::to_string(key) + "." + field; }
 
-Id newestDeal(const World& w) {
-  Id id = 0;
-  w.deals.each([&](const Deal& d) { id = std::max(id, d.id); });
-  return id;
-}
-
 }  // namespace
 
 TEST(app_trade_once_and_undo) {
@@ -106,16 +96,16 @@ TEST(app_trade_once_and_undo) {
   u64 ka = addItem(h, 'a');   // А: золото 100 разово
   u64 kb = addItem(h, 'b');   // Б: ресурс 50 разово
   pick(h, item(kb, "res"), p.rn);
-  enter(h, item(kb, "amount"), "50");
+  enterInDialog(h, item(kb, "amount"), "50");
   CHECK_EQ(app::trade::draft().items.back().res, p.res);
   CHECK_NEAR(app::trade::draft().items.back().amount, 50, 1e-9);
   CHECK(ka != 0);
   shotClean(h, "trade_editor");
-  Id before = newestDeal(w0);
+  Id before = test::newestDeal(w0);
   CHECK(h.clickUi("trade.conclude"));
   h.settle();
   const World& w1 = h->store.world();
-  Id did = newestDeal(w1);
+  Id did = test::newestDeal(w1);
   CHECK(did > before);
   const Deal* d = w1.deal(did);
   CHECK(d && d->status == DealStatus::Done && d->kind == DealKind::Trade);
@@ -145,20 +135,20 @@ TEST(app_trade_per_turn_lifecycle_and_cancel) {
   openEditor(h, p);
   u64 ka = addItem(h, 'a');   // А: ресурс 20 за ход, 2 хода
   pick(h, item(ka, "res"), p.rn);
-  enter(h, item(ka, "amount"), "20");
+  enterInDialog(h, item(ka, "amount"), "20");
   clickRight(h, item(ka, "mode"));
   CHECK(app::trade::draft().items.back().mode == DealMode::PerTurn);
-  enter(h, item(ka, "turns"), "2");
+  enterInDialog(h, item(ka, "turns"), "2");
   u64 kb = addItem(h, 'b');   // Б: золото 30 за ход, 2 хода
-  enter(h, item(kb, "amount"), "30");
+  enterInDialog(h, item(kb, "amount"), "30");
   clickRight(h, item(kb, "mode"));
-  enter(h, item(kb, "turns"), "2");
+  enterInDialog(h, item(kb, "turns"), "2");
   CHECK_EQ(app::trade::draft().items[0].turns, 2);
   CHECK_EQ(app::trade::draft().items[1].turns, 2);
   shotClean(h, "trade_editor_per_turn");
   CHECK(h.clickUi("trade.conclude"));
   h.settle();
-  Id did = newestDeal(h->store.world());
+  Id did = test::newestDeal(h->store.world());
   const Deal* d = h->store.world().deal(did);
   CHECK(d && d->status == DealStatus::Active);
   CHECK_EQ(app::trade::dealLeft(*d), 2);
@@ -189,7 +179,7 @@ TEST(app_trade_per_turn_lifecycle_and_cancel) {
   clickRight(h, item(k, "mode"));
   CHECK(h.clickUi("trade.conclude"));
   h.settle();
-  Id d2 = newestDeal(h->store.world());
+  Id d2 = test::newestDeal(h->store.world());
   CHECK(h->store.world().deal(d2)->status == DealStatus::Active);
   shotClean(h, "trade_editor_list");
   CHECK(h.clickUi("trade.cancel." + std::to_string(d2)));
@@ -209,24 +199,24 @@ TEST(app_trade_gift_and_insufficient) {
   openEditor(h, p);
   // Недостаточно золота: сделка не заключается, причина показана.
   u64 k = addItem(h, 'a');
-  enter(h, item(k, "amount"), "999999999");
+  enterInDialog(h, item(k, "amount"), "999999999");
   rules::DealCheck chk = rules::validateDeal(h->store.world(), app::trade::toDeal(app::trade::draft()));
   CHECK(!chk.ok);
   CHECK(!chk.problems.empty());
   CHECK(h->uiRect("trade.check") != nullptr);
   shotClean(h, "trade_insufficient");
-  Id before = newestDeal(h->store.world());
+  Id before = test::newestDeal(h->store.world());
   CHECK(h.clickUi("trade.conclude"));
   h.settle();
-  CHECK_EQ(newestDeal(h->store.world()), before);
+  CHECK_EQ(test::newestDeal(h->store.world()), before);
   CHECK(World::diff(w0, h->store.world()) == 0);
   // Подарок: позиции только у стороны А.
   pick(h, item(k, "res"), p.rn);
-  enter(h, item(k, "amount"), "15");
+  enterInDialog(h, item(k, "amount"), "15");
   shotClean(h, "trade_gift");
   CHECK(h.clickUi("trade.conclude"));
   h.settle();
-  Id did = newestDeal(h->store.world());
+  Id did = test::newestDeal(h->store.world());
   CHECK(did > before);
   const World& w1 = h->store.world();
   CHECK(w1.deal(did)->status == DealStatus::Done);
@@ -248,14 +238,14 @@ TEST(app_trade_tribute_over_turns) {
   h.settle();
   CHECK(h->hasDialog("tribute"));
   pick(h, "tribute.payer", p.nb);
-  enter(h, "tribute.amount", "40");
-  enter(h, "tribute.turns", "3");
+  enterInDialog(h, "tribute.amount", "40");
+  enterInDialog(h, "tribute.turns", "3");
   shotClean(h, "trade_tribute_dialog");
-  Id before = newestDeal(h->store.world());
+  Id before = test::newestDeal(h->store.world());
   CHECK(h.clickUi("tribute.ok"));
   h.settle();
   CHECK(!h->hasDialog("tribute"));
-  Id did = newestDeal(h->store.world());
+  Id did = test::newestDeal(h->store.world());
   CHECK(did > before);
   const Deal* d = h->store.world().deal(did);
   CHECK(d && d->kind == DealKind::Tribute && d->a == p.a && d->b == p.b);
@@ -296,4 +286,34 @@ TEST(app_trade_drawer_and_light) {
   clickRight(h, item(k, "mode"));
   addItem(h, 'b');
   shotClean(h, "trade_editor_light");
+}
+
+// ---------------------------------------------------------------- торговля: ресурс через группы
+TEST(app_trade_groups) {
+  Harness h("econ2_trade", 1600, 1000);
+  h.demo();
+  h.dropToasts();
+  auto [a, b] = test::twoStates(h->world());
+  CHECK(a && b);
+  app::trade::startDraft(a, b);
+  h->openEditor("trade", a);
+  h.settle();
+  CHECK(h.clickUi("trade.add.a"));
+  h.settle();
+  CHECK(!app::trade::draft().items.empty());
+  const u64 key = app::trade::draft().items.back().key;
+  const std::string base = "trade.item." + std::to_string(key);
+  // Группа «Руда» → в списке ресурсов только её ресурсы; выбор ресурса руды с однозначным названием («Медь»).
+  CHECK(ed::pickInCombo(h, base + ".group", "Руда"));
+  const Id ore = h->world().catalogs->groupId(schema::grp::Ore);
+  CHECK(ore != 0);
+  CHECK_EQ(app::trade::draft().items.back().group, ore);
+  Id metal = 0;
+  for (Id r : rules::resourcesIn(h->world(), ore))
+    if (!metal && uniqueName(h->world(), r)) metal = r;
+  CHECK(metal != 0);
+  CHECK(ed::pickInCombo(h, base + ".res", h->world().resource(metal)->name));
+  CHECK_EQ(app::trade::draft().items.back().res, metal);
+  CHECK(h->world().catalogs->resourceIn(metal, ore));
+  shotClean(h, "econ2_trade_groups");
 }

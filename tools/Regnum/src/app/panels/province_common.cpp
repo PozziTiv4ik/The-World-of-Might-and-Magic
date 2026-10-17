@@ -1,26 +1,23 @@
-// Regnum — общие помощники панели провинции: фишки владельца и оккупанта, двуполярный ползунок довольства,
-// подсказки-разбивки расчётов (восстание, торговая ценность, добыча, налог), перенос фишек по строкам,
-// удаление и показ провинции. Объявления повторены в province_*.cpp (общего заголовка у панели нет).
-#include "app/widgets.h"
+// Regnum — общие помощники панели провинции (province_common.h): фишки владельца и оккупанта, двуполярный ползунок
+// довольства, подсказки-разбивки расчётов (восстание, торговая ценность, добыча, налог), перенос фишек по строкам,
+// удаление и показ провинции.
+#include "app/panels/province_common.h"
 #include "gfx/text.h"
 
 namespace rg::app::prov {
 
 using platform::Key;
 
-// ---------------------------------------------------------------- мир кадра
-// Копия мира на время кадра: указатели на записи не повиснут, если вкладка в том же кадре вызовет act() (правки со
-// слиянием отмены освобождают промежуточные версии мира).
-const World& frameWorld(App& a) {
-  static std::vector<std::unique_ptr<World>> keep;
-  static u64 frame = ~0ull;
-  if (ui::frameIndex() != frame) {
-    keep.clear();
-    frame = ui::frameIndex();
-  }
-  keep.push_back(std::make_unique<World>(a.world()));
-  return *keep.back();
+// ---------------------------------------------------------------- видимость вкладок
+bool landOnly(App& a, Id pid) {
+  const Province* p = a.world().province(pid);
+  return p && !p->sea;
 }
+bool seaOnly(App& a, Id pid) {
+  const Province* p = a.world().province(pid);
+  return p && p->sea;
+}
+std::string key(const char* what, Id pid) { return std::string("province.") + what + ":" + std::to_string(pid); }
 
 // ---------------------------------------------------------------- подписи и числа
 std::string provinceTitle(const Province& p) {
@@ -29,11 +26,11 @@ std::string provinceTitle(const Province& p) {
 }
 
 std::string num(double v) { return fmtNum(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0); }
-std::string pct(double v, bool sign = false) { return fmtPct(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0, sign); }
+std::string pct(double v, bool sign) { return fmtPct(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0, sign); }
 std::string signedNum(double v) { return fmtSigned(v, std::fabs(v - std::round(v)) > 1e-6 ? 1 : 0); }
 std::string popText(double v) { return v >= 1e6 ? fmtShort(v) : fmtNum(v); }
-// Золото — до тысячных (ТЗ «Фиксы», п.13).
-std::string gold(double v) { return fmtGold(v); }   // золото — в тысячах (ТЗ «Доработки №1», п.12)
+// Золото — до тысячных (ТЗ «Фиксы», п.13), в тысячах (ТЗ «Доработки №1», п.12).
+std::string gold(double v) { return fmtGold(v); }
 std::string goldSigned(double v) { return fmtGoldSigned(v); }
 
 const char* sourceIcon(rules::EffectSource::Kind k) {
@@ -69,6 +66,12 @@ const Modifier* sourceMod(const World& wd, const rules::EffectSource& s) {
   return nullptr;
 }
 
+std::optional<Modifier> sourceView(const World& wd, const rules::EffectSource& s) {
+  if (s.kind == rules::EffectSource::Province && s.modifier && wd.modifier(s.modifier)) return rules::provinceModView(wd, s.id, s.modifier);
+  if (const Modifier* m = sourceMod(wd, s)) return *m;
+  return std::nullopt;
+}
+
 std::string sourceName(const World& wd, const rules::EffectSource& s) {
   switch (s.kind) {
     case rules::EffectSource::Province: return wd.provinceName(s.id);
@@ -91,14 +94,7 @@ std::string sourceName(const World& wd, const rules::EffectSource& s) {
 }
 
 // ---------------------------------------------------------------- подсказка-разбивка
-struct TipLine {
-  std::string label, value;
-  ui::Tone tone = ui::Tone::Neutral;
-  bool total = false;
-};
-
-// Богатая подсказка к последнему элементу (у элемента должна быть своя подсказка — она заменяется этой).
-void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width = 300) {
+void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width) {
   if (!ui::beginTooltip(width)) return;
   ui::label(title, {.font = ui::Font::Strong});
   ui::gap(2);
@@ -119,11 +115,14 @@ void breakdown(std::string_view title, const std::vector<TipLine>& lines, float 
   ui::endTooltip();
 }
 
+namespace {
+
 // Строки эффекта f по источникам. Процентный эффект от базы (ofBase ≥ 0) показывается вкладом в единицах
 // («Торговый тракт · +10 %» → «+1,1»), без базы — процентами; количественный — числом.
 void effectLines(const World& wd, const rules::Effects& fx, Fx f, bool percent, std::vector<TipLine>& out, double ofBase = -1) {
   for (const rules::EffectSource& s : fx.sources) {
-    const Modifier* m = sourceMod(wd, s);
+    const std::optional<Modifier> mv = sourceView(wd, s);   // действующие эффекты («Чума» при «Здании чумы»)
+    const Modifier* m = mv ? &*mv : nullptr;
     if (!m || !m->has(f)) continue;
     double v = m->get(f);
     if (v == 0 || !std::isfinite(v)) continue;
@@ -134,6 +133,15 @@ void effectLines(const World& wd, const rules::Effects& fx, Fx f, bool percent, 
     else out.push_back({who, percent ? pct(v, true) : signedNum(v), tone});
   }
 }
+
+// Прибавка маршрутов к торговой ценности: +10 % базы за маршрут и ещё +2,5 % за каждое государство на его пути.
+double routeAdd(const rules::ProvinceCalc& pc) {
+  if (pc.routes <= 0) return 0;
+  double rest = std::max(0.0, pc.tradeBase * (1.0 + pc.fx[Fx::TradePct] / 100.0) + pc.fx[Fx::TradeFlat]);
+  return std::max(0.0, pc.tradeValue - rest);
+}
+
+}  // namespace
 
 std::vector<TipLine> rebellionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc) {
   std::vector<TipLine> L;
@@ -146,12 +154,6 @@ std::vector<TipLine> rebellionLines(const World& wd, const Province& p, const ru
   return L;
 }
 
-// Прибавка маршрутов к торговой ценности: +10 % базы за маршрут и ещё +2,5 % за каждое государство на его пути.
-double routeAdd(const rules::ProvinceCalc& pc) {
-  if (pc.routes <= 0) return 0;
-  double rest = std::max(0.0, pc.tradeBase * (1.0 + pc.fx[Fx::TradePct] / 100.0) + pc.fx[Fx::TradeFlat]);
-  return std::max(0.0, pc.tradeValue - rest);
-}
 double routePct(const rules::ProvinceCalc& pc) { return pc.tradeBase > 0 ? routeAdd(pc) / pc.tradeBase * 100.0 : 0.0; }
 
 std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc) {
@@ -169,8 +171,22 @@ std::vector<TipLine> productionLines(const World& wd, const Province& p, const r
   std::vector<TipLine> L;
   L.push_back({"Количество", num(std::max(0.0, p.resourceAmount))});
   effectLines(wd, pc.fx, Fx::ResourcePct, true, L, std::max(0.0, p.resourceAmount));
+  // Постройки добычи (шахта): +% уровня, если ресурс провинции подходит постройке.
+  if (pc.extractPct > 0)
+    L.push_back({"Постройки добычи · " + pct(pc.extractPct, true), signedNum(std::max(0.0, p.resourceAmount) * pc.extractPct / 100), ui::Tone::Success});
   effectLines(wd, pc.fx, Fx::ResourceFlat, false, L);
   L.push_back({"Добыча за ход", num(pc.production), ui::Tone::Neutral, true});
+  return L;
+}
+
+std::vector<TipLine> growthLines(const World& wd, const rules::ProvinceCalc& pc) {
+  std::vector<TipLine> L;
+  L.push_back({"Жителей", fmtNum(double(pc.population))});
+  const size_t before = L.size();
+  effectLines(wd, pc.fx, Fx::PopGrowthPct, true, L);
+  if (L.size() == before) L.push_back({"Модификаторы", pct(0)});
+  const double g = pc.fx[Fx::PopGrowthPct];
+  L.push_back({"Прирост за ход", pct(g, true), g > 0 ? ui::Tone::Success : g < 0 ? ui::Tone::Danger : ui::Tone::Neutral, true});
   return L;
 }
 
@@ -194,7 +210,9 @@ std::vector<TipLine> slotLines(const World& wd, const rules::ProvinceCalc& pc) {
   return L;
 }
 
-// ---------------------------------------------------------------- подсказка к области
+// ---------------------------------------------------------------- фишки шапки
+namespace {
+
 // Невидимый элемент поверх r: даёт подсказку (и lastItem для beginTooltip).
 void tipArea(RectF r, std::string_view key, std::string_view tip) {
   ui::at(r);
@@ -202,9 +220,6 @@ void tipArea(RectF r, std::string_view key, std::string_view tip) {
   id += key;
   ui::label(id, {.font = ui::Font::Display, .tooltip = tip.empty() ? std::string_view(" ") : tip});
 }
-
-// ---------------------------------------------------------------- фишки шапки
-namespace {
 
 // Фон фишки (как ui::chip): поверхность, рамка, наведение.
 void pillFrame(RectF r, ui::WidgetId wid, bool hovered) {
@@ -222,7 +237,6 @@ RectF pillSlot(float w) {
 
 }  // namespace
 
-// Фишка государства с флажком; щелчок — true. maxW — предел ширины (название сокращается).
 bool flagPill(std::string_view key, const Faction& f, std::string_view tip, float maxW) {
   const ui::Theme& t = ui::theme();
   const gfx::TextStyle& st = ui::textStyle(ui::Font::Small);
@@ -242,7 +256,6 @@ bool flagPill(std::string_view key, const Faction& f, std::string_view tip, floa
   return it.clicked;
 }
 
-// Штриховка (как на карте: диагональные линии цвета оккупанта) в квадрате r.
 void hatchSwatch(RectF r, Color c) {
   ui::draw::rect(r, c.alpha(0.22f), 3);
   ui::draw::pushClip(r);
@@ -251,7 +264,6 @@ void hatchSwatch(RectF r, Color c) {
   ui::draw::rectStroke(r, c.alpha(0.85f), 3, 1);
 }
 
-// Фишка оккупации: штриховка цветом оккупанта и его название; щелчок — true.
 bool hatchPill(std::string_view key, const Faction& occ, std::string_view tip, float maxW) {
   const ui::Theme& t = ui::theme();
   const gfx::TextStyle& st = ui::textStyle(ui::Font::Small);
@@ -271,16 +283,6 @@ bool hatchPill(std::string_view key, const Faction& occ, std::string_view tip, f
 }
 
 // ---------------------------------------------------------------- фишки с переносом строк
-struct ChipSpec {
-  std::string label;
-  const char* icon = nullptr;
-  Color color{0, 0, 0, 0};
-  ui::Tone tone = ui::Tone::Neutral;
-  std::string tooltip;
-  bool clickable = false;
-};
-
-// Фишки в несколько строк по ширине области. Возвращает индекс нажатой (−1).
 int flowChips(std::string_view key, const std::vector<ChipSpec>& chips) {
   if (chips.empty()) return -1;
   ui::IdScope scope(key);
@@ -360,8 +362,8 @@ bool bipolarSlider(std::string_view key, double& v, double mn, double mx, bool d
   ui::draw::rect(RectF{zx - 1, tr.y - 4, 2, tr.h + 8}, t.textMuted, 1);
   float hv = ui::animate(wid ^ 0xb1b0ull, (it.hovered || it.held || it.focused) ? 1.f : 0.f);
   if (hv > 0.01f) ui::draw::circle(vx, tr.cy(), 9 + 5 * hv, col.alpha(0.18f * hv));
-  ui::draw::shadow(RectF{vx - 8, tr.cy() - 8, 16, 16}, 8, 4, Color(0, 0, 0, t.dark ? 110 : 45), 1);
-  ui::draw::circle(vx, tr.cy(), 8, t.dark ? Color::hex(0xf4f1ea) : Color(255, 255, 255));
+  ui::draw::shadow(RectF{vx - 8, tr.cy() - 8, 16, 16}, 8, 4, Color(0, 0, 0, 110), 1);
+  ui::draw::circle(vx, tr.cy(), 8, Color::hex(0xf4f1ea));
   ui::draw::ring(vx, tr.cy(), 7.25f, 1.5f, col.a ? col : t.textMuted);
   // Значение и шкала
   ui::draw::text(signedNum(v), RectF{tr.right() + 6, tr.cy() - 10, valW + 3, 20}, ui::Font::Strong, v == 0 ? t.textDim : col, ui::Align::Right);
@@ -374,7 +376,7 @@ bool bipolarSlider(std::string_view key, double& v, double mn, double mx, bool d
     float bw = ui::measure(s, ui::Font::Small) + 14;
     RectF b{vx - bw * 0.5f, tr.y - 30, bw, 22};
     ui::draw::shadow(b, 6, 8, t.shadow, 2);
-    ui::draw::rect(b, t.dark ? Color::hex(0x2a323e) : Color::hex(0x2a2620), 6);
+    ui::draw::rect(b, Color::hex(0x2a323e), 6);
     ui::draw::text(s, b, ui::Font::Small, Color::hex(0xf4f1ea), ui::Align::Center);
   }
   if (it.hovered || it.held) ui::setCursor(platform::Cursor::Hand);
@@ -387,12 +389,11 @@ void showProvince(App& a, Id pid) {
   a.select(SelType::Province, pid, true);
 }
 
-extern const char* const kDeleteNeedsEdit;
 const char* const kDeleteNeedsEdit = "Удалить провинцию можно в режиме правки границ (E): вне его границы и области закреплены";
 
 void askDelete(App& a, Id pid) {
   const Province* p = a.world().province(pid);
-  if (!p || a.readOnly() || !a.ui.editBorders) return;
+  if (!p || !a.canEdit() || !a.ui.editBorders) return;
   std::string name = provinceTitle(*p);
   a.confirm("Удалить провинцию?", "«" + name + "» исчезнет с карты вместе со сведениями, постройками и гарнизоном. Отменить — Ctrl+Z.",
             "Удалить", true, [pid](App& x) {
@@ -402,7 +403,7 @@ void askDelete(App& a, Id pid) {
 }
 
 void startMerge(App& a, Id pid) {
-  if (a.readOnly()) return;
+  if (!a.canEdit()) return;
   if (a.ui.sel != Selection{SelType::Province, pid}) a.select(SelType::Province, pid);
   if (findTool(ToolId::Merge)) {
     a.setEditBorders(true);
@@ -412,7 +413,6 @@ void startMerge(App& a, Id pid) {
   }
 }
 
-// Самое вероятное государство-оккупант: в войне с владельцем, иначе первое по алфавиту.
 Id defaultOccupier(const World& wd, const Province& p) {
   std::vector<const Faction*> states;
   wd.factions.each([&](const Faction& f) {

@@ -11,12 +11,11 @@
 
 using namespace rg;
 using namespace rg::geo;
+using namespace rg::geotest;
 
 namespace {
 
 constexpr double W = 1000, H = 600;
-
-std::vector<Vec2> rect(double x0, double y0, double x1, double y1) { return {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}; }
 
 // Берег: большой квадратный остров [100, 900] × [100, 500] и островок [930, 970] × [30, 70].
 Coast squareCoast() {
@@ -29,43 +28,12 @@ Coast squareCoast() {
 }
 constexpr double kLand = 800.0 * 400 + 40.0 * 40;
 
-double provArea(const World& w, Id p) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  return s ? s->area : 0;
-}
-
-size_t provFaces(const World& w, Id p) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  return s ? s->faces.size() : 0;
-}
-
 size_t faceCount(const World& w) { return buildFaces(w)->faces.size(); }
-
-double terrainArea(const World& w, Terrain t, Id prov = Id(-1)) {
-  auto fs = buildFaces(w);
-  double a = 0;
-  for (auto& f : fs->faces)
-    if (f.terrain == t && (prov == Id(-1) || f.province == prov)) a += f.area;
-  return a;
-}
-
-bool allTerrain(const World& w, Id p, Terrain t) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  if (!s) return false;
-  for (int f : s->faces)
-    if (fs->faces[size_t(f)].terrain != t) return false;
-  return true;
-}
 
 bool hasPair(const World& w, Id a, Id b) {
   auto nb = buildFaces(w)->neighbors();
   return std::find(nb.begin(), nb.end(), std::make_pair(std::min(a, b), std::max(a, b))) != nb.end();
 }
-
-bool contains(const std::string& s, const char* sub) { return s.find(sub) != std::string::npos; }
 
 // Кольца всех граней провинции.
 std::vector<std::vector<Vec2>> ringsOf(const World& w, Id p) {
@@ -152,14 +120,7 @@ struct Fix {
   }
   // Сообщение отказа (пусто — операция прошла); отказ не меняет мир.
   std::string error(const std::vector<Vec2>& p, Terrain t = Terrain::Land, double snap = 1.0) {
-    World before = s.world();
-    try {
-      s.transact("probe", [&](Tx& tx) { createProvince(tx, p, t, EditOptions{snap}); });
-    } catch (const UserError& e) {
-      CHECK_EQ(World::diff(before, s.world()), 0u);
-      return e.what();
-    }
-    return {};
+    return errorOf(s, [&](Tx& tx) { createProvince(tx, p, t, EditOptions{snap}); });
   }
 };
 
@@ -448,9 +409,7 @@ TEST(geo_snap_create_undo_determinism) {
 // корректен, суша сохранена, лишних узлов нет; узких щелей у контура между новой провинцией и соседями нет.
 // Для расследований: GEO_SNAP_SEEDS — число зёрен (по умолчанию 3, с 7), GEO_SNAP_STEPS — шагов на зерно (90).
 TEST(geo_snap_create_random) {
-  const char* ns = std::getenv("GEO_SNAP_SEEDS");
-  const char* st = std::getenv("GEO_SNAP_STEPS");
-  const int seeds = ns ? std::max(1, std::atoi(ns)) : 3, steps = st ? std::max(1, std::atoi(st)) : 90;
+  const int seeds = std::max(1, test::envInt("GEO_SNAP_SEEDS", 3)), steps = std::max(1, test::envInt("GEO_SNAP_STEPS", 90));
   for (u64 seed = 7; seed < 7 + u64(seeds); seed++) {
     Fix f;
     Rng rng(seed);
@@ -458,7 +417,8 @@ TEST(geo_snap_create_random) {
     int created = 0, woven = 0;
     for (int step = 0; step < steps; step++) {
       std::map<Id, double> a0;
-      for (auto& [id, sh] : buildFaces(f.w())->provinces) a0[id] = sh.area;
+      const auto fs0 = buildFaces(f.w());   // держать грани: цикл по полю временного shared_ptr читал бы освобождённую память
+      for (auto& [id, sh] : fs0->provinces) a0[id] = sh.area;
       std::vector<Id> live;
       for (auto& [id, v] : a0) live.push_back(id);
       int kind = rng.range(0, 9);

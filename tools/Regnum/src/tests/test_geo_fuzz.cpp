@@ -60,16 +60,8 @@ struct Fuzz {
   explicit Fuzz(u64 seed) : rng(seed) {
     s.transact("init", [](Tx& tx) { initFromCoast(tx, geotest::sampleCoast(W, H)); });
     s.clearHistory();
-    land0 = landArea(s.world());
+    land0 = geotest::terrainArea(s.world(), Terrain::Land);
     hist.push_back(s.world());
-  }
-
-  static double landArea(const World& w) {
-    auto fs = buildFaces(w);
-    double a = 0;
-    for (auto& f : fs->faces)
-      if (f.terrain == Terrain::Land) a += f.area;
-    return a;
   }
 
   double u(double a, double b) { return a + (b - a) * rng.uniform(); }
@@ -216,7 +208,7 @@ struct Fuzz {
       if (std::getenv("GEO_FUZZ_REASONS") && std::string(e.what()).find("построить") != std::string::npos) {
         std::printf("    step %d %s: %s\n     poly:", steps, kOpNames[op], e.what());
         for (auto& q : last) std::printf(" {%.17g, %.17g},", q.x, q.y);
-        if (std::getenv("GEO_FUZZ_STOP") && steps == std::atoi(std::getenv("GEO_FUZZ_STOP"))) {
+        if (steps == test::envInt("GEO_FUZZ_STOP", -1)) {
           Box2 v = bounds(last).inflated(15);
           geotest::renderWorld(s.world(), "geo_fuzz_zoom.png", 600.0 / std::max(v.w(), v.h()), v, last);
         }
@@ -418,8 +410,7 @@ struct Fuzz {
 
 void fuzzSeed(u64 seed, int n, const char* png) {
   Fuzz f(seed);
-  const char* stop = std::getenv("GEO_FUZZ_STOP");
-  int stopAt = stop ? std::atoi(stop) : -1;
+  const int stopAt = test::envInt("GEO_FUZZ_STOP", -1);
   for (int i = 0; i < n; i++) {
     if (i + 1 == stopAt) {
       geotest::renderWorld(f.s.world(), "geo_fuzz_before.png", 1.0, Box2(0, 0, W, H));
@@ -450,11 +441,7 @@ TEST(geo_fuzz_seed_3) { fuzzSeed(20261001, 700, "geo_fuzz_3.png"); }
 
 // Длинная серия: GEO_FUZZ_SEEDS зёрен по GEO_FUZZ_STEPS операций (по умолчанию 2 × 400).
 TEST(geo_fuzz_stress) {
-  const char* ns = std::getenv("GEO_FUZZ_SEEDS");
-  const char* st = std::getenv("GEO_FUZZ_STEPS");
-  int seeds = ns ? std::max(1, std::atoi(ns)) : 2;
-  int steps = st ? std::max(1, std::atoi(st)) : 400;
-  const char* s0 = std::getenv("GEO_FUZZ_SEED0");
-  int first = s0 ? std::atoi(s0) : 1000;
+  const int seeds = std::max(1, test::envInt("GEO_FUZZ_SEEDS", 2)), steps = std::max(1, test::envInt("GEO_FUZZ_STEPS", 400));
+  const int first = test::envInt("GEO_FUZZ_SEED0", 1000);
   for (int k = 0; k < seeds; k++) fuzzSeed(u64(first + k), steps, "geo_fuzz_stress.png");
 }

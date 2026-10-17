@@ -13,25 +13,11 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
 $registryDir = Join-Path $root '09_Реестры'
-$decisionRegistryPath = Join-Path $registryDir 'Решения.json'
-$questionRegistryPath = Join-Path $registryDir 'Вопросы.json'
 
 $pendingDecisionPath = Join-Path $registryDir 'Решения_незакрытые.json'
 $acceptedDecisionPath = Join-Path $registryDir 'Решения_закрытые.json'
 $openQuestionPath = Join-Path $registryDir 'Вопросы_открытые.json'
 $closedQuestionPath = Join-Path $registryDir 'Вопросы_закрытые.json'
-
-function Read-JsonFile {
-    param([string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        throw "Registry file is missing: $Path"
-    }
-
-    return (Get-Content -Raw -Encoding UTF8 -LiteralPath $Path) | ConvertFrom-Json
-}
-
-
 
 function Save-JsonFile {
     param(
@@ -43,35 +29,20 @@ function Save-JsonFile {
     Write-WmmaGeneratedText -Path $Path -Text ($json.TrimEnd() + "`n") -Format json
 }
 
-function New-StatusCounts {
+# Total and per-value counts of one field (status of questions, state of decisions).
+function New-Counts {
     param(
         [object[]]$Items,
-        [string[]]$Statuses
+        [string]$Field,
+        [string[]]$Values
     )
 
     $counts = [ordered]@{
         total = @($Items).Count
     }
 
-    foreach ($status in $Statuses) {
-        $counts[$status] = @($Items | Where-Object { $_.status -eq $status }).Count
-    }
-
-    return [pscustomobject]$counts
-}
-
-function New-StateCounts {
-    param(
-        [object[]]$Items,
-        [string[]]$States
-    )
-
-    $counts = [ordered]@{
-        total = @($Items).Count
-    }
-
-    foreach ($state in $States) {
-        $counts[$state] = @($Items | Where-Object { $_.state -eq $state }).Count
+    foreach ($value in $Values) {
+        $counts[$value] = @($Items | Where-Object { $_.$Field -eq $value }).Count
     }
 
     return [pscustomobject]$counts
@@ -112,12 +83,12 @@ function New-ClosedQuestionRows {
     return @($rows.ToArray())
 }
 
-$decisionRegistry = Read-JsonFile -Path $decisionRegistryPath
-$questionRegistry = Read-JsonFile -Path $questionRegistryPath
+$decisionRegistry = Read-WmmaRegistry $root 'Решения'
+$questionRegistry = Read-WmmaRegistry $root 'Вопросы'
 
 $decisions = @($decisionRegistry.decisions)
-$pendingDecisions = @($decisions | Where-Object { $_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*' })
-$acceptedDecisions = @($decisions | Where-Object { $_.state -eq 'accepted' -and $_.id -match '^DEC-\d{3}$' })
+$pendingDecisions = @($decisions | Where-Object { Test-WmmaPendingDecision $_ })
+$acceptedDecisions = @($decisions | Where-Object { Test-WmmaAcceptedDecision $_ })
 
 $questions = @($questionRegistry.questions)
 $history = @($questionRegistry.history)
@@ -131,7 +102,7 @@ $pendingDecisionView = [pscustomobject][ordered]@{
     updated_real_date = $today
     generated_from = @('09_Реестры/Решения.json')
     count = $pendingDecisions.Count
-    counts = New-StateCounts -Items $pendingDecisions -States @('pending')
+    counts = New-Counts -Items $pendingDecisions -Field 'state' -Values @('pending')
     decisions = @($pendingDecisions)
 }
 
@@ -142,7 +113,7 @@ $acceptedDecisionView = [pscustomobject][ordered]@{
     updated_real_date = $today
     generated_from = @('09_Реестры/Решения.json')
     count = $acceptedDecisions.Count
-    counts = New-StateCounts -Items $acceptedDecisions -States @('accepted')
+    counts = New-Counts -Items $acceptedDecisions -Field 'state' -Values @('accepted')
     decisions = @($acceptedDecisions)
 }
 
@@ -154,7 +125,7 @@ $openQuestionView = [pscustomobject][ordered]@{
     updated_real_date = $today
     generated_from = @('09_Реестры/Вопросы.json')
     count = $openQuestions.Count
-    counts = New-StatusCounts -Items $openQuestions -Statuses @('active', 'waiting', 'later')
+    counts = New-Counts -Items $openQuestions -Field 'status' -Values @('active', 'waiting', 'later')
     questions = @($openQuestions)
 }
 
@@ -167,7 +138,7 @@ $closedQuestionView = [pscustomobject][ordered]@{
     updated_real_date = $today
     generated_from = @('09_Реестры/Вопросы.json')
     count = $closedQuestionRows.Count
-    counts = New-StatusCounts -Items $closedQuestions -Statuses @('resolved')
+    counts = New-Counts -Items $closedQuestions -Field 'status' -Values @('resolved')
     questions = @($closedQuestionRows)
     history = @($history)
 }
@@ -178,10 +149,7 @@ Save-JsonFile -Path $openQuestionPath -Value $openQuestionView
 Save-JsonFile -Path $closedQuestionPath -Value $closedQuestionView
 
 if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Проверить_реестры.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-WmmaTool -Root $root -Name 'Проверить_реестры'
 }
 
 "Updated registry JSON views: 09_Реестры/Решения_незакрытые.json, 09_Реестры/Решения_закрытые.json, 09_Реестры/Вопросы_открытые.json, 09_Реестры/Вопросы_закрытые.json"

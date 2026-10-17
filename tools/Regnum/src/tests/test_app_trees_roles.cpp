@@ -1,7 +1,8 @@
 // Сценарии особых возможностей построек в дереве (ТЗ «Доработки», п.2–4, 7–8; «Ввод новых механик», п.4–5):
 // категории «Религиозные» и «Культовые», преобразование ресурсов по рецепту, генерация эссенции по уровням, доступ к
 // особым отрядам, требуемые технологии (общая постройка — только общие), «Открывает постройки» в дереве технологий,
-// окно выбора модификаторов уровня с созданием нового.
+// окно выбора модификаторов уровня с созданием нового; верфь и типы кораблей, целительство, чума, цена в эссенциях,
+// требование «на государство», встроенная постройка.
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
 #include "tests/test_app_trees_util.h"
@@ -9,52 +10,14 @@
 using namespace rg;
 using namespace rg::apptest;
 using namespace rg::apptest::trees;
+namespace tr = rg::apptest::trees;
 
 namespace {
 
-Id buildingByName(const World& w, const std::string& name) {
-  Id r = 0;
-  w.buildings.each([&](const Building& b) {
-    if (b.name == name) r = b.id;
-  });
-  return r;
-}
-
-Id resourceByName(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->resources)
-    if (c.name == name) return c.id;
-  return 0;
-}
-
-Id essenceByName(const World& w, const std::string& name) {
-  for (const CatalogItem& c : w.catalogs->essences)
-    if (c.name == name) return c.id;
-  return 0;
-}
-
-Id specialByName(const World& w, const std::string& name) {
-  for (const SpecialUnit& s : w.catalogs->specials)
-    if (s.name == name) return s.id;
-  return 0;
-}
-
-Id modifierByName(const World& w, const std::string& name) {
-  Id r = 0;
-  w.modifiers.each([&](const Modifier& m) {
-    if (m.name == name) r = m.id;
-  });
-  return r;
-}
-
-// Два первых государства мира (по порядку ID).
-std::pair<Id, Id> twoStates(const World& w) {
-  Id a = 0, b = 0;
-  w.factions.each([&](const Faction& f) {
-    if (!f.isState()) return;
-    if (!a) a = f.id;
-    else if (!b) b = f.id;
-  });
-  return {a, b};
+// Первый рецепт постройки (пусто — рецептов нет).
+Recipe rec0(const World& w, Id b) {
+  const Building* x = w.building(b);
+  return x && !x->recipes.empty() ? x->recipes[0] : Recipe{};
 }
 
 bool has(const std::vector<Id>& v, Id x) { return std::find(v.begin(), v.end(), x) != v.end(); }
@@ -73,7 +36,6 @@ bool pickByGroup(Harness& h, const std::string& resCombo, const std::string& gro
 }  // namespace
 
 TEST(app_trees_roles_editor) {
-  HideTestRegs hide;
   Harness h("trees_roles_editor", 1600, 1100);
   h.demo();
   h.dropToasts();
@@ -90,13 +52,14 @@ TEST(app_trees_roles_editor) {
   h.key(Key::Enter);
   h.settle(40);
   CHECK_EQ(h->world().building(b)->name, std::string("Алхимическая палата"));
-  // Шесть категорий: пятая — «Религиозные», шестая — «Культовые» (одна на всю карту).
+  // Семь категорий: пятая — «Религиозные», шестая — «Культовые» (одна на всю карту), седьмая — «Инфраструктурные».
   RectF cat = rectOf(h.a(), "bt.side.cat");
-  h.click(cat.x + cat.w * (4.5f / 6), cat.cy());
+  constexpr float kSegs = float(int(BuildingCat::Count));
+  h.click(cat.x + cat.w * (4.5f / kSegs), cat.cy());
   h.settle(40);
   CHECK(h->world().building(b)->cat == BuildingCat::Religious);
   CHECK(h->uiRect("bt.side.cult") == nullptr);
-  h.click(cat.x + cat.w * (5.5f / 6), cat.cy());
+  h.click(cat.x + cat.w * (5.5f / kSegs), cat.cy());
   h.settle(40);
   CHECK(h->world().building(b)->cat == BuildingCat::Cult);
   CHECK(h->uiRect("bt.side.cult") != nullptr);
@@ -105,51 +68,54 @@ TEST(app_trees_roles_editor) {
   // Преобразование ресурсов: рецепт — до трёх ресурсов на входе, выход, срок цикла.
   CHECK(clickSide(h, "bt.role.convert"));
   CHECK(h->world().building(b)->convert);
-  CHECK(clickSide(h, "bt.recipe.addin"));
-  CHECK_EQ(h->world().building(b)->recipe.in.size(), size_t(1));
-  CHECK(typeSide(h, "bt.recipe.inamount.0", "4"));
-  CHECK_NEAR(h->world().building(b)->recipe.in[0].amount, 4, 1e-12);
-  const Id iron = resourceByName(h->world(), "Железо"), steel = resourceByName(h->world(), "Сталь");
-  CHECK(iron && steel);
-  CHECK(clickSide(h, "bt.recipe.addin"));
-  CHECK_EQ(h->world().building(b)->recipe.in.size(), size_t(2));
-  CHECK(pickByGroup(h, "bt.recipe.in.1", "Руда", "Железо"));
-  CHECK_EQ(h->world().building(b)->recipe.in[1].res, iron);
+  CHECK(clickSide(h, "bt.recipe.add"));   // новый рецепт — сразу в правке
+  CHECK_EQ(h->world().building(b)->recipes.size(), size_t(1));
+  CHECK(clickSide(h, "bt.recipe.0.addin"));
+  CHECK_EQ(rec0(h->world(), b).in.size(), size_t(1));
+  CHECK(typeSide(h, "bt.recipe.0.inamount.0", "4"));
+  CHECK_NEAR(rec0(h->world(), b).in[0].amount, 4, 1e-12);
+  // Названия для поиска — однозначные («Железо» нашло бы и «Алое железо», «Сталь» — «Багряную сталь»).
+  const Id copper = test::idByName(h->world().catalogs->resources, "Медь"), bronze = test::idByName(h->world().catalogs->resources, "Бронза");
+  CHECK(copper && bronze);
+  CHECK(clickSide(h, "bt.recipe.0.addin"));
+  CHECK_EQ(rec0(h->world(), b).in.size(), size_t(2));
+  CHECK(pickByGroup(h, "bt.recipe.0.in.1", "Руда", "Медь"));
+  CHECK_EQ(rec0(h->world(), b).in[1].res, copper);
   // Выход — через категорию ресурсов; количество до тысячных.
-  CHECK(pickSide(h, "bt.recipe.out", "Сталь"));
-  CHECK_EQ(h->world().building(b)->recipe.out.res, steel);
-  CHECK_NEAR(h->world().building(b)->recipe.out.amount, 1, 1e-12);
-  CHECK(typeSide(h, "bt.recipe.outamount", "2,5"));
-  CHECK_NEAR(h->world().building(b)->recipe.out.amount, 2.5, 1e-12);
+  CHECK(pickSide(h, "bt.recipe.0.out", "Бронза"));
+  CHECK_EQ(rec0(h->world(), b).out.res, bronze);
+  CHECK_NEAR(rec0(h->world(), b).out.amount, 1, 1e-12);
+  CHECK(typeSide(h, "bt.recipe.0.outamount", "2,5"));
+  CHECK_NEAR(rec0(h->world(), b).out.amount, 2.5, 1e-12);
   // Срок цикла: «+» поля.
-  CHECK(revealSide(h, "bt.recipe.turns"));
-  RectF tr = rectOf(h.a(), "bt.recipe.turns");
+  CHECK(revealSide(h, "bt.recipe.0.turns"));
+  RectF tr = rectOf(h.a(), "bt.recipe.0.turns");
   h.click(tr.right() - 10, tr.cy());
   h.settle(40);
   h.click(tr.right() - 10, tr.cy());
   h.settle(40);
-  CHECK_EQ(h->world().building(b)->recipe.turns, 3);
+  CHECK_EQ(rec0(h->world(), b).turns, 3);
   // Одинаковые ресурсы на входе запрещены правилами: отказ с причиной, рецепт прежний.
-  const Recipe before = h->world().building(b)->recipe;
+  const Recipe before = rec0(h->world(), b);
   CHECK(!h->act("Рецепт", [&](Tx& tx) {
     Recipe r = before;
     r.in[0].res = r.in[1].res;
-    rules::setRecipe(tx, b, r);
+    rules::setRecipe(tx, b, 0, r);
   }));
-  CHECK(h->world().building(b)->recipe == before);
-  CHECK(hasToast(h.a(), "разными", app::ToastKind::Warning));
+  CHECK(rec0(h->world(), b) == before);
+  CHECK(hasToast(h, "разными", app::ToastKind::Warning));
   h->toasts().clear();
   // Не больше трёх ресурсов на входе: третий — последний.
-  CHECK(clickSide(h, "bt.recipe.addin"));
-  CHECK_EQ(h->world().building(b)->recipe.in.size(), size_t(3));
-  CHECK(h->uiRect("bt.recipe.addin") == nullptr);
-  CHECK(clickSide(h, "bt.recipe.inremove.2"));
-  CHECK_EQ(h->world().building(b)->recipe.in.size(), size_t(2));
+  CHECK(clickSide(h, "bt.recipe.0.addin"));
+  CHECK_EQ(rec0(h->world(), b).in.size(), size_t(3));
+  CHECK(h->uiRect("bt.recipe.0.addin") == nullptr);
+  CHECK(clickSide(h, "bt.recipe.0.inremove.2"));
+  CHECK_EQ(rec0(h->world(), b).in.size(), size_t(2));
 
   // Генерация эссенции: у уровня — «Эссенция за ход».
   CHECK(clickSide(h, "bt.role.essence"));
   CHECK(h->world().building(b)->essenceGen);
-  const Id flame = essenceByName(h->world(), "Эссенция пламени");
+  const Id flame = test::idByName(h->world().catalogs->essences, "Эссенция пламени");
   CHECK(flame != 0);
   CHECK(pickSide(h, "bt.level.0.addess", "пламени"));
   CHECK_NEAR(h->world().building(b)->levels[0].essence.at(flame), 1, 1e-12);
@@ -159,12 +125,12 @@ TEST(app_trees_roles_editor) {
   // Доступ к особым отрядам: «Драконы Бездны» из справочника.
   CHECK(clickSide(h, "bt.role.special"));
   CHECK(h->world().building(b)->specialAccess);
-  const Id dragons = specialByName(h->world(), "Драконы Бездны");
+  const Id dragons = test::idByName(h->world().catalogs->specials, "Драконы Бездны");
   CHECK(dragons != 0);
   CHECK(pickSide(h, "bt.addspecial", "Драконы"));
   CHECK(has(h->world().building(b)->specials, dragons));
   CHECK(revealSide(h, "bt.side.roles"));
-  shotTrees(h, "trees_roles_editor");
+  shotClean(h, "trees_roles_editor", 60);
   // Карточка на схеме: значки возможностей (снимок) и карточка сведений.
   {
     RectF nr = rectOf(h.a(), "bt.node." + std::to_string(b));
@@ -177,17 +143,17 @@ TEST(app_trees_roles_editor) {
   // Фишка особого отряда — справочник (вкладка «Особые отряды»).
   CHECK(clickSide(h, "bt.special." + std::to_string(dragons), "bt.canvas", 0.3f, 0.5f));
   CHECK_EQ(h->ui.editor, std::string("catalogs"));
-  shotTrees(h, "trees_roles_specials_catalog");
+  shotClean(h, "trees_roles_specials_catalog", 60);
   app::openBuildingTree(h.a(), 0, b);
   h.settle(40);
 
   // Выключение возможности снимает её данные; Ctrl+Z возвращает.
   CHECK(clickSide(h, "bt.role.convert"));
   CHECK(!h->world().building(b)->convert);
-  CHECK(h->world().building(b)->recipe.in.empty());
+  CHECK(rec0(h->world(), b).in.empty());
   undo(h);
   CHECK(h->world().building(b)->convert);
-  CHECK_EQ(h->world().building(b)->recipe.in.size(), size_t(2));
+  CHECK_EQ(rec0(h->world(), b).in.size(), size_t(2));
   CHECK(clickSide(h, "bt.role.essence"));
   CHECK(h->world().building(b)->levels[0].essence.empty());
   undo(h);
@@ -208,11 +174,10 @@ TEST(app_trees_roles_editor) {
       for (const std::string& r : o.placeReasons) reason = reason || r.find("одна на всю карту") != std::string::npos;
     }
   CHECK(reason);
-  shotTrees(h, "trees_roles_cult");
+  shotClean(h, "trees_roles_cult", 60);
 }
 
 TEST(app_trees_roles_modifiers_dialog) {
-  HideTestRegs hide;
   Harness h("trees_roles_mods", 1600, 1000);
   h.demo();
   h.dropToasts();
@@ -233,7 +198,7 @@ TEST(app_trees_roles_modifiers_dialog) {
     mArmy = make("Аа Боевой дух", ModKind::Army, Fx::IncomePct, 1);
     mHero = make("Аа Слава героя", ModKind::Hero, Fx::IncomePct, 1);
   }));
-  const Id market = buildingByName(h->world(), "Рынок");
+  const Id market = test::idByName(h->world().buildings, "Рынок");
   CHECK(market != 0);
   app::openBuildingTree(h.a(), 0, market);
   h.settle(40);
@@ -282,7 +247,7 @@ TEST(app_trees_roles_modifiers_dialog) {
   h.settle(40);
   CHECK(h.clickUi("bt.mods.create"));
   h.settle(40);
-  const Id made = modifierByName(h->world(), "Благословение рынка");
+  const Id made = test::idByName(h->world().modifiers, "Благословение рынка");
   CHECK(made != 0);
   CHECK(h->world().modifier(made)->kind == ModKind::Province);
   CHECK(inLevel(made));
@@ -317,7 +282,7 @@ TEST(app_trees_roles_modifiers_dialog) {
   h.type("Рыночная стража");
   h.key(Key::Enter);   // Enter в поле названия — создать, окно остаётся
   h.settle(40);
-  const Id made2 = modifierByName(h->world(), "Рыночная стража");
+  const Id made2 = test::idByName(h->world().modifiers, "Рыночная стража");
   CHECK(made2 != 0);
   CHECK(inLevel(made2));
   CHECK(h->hasDialog("bt.mods"));
@@ -329,11 +294,10 @@ TEST(app_trees_roles_modifiers_dialog) {
 }
 
 TEST(app_trees_roles_tech_requirements) {
-  HideTestRegs hide;
   Harness h("trees_roles_techs", 1600, 1100);
   h.demo();
   h.dropToasts();
-  auto [A, B] = twoStates(h->world());
+  auto [A, B] = test::twoStates(h->world());
   CHECK(A && B);
   Id common = 0, own = 0, foreign = 0, uniq = 0, uniq2 = 0;
   CHECK(h->act("Технологии и постройки", [&](Tx& tx) {
@@ -344,8 +308,8 @@ TEST(app_trees_roles_tech_requirements) {
     tx.building(uniq).cat = BuildingCat::Religious;
     uniq2 = rules::createBuilding(tx, A, "Сокровищница рода");
   }));
-  const Id market = buildingByName(h->world(), "Рынок");
-  const Id barracks = buildingByName(h->world(), "Казармы");
+  const Id market = test::idByName(h->world().buildings, "Рынок");
+  const Id barracks = test::idByName(h->world().buildings, "Казармы");
   CHECK(market && barracks);
   // Общая постройка: только общие технологии.
   app::openBuildingTree(h.a(), 0, market);
@@ -357,7 +321,7 @@ TEST(app_trees_roles_tech_requirements) {
   CHECK(!rules::canRequireTech(h->world(), market, own, &why));
   CHECK_MSG(why.find("только общие") != std::string::npos, why);
   CHECK(!h->act("Технология", [&](Tx& tx) { rules::setBuildingTech(tx, market, own, true); }));
-  CHECK(hasToast(h.a(), "только общие", app::ToastKind::Warning));
+  CHECK(hasToast(h, "только общие", app::ToastKind::Warning));
   h->toasts().clear();
   // Общая постройка не может требовать уникальную (ТЗ «Доработки», п.7) — причина от правил.
   CHECK(!rules::canRequireBuilding(h->world(), market, uniq, &why));
@@ -374,7 +338,7 @@ TEST(app_trees_roles_tech_requirements) {
   bool needsBarracks = false;
   for (const BuildingReq& r : h->world().building(uniq)->requires_) needsBarracks = needsBarracks || r.building == barracks;
   CHECK(needsBarracks);
-  shotTrees(h, "trees_roles_techs");
+  shotClean(h, "trees_roles_techs", 60);
 
   // Строительство: без изученной технологии — причина «Нужна технология …».
   StateProv sp;
@@ -410,7 +374,7 @@ TEST(app_trees_roles_tech_requirements) {
   h.settle(40);
   CHECK(h->uiRect("build.option." + std::to_string(uniq)) != nullptr);
   CHECK(h->uiRect("build.place." + std::to_string(uniq)) != nullptr);
-  shotTrees(h, "trees_roles_tech_reason");
+  shotClean(h, "trees_roles_tech_reason", 60);
   CHECK(h.clickUi("dialog.cancel"));
   h.settle(40);
   // Изучена — причины технологии нет.
@@ -427,7 +391,7 @@ TEST(app_trees_roles_tech_requirements) {
   CHECK(pickSide(h, "tt.side.addunlock", "Сокровищница", "tt.canvas"));
   CHECK(has(h->world().building(uniq2)->techs, own));
   CHECK(!rules::canRequireTech(h->world(), barracks, own));
-  shotTrees(h, "trees_roles_unlocks");
+  shotClean(h, "trees_roles_unlocks", 60);
   // Убрать — крестик фишки.
   CHECK(revealSide(h, "tt.unlock." + std::to_string(uniq2), "tt.canvas"));
   RectF chip = rectOf(h.a(), "tt.unlock." + std::to_string(uniq2));
@@ -448,4 +412,78 @@ TEST(app_trees_roles_tech_requirements) {
   CHECK_EQ(h->ui.editorArg, Id(0));
   h.settle(40);
   CHECK(h->uiRect("bt.side.name") != nullptr);
+}
+
+// ---------------------------------------------------------------- дерево построек
+TEST(app_trees_roles_buildings) {
+  Harness h("econ2_buildings", 1600, 1000);
+  h.demo();
+  h.dropToasts();
+  CHECK_EQ(std::string(schema::buildingCat(BuildingCat::Residential).name), std::string("Жилые и сельско-хозяйственные"));
+  // Общее дерево с базовыми постройками ТЗ: сетка по дорожкам без наложений.
+  app::openBuildingTree(h.a(), 0);
+  h.settle();
+  {
+    std::vector<const Building*> common;
+    h->world().buildings.each([&](const Building& b) {
+      if (!b.owner) common.push_back(&b);
+    });
+    for (size_t i = 0; i < common.size(); i++)
+      for (size_t j = i + 1; j < common.size(); j++)
+        if (common[i]->cat == common[j]->cat) {
+          const bool overlap = std::fabs(common[i]->pos.x - common[j]->pos.x) < 232 && std::fabs(common[i]->pos.y - common[j]->pos.y) < 100;
+          CHECK_MSG(!overlap, common[i]->name + " / " + common[j]->name);
+        }
+  }
+  shotClean(h, "econ2_bt_tree", 60);
+  // Верфь: встроенная (замок), только приморская, уровни открывают типы кораблей.
+  const Id yard = test::buildingByKey(h->world(), schema::bld::Shipyard);
+  CHECK(yard != 0);
+  h.key(Key::Escape);
+  app::openBuildingTree(h.a(), 0, yard);
+  h.settle();
+  CHECK(h->uiRect("bt.side.builtin") != nullptr);
+  CHECK(tr::revealSide(h, "bt.flag.shipyard"));
+  CHECK(h->uiRect("bt.flag.coastal") != nullptr);
+  const std::string frig = "bt.level.0.ship." + std::to_string(int(ShipType::Frigate));
+  CHECK(tr::revealSide(h, frig));
+  CHECK(!(h->world().building(yard)->levels[0].ships & (1u << int(ShipType::Frigate))));
+  shotClean(h, "econ2_bt_shipyard", 60);
+  CHECK(tr::clickSide(h, frig));
+  CHECK(h->world().building(yard)->levels[0].ships & (1u << int(ShipType::Frigate)));
+  tr::undo(h);
+  CHECK(!(h->world().building(yard)->levels[0].ships & (1u << int(ShipType::Frigate))));
+  // Собор: цена в эссенции и требование «на государство» (4 храма той же эссенции на каждый собор).
+  const Id death = test::idByName(h->world().catalogs->essences, "Эссенция смерти");
+  const Id cathedral = test::idByName(h->world().buildings, "Собор смерти"), temple = test::idByName(h->world().buildings, "Храм смерти");
+  CHECK(cathedral && temple && death);
+  h.key(Key::Escape);
+  app::openBuildingTree(h.a(), 0, cathedral);
+  h.settle();
+  CHECK(tr::revealSide(h, "bt.sreq." + std::to_string(temple) + ".per"));
+  CHECK(tr::typeSide(h, "bt.sreq." + std::to_string(temple) + ".per", "5"));
+  CHECK_EQ(h->world().building(cathedral)->stateReqs.front().per, 5);
+  CHECK(tr::revealSide(h, "bt.level.0.esscost." + std::to_string(death)));
+  CHECK(tr::typeSide(h, "bt.level.0.esscost." + std::to_string(death), "175"));
+  CHECK_NEAR(h->world().building(cathedral)->levels[0].essCost.at(death), 175.0, 1e-9);
+  shotClean(h, "econ2_bt_cathedral", 60);
+  // Своя постройка: возможности «Здание целительства», «Хранилище реликвий», цена в эссенции.
+  Id own = 0;
+  CHECK(h->act("Новая постройка", [&](Tx& tx) {
+    own = rules::createBuilding(tx, 0, "Лечебница");
+    tx.building(own).cat = BuildingCat::Residential;
+  }));
+  h.key(Key::Escape);
+  app::openBuildingTree(h.a(), 0, own);
+  h.settle();
+  CHECK(h->uiRect("bt.side.builtin") == nullptr);
+  CHECK(tr::clickSide(h, "bt.flag.healing", "bt.canvas", 0.9f));
+  CHECK(h->world().building(own)->healing);
+  CHECK(tr::clickSide(h, "bt.flag.relics", "bt.canvas", 0.9f));
+  CHECK(h->world().building(own)->relicStore);
+  CHECK(tr::pickSide(h, "bt.level.0.addesscost", "Эссенция смерти"));
+  CHECK(h->world().building(own)->levels[0].essCost.count(death) == 1);
+  shotClean(h, "econ2_bt_flags", 60);
+  CHECK(tr::clickSide(h, "bt.flag.healing", "bt.canvas", 0.9f));
+  CHECK(!h->world().building(own)->healing);
 }

@@ -3,7 +3,7 @@
 // Арифметическое кодирование, lossless, иерархический режим и 12 бит не поддерживаются — понятная ошибка.
 // Обрезанный файл декодируется до места обрыва (остаток — серый), как в libjpeg.
 #pragma once
-#include "codec/png.h"
+#include "codec/image.h"
 
 namespace rg::codec {
 
@@ -26,13 +26,5 @@ inline std::optional<RgbaImage> decodeJpeg(const u8* data, size_t size, std::str
 inline std::optional<RgbaImage> decodeJpeg(const std::string& bytes, std::string* error = nullptr) {
   return decodeJpeg(reinterpret_cast<const u8*>(bytes.data()), bytes.size(), JpegDecodeOptions{}, error);
 }
-
-// Формат по сигнатуре: PNG или JPEG. Иначе — ошибка «неизвестный формат».
-std::optional<RgbaImage> decodeImage(const u8* data, size_t size, std::string* error = nullptr);
-inline std::optional<RgbaImage> decodeImage(const std::string& bytes, std::string* error = nullptr) {
-  return decodeImage(reinterpret_cast<const u8*>(bytes.data()), bytes.size(), error);
-}
-// Прочитать и декодировать файл изображения (UTF-8 путь).
-std::optional<RgbaImage> readImageFile(const std::string& path, std::string* error = nullptr);
 
 }  // namespace rg::codec

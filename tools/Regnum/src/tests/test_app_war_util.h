@@ -1,5 +1,5 @@
 // Помощники сценариев войны, мятежа и судьбы героев (ТЗ «Механика войн», «Механика мятежа», «Механика героев»):
-// знак «замок» или «башня» в провинции государства, новое войско рядом, перетаскивание по шагам, ввод чисел в поля.
+// знак «замок» или «башня» в провинции государства, новое войско рядом, свободный герой, ввод чисел в поля.
 #pragma once
 #include "app/flows.h"
 #include "map/art_scene.h"
@@ -68,26 +68,6 @@ inline Id freeHero(Harness& h, Id faction) {
     if (!found && c.faction == faction && c.hero && rules::heroAvailable(w, c.id) && !app::mil::heroLocation(w, c.id)) found = c.id;
   });
   return found;
-}
-
-// Перетаскивание по шагам (snapshot — снимок, пока кнопка ещё зажата).
-inline void dragArmy(Harness& h, gfx::Pt from, gfx::Pt to, const std::string& snapshot = {}) {
-  hl::mouseMove(from.x, from.y);
-  h.step();
-  hl::mouseDown(from.x, from.y, platform::MouseLeft);
-  h.step();
-  for (int i = 1; i <= 10; i++) {
-    hl::mouseMove(from.x + (to.x - from.x) * float(i) / 10, from.y + (to.y - from.y) * float(i) / 10);
-    h.step();
-  }
-  if (!snapshot.empty()) {
-    h.dropToasts();
-    h.settle();
-    CHECK(h.shot(snapshot));
-  }
-  hl::mouseUp(to.x, to.y, platform::MouseLeft);
-  h.step();
-  hl::advance(0.6);
 }
 
 // Ввести число в поле, отмеченное markUi (щелчок, замена текста, Enter).

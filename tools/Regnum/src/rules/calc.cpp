@@ -35,27 +35,36 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
   pc.fx = provinceFx(w, si, p);
   const Effects& fx = pc.fx;
 
-  // Слоты (ТЗ 1.f.i).
+  // Слоты: величина провинции, тип города по населению, модификаторы.
+  pc.city = cityType(p);
   pc.slotsSize = int(p.size) >= 0 && int(p.size) < 3 ? schema::kProvSizes[int(p.size)].value : 0;
-  pc.slotsCity = int(p.city) >= 0 && int(p.city) < 4 ? schema::kCityTypes[int(p.city)].value : 0;
+  pc.slotsCity = schema::cityType(pc.city).value;
   pc.slotsMods = int(std::lround(fx[Fx::Slots]));
   pc.slots = slotsOf(p, fx);
   pc.slotsUsed = int(p.buildings.size());
 
-  // Торговая ценность (ТЗ 1.d.iv–v, 1.g): каждый маршрут +10 % и ещё +2,5 % за каждое государство на его пути.
+  // Торговая ценность: каждый маршрут +10 % и ещё +2,5 % за каждое государство на его пути.
   pc.routes = routes;
   pc.tradeBase = std::max(0.0, p.baseTrade);
   pc.tradeValue = std::max(0.0, pc.tradeBase * (1.0 + fx[Fx::TradePct] / 100.0 + routeBonus) + fx[Fx::TradeFlat]);
 
-  // Добыча ресурса.
+  // Добыча ресурса: модификаторы и достроенные постройки добычи (шахта), которым подходит ресурс провинции.
+  if (owner)
+    for (const ProvBuilding& pb : p.buildings) {
+      const Building* b = w.building(pb.building);
+      const int lvl = pb.builtLevel();
+      if (!b || !b->extract || lvl < 1 || lvl > int(b->levels.size()) || !extractAllowed(w, *b, p.resource)) continue;
+      const double x = b->levels[size_t(lvl - 1)].extractPct;
+      if (std::isfinite(x) && x > 0) pc.extractPct += x;
+    }
   if (p.resource && w.resource(p.resource))
-    pc.production = std::max(0.0, std::max(0.0, p.resourceAmount) * (1.0 + fx[Fx::ResourcePct] / 100.0) + fx[Fx::ResourceFlat]);
+    pc.production = std::max(0.0, std::max(0.0, p.resourceAmount) * (1.0 + (fx[Fx::ResourcePct] + pc.extractPct) / 100.0) + fx[Fx::ResourceFlat]);
 
-  // Восстание: 2 довольства : 1 % (ТЗ 1.a.vi).
+  // Восстание: 2 довольства : 1 %.
   pc.rebellion = clamp(-p.contentment * schema::kRebellionPerContentment + fx[Fx::RebellionPct], 0.0, 100.0);
   pc.buildCostFactor = costFactorOf(fx);
 
-  // Налог (ТЗ 1.d.iv): государственный ≥ 0, общий — от 1 % до 100 % (налог не больше торговой ценности).
+  // Налог: государственный ≥ 0, общий — от 1 % до 100 % (налог не больше торговой ценности).
   pc.taxState = owner ? std::max(0.0, owner->tax) : 0.0;
   pc.taxLocal = p.localTax;
   pc.taxTotal = clamp(pc.taxState + pc.taxLocal, schema::kMinTotalTax, schema::kMaxTotalTax);
@@ -125,7 +134,7 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
       case OccupiedIncome::None: pc.recipient = 0; break;
     }
   }
-  // Пустошь нежити и осквернённая провинция (ТЗ «Виды государств», п.5, 9): доход с текущей ценности — только
+  // Пустошь нежити и осквернённая провинция: доход с текущей ценности — только
   // государству нежити (демонов).
   const bool waste = hasModKey(w, p.modifiers, schema::mod::UndeadWaste), desecr = hasModKey(w, p.modifiers, schema::mod::Desecrated);
   if (waste || desecr) {
@@ -138,7 +147,7 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
     }
     if (desecr && owner) pc.energy = schema::kDesecratedEnergy * std::floor(double(pc.population) * schema::kDesecrateShare);
   }
-  // Рабы на работах: доход владельцу (ТЗ «Механика мятежа», п.5).
+  // Рабы на работах: доход владельцу.
   if (owner)
     for (const SlaveWork& s : p.slaves) pc.slavesAtWork += std::max<i64>(0, s.count);
   pc.slaveIncome = double(pc.slavesAtWork) * schema::kSlaveWorkIncome;
@@ -149,7 +158,11 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
       int lvl = pb.builtLevel();
       if (!b || lvl < 1 || lvl > int(b->levels.size())) continue;
       const BuildingLevel& L = b->levels[size_t(lvl - 1)];
-      for (auto& [res, v] : L.produce)
+      // Производство уровня; при подходящем ресурсе провинции — своё количество (лесопилка, каменоломня).
+      std::map<Id, double> prod = L.produce;
+      for (auto& [res, v] : L.produceOnRes)
+        if (res == p.resource) prod[res] = v;
+      for (auto& [res, v] : prod)
         if (std::isfinite(v) && v > 0 && w.resource(res)) pc.produce[res] += v;
       if (b->essenceGen)
         for (auto& [e, v] : L.essence)
@@ -159,7 +172,7 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
         if (const Modifier* x = w.modifier(m)) addGen(w, *x, pc.essence, pc.produce);
     }
   // Генерация модификаторов провинции (её список и автоматические: «Ценности археологии») — владельцу
-  // (ТЗ «Доработки №1», п.5).
+  //.
   if (owner) {
     for (Id m : p.modifiers)
       if (const Modifier* x = w.modifier(m)) addGen(w, *x, pc.essence, pc.produce);
@@ -184,16 +197,21 @@ std::map<Id, double> takeEvenly(double need, std::vector<std::pair<Id, double>> 
 
 // План построек преобразования фракции на конец хода (порядок — провинции по ID, постройки по списку): идущий цикл
 // продвигается; новый начинается, если хватает ресурсов (avail — запасы после добычи и расхода провизии).
-void planConversion(const World& w, const std::vector<const Province*>& mine, std::map<Id, double>& avail, FactionCalc& fc) {
+// Эссенции на входе рецепта берутся из запаса с чистым потоком хода (availEss).
+void planConversion(const World& w, const std::vector<const Province*>& mine, std::map<Id, double>& avail, std::map<Id, double>& availEss,
+                    FactionCalc& fc) {
   for (const Province* p : mine) {
     if (p->sea) continue;
     for (const ProvBuilding& pb : p->buildings) {
       const Building* b = w.building(pb.building);
       if (!b || !b->convert || pb.builtLevel() < 1 || pb.idle) continue;
-      const Recipe& rc = b->recipe;
+      const Recipe* rcp = activeRecipe(*b, pb);
+      if (!rcp) continue;
+      const Recipe& rc = *rcp;
       ConvertStep s;
       s.province = p->id;
       s.building = b->id;
+      s.recipe = std::clamp(pb.recipe, 0, int(b->recipes.size()) - 1);
       s.out = rc.out;
       if (pb.cycle > 0) {
         s.cycle = pb.cycle - 1;
@@ -204,6 +222,11 @@ void planConversion(const World& w, const std::vector<const Province*>& mine, st
           any = true;
           if (avail[x.res] + 1e-9 < x.amount) ok = false;
         }
+        for (const ResAmount& x : rc.essIn) {
+          if (!(x.amount > 0) || !w.essence(x.res)) continue;
+          any = true;
+          if (availEss[x.res] + 1e-9 < x.amount) ok = false;
+        }
         if (!any || !ok) continue;   // нет рецепта или не хватает ресурсов — ждёт
         s.start = true;
         for (const ResAmount& x : rc.in)
@@ -211,12 +234,49 @@ void planConversion(const World& w, const std::vector<const Province*>& mine, st
             s.in[x.res] += x.amount;
             avail[x.res] -= x.amount;
           }
+        for (const ResAmount& x : rc.essIn)
+          if (x.amount > 0 && w.essence(x.res)) {
+            s.essIn[x.res] += x.amount;
+            availEss[x.res] -= x.amount;
+          }
         s.cycle = std::max(1, rc.turns) - 1;
       }
       s.finish = s.cycle == 0;
       for (auto& [r, v] : s.in) fc.resources[r].conversionIn += v;
+      for (auto& [e, v] : s.essIn) fc.essences[e].conversionIn += v;
       if (s.finish && s.out.res && s.out.amount > 0) fc.resources[s.out.res].conversionOut += s.out.amount;
       fc.conversions.push_back(std::move(s));
+    }
+  }
+}
+
+// Постройки иссушения: «Работает» и выбрана раса — у неё отнимается до drainPop жителей, эссенции — пропорционально
+// взятым (меньше жителей — меньше эссенции).
+void planDrain(const World& w, const std::vector<const Province*>& mine, FactionCalc& fc) {
+  for (const Province* p : mine) {
+    if (p->sea) continue;
+    std::map<Id, i64> left;
+    for (const RacePop& r : p->races) left[r.race] += std::max<i64>(0, r.pop);
+    for (const ProvBuilding& pb : p->buildings) {
+      const Building* b = w.building(pb.building);
+      const int lvl = pb.builtLevel();
+      if (!b || !b->drain || lvl < 1 || lvl > int(b->levels.size()) || pb.idle || !pb.race) continue;
+      const BuildingLevel& L = b->levels[size_t(lvl - 1)];
+      const i64 take = std::min(std::max<i64>(0, L.drainPop), left[pb.race]);
+      if (take <= 0) continue;
+      left[pb.race] -= take;
+      DrainStep d;
+      d.province = p->id;
+      d.building = b->id;
+      d.race = pb.race;
+      d.pop = take;
+      for (auto& [e, v] : L.drainEss)
+        if (std::isfinite(v) && v > 0 && w.essence(e) && L.drainPop > 0) {
+          const double got = v * double(take) / double(L.drainPop);
+          d.ess[e] += got;
+          fc.essences[e].generation += got;
+        }
+      fc.drains.push_back(std::move(d));
     }
   }
 }
@@ -238,15 +298,14 @@ i64 at(const std::map<Id, i64>& m, Id k) {
   return it == m.end() ? 0 : it->second;
 }
 
-}  // namespace
-
+// Полный расчёт мира (без кеша).
 std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
   auto out = std::make_shared<Calc>();
   Calc& c = *out;
   SourceIndex si(w);
 
   // Маршруты: провинции на линии маршрута (без повторов внутри маршрута). Бонус маршрута провинции: +10 % и ещё
-  // +2,5 % за каждое государство, по землям которого он проходит (ТЗ «Общие доработки», п.9).
+  // +2,5 % за каждое государство, по землям которого он проходит.
   std::unordered_map<Id, double> routeBonus;
   std::vector<std::pair<Id, std::vector<Id>>> routeProvs;   // гильдия-владелец → провинции пути
   if (fs && !fs->faces.empty())
@@ -364,7 +423,7 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
 
   // Специалисты: содержание различных персонажей с ролью у фракции — правитель, места совета (персонаж любой
   // фракции), герои самой фракции. Персонаж без роли не оплачивается; занимающий несколько ролей — один раз;
-  // мёртвый или пленный герой недоступен государству (ТЗ «Модификаторы», 1.6 и 1.12) и не оплачивается.
+  // мёртвый или пленный герой недоступен государству и не оплачивается.
   std::unordered_map<Id, std::vector<Id>> heroesOf, charsOf;
   w.characters.each([&](const Character& ch) {
     if (ch.hero && ch.faction) heroesOf[ch.faction].push_back(ch.id);
@@ -406,14 +465,23 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
       for (const Province* p : hit->second) fc.provinces.push_back(p->id);
     }
 
-    // Войска и флот.
+    // Войска и флот. Постройки «Снижение содержания армии» уменьшают содержание войск государства (не больше 50 %).
     const Deployed& d = dep[f.id];
     std::map<Id, i64> forming;
     for (const Formation& q : f.forming) forming[q.row] += q.count;
-    double armyK = std::max(0.0, 1.0 + fc.fx[Fx::ArmyUpkeepPct] / 100.0);
+    if (f.isState())
+      for (const Province* p : mine)
+        for (const ProvBuilding& pb : p->buildings) {
+          const Building* b = w.building(pb.building);
+          const int lvl = pb.builtLevel();
+          if (b && b->upkeepCut && lvl >= 1 && lvl <= int(b->levels.size()) && std::isfinite(b->levels[size_t(lvl - 1)].upkeepCut))
+            fc.upkeepCut += std::max(0.0, b->levels[size_t(lvl - 1)].upkeepCut);
+        }
+    fc.upkeepCut = std::min(fc.upkeepCut, schema::kMaxUpkeepCut);
+    double armyK = std::max(0.0, 1.0 + fc.fx[Fx::ArmyUpkeepPct] / 100.0) * (1.0 - fc.upkeepCut / 100.0);
     double fleetK = std::max(0.0, 1.0 + fc.fx[Fx::FleetUpkeepPct] / 100.0);
     for (const ArmyRow& r : f.army) {
-      // Элементали содержатся эссенциями, а не золотом (ТЗ «Ввод новых механик», п.3.2).
+      // Элементали содержатся эссенциями, а не золотом.
       const bool elem = schema::isElemental(r.type);
       RowCalc rc = rowCalc(r.id, r.total, elem ? 0.0 : std::max(0.0, r.upkeep), at(d.army, r.id), at(d.garrison, r.id), at(d.occupation, r.id), armyK);
       rc.occupation = at(d.occupation, r.id);
@@ -435,7 +503,7 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
       fc.fleetTotal += rc.total;
       fc.fleetField += rc.field;
       fc.fleet.push_back(rc);
-      // Флот в торговле (ТЗ «Общие доработки», п.11): торговые галеоны приносят своё содержание × 2.
+      // Флот в торговле: торговые галеоны приносят своё содержание × 2.
       if (rc.trade > 0) {
         if (r.type == ShipType::Galleon) {
           galleons += rc.trade;
@@ -457,11 +525,11 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     // Рабы: содержание 0,001 золота за раба.
     for (const SlaveGroup& s : f.slaves) fc.slaves += std::max<i64>(0, s.count);
     fc.expSlaves = double(fc.slaves) * schema::kSlaveUpkeep;
-    // Археологические группы: содержание по уровню с модификаторами (ТЗ «Доработки №2», п.2).
+    // Археологические группы: содержание по уровню с модификаторами.
     for (const ArchGroup& g : f.archGroups) fc.expArch += archStatsWith(w, g, fc.fx).upkeep;
 
     // Генерация модификаторов государства (его список, изученные технологии, автоматические) и его героев
-    // (модификаторы и таланты; мёртвые и пленные — нет) — ТЗ «Доработки №1», п.5–7.
+    // (модификаторы и таланты; мёртвые и пленные — нет).
     {
       std::map<Id, double> gEss, gRes;
       auto genOf = [&](Id m, double k = 1) {
@@ -487,9 +555,9 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
       }
     }
 
-    // Итоги (ТЗ 1.e.i, 1.g.ii.2.a). Модификатор дохода действует на собственный доход фракции (налоги, штабы,
+    // Итоги. Модификатор дохода действует на собственный доход фракции (налоги, штабы,
     // добыча золота, рабы на работах, торговый флот, маршруты гильдии); выплаты по сделкам, дань и репарации
-    // передаются без изменений (ТЗ 1.e.ii: что отнято у одного, то и отдано другому).
+    // передаются без изменений.
     const double own = fc.incProvinces + fc.incGuildTax + fc.incGuilds + fc.incSlaves + fc.incTradeFleet + fc.incRoutes;
     fc.incGross = own + fc.incTrade + fc.incTribute;
     fc.incomePct = fc.fx[Fx::IncomePct];
@@ -500,7 +568,7 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
     // Ресурсы: все позиции справочника и запасы фракции.
     for (const CatalogItem& ci : w.catalogs->resources) fc.resources[ci.id];
     for (auto& [r, v] : f.res) fc.resources[r];
-    // Провизия государства живых (ТЗ «Добавления в справочники», п.3): 0,001 на жителя за ход и недостача прошлых
+    // Провизия государства живых: 0,001 на жителя за ход и недостача прошлых
     // ходов — поровну со всех ресурсов группы «Провизия», что есть у государства после добычи этого хода.
     const bool living = f.isState() && f.stateKind == StateKind::Living;
     std::map<Id, double> avail;   // запасы после шага 2 хода: добыча и производство, казна — с чистым доходом
@@ -523,8 +591,17 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
       }
       fc.provisionDebtNext = need - taken > 1e-9 ? need - taken : 0.0;
     }
-    // Постройки преобразования.
-    if (f.isState()) planConversion(w, mine, avail, fc);
+    // Эссенции: генерация построек (владельцу), иссушение населения, содержание элементалей; затем постройки
+    // преобразования (эссенции на входе — из запаса с потоком хода).
+    for (const CatalogItem& e : w.catalogs->essences) fc.essences[e.id];
+    for (auto& [e, v] : f.ess) fc.essences[e];
+    for (const Province* p : mine)
+      if (const ProvinceCalc* pc = c.province(p->id))
+        for (auto& [e, v] : pc->essence) fc.essences[e].generation += v;
+    if (f.isState()) planDrain(w, mine, fc);
+    std::map<Id, double> availEss;
+    for (auto& [e, flow] : fc.essences) availEss[e] = std::max(0.0, f.essence(e) + flow.generation - flow.upkeep);
+    if (f.isState()) planConversion(w, mine, avail, availEss, fc);
     for (auto& [r, flow] : fc.resources) {
       if (r == kGold) {
         flow.stock = f.treasury();
@@ -537,20 +614,15 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
       }
     }
     fc.famine = living && f.provisionDebt > 1e-9;
-    // Эссенции: генерация построек (владельцу) и содержание элементалей.
-    for (const CatalogItem& e : w.catalogs->essences) fc.essences[e.id];
-    for (auto& [e, v] : f.ess) fc.essences[e];
-    for (const Province* p : mine)
-      if (const ProvinceCalc* pc = c.province(p->id))
-        for (auto& [e, v] : pc->essence) fc.essences[e].generation += v;
     for (auto& [e, flow] : fc.essences) {
       flow.stock = f.essence(e);
-      flow.net = flow.generation - flow.upkeep;
+      flow.net = flow.generation - flow.upkeep - flow.conversionIn;
     }
   });
   return out;
 }
 
+}  // namespace
 }  // namespace detail
 
 // ================================================================ кеш
@@ -596,6 +668,12 @@ std::shared_ptr<const Calc> calc(const Tx& tx) {
   std::shared_ptr<const geo::FaceSet> fs;
   if (!tx.w().routes.empty()) fs = detail::facesFor(tx);
   return detail::compute(tx.w(), fs.get());
+}
+
+CityType cityType(const Province& p) {
+  i64 pop = 0;
+  for (const RacePop& r : p.races) pop += std::max<i64>(0, r.pop);
+  return schema::cityTypeFor(pop);
 }
 
 Deployed deployed(const World& w, Id faction) {

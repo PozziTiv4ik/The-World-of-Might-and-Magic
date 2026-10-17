@@ -4,42 +4,11 @@
 
 using namespace rg;
 using namespace rg::geo;
-using geotest::sampleCoast;
+using namespace rg::geotest;
 
 namespace {
 
 constexpr double W = 1000, H = 600;
-
-Store initStore() {
-  Store s;
-  s.transact("init", [](Tx& tx) { initFromCoast(tx, sampleCoast(W, H)); });
-  return s;
-}
-
-std::vector<Vec2> rect(double x0, double y0, double x1, double y1) { return {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}; }
-
-double terrainArea(const World& w, Terrain t) {
-  auto fs = buildFaces(w);   // держать указатель: грани живут, пока жив FaceSet
-  double a = 0;
-  for (auto& f : fs->faces)
-    if (f.terrain == t) a += f.area;
-  return a;
-}
-
-double provArea(const World& w, Id p) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  return s ? s->area : 0;
-}
-
-bool allTerrain(const World& w, Id p, Terrain t) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  if (!s) return false;
-  for (int f : s->faces)
-    if (fs->faces[size_t(f)].terrain != t) return false;
-  return true;
-}
 
 // Сумма знаковых площадей контуров суши и знаки их площадей.
 double ringsArea(const std::vector<std::vector<Vec2>>& rings, int* pos = nullptr, int* neg = nullptr) {
@@ -72,7 +41,7 @@ Handle coastPointNear(const World& w, Vec2 c) {
 
 }  // namespace
 
-TEST(geo_land_rings) {
+TEST(geo_coast_land_rings) {
   Store s = initStore();
   const World& w = s.world();
   CHECK(hasGeometry(w));
@@ -92,7 +61,7 @@ TEST(geo_land_rings) {
   CHECK(onFrame);
 }
 
-TEST(geo_paint_terrain_land_and_sea) {
+TEST(geo_coast_paint_terrain_land_and_sea) {
   Store s = initStore();
   const double land0 = terrainArea(s.world(), Terrain::Land);
   // Новый остров в открытом море.
@@ -131,7 +100,7 @@ TEST(geo_paint_terrain_land_and_sea) {
   geotest::renderWorld(s.world(), "geo_paint_terrain.png", 1.0, Box2(0, 0, W, H));
 }
 
-TEST(geo_paint_terrain_provinces) {
+TEST(geo_coast_paint_terrain_provinces) {
   Store s = initStore();
   Id p = s.transact("p", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
   Id q = s.transact("q", [](Tx& tx) { return createProvince(tx, rect(900, 20, 990, 100), Terrain::Sea); });

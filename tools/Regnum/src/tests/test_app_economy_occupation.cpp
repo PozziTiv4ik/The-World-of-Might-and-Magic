@@ -47,7 +47,6 @@ Id quietProvince(const World& w) {
 }  // namespace
 
 TEST(app_economy_occupation_garrison) {
-  HideTestRegs hide;
   Harness h("economy_occupation", 1440, 1100);
   h.demo();
   Id pid = 0;
@@ -88,7 +87,6 @@ TEST(app_economy_occupation_garrison) {
 }
 
 TEST(app_economy_occupation_idle) {
-  HideTestRegs hide;
   Harness h("economy_occupation_idle", 1440, 1100);
   h.demo();
   const Id pid = quietProvince(h->world());

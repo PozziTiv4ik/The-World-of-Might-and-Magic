@@ -71,10 +71,7 @@ void askRemoveSpecial(App& a, const World& w, Id id) {
   std::string text = "Особый отряд «" + orName(s->name) + "» будет удалён из справочника.";
   if (rows) text += " " + nb(i64(rows), "строка войск станет обычной", "строки войск станут обычными", "строк войск станут обычными") + ".";
   if (blds) text += " " + nb(i64(blds), "постройка потеряет доступ", "постройки потеряют доступ", "построек потеряют доступ") + " к нему.";
-  text += " Действие можно отменить Ctrl+Z.";
-  a.confirm("Удалить особый отряд?", text, "Удалить", true, [id](App& x) {
-    x.act("Удалить особый отряд", [&](Tx& tx) { rules::removeSpecial(tx, id); });
-  });
+  a.confirmAct("Удалить особый отряд?", text, "Удалить", "Удалить особый отряд", [id](Tx& tx) { rules::removeSpecial(tx, id); });
 }
 
 // Цена на 1 юнит одной строкой значков: ключевой ресурс (у механизмов — числом), дополнительные ресурсы, эссенции.
@@ -113,7 +110,7 @@ struct SRow {
 };
 
 void specialTable(App& a, State& st, const World& w, const std::vector<SRow>& rows, RectF T) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const ui::Theme& th = ui::theme();
   Id& sel = st.sel[kSpecials];
   int selIdx = -1;
@@ -248,7 +245,7 @@ void amountList(App& a, const World& w, const SpecialUnit& s, const std::map<Id,
 }
 
 void specialCard(App& a, State& st, const World& w, const SpecialUnit& s) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   const Id id = s.id;
   const ui::Theme& th = ui::theme();
   const bool elem = schema::isElemental(s.type);
@@ -396,7 +393,7 @@ void specialCard(App& a, State& st, const World& w, const SpecialUnit& s) {
         ui::label("Нет построек доступа", {.ink = ui::Ink::Warning, .icon = "warning"});
         if (ui::link("Дерево построек", "building")) detail::later(a, [](App& x) { openBuildingTree(x, 0); });
       } else {
-        ChipFlow cf;
+        ui::ChipFlow cf;
         for (Id bid : blds) {
           const Building* b = w.building(bid);
           if (!b) continue;
@@ -407,7 +404,7 @@ void specialCard(App& a, State& st, const World& w, const SpecialUnit& s) {
           co.tooltip = b->owner ? "Уникальная постройка — открыть дерево построек" : "Общее дерево построек — открыть";
           std::string label = orName(b->name);
           if (b->owner) label += " · " + w.factionName(b->owner);
-          if (edkit::chip(label, co) == ui::ChipAction::Click) openBuilding(a, w, bid);
+          if (ui::flowChip(label, co) == ui::ChipAction::Click) openBuilding(a, w, bid);
         }
       }
     }
@@ -420,7 +417,7 @@ void specialCard(App& a, State& st, const World& w, const SpecialUnit& s) {
       if (rows.empty()) {
         ui::label("Ни одно государство не нанимает", {.ink = ui::Ink::Muted});
       } else {
-        ChipFlow cf;
+        ui::ChipFlow cf;
         for (const RowRef& r : rows) {
           const Faction* f = w.faction(r.faction);
           const ArmyRow* row = f ? f->armyRow(r.row) : nullptr;
@@ -430,31 +427,24 @@ void specialCard(App& a, State& st, const World& w, const SpecialUnit& s) {
           co.color = f->color;
           co.clickable = true;
           co.tooltip = "Открыть войска";
-          if (edkit::chip(orName(f->name) + " · " + fmtInt(row->total), co) == ui::ChipAction::Click) openArmy(a, r.faction);
+          if (ui::flowChip(orName(f->name) + " · " + fmtInt(row->total), co) == ui::ChipAction::Click) openArmy(a, r.faction);
         }
       }
     }
   }
   ui::spacer(4);
-  {
-    ui::Disabled dis(ro);
-    if (ui::button("Удалить: " + orName(s.name, "особый отряд"), {.variant = ui::Variant::Danger, .icon = "trash", .fill = true}))
-      askRemoveSpecial(a, w, id);
-    a.markUi("catalogs.delete");
-  }
+  if (deleteButton(a, orName(s.name, "особый отряд"))) askRemoveSpecial(a, w, id);
 }
 
 }  // namespace
 
 void drawSpecials(App& a, State& st) {
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   {
     ui::HStack hs(30, ui::Align::Left, 8);
     searchBox(a, st, 300, "Поиск особых отрядов");
     ui::flex();
-    if (ui::button("Новый особый отряд", {.variant = ui::Variant::Primary, .icon = "plus", .disabled = ro, .shortcut = {Key::Insert, 0}}))
-      addSpecialAct(a, st);
-    a.markUi("catalogs.add");
+    if (newButton(a, "Новый особый отряд")) addSpecialAct(a, st);
   }
   ui::spacer(2);
   const World w = a.world();   // снимок кадра (после кнопок: новая запись уже в нём); правка посреди кадра заменяет мир
@@ -469,7 +459,7 @@ void drawSpecials(App& a, State& st) {
     rows.push_back(SRow{&s, units.count(s.id) ? units[s.id] : 0});
   }
   Id& sel = st.sel[kSpecials];
-  if (std::none_of(rows.begin(), rows.end(), [&](const SRow& x) { return x.s->id == sel; })) sel = rows.empty() ? 0 : rows.front().s->id;
+  keepSelection(sel, rows, [](const SRow& x) { return x.s->id; });
   const Split sp = split(ui::avail());
   specialTable(a, st, w, rows, sp.table);
   a.markUi("catalogs.table", sp.table);

@@ -1,43 +1,16 @@
 // Тесты geo: операции над провинциями на синтетическом берегу (большой остров, малые острова, подкова,
 // материк за краем карты): создание с прилипанием к берегу, расширение, вырезание, заливка, нож, слияние,
-// снятие назначения, ручки, скольжение по берегу, откат при ошибке, отмена.
+// снятие назначения, ручки, скольжение по берегу, откат при ошибке, отмена, попадание и запросы при неверном вводе,
+// прилипание с заданным допуском (EditOptions), понятные сообщения об отказах.
 #include "tests/test_geo_util.h"
 
 using namespace rg;
 using namespace rg::geo;
-using geotest::sampleCoast;
+using namespace rg::geotest;
 
 namespace {
 
 constexpr double W = 1000, H = 600;
-
-Store initStore() {
-  Store s;
-  s.transact("init", [](Tx& tx) { initFromCoast(tx, sampleCoast(W, H)); });
-  return s;
-}
-
-std::vector<Vec2> rect(double x0, double y0, double x1, double y1) { return {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}; }
-
-double provArea(const World& w, Id p) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  return s ? s->area : 0;
-}
-
-double terrainArea(const World& w, Terrain t, Id prov = Id(-1)) {
-  auto fs = buildFaces(w);
-  double a = 0;
-  for (auto& f : fs->faces)
-    if (f.terrain == t && (prov == Id(-1) || f.province == prov)) a += f.area;
-  return a;
-}
-
-int countKind(const World& w, EdgeKind k) {
-  int n = 0;
-  w.edges.each([&](const Edge& e) { n += e.kind == k; });
-  return n;
-}
 
 size_t coordCount(const World& w, EdgeKind k) {
   size_t n = 0;
@@ -45,26 +18,9 @@ size_t coordCount(const World& w, EdgeKind k) {
   return n;
 }
 
-// Все грани провинции имеют заданный рельеф.
-bool allTerrain(const World& w, Id p, Terrain t) {
-  auto fs = buildFaces(w);
-  auto* s = fs->shape(p);
-  if (!s) return false;
-  for (int f : s->faces)
-    if (fs->faces[size_t(f)].terrain != t) return false;
-  return true;
-}
-
-// Площадь острова, содержащего точку (грань суши).
-double faceAreaAt(const World& w, Vec2 p) {
-  auto fs = buildFaces(w);
-  int f = fs->locate(p);
-  return f < 0 ? 0 : fs->faces[size_t(f)].area;
-}
-
 }  // namespace
 
-TEST(geo_init_from_coast) {
+TEST(geo_ops_init_from_coast) {
   Store s = initStore();
   const World& w = s.world();
   GEO_CHECK_WORLD(w, W, H);
@@ -92,7 +48,7 @@ TEST(geo_init_from_coast) {
 }
 
 // Контур, захватывающий малый остров с запасом: провинция = остров целиком, границы только береговые.
-TEST(geo_create_province_sticks_to_coast) {
+TEST(geo_ops_create_province_sticks_to_coast) {
   Store s = initStore();
   double island = faceAreaAt(s.world(), {820, 140});
   Id p = s.transact("create", [](Tx& tx) { return createProvince(tx, rect(750, 70, 890, 210), Terrain::Land); });
@@ -118,7 +74,7 @@ TEST(geo_create_province_sticks_to_coast) {
 }
 
 // Частичный охват большого острова: граница идёт по берегу и по суше, в море дуг не остаётся.
-TEST(geo_create_partial_and_overlap) {
+TEST(geo_ops_create_partial_and_overlap) {
   Store s = initStore();
   double land0 = terrainArea(s.world(), Terrain::Land);
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(550, 150, 720, 450), Terrain::Land); });
@@ -150,7 +106,7 @@ TEST(geo_create_partial_and_overlap) {
   geotest::renderWorld(s.world(), "geo_partial.png", 1.0, Box2(0, 0, W, H));
 }
 
-TEST(geo_add_remove_area) {
+TEST(geo_ops_add_remove_area) {
   Store s = initStore();
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 520, 320), Terrain::Land); });
   CHECK_NEAR(provArea(s.world(), a), 120.0 * 120.0, 1e-6);  // целиком внутри острова
@@ -181,7 +137,7 @@ TEST(geo_add_remove_area) {
   geotest::renderWorld(s.world(), "geo_add_remove.png", 1.0, Box2(0, 0, W, H));
 }
 
-TEST(geo_fill_split_merge_unassign) {
+TEST(geo_ops_fill_split_merge_unassign) {
   Store s = initStore();
   size_t coast0 = coordCount(s.world(), EdgeKind::Coast);
   int nodes0 = int(s.world().nodes.size());
@@ -240,7 +196,7 @@ TEST(geo_fill_split_merge_unassign) {
   CHECK_EQ(int(s.world().nodes.size()), nodes0);
 }
 
-TEST(geo_undo_restores_exactly) {
+TEST(geo_ops_undo_restores_exactly) {
   Store s = initStore();
   std::vector<World> snaps{s.world()};
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(550, 150, 720, 450), Terrain::Land); });
@@ -262,7 +218,7 @@ TEST(geo_undo_restores_exactly) {
   }
 }
 
-TEST(geo_invalid_input_rolls_back) {
+TEST(geo_ops_invalid_input_rolls_back) {
   Store s = initStore();
   World before = s.world();
   CHECK_THROWS(s.transact("bow", [](Tx& tx) { createProvince(tx, {{400, 200}, {500, 300}, {500, 200}, {400, 300}}, Terrain::Land); }));
@@ -280,7 +236,7 @@ TEST(geo_invalid_input_rolls_back) {
 }
 
 // Прилипание: вершины ввода у существующих узлов не создают щелевых граней.
-TEST(geo_snap_no_slivers) {
+TEST(geo_ops_snap_no_slivers) {
   Store s = initStore();
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
   size_t faces1 = buildFaces(s.world())->faces.size();
@@ -300,7 +256,7 @@ TEST(geo_snap_no_slivers) {
   CHECK_NEAR(provArea(s.world(), b), 6000, 1e-6);
 }
 
-TEST(geo_handles_move_insert_delete) {
+TEST(geo_ops_handles_move_insert_delete) {
   Store s = initStore();
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
   Id b = s.transact("b", [](Tx& tx) { return createProvince(tx, rect(500, 200, 600, 300), Terrain::Land); });
@@ -351,7 +307,7 @@ TEST(geo_handles_move_insert_delete) {
   CHECK_THROWS(s.transact("delnode", [&](Tx& tx) { deletePoint(tx, h); }));
 }
 
-TEST(geo_delete_degree2_node) {
+TEST(geo_ops_delete_degree2_node) {
   Store s = initStore();
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
   // кольцо провинции из двух дуг: удаление любого из двух узлов дало бы петлю — отказ
@@ -389,7 +345,7 @@ TEST(geo_delete_degree2_node) {
   CHECK_NEAR(provArea(s.world(), a), 5000, 1e-6);  // угол срезан диагональю
 }
 
-TEST(geo_slide_junction_along_coast) {
+TEST(geo_ops_slide_junction_along_coast) {
   Store s = initStore();
   // провинция на восточной части большого острова: стыки с берегом сверху и снизу
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, {{560, 60}, {735, 60}, {735, 480}, {560, 480}}, Terrain::Land); });
@@ -433,7 +389,7 @@ TEST(geo_slide_junction_along_coast) {
 }
 
 // Суша, лежащая на рамке, выходящая за неё и занимающая угол карты.
-TEST(geo_init_land_on_frame) {
+TEST(geo_ops_init_land_on_frame) {
   Store s;
   Coast c;
   c.width = W;
@@ -468,7 +424,7 @@ TEST(geo_init_land_on_frame) {
 }
 
 // Одинаковая последовательность операций даёт побайтно одинаковую геометрию (детерминизм).
-TEST(geo_determinism) {
+TEST(geo_ops_determinism) {
   auto runOnce = [] {
     Store s = initStore();
     Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, {{430, 120}, {600, 140}, {640, 300}, {560, 470}, {420, 480}}, Terrain::Land); });
@@ -489,7 +445,7 @@ TEST(geo_determinism) {
   CHECK(d1 == d2);
 }
 
-TEST(geo_hit_priorities) {
+TEST(geo_ops_hit_priorities) {
   Store s = initStore();
   Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
   s.transact("b", [](Tx& tx) { return createProvince(tx, rect(500, 200, 600, 300), Terrain::Land); });
@@ -514,3 +470,175 @@ TEST(geo_hit_priorities) {
   CHECK(coast);
   CHECK(handleLocked(w, coast));
 }
+
+// Запросы без транзакции устойчивы к нечисловому вводу и неверным ручкам: без исключений и NaN в ответах.
+TEST(geo_ops_queries_robust) {
+  Store s = initStore();
+  Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
+  const World& w = s.world();
+  const double nan = std::nan("");
+  const Vec2 bad{nan, 5}, inf{kInf, 5};
+  auto fs = faces(w);
+  for (Vec2 p : {bad, inf}) {
+    CHECK_EQ(fs->locate(p), -1);
+    CHECK_EQ(fs->provinceAt(p), Id(0));
+    CHECK(fs->terrainAt(p) == Terrain::None);
+    CHECK(!hitHandle(w, p, 5));
+    CHECK(!hitEdge(w, p, 5).has_value());
+  }
+  CHECK(!hitHandle(w, {450, 200}, -1));
+  CHECK(!hitHandle(w, {450, 200}, nan));
+  CHECK(!hitEdge(w, {450, 200}, nan).has_value());
+  // ломаная с нечисловой вершиной: учитываются только конечные звенья
+  auto on = fs->provincesOnPolyline({{300, 250}, bad, {450, 250}, {470, 250}});
+  CHECK_EQ(on.size(), size_t(1));
+  CHECK(fs->provincesOnPolyline({}).empty());
+  CHECK_EQ(fs->provincesOnPolyline({{450, 250}}).size(), size_t(1));
+  // неверные ручки
+  Handle none, ghostNode{Handle::Node, 999999, 0, -1}, ghostPt{Handle::Point, 0, 999999, 0};
+  for (const Handle& h : {none, ghostNode, ghostPt}) {
+    CHECK(handleLocked(w, h));
+    CHECK(!canMove(w, h, {450, 250}));
+    Vec2 p = handlePos(w, h);
+    CHECK(finite(p));
+  }
+  Handle hb = hitHandle(w, {500, 300}, 2, a);
+  CHECK(hb);
+  CHECK(!canMove(w, hb, bad));
+  CHECK(!canMove(w, hb, inf));
+  CHECK(!canMove(w, hb, {-10, 250}));  // за рамкой
+  Handle outOfRange{Handle::Point, 0, hitEdge(w, {450, 200}, 1, a)->edge, 1000};
+  CHECK(handleLocked(w, outOfRange));
+  CHECK(!isCoastJunction(w, 0));
+  CHECK(!isCoastJunction(w, 999999));
+  CHECK(!slideTarget(w, 999999, {1, 1}).has_value());
+  // полюс недоступности и площади граней конечны
+  for (auto& f : fs->faces) {
+    CHECK(finite(f.label) && std::isfinite(f.area) && f.area > 0);
+    CHECK(f.rings.size() == f.ringEdges.size());
+  }
+  for (auto& [id, sh] : fs->provinces) CHECK(finite(sh.label) && sh.area > 0 && !sh.faces.empty());
+  CHECK(fs->shape(0) == nullptr);
+  CHECK(fs->shape(999999) == nullptr);
+}
+
+// Варианты addArea/removeArea/split с EditOptions: прилипание к узлам и границам с заданным допуском.
+TEST(geo_ops_edit_options_overloads) {
+  Id a = 0, b = 0;
+  auto two = [&] {
+    Store s = initStore();
+    a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
+    b = s.transact("b", [](Tx& tx) { return createProvince(tx, rect(500, 200, 600, 300), Terrain::Land); });
+    return s;
+  };
+  const std::vector<Vec2> addPoly{{503, 197}, {550, 200}, {550, 300}, {497, 303}};
+  EditOptions opt;
+  opt.snap = 5;
+  Store s = two();
+  size_t faces0 = buildFaces(s.world())->faces.size();
+  s.transact("add", [&](Tx& tx) { addArea(tx, a, addPoly, opt); });
+  GEO_CHECK_WORLD(s.world(), W, H);
+  CHECK_NEAR(provArea(s.world(), a), 15000, 1e-6);
+  CHECK_NEAR(provArea(s.world(), b), 5000, 1e-6);
+  CHECK_EQ(buildFaces(s.world())->faces.size(), faces0);  // без щелевых граней
+  // тот же контур с допуском по умолчанию захватывает лишние полоски
+  Store s1 = two();
+  s1.transact("add", [&](Tx& tx) { addArea(tx, a, addPoly); });
+  GEO_CHECK_WORLD(s1.world(), W, H);
+  CHECK(std::fabs(provArea(s1.world(), a) - 15000) > 1);
+  // вырезание: вершины прилипают к сторонам и углу провинции
+  s.transact("remove", [&](Tx& tx) { removeArea(tx, a, {{398, 250}, {450, 250}, {450, 302}, {398, 302}}, opt); });
+  GEO_CHECK_WORLD(s.world(), W, H);
+  CHECK_NEAR(provArea(s.world(), a), 12500, 1e-6);
+  // нож, не доходящий до границы на 3: с допуском 5 — разрез, с допуском 1 — отказ
+  std::string err = errorOf(s, [&](Tx& tx) { split(tx, a, {{403, 225}, {547, 225}}); });
+  CHECK_MSG(contains(err, "от края до края"), err);
+  Id c = s.transact("split", [&](Tx& tx) { return split(tx, a, {{403, 225}, {547, 225}}, {}, opt); });
+  GEO_CHECK_WORLD(s.world(), W, H);
+  CHECK_NEAR(provArea(s.world(), c), 150.0 * 25, 1e-6);
+  CHECK_NEAR(provArea(s.world(), a), 12500 - 150.0 * 25, 1e-6);
+  CHECK_NEAR(provArea(s.world(), b), 5000, 1e-6);
+  // нечисловой и отрицательный допуск заменяются минимальным
+  EditOptions bad;
+  bad.snap = std::nan("");
+  Id d = s.transact("nan-snap", [&](Tx& tx) { return createProvince(tx, rect(420, 320, 470, 370), Terrain::Land, bad); });
+  CHECK_NEAR(provArea(s.world(), d), 2500, 1e-6);
+  bad.snap = -3;
+  s.transact("neg-snap", [&](Tx& tx) { removeArea(tx, d, rect(430, 330, 440, 340), bad); });
+  CHECK_NEAR(provArea(s.world(), d), 2400, 1e-6);
+  bad.snap = 1e300;  // огромный допуск ограничивается
+  s.transact("huge-snap", [&](Tx& tx) { addArea(tx, d, rect(430, 330, 440, 340), bad); });
+  CHECK_NEAR(provArea(s.world(), d), 2500, 1e-6);  // вершины слились бы — допуск уменьшается до точного
+  GEO_CHECK_WORLD(s.world(), W, H);
+}
+
+// Понятные сообщения об ошибках; отказ не меняет мир (errorOf).
+TEST(geo_ops_fail_messages) {
+  Store empty;
+  std::string err = errorOf(empty, [](Tx& tx) { createProvince(tx, rect(1, 1, 5, 5), Terrain::Land); });
+  CHECK_MSG(contains(err, "Карта ещё не создана"), err);
+  err = errorOf(empty, [](Tx& tx) { fillAt(tx, {1, 1}, 0); });
+  CHECK_MSG(contains(err, "Карта ещё не создана"), err);
+  err = errorOf(empty, [](Tx& tx) { initFromCoast(tx, Coast{0, 100, {}}); });
+  CHECK_MSG(contains(err, "размер карты"), err);
+
+  Store s = initStore();
+  Id a = s.transact("a", [](Tx& tx) { return createProvince(tx, rect(400, 200, 500, 300), Terrain::Land); });
+  struct Case { const char* want; std::function<void(Tx&)> fn; };
+  const Case cases[] = {
+      {"уже построена", [](Tx& tx) { initFromCoast(tx, sampleCoast(W, H)); }},
+      {"пересекает сам себя", [](Tx& tx) { createProvince(tx, {{400, 200}, {500, 300}, {500, 200}, {400, 300}}, Terrain::Land); }},
+      {"не менее трёх точек", [](Tx& tx) { createProvince(tx, {{400, 200}, {500, 300}}, Terrain::Land); }},
+      {"нулевая площадь", [](Tx& tx) { createProvince(tx, {{400, 200}, {450, 250}, {500, 300}}, Terrain::Land); }},
+      {"Недопустимые координаты", [](Tx& tx) { createProvince(tx, {{400, 200}, {kInf, 300}, {500, 200}}, Terrain::Land); }},
+      {"вне карты", [](Tx& tx) { createProvince(tx, rect(1100, 100, 1200, 200)); }},
+      {"не захватывает сушу", [](Tx& tx) { createProvince(tx, rect(905, 10, 990, 60), Terrain::Land); }},
+      {"не захватывает море", [](Tx& tx) { createProvince(tx, rect(420, 220, 480, 280), Terrain::Sea); }},
+      {"не найдена", [](Tx& tx) { addArea(tx, 777, rect(0, 0, 10, 10)); }},
+      {"не добавляет", [&](Tx& tx) { addArea(tx, a, rect(420, 220, 480, 280)); }},
+      {"не задевает", [&](Tx& tx) { removeArea(tx, a, rect(10, 10, 30, 30)); }},
+      {"вне карты", [](Tx& tx) { fillAt(tx, {-5, -5}, 0); }},
+      {"только сушу", [&](Tx& tx) { fillAt(tx, {950, 50}, a); }},
+      {"не найдена", [](Tx& tx) { split(tx, 777, {{0, 0}, {10, 10}}); }},
+      {"не менее двух точек", [&](Tx& tx) { split(tx, a, {{400, 250}}); }},
+      {"пересекает сама себя", [&](Tx& tx) { split(tx, a, {{380, 220}, {520, 280}, {520, 220}, {380, 280}}); }},
+      {"от края до края", [&](Tx& tx) { split(tx, a, {{420, 250}, {480, 250}}); }},
+      {"с самой собой", [&](Tx& tx) { merge(tx, a, a); }},
+      {"Не выбрана", [](Tx& tx) { moveHandle(tx, Handle{}, {1, 1}); }},
+      {"Не выбрана", [](Tx& tx) { deletePoint(tx, Handle{}); }},
+      {"Граница не найдена", [](Tx& tx) { insertPoint(tx, 999999, 0, {1, 1}); }},
+  };
+  for (auto& c : cases) {
+    err = errorOf(s, c.fn);
+    CHECK_MSG(contains(err, c.want), std::string(c.want) + " <- \"" + err + "\"");
+  }
+  // ручки: берег и рамка заблокированы, вынос за карту, вставка у вершины
+  Id coastEdge = 0;
+  s.world().edges.each([&](const Edge& e) { if (!coastEdge && e.kind == EdgeKind::Coast && e.pts.size() > 2) coastEdge = e.id; });
+  Handle cp{Handle::Point, 0, coastEdge, 1};
+  err = errorOf(s, [&](Tx& tx) { moveHandle(tx, cp, handlePos(tx.w(), cp) + Vec2(1, 0)); });
+  CHECK_MSG(contains(err, "не редактируются"), err);
+  err = errorOf(s, [&](Tx& tx) { insertPoint(tx, coastEdge, 0, handlePos(tx.w(), cp)); });
+  CHECK_MSG(contains(err, "не редактируются"), err);
+  err = errorOf(s, [&](Tx& tx) { deletePoint(tx, cp); });
+  CHECK_MSG(contains(err, "не редактируются"), err);
+  Id border = 0;
+  s.world().edges.each([&](const Edge& e) { if (!border && e.kind == EdgeKind::Border && !e.pts.empty()) border = e.id; });
+  CHECK(border != 0);
+  Handle bp{Handle::Point, 0, border, 0};
+  err = errorOf(s, [&](Tx& tx) { moveHandle(tx, bp, {-50, 250}); });
+  CHECK_MSG(contains(err, "за пределы карты"), err);
+  err = errorOf(s, [&](Tx& tx) { moveHandle(tx, bp, {std::nan(""), 250}); });
+  CHECK_MSG(contains(err, "Недопустимые координаты"), err);
+  Vec2 v = s.world().edges.get(border)->pts[0];
+  err = errorOf(s, [&](Tx& tx) { insertPoint(tx, border, 0, v); });
+  CHECK_MSG(contains(err, "слишком близко"), err);
+  err = errorOf(s, [&](Tx& tx) { insertPoint(tx, border, 99, v); });
+  CHECK_MSG(contains(err, "Неверный номер"), err);
+  Id frameNode = 0;
+  s.world().nodes.each([&](const Node& n) { if (!frameNode && n.p == Vec2(0, 0)) frameNode = n.id; });
+  CHECK(handleLocked(s.world(), Handle{Handle::Node, frameNode, 0, -1}));
+  err = errorOf(s, [&](Tx& tx) { deletePoint(tx, Handle{Handle::Node, frameNode, 0, -1}); });
+  CHECK_MSG(contains(err, "удалить нельзя"), err);
+}
+

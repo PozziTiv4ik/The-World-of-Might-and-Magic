@@ -85,14 +85,10 @@ $Role
 - ``03_Персонажи/00_Индекс_персонажей.md``
 "@
 
-Set-Content -LiteralPath $targetPath -Encoding UTF8 -Value $content
+# Bytes as written by Set-Content: the text and one platform line break.
+Write-WmmaText $targetPath ($content + [Environment]::NewLine)
 
-& (Join-Path $root 'tools\Собрать_индекс_персонажей.ps1') -SkipCheck
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_индекс_персонажей' -SkipCheck:$SkipCheck
 
 "Created character: $relativePath"
 }

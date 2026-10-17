@@ -11,85 +11,19 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$today = Get-Date -Format 'yyyy-MM-dd'
 $characterRoot = Join-Path $root '03_Персонажи'
 $targetPath = Join-Path $characterRoot '00_Индекс_персонажей.md'
+$visualSection = 'Визуальные материалы'
+$toolGroup = 'Добавлено инструментом'
 
-function Convert-PortraitStatusToWord {
-    param(
-        [AllowNull()][string]$PortraitStatus,
-        [AllowNull()][string]$Fallback
-    )
-
-    switch ($PortraitStatus) {
-        'available' { return 'есть' }
-        'planned' { return 'запланирован' }
-        'missing' { return 'нужен' }
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Fallback)) {
-        return $Fallback
-    }
-
-    return 'нужен'
-}
-
-function Get-ExistingCharacterRows {
-    param([string]$IndexText)
-
-    $rowsByFile = @{}
-    $groups = New-Object 'System.Collections.Generic.List[string]'
-    $currentGroup = $null
-    $order = 0
-
-    foreach ($line in ($IndexText -split "\r?\n")) {
-        if ($line -match '^##\s+(.+?)\s*$') {
-            $heading = $Matches[1].Trim()
-            if ($heading -ne 'Визуальные материалы') {
-                $currentGroup = $heading
-                if ($groups -notcontains $currentGroup) {
-                    $groups.Add($currentGroup) | Out-Null
-                }
-            } else {
-                $currentGroup = $null
-            }
-            continue
-        }
-
-        $cells = Convert-WmmaTableRow -Line $line
-        if ($null -eq $cells -or $cells.Count -lt 4 -or $cells[0] -eq 'Персонаж') {
-            continue
-        }
-
-        if ($cells[3] -match '`([^`]+)`') {
-            $order++
-            $rowsByFile[$Matches[1]] = [pscustomobject]@{
-                Name = $cells[0]
-                Role = $cells[1]
-                Portrait = $cells[2]
-                Group = $currentGroup
-                Order = $order
-            }
-        }
-    }
-
-    return [pscustomobject]@{
-        RowsByFile = $rowsByFile
-        Groups = @($groups.ToArray())
-    }
-}
-
-$existingIndex = Get-ExistingCharacterRows -IndexText (Read-Text -Path $targetPath)
-$existingRows = $existingIndex.RowsByFile
+# Sections of the previous index are navigation groups: they keep their order and rows.
+$existingIndex = Get-WmmaIndexRows -Text (Read-WmmaText $targetPath -AllowMissing) -FileColumn 3 -HeaderCell 'Персонаж'
+$existingRows = $existingIndex.Rows
 $groupOrder = New-Object 'System.Collections.Generic.List[string]'
-foreach ($group in $existingIndex.Groups) {
-    if ($groupOrder -notcontains $group) {
+foreach ($group in @($existingIndex.Sections) + @($toolGroup)) {
+    if ($group -ne $visualSection -and $groupOrder -notcontains $group) {
         $groupOrder.Add($group) | Out-Null
     }
-}
-
-if ($groupOrder -notcontains 'Добавлено инструментом') {
-    $groupOrder.Add('Добавлено инструментом') | Out-Null
 }
 
 $characterRows = New-Object 'System.Collections.Generic.List[object]'
@@ -99,7 +33,7 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
         continue
     }
 
-    $text = Read-Text -Path $file.FullName
+    $text = Read-WmmaText $file.FullName
     if ((Get-WmmaMeta -Text $text -Field 'type') -ne 'character') {
         continue
     }
@@ -114,23 +48,23 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
     if (
         ([string]::IsNullOrWhiteSpace($role) -or $role -match '^(уточнить|Уточнить\.?)$') -and
         $existing -and
-        -not [string]::IsNullOrWhiteSpace($existing.Role)
+        -not [string]::IsNullOrWhiteSpace($existing.Cells[1])
     ) {
-        $role = $existing.Role
+        $role = $existing.Cells[1]
     }
     if ([string]::IsNullOrWhiteSpace($role)) {
         $role = 'Уточнить.'
     }
 
-    $group = 'Добавлено инструментом'
+    $group = $toolGroup
     $order = 100000
     $portraitFallback = $null
     if ($existing) {
-        if (-not [string]::IsNullOrWhiteSpace($existing.Group)) {
-            $group = $existing.Group
+        if (-not [string]::IsNullOrWhiteSpace($existing.Section) -and $existing.Section -ne $visualSection) {
+            $group = $existing.Section
         }
         $order = $existing.Order
-        $portraitFallback = $existing.Portrait
+        $portraitFallback = $existing.Cells[2]
     }
 
     if ($groupOrder -notcontains $group) {
@@ -140,66 +74,38 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
     $characterRows.Add([pscustomobject]@{
         Name = Get-WmmaTitle -Text $text
         Role = $role
-        Portrait = Convert-PortraitStatusToWord -PortraitStatus (Get-WmmaMeta -Text $text -Field 'portrait_status') -Fallback $portraitFallback
+        Portrait = Get-WmmaPortraitStatusWord -Status (Get-WmmaMeta -Text $text -Field 'portrait_status') -Fallback $portraitFallback
         File = $relativePath
         Group = $group
         Order = $order
     }) | Out-Null
 }
 
-$lines = New-Object 'System.Collections.Generic.List[string]'
-$lines.Add('# Индекс персонажей') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('---') | Out-Null
-$lines.Add('type: character_index') | Out-Null
-$lines.Add('status: active') | Out-Null
-$lines.Add('canon_level: active') | Out-Null
-$lines.Add("generated_real_date: $today") | Out-Null
-$lines.Add('generated_by: tools/Собрать_индекс_персонажей.ps1') | Out-Null
-$lines.Add('---') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('Этот файл генерируется автоматически из карточек персонажей. Текущие разделы сохраняются как навигационные группы; новые карточки без прежней строки попадают в `Добавлено инструментом`.') | Out-Null
+$lines = New-WmmaGeneratedHeader -Title 'Индекс персонажей' -Type 'character_index' -CanonLevel 'active' -Script 'Собрать_индекс_персонажей' `
+    -Intro "Этот файл генерируется автоматически из карточек персонажей. Текущие разделы сохраняются как навигационные группы; новые карточки без прежней строки попадают в ``$toolGroup``."
 
 foreach ($group in $groupOrder) {
     $rows = @(
         $characterRows |
             Where-Object { $_.Group -eq $group } |
-            Sort-Object Order, Name, File
+            Sort-Object Order, Name, File |
+            ForEach-Object { ,@($_.Name, $_.Role, $_.Portrait, "``$($_.File)``") }
     )
 
     if ($rows.Count -eq 0) {
         continue
     }
 
-    $lines.Add('') | Out-Null
-    $lines.Add("## $group") | Out-Null
-    $lines.Add('') | Out-Null
-    $lines.Add('| Персонаж | Роль | Портрет | Файл |') | Out-Null
-    $lines.Add('| --- | --- | --- | --- |') | Out-Null
-
-    foreach ($row in $rows) {
-        $lines.Add('| ' + (@(
-            Format-WmmaTableCell -Empty 'Уточнить' $row.Name
-            Format-WmmaTableCell -Empty 'Уточнить' $row.Role
-            Format-WmmaTableCell -Empty 'Уточнить' $row.Portrait
-            "``$($row.File)``"
-        ) -join ' | ') + ' |') | Out-Null
-    }
+    $lines.Add('')
+    $lines.Add("## $group")
+    $lines.Add('')
+    Add-WmmaMarkdownTable $lines @('Персонаж', 'Роль', 'Портрет', 'Файл') $rows -Escape { param($Value) Format-WmmaTableCell -Empty 'Уточнить' $Value }
 }
 
-$lines.Add('') | Out-Null
-$lines.Add('## Визуальные материалы') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('Индекс портретов: `11_Медиа/Портреты_персонажей/Индекс_портретов.md`.') | Out-Null
+$lines.Add('')
+$lines.Add("## $visualSection")
+$lines.Add('')
+$lines.Add('Индекс портретов: `11_Медиа/Портреты_персонажей/Индекс_портретов.md`.')
 
-Write-WmmaGeneratedText -Path $targetPath -Text (($lines -join "`n").TrimEnd() + "`n")
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-}
-
-"Built character index: $(Get-WmmaRelativePath -Root $root $targetPath)"
+Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'character index' -SkipCheck:$SkipCheck
 }

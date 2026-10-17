@@ -230,7 +230,7 @@ static void enterRow(Table::Impl& d, int k) {
   float hv = animate(rid ^ 0x40c1ull, ri.hovered ? 1.f : 0.f, 0.1f);
   if (d.o.striped && (k & 1)) cmdRect(d.rowR, t.stripe, 0);
   if (sel) {
-    cmdRect(d.rowR, t.accent.alpha(t.dark ? 0.13f : 0.11f), 6);
+    cmdRect(d.rowR, t.accent.alpha(0.13f), 6);
     cmdRect4(RectF{d.rowR.x, d.rowR.y + 6, 3, d.rowR.h - 12}, t.accent, 0, 2, 2, 0);
   } else if (hv > 0.01f) {
     cmdRect(d.rowR, t.hover.alpha(hv * 1.4f), 6);
@@ -309,7 +309,7 @@ bool Table::footer() {
   }
   float x0 = d.slot.x, x1 = d.slot.right();
   RectF fr{x0, d.footerY, x1 - x0, d.footerH};
-  cmdRect(fr, t.dark ? Color(255, 255, 255, 6) : t.surface3.alpha(0.6f), 0);
+  cmdRect(fr, Color(255, 255, 255, 6), 0);
   draw::line(x0, d.footerY, x1, d.footerY, t.borderStrong, 1);
   C().idStack.push_back(hashMix(d.id, 0xf007e7ull));
   return true;
@@ -366,7 +366,7 @@ Table::~Table() {
   if (d.headerH > 0) {
     RectF hr{d.slot.x, d.headerY, d.slot.w, d.headerH};
     if (d.stuck) {
-      cmdShadow(hr, 0, 8, Color(0, 0, 0, t.dark ? 60 : 18), 3);
+      cmdShadow(hr, 0, 8, Color(0, 0, 0, 60), 3);
       cmdRect(hr, t.surface2, 0);
     }
     draw::line(hr.x, hr.bottom() - 0.5f, hr.right(), hr.bottom() - 0.5f, t.border, 1);
@@ -441,7 +441,7 @@ TreeNode::TreeNode(std::string_view lbl, const TreeOpt& o) {
   }
   if (!o.leaf) c.sticky[tid] = open ? 1.f : 0.f;
   float hv = animate(tid ^ 0x7ee1ull, it.hovered ? 1.f : 0.f);
-  if (o.selected) cmdRect(r, t.accent.alpha(t.dark ? 0.14f : 0.12f), 6);
+  if (o.selected) cmdRect(r, t.accent.alpha(0.14f), 6);
   else if (hv > 0.01f) cmdRect(r, t.hover.alpha(hv * 1.4f), 6);
   float rot = animate(tid ^ 0x7ee2ull, open ? 0.f : -90.f, 0.14f);
   if (!o.leaf) drawChevron(chev, t.textMuted, rot);

@@ -6,21 +6,13 @@
 
 #include "gfx/text.h"
 #include "tests/test.h"
+#include "tests/test_gfx_text_util.h"
 
 using namespace rg;
 using namespace rg::gfx;
+using namespace rg::texttest;
 
 namespace {
-
-bool fontsOk() {
-  static const bool ok = [] {
-    std::string err;
-    bool r = initFonts(&err);
-    if (!r) std::printf("  [шрифты] системных шрифтов нет: %s\n", err.c_str());
-    return r;
-  }();
-  return ok;
-}
 
 GlyphOutline rectOutline(float x0, float y0, float x1, float y1, bool cw) {
   GlyphOutline o;

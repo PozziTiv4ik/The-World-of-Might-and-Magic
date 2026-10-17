@@ -1,12 +1,11 @@
-// Тесты geo: точные предикаты, отрезки, кольца, polylabel, упрощение, сетка.
+// Тесты geo: точные предикаты, отрезки, кольца, polylabel, упрощение.
 #include "geo/geom.h"
-#include "geo/grid.h"
 #include "tests/test.h"
 
 using namespace rg;
 using namespace rg::geo;
 
-TEST(geo_orient_basic) {
+TEST(geo_geom_orient_basic) {
   CHECK_EQ(orient({0, 0}, {1, 0}, {0, 1}), 1);
   CHECK_EQ(orient({0, 0}, {1, 0}, {0, -1}), -1);
   CHECK_EQ(orient({0, 0}, {1, 1}, {2, 2}), 0);
@@ -15,7 +14,7 @@ TEST(geo_orient_basic) {
 }
 
 // Почти коллинеарные точки: наивная формула ошибается, точный предикат согласован при перестановках.
-TEST(geo_orient_exact_near_degenerate) {
+TEST(geo_geom_orient_exact_near_degenerate) {
   // Классический пример: точки около прямой y = x с возмущением в младший бит.
   int mismatches = 0;
   for (int i = 0; i < 64; i++)
@@ -41,7 +40,7 @@ TEST(geo_orient_exact_near_degenerate) {
   CHECK(orient(a, b, up) != orient(a, b, dn));
 }
 
-TEST(geo_seg_relation) {
+TEST(geo_geom_seg_relation) {
   CHECK(segRelation({0, 0}, {2, 2}, {0, 2}, {2, 0}) == SegRel::Proper);
   CHECK(segRelation({0, 0}, {1, 1}, {2, 2}, {3, 3}) == SegRel::None);
   CHECK(segRelation({0, 0}, {2, 2}, {2, 2}, {3, 0}) == SegRel::Touch);       // общий конец
@@ -66,7 +65,7 @@ TEST(geo_seg_relation) {
   CHECK(!segmentsNear({0, 0}, {1, 0}, {0.5, 0.2}, {0.5, 1}, 0.1));
 }
 
-TEST(geo_project_and_distance) {
+TEST(geo_geom_project_and_distance) {
   Proj p = project({1, 1}, {0, 0}, {2, 0});
   CHECK_NEAR(p.t, 0.5, 1e-12);
   CHECK_NEAR(p.d2, 1, 1e-12);
@@ -78,7 +77,7 @@ TEST(geo_project_and_distance) {
   CHECK_NEAR(distToSeg({0, 3}, {-1, 0}, {1, 0}), 3, 1e-12);
 }
 
-TEST(geo_ring_area_pip) {
+TEST(geo_geom_ring_area_pip) {
   std::vector<Vec2> sq{{0, 0}, {10, 0}, {10, 10}, {0, 10}};
   CHECK_NEAR(signedArea(sq), 100, 1e-12);
   std::vector<Vec2> rsq(sq.rbegin(), sq.rend());
@@ -103,7 +102,7 @@ TEST(geo_ring_area_pip) {
   CHECK(!pointInRing({11, 5}, diamond));
 }
 
-TEST(geo_is_simple) {
+TEST(geo_geom_is_simple) {
   CHECK(isSimple({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, true));
   CHECK(!isSimple({{0, 0}, {10, 10}, {10, 0}, {0, 10}}, true));        // бабочка
   CHECK(!isSimple({{0, 0}, {10, 0}, {5, 0}, {5, 5}}, false));          // наложение соседних звеньев
@@ -121,7 +120,7 @@ TEST(geo_is_simple) {
   CHECK(!isSimple(big, true));
 }
 
-TEST(geo_polylabel) {
+TEST(geo_geom_polylabel) {
   std::vector<Vec2> sq{{0, 0}, {100, 0}, {100, 100}, {0, 100}};
   double d = 0;
   Vec2 p = polylabel({sq}, 0.5, &d);
@@ -156,7 +155,7 @@ TEST(geo_polylabel) {
   CHECK(d > 0);
 }
 
-TEST(geo_simplify_dp) {
+TEST(geo_geom_simplify_dp) {
   std::vector<Vec2> line;
   for (int i = 0; i <= 100; i++) line.push_back({double(i), std::sin(i * 0.1) * 0.01});
   auto s = simplifyDP(line, 0.1);
@@ -173,126 +172,3 @@ TEST(geo_simplify_dp) {
   for (auto& p : circle) CHECK(distToRings(p, {c}) <= 0.5 + 1e-9);
 }
 
-// Две извилистые линии рядом и остров между ними: упрощение не создаёт пересечений и не «перепрыгивает» остров.
-TEST(geo_simplify_topo) {
-  std::vector<Vec2> a, b, island;
-  for (int i = 0; i <= 400; i++) {
-    double x = i * 0.5;
-    a.push_back({x, 10 + 3 * std::sin(x * 0.7)});
-    b.push_back({x, 14 + 3 * std::sin(x * 0.7 + 0.4)});
-  }
-  // остров у впадины линии a (x ≈ 105,47, a = 7, b ≈ 11,2): спрямление a «накрыло» бы его
-  const double ix = (2 * kPi * 12 - kPi / 2) / 0.7;
-  for (int i = 0; i < 12; i++) island.push_back({ix + 0.3 * std::cos(2 * kPi * i / 12), 8.5 + 0.3 * std::sin(2 * kPi * i / 12)});
-  // проверка корректности исходного набора
-  auto relOk = [](const std::vector<std::vector<Vec2>>& ls, const std::vector<bool>& cl) {
-    for (size_t i = 0; i < ls.size(); i++) {
-      if (!isSimple(ls[i], cl[i])) return false;
-      for (size_t j = i + 1; j < ls.size(); j++) {
-        size_t ni = cl[i] ? ls[i].size() : ls[i].size() - 1, nj = cl[j] ? ls[j].size() : ls[j].size() - 1;
-        for (size_t s = 0; s < ni; s++)
-          for (size_t t = 0; t < nj; t++)
-            if (segRelation(ls[i][s], ls[i][(s + 1) % ls[i].size()], ls[j][t], ls[j][(t + 1) % ls[j].size()]) != SegRel::None)
-              return false;
-      }
-    }
-    return true;
-  };
-  std::vector<std::vector<Vec2>> lines{a, b, island};
-  std::vector<bool> cl{false, false, true};
-  CHECK(relOk(lines, cl));
-  auto yAt = [](const std::vector<Vec2>& l, double x) {
-    for (size_t i = 0; i + 1 < l.size(); i++)
-      if (l[i].x <= x && l[i + 1].x >= x) return l[i].y + (l[i + 1].y - l[i].y) * (x - l[i].x) / (l[i + 1].x - l[i].x);
-    return 0.0;
-  };
-  // остров между линиями: каждая его точка выше a и ниже b (по вертикали)
-  auto between = [&](const std::vector<std::vector<Vec2>>& ls) {
-    for (auto& p : ls[2])
-      if (!(yAt(ls[0], p.x) < p.y && yAt(ls[1], p.x) > p.y)) return false;
-    return true;
-  };
-  CHECK(between(lines));
-  // наивное упрощение с большим допуском «перепрыгивает» остров
-  std::vector<std::vector<Vec2>> naive{simplifyDP(a, 8), simplifyDP(b, 8), simplifyDP(island, 8, true)};
-  CHECK(!between(naive));
-  auto s = simplifyTopo(lines, cl, 8);
-  CHECK(relOk(s, cl));
-  CHECK(between(s));
-  CHECK(s[0].size() < a.size() / 4);
-  CHECK(s[1].size() < b.size() / 4);
-  CHECK(s[0].front() == a.front() && s[0].back() == a.back());
-  CHECK(s[2].size() >= 3);
-}
-
-TEST(geo_grid_queries_match_bruteforce) {
-  Rng rng(7);
-  std::vector<Vec2> a, b;
-  for (int i = 0; i < 3000; i++) {
-    Vec2 p{rng.uniform() * 1000, rng.uniform() * 600};
-    double len = rng.uniform() < 0.1 ? 300 : 8;
-    Vec2 q = p + Vec2(rng.uniform() - 0.5, rng.uniform() - 0.5) * len;
-    a.push_back(p);
-    b.push_back(q);
-  }
-  SegGrid g;
-  g.build(a, b);
-  std::vector<u32> stamp;
-  for (int k = 0; k < 200; k++) {
-    Box2 q;
-    q.add({rng.uniform() * 1000, rng.uniform() * 600});
-    q.add(q.center() + Vec2(rng.uniform() * 50, rng.uniform() * 50));
-    std::vector<int> got, want;
-    g.queryUnique(q, stamp, u32(k + 1), [&](int i) {
-      Box2 sb;
-      sb.add(a[size_t(i)]);
-      sb.add(b[size_t(i)]);
-      if (sb.intersects(q)) got.push_back(i);
-    });
-    for (int i = 0; i < 3000; i++) {
-      // отрезок, реально пересекающий прямоугольник, обязан найтись
-      Box2 sb;
-      sb.add(a[size_t(i)]);
-      sb.add(b[size_t(i)]);
-      if (!sb.intersects(q)) continue;
-      Vec2 c[4] = {{q.x0, q.y0}, {q.x1, q.y0}, {q.x1, q.y1}, {q.x0, q.y1}};
-      bool hit = q.contains(a[size_t(i)]) || q.contains(b[size_t(i)]);
-      for (int e = 0; e < 4 && !hit; e++) hit = segRelation(a[size_t(i)], b[size_t(i)], c[e], c[(e + 1) % 4]) != SegRel::None;
-      if (hit) want.push_back(i);
-    }
-    std::sort(got.begin(), got.end());
-    for (int i : want) CHECK(std::binary_search(got.begin(), got.end(), i));
-    // ближайший
-    Vec2 p{rng.uniform() * 1000, rng.uniform() * 600};
-    double d = 0;
-    int ni = g.nearest(p, kInf, &d);
-    double best = kInf;
-    for (int i = 0; i < 3000; i++) best = std::min(best, distToSeg(p, a[size_t(i)], b[size_t(i)]));
-    CHECK(ni >= 0);
-    CHECK_NEAR(d, best, 1e-9);
-  }
-}
-
-TEST(geo_grid_boxes) {
-  Rng rng(11);
-  std::vector<Box2> boxes;
-  for (int i = 0; i < 500; i++) {
-    Vec2 a{rng.uniform() * 1000, rng.uniform() * 1000};
-    boxes.push_back(Box2(a.x, a.y, a.x + rng.uniform() * 80, a.y + rng.uniform() * 80));
-  }
-  boxes.push_back(Box2());  // пустой не регистрируется
-  SegGrid g;
-  g.buildBoxes(boxes);
-  std::vector<u32> stamp;
-  for (int k = 0; k < 300; k++) {
-    Vec2 p{rng.uniform() * 1000, rng.uniform() * 1000};
-    Box2 q(p.x, p.y, p.x, p.y);
-    std::vector<int> got;
-    g.queryUnique(q, stamp, u32(k + 1), [&](int i) { if (boxes[size_t(i)].contains(p)) got.push_back(i); });
-    std::sort(got.begin(), got.end());
-    std::vector<int> want;
-    for (int i = 0; i < int(boxes.size()); i++)
-      if (boxes[size_t(i)].contains(p)) want.push_back(i);
-    CHECK(got == want);
-  }
-}

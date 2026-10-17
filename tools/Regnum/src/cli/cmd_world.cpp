@@ -327,18 +327,6 @@ int runConvert(const std::vector<std::string>& args) {
 }
 
 // ================================================================ new
-// Папка базовой карты по умолчанию: рядом с исполняемым файлом (bin/<ОС>/../../assets/basemap) или от текущей папки.
-std::string defaultBasemap() {
-  const std::string candidates[] = {
-    fs::join(fs::exeDir(), "../../assets/basemap"),
-    "assets/basemap",
-    "tools/Regnum/assets/basemap",
-  };
-  for (const std::string& c : candidates)
-    if (fs::isFile(fs::join(c, "map.json"))) return fs::absolute(c);
-  return {};
-}
-
 int runNew(const std::vector<std::string>& args) {
   static const char* usage = "new <папка|файл.regnum> [--name=Название] [--basemap=<папка>] [--no-geometry] [--force]";
   const auto pos = positional(args);
@@ -359,7 +347,7 @@ int runNew(const std::vector<std::string>& args) {
   if (!hasFlag(args, "--no-geometry")) {
     std::string dir = option(args, "--basemap");
     const bool explicitDir = !dir.empty();
-    if (!explicitDir) dir = defaultBasemap();
+    if (!explicitDir) dir = map::findBasemapDir();
     if (dir.empty()) {
       note = "Базовая карта не найдена — мир создан без геометрии. Соберите её: regnum-cli build-map \"assets/source/Expanded Map.png\" "
              "assets/basemap, затем повторите или укажите --basemap=<папка>.";

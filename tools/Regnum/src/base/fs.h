@@ -48,8 +48,11 @@ bool rename(const std::string& from, const std::string& to, std::string* error =
 bool copyFile(const std::string& from, const std::string& to, std::string* error = nullptr);  // перезаписывает
 
 // ---------------------------------------------------------------- системные папки
+std::string exePath();      // исполняемый файл (пусто — неизвестен)
 std::string exeDir();       // папка исполняемого файла
 std::string homeDir();
+// Переменная окружения в UTF-8 (на Windows — без искажения кириллицы кодовой страницей); пусто — нет.
+std::string env(const std::string& name);
 std::string documentsDir(); // «Документы» пользователя (на Linux — XDG_DOCUMENTS_DIR), иначе домашняя
 std::string userDataDir();  // Windows %APPDATA%/Regnum, Linux $XDG_CONFIG_HOME/regnum или ~/.config/regnum,
                             // macOS ~/Library/Application Support/Regnum; создаётся при необходимости

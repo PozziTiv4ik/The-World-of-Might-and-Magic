@@ -175,7 +175,8 @@ void drawHqs(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canPlay(id);   // штабы — действия гильдии (игрок играет за государство)
+  const bool edit = a.canEdit();    // влияние — показатель, правка мира
   auto calc = rules::calc(w);
   const rules::FactionCalc* fc = calc->faction(id);
   if (!fc) return;
@@ -238,7 +239,7 @@ void drawHqs(App& a, Id id) {
           }
           t.cell();
           double pct = r.share.pct;
-          if (ui::numberField("inf", pct, {.min = 0, .max = 100, .step = 1, .digits = 1, .unit = "%", .disabled = ro,
+          if (ui::numberField("inf", pct, {.min = 0, .max = 100, .step = 1, .digits = 1, .unit = "%", .disabled = !edit,
                                            .tooltip = "Торговое влияние гильдии; сумма по провинции — не больше 100 %"}))
             a.act("Влияние гильдии", [&](Tx& tx) { rules::setInfluence(tx, pid, id, pct); },
                   {.coalesce = "influence:" + std::to_string(pid) + ":" + std::to_string(id)});
@@ -248,7 +249,7 @@ void drawHqs(App& a, Id id) {
           if (ui::iconButton("trash", "Закрыть штаб", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
             std::string pname = provName(*r.p);
             a.confirm("Закрыть штаб в провинции «" + pname + "»?", "Гильдия перестанет получать доход от этой провинции. Отменить можно сочетанием Ctrl+Z.",
-                      "Закрыть штаб", true, [id, pid](App& x) { x.act("Закрыть штаб", [&](Tx& tx) { rules::removeHq(tx, id, pid); }); });
+                      "Закрыть штаб", true, [id, pid](App& x) { x.play("Закрыть штаб", [&](Tx& tx) { rules::removeHq(tx, id, pid); }); });
           }
           a.markUi("hq.remove." + std::to_string(i));
         }
@@ -273,18 +274,15 @@ void drawHqs(App& a, Id id) {
       a.markUi("hq.pick");
       if (ui::button("Открыть штаб", {.icon = "plus", .fill = true, .disabled = pick == 0, .tooltip = "Штаб в выбранной провинции"})) {
         Id pid = pick;
-        if (a.act("Штаб гильдии", [&](Tx& tx) { rules::buildHq(tx, id, pid); })) pick = 0;
+        if (a.play("Штаб гильдии", [&](Tx& tx) { rules::buildHq(tx, id, pid); })) pick = 0;
       }
       a.markUi("hq.add");
     }
   }
 }
 
-bool stateOnly(App& a, Id id) { return isState(a, id); }
-bool guildOnly(App& a, Id id) { return isGuild(a, id); }
-
-TabReg tabProvinces({kTabProvinces, "province", "Провинции", 20, SelType::Faction, stateOnly, drawProvinces});
-TabReg tabHqs({kTabHqs, "hq", "Штабы", 20, SelType::Faction, guildOnly, drawHqs});
+TabReg tabProvinces({kTabProvinces, "province", "Провинции", 20, SelType::Faction, isState, drawProvinces});
+TabReg tabHqs({kTabHqs, "hq", "Штабы", 21, SelType::Faction, isGuild, drawHqs});
 
 }  // namespace
 }  // namespace rg::app

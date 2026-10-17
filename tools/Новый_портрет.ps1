@@ -34,23 +34,6 @@ function Convert-ToSlug {
     return (($Value.Trim() -replace '[\\/:*?"<>|]', '') -replace '\s+', '_')
 }
 
-function Get-ImageSize { param([string]$Path) return Get-WmmaImageSize $Path }
-
-function Test-PortraitRatio {
-    param(
-        [int]$Width,
-        [int]$Height
-    )
-
-    if ($Height -le 0 -or $Width -le 0) {
-        return $false
-    }
-
-    $ratio = $Width / $Height
-    $isThreeByFour = [math]::Abs($ratio - 0.75) -le 0.04
-    return $isThreeByFour
-}
-
 function Set-OrAppendFrontMatterField {
     param(
         [string]$Text,
@@ -97,7 +80,7 @@ $characterPath = Join-Path $characterRoot "$slug.md"
 if (-not (Test-Path -LiteralPath $characterPath)) {
     $matches = Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md' |
         Where-Object {
-            $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName
+            $text = Read-WmmaText $_.FullName
             $text -match "(?m)^#\s+$([regex]::Escape($Character.Trim()))\s*$"
         }
 
@@ -109,7 +92,7 @@ if (-not (Test-Path -LiteralPath $characterPath)) {
     $slug = [System.IO.Path]::GetFileNameWithoutExtension($matches[0].Name)
 }
 
-$characterText = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterPath
+$characterText = Read-WmmaText $characterPath
 $displayName = $Character.Trim()
 if ($characterText -match '(?m)^#\s+(.+?)\s*$') {
     $displayName = $Matches[1].Trim()
@@ -132,8 +115,8 @@ if ($ImagePath) {
         throw "Unsupported image extension: $extension"
     }
 
-    $size = Get-ImageSize -Path $resolvedImage
-    if (-not (Test-PortraitRatio -Width $size.Width -Height $size.Height)) {
+    $size = Get-WmmaImageSize $resolvedImage
+    if (-not (Test-WmmaPortraitRatio -Width $size.Width -Height $size.Height)) {
         throw "Portrait must be 3:4. Actual size: $($size.Width)x$($size.Height)."
     }
 
@@ -199,26 +182,27 @@ $promptContent = @(
     '- Формат: 3:4.'
 ) -join "`r`n"
 
-Set-Content -LiteralPath $promptPath -Encoding UTF8 -Value $promptContent
+# Each write ends the text with exactly one platform line break (read texts already end with one).
+Write-WmmaText $promptPath ($promptContent + [Environment]::NewLine)
 
 if ($relativeImage) {
     $characterText = Set-OrAppendFrontMatterField -Text $characterText -Field 'portrait' -Value $relativeImage
     $characterText = Set-OrAppendFrontMatterField -Text $characterText -Field 'portrait_status' -Value 'available'
     $characterText = Update-PortraitSection -Text $characterText -ImageReference $relativeImage -PromptReference $relativePrompt
-    Set-Content -LiteralPath $characterPath -Encoding UTF8 -Value $characterText
+    Write-WmmaText $characterPath ($characterText.TrimEnd("`r", "`n") + [Environment]::NewLine)
 
     $characterIndexPath = Join-Path $characterRoot '00_Индекс_персонажей.md'
-    $characterIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $characterIndexPath
+    $characterIndex = Read-WmmaText $characterIndexPath
     $characterRelative = Get-WmmaRelativePath -Root $root $characterPath
     $escapedCharacterRelative = [regex]::Escape($characterRelative)
     $characterIndexPattern = '(?m)^(\|\s*[^|]+\|\s*[^|]+\|\s*)([^|]+?)(\s*\|\s*`' + $escapedCharacterRelative + '`\s*\|\s*)$'
     if ($characterIndex -match $characterIndexPattern) {
         $characterIndex = [regex]::Replace($characterIndex, $characterIndexPattern, "`${1}есть`${3}", 1)
-        Set-Content -LiteralPath $characterIndexPath -Encoding UTF8 -Value $characterIndex
+        Write-WmmaText $characterIndexPath ($characterIndex.TrimEnd("`r", "`n") + [Environment]::NewLine)
     }
 
     $portraitIndexPath = Join-Path $portraitRoot 'Индекс_портретов.md'
-    $portraitIndex = Get-Content -Raw -Encoding UTF8 -LiteralPath $portraitIndexPath
+    $portraitIndex = Read-WmmaText $portraitIndexPath
     $escapedName = [regex]::Escape($displayName)
     $portraitLines = $portraitIndex -split "\r?\n" |
         Where-Object { $_ -notmatch "^\|\s*$escapedName\s*\|" }
@@ -232,13 +216,10 @@ if ($relativeImage) {
         [System.Text.RegularExpressions.RegexOptions]::Multiline,
         [TimeSpan]::FromSeconds(1)
     )
-    Set-Content -LiteralPath $portraitIndexPath -Encoding UTF8 -Value $portraitIndex
+    Write-WmmaText $portraitIndexPath ($portraitIndex.TrimEnd("`r", "`n") + [Environment]::NewLine)
 }
 
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
 
 if ($relativeImage) {
     "Created portrait: $relativeImage"

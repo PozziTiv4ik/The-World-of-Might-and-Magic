@@ -1,4 +1,5 @@
-// Тесты rules: источники модификаторов и формулы расчёта провинций и фракций (RULES.md §1–3), кеш расчёта.
+// Тесты rules: источники модификаторов и формулы расчёта провинций и фракций (RULES.md §1–3), генерация ресурсов и
+// эссенций модификаторами, кеш расчёта.
 #include <atomic>
 #include <cstdio>
 #include <thread>
@@ -9,7 +10,7 @@ using namespace rg;
 using namespace rg::rules;
 using namespace rg::rulestest;
 
-TEST(rules_fixture_geometry) {
+TEST(rules_calc_fixture_geometry) {
   Fix f;
   auto is = geo::validate(f.w());
   CHECK(is.empty());
@@ -25,7 +26,7 @@ TEST(rules_fixture_geometry) {
 }
 
 // ---------------------------------------------------------------- источники эффектов
-TEST(rules_mods_province_sources) {
+TEST(rules_calc_mods_province_sources) {
   Fix f;
   Id mP, mS, mT, mT2, mB1, mB2, mG, mGT, mGlobal;
   Id tech = 0, tech2 = 0, bld = 0, gtech = 0;
@@ -95,7 +96,7 @@ TEST(rules_mods_province_sources) {
   CHECK_NEAR(e[Fx::TradePct], 5 + 17, 1e-9);
 }
 
-TEST(rules_mods_faction_sources_and_diplomacy) {
+TEST(rules_calc_mods_faction_sources_and_diplomacy) {
   Fix f;
   Id bld = 0;
   f.tx([&](Tx& tx) {
@@ -131,6 +132,33 @@ TEST(rules_mods_faction_sources_and_diplomacy) {
   CHECK(factionEffects(f.w(), 12345).sources.empty());
 }
 
+TEST(rules_calc_modifier_generation) {
+  Fix f;
+  const Id death = test::idByName(f.w().catalogs->essences, "Эссенция смерти"), fire = test::idByName(f.w().catalogs->essences, "Эссенция пламени");
+  Id hero = 0, local = 0;
+  f.tx([&](Tx& tx) {
+    tx.province(f.p[0]).owner = f.A;
+    hero = createCharacter(tx, f.A, "Мортис");
+    tx.character(hero).hero = true;
+    addModifier(tx, ModTarget::Character, hero, ensureBuiltinMod(tx, schema::mod::Necromancer));
+    local = createModifier(tx, "Огненный источник");
+    tx.modifier(local).kind = ModKind::Province;
+    tx.modifier(local).essGen[fire] = 7;
+    tx.modifier(local).resGen[kGold] = 2;
+    addModifier(tx, ModTarget::Province, f.p[0], local);
+  });
+  const FactionCalc& fc = f.fc(f.A);
+  CHECK_NEAR(fc.essences.at(death).generation, 10, 1e-9);   // некромант: +10 эссенции смерти
+  CHECK_NEAR(fc.essences.at(fire).generation, 7, 1e-9);
+  CHECK_NEAR(fc.resources.at(kGold).production, 2, 1e-9);
+  f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK_NEAR(f.w().faction(f.A)->essence(death), 10, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->essence(fire), 7, 1e-9);
+  // Пленный герой не генерирует.
+  f.tx([&](Tx& tx) { addModifier(tx, ModTarget::Character, hero, ensureBuiltinMod(tx, schema::mod::Dead)); });
+  CHECK(!f.fc(f.A).essences.count(death) || f.fc(f.A).essences.at(death).generation == 0);
+}
+
 // ---------------------------------------------------------------- формулы провинции
 TEST(rules_calc_slots) {
   Fix f;
@@ -139,7 +167,7 @@ TEST(rules_calc_slots) {
     Province& p = tx.province(f.p[0]);
     p.owner = f.A;
     p.size = ProvSize::Large;
-    p.city = CityType::City;
+    setCity(tx, f.p[0], CityType::City);
     p.modifiers = {makeMod(tx, {{Fx::Slots, 2}})};
     tx.faction(f.A).modifiers = {makeMod(tx, {{Fx::Slots, -1}})};
     Id t = createTech(tx, f.A, "Т");
@@ -149,7 +177,7 @@ TEST(rules_calc_slots) {
     tx.tech(t2).modifiers = {makeMod(tx, {{Fx::Slots, 5}})};
     Province& q = tx.province(f.p[1]);
     q.size = ProvSize::Small;
-    q.city = CityType::Outpost;
+    setCity(tx, f.p[1], CityType::Outpost);
     q.modifiers = {makeMod(tx, {{Fx::Slots, -5}})};
     b1 = createBuilding(tx, 0, "А");
     b2 = createBuilding(tx, 0, "Б");
@@ -166,7 +194,7 @@ TEST(rules_calc_slots) {
   CHECK_EQ(b.slotsMods, -5);
   CHECK_EQ(b.slots, 0);  // не меньше нуля
   const ProvinceCalc& c = f.pc(f.p[2]);
-  CHECK_EQ(c.slots, 3);  // средняя + деревня по умолчанию
+  CHECK_EQ(c.slots, 2);  // средняя + аванпост (без населения)
   CHECK_EQ(c.slotsUsed, 2);  // строящиеся тоже занимают слот
 }
 
@@ -618,7 +646,7 @@ TEST(rules_calc_perf_large_world) {
   for (int i = 0; i < 60; i++) states.push_back(createFaction(tx, FactionKind::State));
   for (int i = 0; i < 20; i++) guilds.push_back(createFaction(tx, FactionKind::Guild));
   for (int i = 0; i < 120; i++) mods.push_back(makeMod(tx, {{Fx(i % kFxCount), double(i % 7) - 3}}, {states[size_t(i) % states.size()]}));
-  Id race1 = addCatalogItem(tx, CatalogList::Races, "Люди"), race2 = addCatalogItem(tx, CatalogList::Races, "Гномы");
+  Id race1 = addCatalogItem(tx, CatalogList::Races, "Раса Север"), race2 = addCatalogItem(tx, CatalogList::Races, "Раса Юг");
   std::vector<Id> blds;
   for (int i = 0; i < 40; i++) {
     Id b = createBuilding(tx, 0);

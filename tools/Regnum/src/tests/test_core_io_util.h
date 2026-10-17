@@ -1,5 +1,5 @@
 // Тесты core/io — общие помощники: мир со всеми сущностями и полями, поэлементное сравнение миров,
-// временные папки.
+// временные папки, чтение и запись файлов.
 #pragma once
 #include "base/fs.h"
 #include "codec/png.h"
@@ -7,6 +7,8 @@
 #include "core/io.h"
 #include "core/schema.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
+#include "tests/test_world_util.h"
 
 namespace rg::iotest {
 
@@ -18,14 +20,17 @@ inline std::string tempDir(const std::string& name) {
   return d;
 }
 
+// Текст файла (пусто — файла нет).
+inline std::string read(const std::string& path) { return fs::readFile(path).value_or(std::string()); }
+// Запись файла целиком; неудача роняет тест.
+inline void write(const std::string& path, const std::string& text) { CHECK(fs::writeFileAtomic(path, text)); }
+
+// Файл PNG w × h с узором байтов, зависящим от seed.
 inline std::string pngBytes(int w, int h, u8 seed) {
-  codec::RgbaImage img;
-  img.w = w;
-  img.h = h;
-  img.rgba.resize(size_t(w) * size_t(h) * 4);
-  for (size_t i = 0; i < img.rgba.size(); i++) img.rgba[i] = u8(i * 31 + seed);
-  auto b = codec::encodePng(img, 6);
-  return std::string(reinterpret_cast<const char*>(b.data()), b.size());
+  return test::pngBytes(test::makeRgba(w, h, [&](int x, int y, u8* p) {
+    const size_t i = (size_t(y) * size_t(w) + size_t(x)) * 4;
+    for (size_t c = 0; c < 4; c++) p[c] = u8((i + c) * 31 + seed);
+  }));
 }
 
 // Байты «JPEG»: сигнатура и все 256 значений байта (включая 0) — проверка двоичной точности.
@@ -247,7 +252,6 @@ inline World richWorld() {
   p1.lord = 1;
   p1.capital = "Арденбург";
   p1.size = ProvSize::Large;
-  p1.city = CityType::City;
   p1.resource = 2;
   p1.resourceAmount = 40.5;
   p1.garrison = {{1, 200}, {2, 50}};
@@ -269,7 +273,6 @@ inline World richWorld() {
   p2.name = "Море Бурь";
   p2.sea = true;
   p2.size = ProvSize::Small;
-  p2.city = CityType::Outpost;
   tx.add(p2);
   Province p3;
   p3.id = 3;
@@ -277,7 +280,6 @@ inline World richWorld() {
   p3.owner = 1;
   p3.occupied = true;
   p3.occupier = 3;
-  p3.city = CityType::Town;
   tx.add(p3);
 
   Edge e1;
@@ -410,7 +412,6 @@ inline World richWorld() {
     if (!(cond)) return std::string(what); \
   } while (0)
 
-inline std::string diffIds(const std::vector<Id>& a, const std::vector<Id>& b, const std::string& w) { return a == b ? "" : w; }
 inline bool sameCat(const std::vector<CatalogItem>& a, const std::vector<CatalogItem>& b) {
   if (a.size() != b.size()) return false;
   for (size_t i = 0; i < a.size(); i++)
@@ -454,7 +455,7 @@ inline std::string diffWorld(const World& a, const World& b) {
   if (!d.empty()) return d;
   d = diffTable(a.provinces, b.provinces, "province", [](const Province& x, const Province& y) -> std::string {
     RG_D(x.name == y.name && x.owner == y.owner && x.lord == y.lord && x.sea == y.sea && x.capital == y.capital && x.size == y.size &&
-             x.city == y.city && x.resource == y.resource && x.resourceAmount == y.resourceAmount, "основные поля");
+             x.resource == y.resource && x.resourceAmount == y.resourceAmount, "основные поля");
     RG_D(x.garrison.size() == y.garrison.size(), "garrison");
     for (size_t i = 0; i < x.garrison.size(); i++) RG_D(x.garrison[i].row == y.garrison[i].row && x.garrison[i].count == y.garrison[i].count, "garrison");
     RG_D(x.contentment == y.contentment && x.culture == y.culture && x.religion == y.religion, "contentment/culture/religion");

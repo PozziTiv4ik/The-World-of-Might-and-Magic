@@ -2,27 +2,16 @@
 #include <cstdio>
 #include <thread>
 
-#include "codec/png.h"
 #include "gfx/text.h"
 #include "tests/test.h"
+#include "tests/test_gfx_text_util.h"
+#include "tests/test_png.h"
 
 using namespace rg;
 using namespace rg::gfx;
+using namespace rg::texttest;
 
 namespace {
-
-bool fontsOk() {
-  static const bool ok = initFonts(nullptr);
-  return ok;
-}
-
-TextStyle style(FontFamily f, FontWeight w, float size) {
-  TextStyle s;
-  s.family = f;
-  s.weight = w;
-  s.size = size;
-  return s;
-}
 
 // Смешивание маски цветом (src-over, premultiplied) — независимая от холста проверка растров.
 void blendMask(Image& img, const Mask& m, int x, int y, Color c) {
@@ -43,21 +32,6 @@ void blendMask(Image& img, const Mask& m, int x, int y, Color c) {
       d = ((a + da * (255 - a) / 255) << 24) | ch(16, c.r) | ch(8, c.g) | ch(0, c.b);
     }
   }
-}
-
-bool savePng(const Image& img, const std::string& name) {
-  codec::RgbaImage out;
-  out.w = img.w;
-  out.h = img.h;
-  out.rgba.resize(size_t(img.w) * size_t(img.h) * 4);
-  for (size_t i = 0; i < img.px.size(); i++) {
-    Color c = unpremul(img.px[i]);
-    out.rgba[i * 4] = c.r;
-    out.rgba[i * 4 + 1] = c.g;
-    out.rgba[i * 4 + 2] = c.b;
-    out.rgba[i * 4 + 3] = c.a;
-  }
-  return codec::writePngFile(test::outDir() + "/" + name, out, 6);
 }
 
 double inkSum(const Image& img, u32 bg) {
@@ -124,7 +98,7 @@ TEST(gfx_text_showcase_png) {
     drawTextBox(c, text, para, RectF(16, y, 360, 120), th.text, Align::Left, VAlign::Top, true, 0, false);
     drawTextBox(c, text, para, RectF(400, y, 360, 120), th.dim, Align::Center, VAlign::Top, true, 0, false);
     drawTextBox(c, text, para, RectF(784, y, 360, 120), th.text, Align::Right, VAlign::Top, true, 3, true);
-    CHECK(savePng(img, th.file));
+    CHECK(test::savePng(th.file, img));
     CHECK(inkSum(img, premul(th.bg)) > 1e6);
   }
 }
@@ -182,8 +156,8 @@ TEST(gfx_text_canvas_transforms) {
   for (int y = 0; y < 60; y++) for (int x = 0; x < 200; x++) comp.row(y)[x] = a.at(x, y);
   for (int y = 0; y < 60; y++) for (int x = 0; x < 200; x++) comp.row(y + 60)[x] = b.at(x, y);
   for (int y = 0; y < 200; y++) for (int x = 0; x < 200; x++) comp.row(y)[x + 200] = r.at(x, y);
-  CHECK(savePng(comp, "text_transforms.png"));
-  CHECK(savePng(s2, "text_scale2.png"));
+  CHECK(test::savePng("text_transforms.png", comp));
+  CHECK(test::savePng("text_scale2.png", s2));
 }
 
 TEST(gfx_text_rasterize_layout_threads) {

@@ -4,6 +4,7 @@
 #include <mutex>
 
 #include "core/io.h"
+#include "core/schema.h"
 #include "geo/ops.h"
 #include "rules/rules.h"
 
@@ -376,7 +377,7 @@ World build(const Basemap& bm) {
     p.name = name;
     const double a = areaOf(pid);
     p.size = a > 260000 ? ProvSize::Large : a > 110000 ? ProvSize::Medium : ProvSize::Small;
-    p.city = capital ? CityType::City : CityType(rng.range(0, 2));
+    if (!capital) (void)rng.range(0, 2);   // прежний бросок типа города (теперь он — по населению): мир остаётся прежним
     p.resource = resources[rng.range(0, 8)];
     p.resourceAmount = std::round(pick(rng, 8, 60));
     p.contentment = std::round(pick(rng, -55, 85));
@@ -467,8 +468,13 @@ World build(const Basemap& bm) {
     }
     return id;
   };
-  const Id bMarket = building(0, "Рынок", "coins", BuildingCat::Economic, 3, mRoad);
-  const Id bBarracks = building(0, "Казармы", "army", BuildingCat::Military, 2, 0);
+  // Рынок и казармы — базовые записи мира (по ключу); рынку демо-мир добавляет модификатор дороги.
+  auto baseBuilding = [&](std::string_view key) {
+    return tx.w().buildings.firstId([&](const Building& b) { return b.owner == 0 && b.key == key; });
+  };
+  const Id bMarket = baseBuilding(schema::bld::Market);
+  const Id bBarracks = baseBuilding(schema::bld::Barracks);
+  for (BuildingLevel& lv : tx.building(bMarket).levels) lv.modifiers.push_back(mRoad);
   const Id bForge = building(0, "Кузница", "hammer", BuildingCat::Industrial, 2, mMines);
   const Id bQuarter = building(0, "Жилой квартал", "house", BuildingCat::Residential, 2, mFertile);
   const Id bExchange = building(st[5], "Янтарная биржа", "trade", BuildingCat::Economic, 1, mRoad);

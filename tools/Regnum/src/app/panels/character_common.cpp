@@ -6,34 +6,13 @@
 #include <future>
 
 #include "app/app_internal.h"
-#include "app/widgets.h"
+#include "app/panels/character_common.h"
 #include "base/fs.h"
 #include "base/jobs.h"
 #include "codec/jpeg.h"
 #include "codec/png.h"
 
 namespace rg::app::chars {
-
-// ---- объявления (используются в characters.cpp и character_inspector.cpp; там — точные копии)
-struct Roles {
-  std::vector<Id> rulerOf;                   // фракции, где персонаж — правитель
-  std::vector<Id> lordOf;                    // провинции, где он лорд
-  std::vector<std::pair<Id, Id>> seats;      // место в совете: фракция, ID места
-  std::vector<Id> armies;                    // войска и флоты, где он герой
-  std::vector<Id> commands;                  // из них — главный полководец
-  Id garrison = 0;                           // провинция, в гарнизоне которой он герой
-  size_t total() const { return rulerOf.size() + lordOf.size() + seats.size() + armies.size() + (garrison ? 1 : 0); }
-};
-Roles rolesOf(const World& w, Id character);
-std::string rolesText(const World& w, const Roles& r);
-std::string roleLine(const World& w, const Character& c, const Roles& r);
-const gfx::Image* portraitImage(const Character& c, bool square);
-void avatar(const Character& c, float size, bool ring, std::string_view tip);
-void askDelete(App& a, Id character);
-void loadPortrait(App& a, Id character);
-bool setPortraitFromFile(App& a, Id character, const std::string& path);
-void askClearPortrait(App& a, Id character);
-std::string positionOf(const World& w, Id faction, Id seat);
 
 // ================================================================ роли
 Roles rolesOf(const World& w, Id cid) {
@@ -233,11 +212,7 @@ bool setPortraitFromFile(App& a, Id cid, const std::string& path) {
     gfx::Image g = gfx::Image::fromRgba(img->rgba.data(), img->w, img->h);
     double k = double(kTarget) / std::max(img->w, img->h);
     if (k < 1) g = g.scaled(std::max(1, int(std::lround(img->w * k))), std::max(1, int(std::lround(img->h * k))));
-    codec::RgbaImage out;
-    out.w = g.w;
-    out.h = g.h;
-    out.rgba = g.toRgba();
-    std::vector<u8> png = codec::encodePng(out, 6);
+    std::vector<u8> png = codec::encodePng(g.toRgbaImage(), 6);
     data.assign(png.begin(), png.end());
     shrunk = true;
   }
@@ -269,8 +244,8 @@ void loadPortrait(App& a, Id cid) {
 void askClearPortrait(App& a, Id cid) {
   const Character* c = a.world().character(cid);
   if (!c || c->portrait.empty()) return;
-  a.confirm("Убрать портрет?", "Портрет «" + c->name + "» будет удалён из мира. Действие можно отменить Ctrl+Z.", "Убрать", true,
-            [cid](App& x) { x.act("Убрать портрет", [&](Tx& tx) { tx.character(cid).portrait.clear(); }); });
+  a.confirmAct("Убрать портрет?", "Портрет «" + c->name + "» будет удалён из мира.", "Убрать", "Убрать портрет",
+               [cid](Tx& tx) { tx.character(cid).portrait.clear(); });
 }
 
 void askDelete(App& a, Id cid) {
@@ -280,11 +255,10 @@ void askDelete(App& a, Id cid) {
   Roles r = rolesOf(w, cid);
   std::string name = "«" + (c->name.empty() ? std::string("Без имени") : c->name) + "»";
   std::string text = r.total() ? name + " будет снят со всех ролей: " + rolesText(w, r) + "." : name + " пока без ролей.";
-  text += " Действие можно отменить Ctrl+Z.";
-  a.confirm("Удалить персонажа?", text, "Удалить", true, [cid](App& x) {
-    if (x.act("Удалить персонажа", [&](Tx& tx) { rules::removeCharacter(tx, cid); }) && x.ui.sel == Selection{SelType::Character, cid})
-      x.clearSelection();
-  });
+  a.confirmAct("Удалить персонажа?", text, "Удалить", "Удалить персонажа", [cid](Tx& tx) { rules::removeCharacter(tx, cid); },
+               [cid](App& x) {
+                 if (x.ui.sel == Selection{SelType::Character, cid}) x.clearSelection();
+               });
 }
 
 }  // namespace rg::app::chars

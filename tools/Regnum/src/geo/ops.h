@@ -4,12 +4,13 @@
 #pragma once
 #include <functional>
 
+#include "geo/geom.h"
 #include "geo/topo.h"
 
 namespace rg::geo {
 
 // Береговая линия базовой карты: внешние контуры участков суши (ориентация нормализуется).
-// «Суша» — всё, что не море: озёра и реки внутри суши в граф не входят (это часть изображения).
+// «Суша» — всё, что не море: озёра и реки внутри суши в граф не входят (это фигуры карты MapShape).
 // Кольца не пересекаются и не вложены друг в друга.
 struct Coast {
   double width = 8000, height = 4500;
@@ -47,8 +48,8 @@ Id split(Tx& tx, Id province, const std::vector<Vec2>& line, const NewProvinceFn
 
 // Допуск прилипания ввода (единицы карты): вершины контура/ножа ближе snap к существующим узлам, точкам
 // и границам переносятся на них, а существующие вершины ближе snap к линии ввода становятся её вершинами.
-// Инструменты карты передают его в пикселях экрана, делённых на масштаб. Варианты без EditOptions — snap = 1.
-struct EditOptions { double snap = 1.0; };
+// Инструменты карты передают его в пикселях экрана, делённых на масштаб. Варианты без EditOptions — kDefaultSnap.
+struct EditOptions { double snap = kDefaultSnap; };
 Id createProvince(Tx& tx, const std::vector<Vec2>& poly, Terrain terrain, const EditOptions& opt);
 void addArea(Tx& tx, Id province, const std::vector<Vec2>& poly, const EditOptions& opt);
 void removeArea(Tx& tx, Id province, const std::vector<Vec2>& poly, const EditOptions& opt);

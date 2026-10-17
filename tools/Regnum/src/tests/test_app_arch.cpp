@@ -3,8 +3,8 @@
 // государства «Археология» (формирование групп, «Найти археологическое место», «Назначить археологическую группу»,
 // «Проводить раскопки», окна итога, окно спасения группы, войско без государства «Показать на карте»), справочники
 // «Археологические места» и «Сундуки сокровищ», «Без государства» вне списков государств и итогов хода. Снимки экранов.
-#include "app/dialogs/turn_ui.h"
 #include "app/panels/arch_common.h"
+#include "app/turn/turn_ui.h"
 #include "core/arch.h"
 #include "core/content.h"
 #include "tests/test_app_faction_util.h"
@@ -15,11 +15,6 @@ using namespace rg::factest;
 namespace archui = rg::app::archui;
 
 namespace {
-
-Id siteKey(const World& w, const char* key) {
-  const ArchSite* s = w.catalogs->archSiteByKey(key);
-  return s ? s->id : 0;
-}
 
 // Первая (по ID) сухопутная провинция государства.
 Id provinceOf(const World& w, Id state, Id skip = 0) {
@@ -36,7 +31,7 @@ void setupSlots(Tx& tx, Id pid) {
   for (int i = 0; i < kArchSlots; i++) {
     ArchSlot& s = tx.province(pid).arch[size_t(i)];
     s = ArchSlot{};
-    s.site = siteKey(tx.w(), sites[i]);
+    s.site = test::siteKey(tx.w(), sites[i]);
     s.chest = tx.w().catalogs->archSite(s.site)->rewards[size_t(i)].front();
   }
   tx.province(pid).arch[0].open = true;
@@ -55,7 +50,7 @@ void setupGuild(Tx& tx, Id state, Id pid) {
   });
   if (!guild) guild = tx.add(content::archGuildFor(state, {})).id;
   tx.province(pid).size = ProvSize::Large;
-  tx.province(pid).city = CityType::City;
+  test::setCityPop(tx, pid, CityType::City);
   rules::placeBuilding(tx, pid, guild, 1);
 }
 
@@ -92,7 +87,6 @@ bool comboPick(Harness& h, const std::string& name, const std::string& text) {
 
 // ---------------------------------------------------------------- вкладка провинции
 TEST(app_arch_province_tab) {
-  HideTestRegs regs;
   Harness h("arch_province");
   h.demo();
   h.waitMap();
@@ -140,7 +134,7 @@ TEST(app_arch_province_tab) {
   CHECK(h->world().province(pid)->arch[1].open && h->world().province(pid)->arch[1].stage == arch::stagesOf(1));
   CHECK(pickInCombo(h, "arch.slotSite.3", "Подземный лабиринт"));
   h.settle();
-  CHECK_EQ(h->world().province(pid)->arch[3].site, siteKey(h->world(), arch::site::Labyrinth));
+  CHECK_EQ(h->world().province(pid)->arch[3].site, test::siteKey(h->world(), arch::site::Labyrinth));
   {
     const ArchSlot s3 = h->world().province(pid)->arch[3];
     const auto& rw = h->world().catalogs->archSite(s3.site)->rewards[3];
@@ -157,12 +151,14 @@ TEST(app_arch_province_tab) {
   CHECK_EQ(h->world().log.size(), logs);
   CHECK(h->uiRect("arch.unearth") != nullptr);
   CHECK(h.shot("arch_province_hidden"));
+  // Откопать — одна кнопка: реликвия в инвентаре государства (ТЗ «Доработки №4», п.4).
   CHECK(h.clickUi("arch.unearth"));
   h.settle();
-  CHECK(h.clickUi("arch.unearth.hero." + std::to_string(hero)));
-  h.settle();
-  CHECK_EQ(rules::relicHolder(h->world(), relic), hero);
+  CHECK_EQ(h->world().province(pid)->hiddenRelic, Id(0));
+  CHECK_EQ(rules::relicCountAt(h->world(), relic, rules::RelicPlace{rules::RelicPlace::State, st, 0, st}), i64(1));
+  CHECK_EQ(rules::relicHolder(h->world(), relic), Id(0));
   CHECK_EQ(h->world().log.size(), logs);
+  CHECK(h->uiRect("arch.unearth") == nullptr);
 
   // Страница: слоты в ряд.
   CHECK(h.clickUi("arch.edit"));
@@ -182,7 +178,6 @@ TEST(app_arch_province_tab) {
 
 // ---------------------------------------------------------------- вкладка государства
 TEST(app_arch_faction_tab_and_reports) {
-  HideTestRegs regs;
   Harness h("arch_faction", 1600, 1000);
   h.demo();
   h.waitMap();
@@ -326,7 +321,6 @@ TEST(app_arch_faction_tab_and_reports) {
 }
 
 TEST(app_arch_faction_tab_narrow) {
-  HideTestRegs regs;
   Harness h("arch_faction_narrow", 960, 860);
   h.demo();
   h.waitMap();
@@ -359,7 +353,6 @@ TEST(app_arch_faction_tab_narrow) {
 
 // ---------------------------------------------------------------- справочники
 TEST(app_arch_catalogs) {
-  HideTestRegs regs;
   Harness h("arch_catalogs", 1600, 1000);
   h.demo();
   h.dropToasts();
@@ -367,7 +360,7 @@ TEST(app_arch_catalogs) {
   h.settle();
   CHECK(h->uiRect("catalogs.view.archsites") != nullptr);
   CHECK(h->uiRect("catalogs.add") == nullptr);   // места не добавляются
-  const Id tomb = siteKey(h->world(), arch::site::Tomb);
+  const Id tomb = test::siteKey(h->world(), arch::site::Tomb);
   CHECK(h.clickUi("catalogs.site." + std::to_string(tomb)));
   h.settle();
   CHECK(h->uiRect("catalogs.site.rewards.3") != nullptr);
@@ -403,7 +396,6 @@ TEST(app_arch_catalogs) {
 
 // ---------------------------------------------------------------- «Без государства»
 TEST(app_arch_wild_faction_hidden) {
-  HideTestRegs regs;
   Harness h("arch_wild");
   h.demo();
   h.waitMap();

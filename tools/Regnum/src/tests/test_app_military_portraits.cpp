@@ -10,18 +10,12 @@ namespace {
 
 // Портрет: пурпурный прямоугольник 60 × 80 (PNG) — легко узнать по пикселям.
 std::string magentaPortrait() {
-  codec::RgbaImage img;
-  img.w = 60;
-  img.h = 80;
-  img.rgba.resize(size_t(img.w) * size_t(img.h) * 4);
-  for (size_t i = 0; i < img.rgba.size(); i += 4) {
-    img.rgba[i] = 255;
-    img.rgba[i + 1] = 0;
-    img.rgba[i + 2] = 255;
-    img.rgba[i + 3] = 255;
-  }
-  const std::vector<u8> png = codec::encodePng(img, 6);
-  return std::string(png.begin(), png.end());
+  return test::pngBytes(test::makeRgba(60, 80, [](int, int, u8* p) {
+    p[0] = 255;
+    p[1] = 0;
+    p[2] = 255;
+    p[3] = 255;
+  }));
 }
 
 bool magentaAt(Harness& h, float x, float y) {
@@ -42,7 +36,6 @@ void waitPortraits(Harness& h) {
 
 TEST(app_military_portraits) {
   Harness h("military_portraits", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
   const Id hero = freeHero(h, hel);

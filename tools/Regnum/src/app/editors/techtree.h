@@ -61,7 +61,6 @@ double curveDistance(const Curve& k, Vec2 p);   // расстояние в ми�
 struct Ink {
   Color bg, grid, surface, surfaceHi, border, borderStrong, text, textDim, textMuted;
   Color accent, success, warning, danger, info, onAccent, shadow;
-  bool dark = true;
 };
 Ink ink();
 // Перейти от пикселей устройства холста к мировым единицам схемы.
@@ -119,17 +118,7 @@ RectF emptyActionRect(std::string_view action, const char* actionIcon);
 // Римская цифра уровня (1 → I).
 std::string roman(int n);
 
-// ---------------------------------------------------------------- фишки с переносом
-// Ряд ui::HStack не переносит, а фишек (условия, эффекты, модификаторы) бывает много. Внутри ChipFlow фишки
-// tree::chip встают в ряды по ширине текущей области; при закрытии место занимается в потоке.
-//   { tree::ChipFlow f; for (...) if (tree::chip(name, {...}) == ui::ChipAction::Click) ...; }
-struct ChipFlow {
-  ChipFlow();
-  ~ChipFlow();
-  ChipFlow(const ChipFlow&) = delete;
-  ChipFlow& operator=(const ChipFlow&) = delete;
-};
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o = {});
+// ---------------------------------------------------------------- фишки с переносом (ui::ChipFlow, ширина не меньше 40)
 // Фишки эффектов набора модификаторов (польза — зелёным, вред — красным) с переносом. false — эффектов нет.
 bool effectChips(const World& w, const std::vector<Id>& modifiers);
 // Список модификаторов фишками с переносом (щелчок — окно модификаторов, крестик — убрать) и выбор для

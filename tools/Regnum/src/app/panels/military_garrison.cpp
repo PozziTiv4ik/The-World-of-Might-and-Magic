@@ -1,7 +1,8 @@
 // Regnum — вкладка провинции «Гарнизон» (ТЗ 1.a.vi; «Доработки», п.1): отряды из таблицы войск владельца —
 // несколько строк, каждая не больше резерва (rules::setGarrison); герои владельца в гарнизоне; верность гарнизона
 // −100…100 % с изменением за ход (как у войска: модификаторы государства, «Непреклонный лоялист», у государства
-// нежити — всегда 100 %) и мятеж при отрицательной верности (flow::startGarrisonMutiny).
+// нежити — всегда 100 %) и мятеж при отрицательной верности (flow::startGarrisonMutiny). Роли (ТЗ «Доработки №4», п.5):
+// отряды и герои гарнизона, мятеж — игровые действия владельца (App::play); верность и новый герой — правка мира.
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -19,7 +20,7 @@ struct AddState {
 void setGarrison(App& a, Id pid, Id row, i64 n, bool coalesce) {
   TxOptions o;
   if (coalesce) o.coalesce = "garrison:" + std::to_string(pid) + ":" + std::to_string(row);
-  a.act("Гарнизон провинции", [&](Tx& tx) { rules::setGarrison(tx, pid, row, n); }, o);
+  a.play("Гарнизон провинции", [&](Tx& tx) { rules::setGarrison(tx, pid, row, n); }, o);
 }
 
 i64 garrisonTotal(const Province& p) {
@@ -71,7 +72,7 @@ void addPopup(App& a, const Province& p, const std::vector<UnitRow>& avail) {
   if (ui::button("Назначить", {.variant = ui::Variant::Primary, .icon = "check", .fill = true, .disabled = rowId == 0 || st.count <= 0})) {
     Id pid = p.id;
     i64 n = st.count;
-    if (a.act("Гарнизон провинции", [&](Tx& tx) { rules::setGarrison(tx, pid, rowId, n); })) ui::closePopup();
+    if (w::checkPlay(a, p.owner) && a.play("Гарнизон провинции", [&](Tx& tx) { rules::setGarrison(tx, pid, rowId, n); })) ui::closePopup();
   }
   a.markUi("garrison.add.ok");
   ui::endPopup();
@@ -116,7 +117,7 @@ void loyaltySources(const World& w, const Province& p, double delta) {
 // Верность гарнизона −100…100 % (как у войска в инспекторе), изменение за ход, полоса; при отрицательной — «Мятеж».
 void loyaltyCard(App& a, const Province& p) {
   const World& w = frameWorld(a);
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // верность — показатель, правка мира
   const Id pid = p.id;
   const bool undead = undeadOwner(w, p);
   const double delta = rules::garrisonLoyaltyDelta(w, pid);
@@ -146,21 +147,22 @@ void loyaltyCard(App& a, const Province& p) {
   if (p.garrisonLoyalty < 0) {
     std::string why;
     const bool can = rules::canGarrisonMutiny(w, pid, &why);
-    {
-      ui::Disabled dis(ro || !can);
+    const bool play = a.canPlay(p.owner);   // мятеж — игровое действие владельца
+    if (play || a.admin()) {
+      ui::Disabled dis(!play || !can);
       if (ui::button("Мятеж", {.variant = ui::Variant::Danger, .icon = "rebellion", .fill = true,
                                .tooltip = "Неверная часть гарнизона и войск владельца в провинции отделится и восстанет"}))
         flow::startGarrisonMutiny(a, pid);
       a.markUi("garrison.mutiny");
     }
-    if (!can && !ro) ui::label(why, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info", .wrap = true});
+    if (!can && play) ui::label(why, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info", .wrap = true});
   }
 }
 
 // ---------------------------------------------------------------- отряды
 void unitsSection(App& a, const Province& p, const std::vector<UnitRow>& rows) {
   const World& w = frameWorld(a);
-  const bool ro = a.readOnly();
+  const bool ro = !a.canPlay(p.owner);   // гарнизон — игровое действие владельца
   const Id pid = p.id;
   auto c = rules::calc(w);
   std::vector<UnitRow> avail;   // строки владельца, которых ещё нет в гарнизоне
@@ -189,8 +191,9 @@ void unitsSection(App& a, const Province& p, const std::vector<UnitRow>& rows) {
     if (s) {
       if (lines.empty()) {
         ui::Disabled dis(ro);
-        if (ui::emptyState("castle", "Гарнизона нет.", "Назначить из резерва", "plus")) ui::openPopup("garrison-add");
-        a.markUi("garrison.add");
+        const bool action = !ro || a.admin();   // чужой гарнизон у игрока — без кнопки
+        if (ui::emptyState("castle", "Гарнизона нет.", action ? "Назначить из резерва" : "", "plus")) ui::openPopup("garrison-add");
+        if (action) a.markUi("garrison.add");
       } else {
         {   // таблица заканчивается (и занимает место в потоке) до кнопки под ней
           ui::Column cols[] = {{"Отряд", nullptr, ui::fr(1, 110)},
@@ -210,6 +213,7 @@ void unitsSection(App& a, const Province& p, const std::vector<UnitRow>& rows) {
             a.markUi("garrison.row." + std::to_string(l.row.id));
             t.text(fmtCount(l.reserve), l.reserve > 0 ? ui::Ink::Success : ui::Ink::Muted);
             t.cell();
+            if (ro && !a.admin()) continue;
             if (ui::iconButton("close", "Вернуть в резерв")) setGarrison(a, pid, l.row.id, 0, false);
             a.markUi("garrison.row." + std::to_string(l.row.id) + ".remove");
           }
@@ -218,7 +222,7 @@ void unitsSection(App& a, const Province& p, const std::vector<UnitRow>& rows) {
             t.text(fmtCount(garrisonTotal(p)));
           }
         }
-        if (!avail.empty()) {
+        if (!avail.empty() && (!ro || a.admin())) {
           ui::Disabled dis(ro);
           if (ui::button("Назначить из резерва", {.variant = ui::Variant::Ghost, .icon = "plus", .size = ui::Size::Small,
                                                   .tooltip = "Ещё строка таблицы войск владельца — любого типа"}))
@@ -236,7 +240,7 @@ void unitsSection(App& a, const Province& p, const std::vector<UnitRow>& rows) {
 // «Мертв» и не «Взят в плен»); занятые в войске или другом гарнизоне видны, но не выбираются; «Новый герой».
 void heroesSection(App& a, const Province& p) {
   const World& w = frameWorld(a);
-  const bool ro = a.readOnly();
+  const bool ro = !a.canPlay(p.owner);   // герои гарнизона — игровое действие владельца
   const Id pid = p.id;
   ui::Section s("Герои", "hero", {.badge = std::to_string(p.garrisonHeroes.size()), .card = false});
   a.markUi("garrison.heroes");
@@ -261,10 +265,11 @@ void heroesSection(App& a, const Province& p) {
       if (discontent) sub += " · недоволен правителем";
       ui::label(sub, {.font = ui::Font::Caption, .ink = discontent ? ui::Ink::Warning : loyalist ? ui::Ink::Success : ui::Ink::Muted});
     }
+    if (ro && !a.admin()) continue;   // чужой гарнизон у игрока — без кнопки
     ui::Disabled dis(ro);
     if (ui::iconButton("close", "Убрать героя из гарнизона")) {
       const Id hero = h;
-      a.act("Убрать героя из гарнизона", [&](Tx& tx) { rules::setGarrisonHero(tx, pid, hero, false); });
+      a.play("Убрать героя из гарнизона", [&](Tx& tx) { rules::setGarrisonHero(tx, pid, hero, false); });
     }
     a.markUi("garrison.hero." + std::to_string(h) + ".remove");
   }
@@ -292,13 +297,15 @@ void heroesSection(App& a, const Province& p) {
   std::vector<ui::Option> opts;
   for (size_t i = 0; i < list.size(); i++)
     opts.push_back(ui::Option{list[i]->name, list[i]->hero ? "hero" : "character", fc, hints[i], bool(busy[i])});
-  opts.push_back(ui::Option{"Новый герой", "user-plus", Color(0, 0, 0, 0), {}, false});
+  const bool create = a.canEdit();   // новый персонаж — правка мира
+  if (create) opts.push_back(ui::Option{"Новый герой", "user-plus", Color(0, 0, 0, 0), {}, false});
+  if (opts.empty()) return;
   int idx = -1;
   if (ui::combo("addhero", idx, opts, {.placeholder = "Добавить героя", .search = 1, .icon = "user-plus"})) {
     if (idx >= 0 && idx < int(ids.size()) && !busy[size_t(idx)]) {
       const Id hero = ids[size_t(idx)];
-      a.act("Герой в гарнизоне", [&](Tx& tx) { rules::setGarrisonHero(tx, pid, hero, true); });
-    } else if (idx == int(ids.size())) {
+      a.play("Герой в гарнизоне", [&](Tx& tx) { rules::setGarrisonHero(tx, pid, hero, true); });
+    } else if (create && idx == int(ids.size())) {
       const Id owner = p.owner;
       a.act("Новый герой в гарнизоне", [&](Tx& tx) {
         const Id nh = rules::createCharacter(tx, owner, "Новый герой");
@@ -339,7 +346,7 @@ void drawGarrison(App& a, Id pid) {
   ui::spacer(2);
   if (rows.empty()) {
     if (ui::emptyState("army", "В таблице войск владельца нет отрядов.", "Открыть войска", "army")) {
-      a.ui.tabOf[SelType::Faction] = "faction.army";
+      a.ui.tabOf[SelType::Faction] = mil::kTabArmy;
       a.select(SelType::Faction, p->owner);
     }
   } else {
@@ -372,7 +379,8 @@ void runGarrisonMutiny(App& a, Id province) {
   if (!p) return;
   const Id origin = p->owner;
   rules::MutinyResult res;
-  if (!a.act("Мятеж гарнизона: " + before.provinceName(province), [&](Tx& tx) { res = rules::garrisonMutiny(tx, province); })) return;
+  if (!w::checkPlay(a, origin) || !a.play("Мятеж гарнизона: " + before.provinceName(province), [&](Tx& tx) { res = rules::garrisonMutiny(tx, province); }))
+    return;
   const World& w = a.world();
   a.toast("Мятеж: " + w.factionName(res.rebelState) + (res.full ? " — гарнизон восстал целиком" : ""), ToastKind::Warning, "rebellion");
   const Id rebelState = res.rebelState, rebel = res.rebelArmy;
@@ -409,11 +417,8 @@ void flow::startGarrisonMutiny(App& a, Id province) {
     a.toast(why, ToastKind::Warning, "warning");
     return;
   }
-  if (a.readOnly()) {
-    a.act("Мятеж гарнизона", [](Tx&) {});   // сообщение о просмотре прошлого хода
-    return;
-  }
   const Province& p = *w.province(province);
+  if (!w::checkPlay(a, p.owner)) return;   // мятеж — игровое действие владельца (причина — уведомлением)
   const Faction* f = w.faction(p.owner);
   const std::string state = f && !f->name.empty() ? f->name : std::string("Без названия");
   const double pct = std::min(100.0, -p.garrisonLoyalty);

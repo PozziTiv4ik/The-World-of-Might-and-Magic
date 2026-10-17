@@ -11,31 +11,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$errors = New-Object 'System.Collections.Generic.List[string]'
-$warnings = New-Object 'System.Collections.Generic.List[string]'
-
-function Add-Problem {
-    param(
-        [string]$Kind,
-        [string]$Message
-    )
-
-    if ($Kind -eq 'Error') {
-        $errors.Add($Message) | Out-Null
-    } else {
-        $warnings.Add($Message) | Out-Null
-    }
-}
-
-function Get-RelativePath {
-    param([string]$Path)
-
-    if ($Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
-        return $Path.Substring($root.Length).TrimStart('\', '/')
-    }
-
-    return $Path
-}
+$problems = New-WmmaProblemSet
 
 function Test-HasProperty {
     param(
@@ -67,27 +43,6 @@ function Test-IsBlank {
     param([object]$Value)
 
     return ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value))
-}
-
-function Test-ProjectPath {
-    param([string]$Reference)
-
-    if ([string]::IsNullOrWhiteSpace($Reference)) {
-        return $false
-    }
-
-    $cleanReference = $Reference.Trim().Trim('`')
-    if ($cleanReference -match '^[a-z][a-z0-9+.-]*://') {
-        return $true
-    }
-
-    $normalized = $cleanReference -replace '/', '\'
-
-    if ([System.IO.Path]::IsPathRooted($normalized)) {
-        return Test-Path -LiteralPath $normalized
-    }
-
-    return Test-Path -LiteralPath (Join-Path $root $normalized)
 }
 
 function Assert-RequiredTextField {
@@ -132,7 +87,8 @@ function Assert-LocalReference {
         [string]$Context
     )
 
-    if (-not (Test-ProjectPath -Reference $Reference)) {
+    # Registry links are project-root paths, optionally backticked.
+    if ([string]::IsNullOrWhiteSpace($Reference) -or -not (Test-WmmaReference $root $Reference.Trim().Trim('`'))) {
         Add-Problem Error "$Context points to missing file: $Reference"
     }
 }
@@ -291,30 +247,6 @@ function Get-ObjectIds {
     )
 }
 
-function Compare-IdSets {
-    param(
-        [string]$LeftName,
-        [string[]]$LeftIds,
-        [string]$RightName,
-        [string[]]$RightIds
-    )
-
-    $leftUnique = @($LeftIds | Sort-Object -Unique)
-    $rightUnique = @($RightIds | Sort-Object -Unique)
-
-    foreach ($id in $leftUnique) {
-        if ($rightUnique -notcontains $id) {
-            Add-Problem Error "$LeftName contains $id but $RightName does not."
-        }
-    }
-
-    foreach ($id in $rightUnique) {
-        if ($leftUnique -notcontains $id) {
-            Add-Problem Error "$RightName contains $id but $LeftName does not."
-        }
-    }
-}
-
 function Read-RegistryJson {
     param(
         [string]$RelativePath,
@@ -329,7 +261,7 @@ function Read-RegistryJson {
     }
 
     try {
-        $registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $path) | ConvertFrom-Json
+        $registry = Read-WmmaJson $path
     } catch {
         Add-Problem Error "Registry is not valid JSON: $RelativePath - $($_.Exception.Message)"
         return $null
@@ -430,8 +362,8 @@ if ($null -ne $decisionRegistry) {
     }
 
     Assert-UniqueValues -Values $decisionIds -Context 'Decision registry IDs'
-    $pendingDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { $_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*' })
-    $acceptedDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { $_.state -eq 'accepted' -and $_.id -match '^DEC-\d{3}$' })
+    $pendingDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { Test-WmmaPendingDecision $_ })
+    $acceptedDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { Test-WmmaAcceptedDecision $_ })
 }
 
 $questionRegistry = Read-RegistryJson -RelativePath '09_Реестры\Вопросы.json' -ExpectedType 'question_registry' -ExtraTopFields @('current_chapter')
@@ -686,39 +618,28 @@ $summary = [pscustomobject]@{
     DecisionEntries = $decisionCount
     QuestionEntries = $questionCount
     FrontDeclarations = $frontCount
-    Errors = $errors.Count
-    Warnings = $warnings.Count
-}
-
-$result = [pscustomobject]@{
-    Summary = $summary
-    Errors = @($errors.ToArray())
-    Warnings = @($warnings.ToArray())
+    Errors = $problems.Errors.Count
+    Warnings = $problems.Warnings.Count
 }
 
 if (-not $Quiet) {
-    $summary | Format-List
-
-    if ($warnings.Count -gt 0) {
-        "`nWarnings:"
-        $warnings | Sort-Object | ForEach-Object { "- $_" }
-    }
-
-    if ($errors.Count -gt 0) {
-        "`nErrors:"
-        $errors | Sort-Object | ForEach-Object { "- $_" }
-    }
+    Write-WmmaProblemReport $summary
 }
 
+# -PassThru returns the problems to a caller (Проверить_проект) instead of failing the script.
 if ($PassThru) {
-    $result
+    [pscustomobject]@{
+        Summary = $summary
+        Errors = @($problems.Errors.ToArray())
+        Warnings = @($problems.Warnings.ToArray())
+    }
 }
 
-if ($errors.Count -gt 0 -and -not $PassThru) {
+if ($problems.Errors.Count -gt 0 -and -not $PassThru) {
     exit 1
 }
 
-if ($errors.Count -eq 0 -and -not $Quiet) {
+if ($problems.Errors.Count -eq 0 -and -not $Quiet) {
     "`nRegistry check completed successfully."
 }
 }

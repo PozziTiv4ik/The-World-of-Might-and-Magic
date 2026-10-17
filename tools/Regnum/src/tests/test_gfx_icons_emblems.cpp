@@ -1,7 +1,9 @@
 // Regnum — эмблемы: полнота каталога, подписи, группы, заполнение и центровка, неизвестные имена, наглядные листы.
+#include <cstdlib>
 #include <unordered_map>
 #include <unordered_set>
 
+#include "base/fs.h"
 #include "gfx/emblems.h"
 #include "tests/test_gfx_icons_util.h"
 
@@ -74,7 +76,7 @@ TEST(gfx_icons_emblems_catalog) {
     if (!hasEmblem(n)) missing.push_back(n);
   CHECK_MSG(missing.empty(), "нет эмблем: " + join(missing, ", "));
   const auto& names = emblemNames();
-  CHECK_EQ(names.size(), required.size());
+  CHECK(names.size() >= required.size());
   std::unordered_set<std::string> uniq(names.begin(), names.end());
   CHECK_EQ(uniq.size(), names.size());
   const auto issues = emblemRegistryIssues();
@@ -90,22 +92,42 @@ TEST(gfx_icons_emblems_catalog) {
   CHECK_MSG(badNames.empty(), "имена не в kebab-case: " + join(badNames, ", "));
 }
 
+namespace {
+
+// Расы справочника (раздел «Расы» каталога эмблем): группа на расу в алфавитном порядке.
+const char* const kRaces[] = {
+    "Ангелы", "Арахниды", "Арборианы", "Безликие", "Вампиры", "Великаны", "Высшие Эльфы", "Гарпии", "Гноллы", "Гномы",
+    "Гоблины", "Демоны", "Дриады", "Ибисианцы", "Канидисы", "Кархароны", "Кентавры", "Кецали", "Кицунэ", "Кобольды",
+    "Кристаллиты", "Кровавые Эльфы", "Крысолаки", "Ктониды", "Лаваниды", "Лесные Эльфы", "Луниды", "Лунные Эльфы", "Люди",
+    "Людоящеры", "Минотавры", "Морозные Эльфы", "Морские Эльфы", "Наги", "Огры", "Они", "Орки", "Падшие Эльфы",
+    "Пустынные Эльфы", "Ракшасы", "Сатиры", "Светлые Эльфы", "Сумеречные Эльфы", "Сянмаорены", "Темные Эльфы", "Тролли",
+    "Троглодиты", "Циклопы", "Ши-цзы", "Эльфы Бездны", "Энты",
+};
+
+const EmblemGroup* groupTitled(std::string_view title, EmblemSection section) {
+  for (const EmblemGroup& g : emblemGroups())
+    if (g.title == title && g.section == section) return &g;
+  return nullptr;
+}
+
+}  // namespace
+
 TEST(gfx_icons_emblems_groups) {
   const auto& groups = emblemGroups();
-  CHECK_EQ(groups.size(), std::size(kGroups) + 1);
-  if (groups.size() != std::size(kGroups) + 1) return;
-  // Первая группа — классические эмблемы в прежнем порядке.
+  CHECK(groups.size() >= std::size(kGroups) + 1);
+  if (groups.size() < std::size(kGroups) + 1) return;
+  // Первая группа — классические эмблемы: прежние в прежнем порядке, затем новые.
   CHECK_EQ(std::string(groups[0].title), std::string("Классические"));
-  CHECK_EQ(groups[0].names.size(), std::size(kClassicEmblems));
+  CHECK(groups[0].names.size() >= std::size(kClassicEmblems));
   for (size_t i = 0; i < std::min(groups[0].names.size(), std::size(kClassicEmblems)); i++)
     CHECK_EQ(groups[0].names[i], std::string(kClassicEmblems[i]));
-  // Фантазийные группы: название, состав, не меньше трёх эмблем, общий префикс категории, подписи.
+  // Фантазийные группы — за классическими в прежнем порядке: название, состав, общий префикс категории, подписи.
   std::vector<std::string> bad;
   for (size_t gi = 0; gi < std::size(kGroups); gi++) {
     const EmblemGroup& g = groups[gi + 1];
     const GroupSpec& spec = kGroups[gi];
     if (g.title != spec.title) bad.push_back("группа " + std::to_string(gi + 1) + ": «" + std::string(g.title) + "» вместо «" + spec.title + "»");
-    if (g.names.size() < 3) bad.push_back(std::string(spec.title) + ": меньше трёх эмблем");
+    if (g.section != EmblemSection::Themes) bad.push_back(std::string(spec.title) + ": не в разделе тем");
     std::unordered_set<std::string> have(g.names.begin(), g.names.end());
     for (const char* n : spec.names)
       if (!have.count(n)) bad.push_back(std::string(spec.title) + ": нет " + n);
@@ -122,6 +144,47 @@ TEST(gfx_icons_emblems_groups) {
   for (const std::string& n : emblemNames())
     if (seen[n] != 1) bad.push_back(n + ": в группах " + std::to_string(seen[n]) + " раз");
   CHECK_EQ(seen.size(), emblemNames().size());
+  CHECK_MSG(bad.empty(), join(bad, "\n"));
+}
+
+// Каждая тематическая группа дополнена: классические — не меньше пяти новых эмблем, фантазийные — не меньше четырёх.
+TEST(gfx_icons_emblems_variants) {
+  std::vector<std::string> bad;
+  const EmblemGroup* classic = groupTitled("Классические", EmblemSection::Themes);
+  if (!classic || classic->names.size() < std::size(kClassicEmblems) + 5) bad.push_back("Классические: меньше пяти новых эмблем");
+  for (const GroupSpec& spec : kGroups) {
+    const EmblemGroup* g = groupTitled(spec.title, EmblemSection::Themes);
+    if (!g || g->names.size() < spec.names.size() + 4) bad.push_back(std::string(spec.title) + ": меньше четырёх новых эмблем");
+  }
+  CHECK_MSG(bad.empty(), join(bad, "\n"));
+}
+
+// Раздел «Расы»: группа на каждую расу справочника по алфавиту, не меньше трёх эмблем, имена race-<раса>-…, подписи.
+TEST(gfx_icons_emblems_races) {
+  std::vector<const EmblemGroup*> races;
+  for (const EmblemGroup& g : emblemGroups())
+    if (g.section == EmblemSection::Races) races.push_back(&g);
+  std::vector<std::string> bad;
+  if (races.size() != std::size(kRaces)) bad.push_back("групп рас " + std::to_string(races.size()) + " вместо " + std::to_string(std::size(kRaces)));
+  for (size_t i = 0; i < std::min(races.size(), std::size(kRaces)); i++) {
+    const EmblemGroup& g = *races[i];
+    if (g.title != kRaces[i]) bad.push_back("раса " + std::to_string(i + 1) + ": «" + std::string(g.title) + "» вместо «" + kRaces[i] + "»");
+    if (g.names.size() < 3) bad.push_back(std::string(g.title) + ": меньше трёх эмблем");
+    std::string prefix;
+    for (const std::string& n : g.names) {
+      if (n.rfind("race-", 0) != 0) bad.push_back(std::string(g.title) + ": " + n + " без префикса race-");
+      const std::string p = n.substr(0, n.rfind('-') + 1);
+      if (prefix.empty()) prefix = p;
+      else if (p != prefix) bad.push_back(std::string(g.title) + ": " + n + " — другой префикс, чем " + prefix);
+      if (emblemTitle(n).empty()) bad.push_back(n + ": нет подписи");
+    }
+  }
+  // Раздел рас идёт после всех тем.
+  bool racesStarted = false;
+  for (const EmblemGroup& g : emblemGroups()) {
+    if (g.section == EmblemSection::Races) racesStarted = true;
+    else if (racesStarted) bad.push_back("тема «" + std::string(g.title) + "» после рас");
+  }
   CHECK_MSG(bad.empty(), join(bad, "\n"));
 }
 
@@ -168,7 +231,12 @@ TEST(gfx_icons_emblems_sheet) {
     int h = 0;
   };
   std::vector<Page> pages(1);
+  // REGNUM_EMBLEM_FOCUS — только группы, в названии которых есть подстрока (листы gfx_emblems_focus*).
+  const std::string focus = fs::env("REGNUM_EMBLEM_FOCUS");
+  size_t expected = 0;
   for (const EmblemGroup& g : emblemGroups()) {
+    if (!focus.empty() && std::string(g.title).find(focus) == std::string::npos) continue;
+    expected += g.names.size();
     const int gh = head + int((g.names.size() + cols - 1) / cols) * cell;
     if (!pages.back().groups.empty() && pages.back().h + gh > maxH) pages.emplace_back();
     pages.back().groups.push_back(&g);
@@ -200,9 +268,11 @@ TEST(gfx_icons_emblems_sheet) {
       }
       y0 += float(int((g->names.size() + cols - 1) / cols) * cell);
     }
-    savePng(img, p == 0 ? std::string("gfx_emblems") : "gfx_emblems_" + std::to_string(p + 1));
+    const std::string base = focus.empty() ? std::string("gfx_emblems") : std::string("gfx_emblems_focus");
+    savePng(img, p == 0 ? base : base + "_" + std::to_string(p + 1));
   }
-  CHECK_EQ(shown, emblemNames().size());
+  CHECK_EQ(shown, expected);
+  if (!focus.empty()) return;
   // Тёмные эмблемы на светлом фоне: все на одном листе.
   const auto& names = emblemNames();
   const int lc = 10;

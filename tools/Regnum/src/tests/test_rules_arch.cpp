@@ -1,5 +1,5 @@
 // Regnum — правила археологии (ТЗ «Доработки №2»; «№4», п.1): группы (цена, начальный уровень, роспуск, модификаторы
-// со сроками), одно задание за ход и раненые группы, «Найти археологическое место», этапы исследования с наградами и
+// со сроками, показатели и содержание), одно задание за ход и раненые группы, «Найти археологическое место», этапы исследования с наградами и
 // финальным сокровищем, трагедии и пробуждение бедствий (войска без государства, чума группы), спасение группы,
 // раскопки, сундуки (случайные ресурсы, реликвии, вложенные), тайник реликвий, режим правки, справочники мест и сундуков.
 #include "core/arch.h"
@@ -12,24 +12,6 @@ using namespace rg::rulestest;
 
 namespace {
 
-Id resNamed(const World& w, const char* name) {
-  for (const CatalogItem& r : w.catalogs->resources)
-    if (r.name == name) return r.id;
-  return 0;
-}
-Id essNamed(const World& w, const char* name) {
-  for (const CatalogItem& e : w.catalogs->essences)
-    if (e.name == name) return e.id;
-  return 0;
-}
-Id siteKey(const World& w, const char* key) {
-  const ArchSite* s = w.catalogs->archSiteByKey(key);
-  return s ? s->id : 0;
-}
-Id chestKey(const World& w, const char* key) {
-  const Chest* c = w.catalogs->chestByKey(key);
-  return c ? c->id : 0;
-}
 double treasure(const World& w, Id state) { return w.faction(state)->stock(w.catalogs->resourceId(schema::kResArchTreasure)); }
 
 // Государство A владеет p0…p3 (по 1000 жителей), достроена «Гильдия Археологов», казна 100; слоты p0 заданы явно:
@@ -50,7 +32,7 @@ struct ArchFix : Fix {
       for (int i = 0; i < kArchSlots; i++) {
         ArchSlot& s = t.province(p[0]).arch[size_t(i)];
         s = ArchSlot{};
-        s.site = siteKey(t.w(), sites[i]);
+        s.site = test::siteKey(t.w(), sites[i]);
         s.chest = t.w().catalogs->archSite(s.site)->rewards[size_t(i)].front();
       }
     });
@@ -161,6 +143,37 @@ TEST(rules_arch_group_modifiers_and_turns) {
   f.tx([&](Tx& tx) { endTurn(tx); });
   CHECK(archGroupReady(f.w(), f.A, g));
   CHECK(!archStats(f.w(), f.A, g).wounded);
+}
+
+TEST(rules_arch_group_stats_and_upkeep) {
+  Fix f;
+  Id mod = 0;
+  f.tx([&](Tx& tx) {
+    mod = createModifier(tx, "Проводники");
+    Modifier& m = tx.modifier(mod);
+    m.kind = ModKind::ArchGroup;
+    m.fx[size_t(Fx::ArchSuccessPct)] = 5;
+    m.fx[size_t(Fx::ArchUpkeepPct)] = 50;
+    m.fxMask = (1u << int(Fx::ArchSuccessPct)) | (1u << int(Fx::ArchUpkeepPct));
+    ArchGroup g;
+    g.id = tx.nextId(Seq::ArchGroup);
+    g.name = "Экспедиция";
+    g.exp = 460;   // 4 уровень
+    g.modifiers = {mod};
+    tx.faction(f.A).archGroups.push_back(g);
+  });
+  const ArchGroup& g = f.w().faction(f.A)->archGroups[0];
+  const ArchStats st = archStats(f.w(), f.A, g.id);
+  CHECK_EQ(st.level, 4);
+  CHECK_NEAR(st.success, 15, 1e-9);   // 10 % уровня + 5 %
+  CHECK_NEAR(st.vitality, 10, 1e-9);
+  CHECK_NEAR(st.upkeep, 0.6, 1e-9);   // 0,4 × 1,5
+  CHECK_NEAR(f.fc(f.A).expArch, 0.6, 1e-9);
+  CHECK_EQ(archStartLevel(f.w(), f.A), 1);
+  CHECK_EQ(arch::levelOf(100), 1);
+  CHECK_EQ(arch::levelOf(101), 2);
+  CHECK_EQ(arch::levelOf(1000), 5);
+  CHECK_NEAR(arch::stageSuccess(3, 8, 0), 40 - 21, 1e-9);
 }
 
 // ---------------------------------------------------------------- обнаружение
@@ -276,7 +289,7 @@ TEST(rules_arch_experience_bonus_and_cap) {
 // ---------------------------------------------------------------- трагедии и бедствия
 TEST(rules_arch_tragedies_calamities_and_rescue) {
   ArchFix f;
-  const Id death = essNamed(f.w(), "Эссенция смерти");
+  const Id death = test::idByName(f.w().catalogs->essences, "Эссенция смерти");
   f.tx([&](Tx& tx) {
     setArchSlotOpen(tx, f.p[0], 3, true);   // легендарное место «Древняя гробница»
     tx.faction(f.A).ess[death] = 100000;
@@ -355,14 +368,14 @@ TEST(rules_arch_tragedies_calamities_and_rescue) {
 
 TEST(rules_arch_vault_calamity_always_army) {
   ArchFix f;
-  const Id vault = siteKey(f.w(), arch::site::Vault);
+  const Id vault = test::siteKey(f.w(), arch::site::Vault);
   f.tx([&](Tx& tx) {
     setArchSlotSite(tx, f.p[0], 3, vault);
     setArchSlotOpen(tx, f.p[0], 3, true);
     tx.faction(f.A).res[kGold] = 100000;
     for (int i = 0; i < 4; i++) tx.province(f.p[i]).races[0].pop = 1000000;
   });
-  CHECK_EQ(f.w().province(f.p[0])->arch[3].chest, chestKey(f.w(), "emperor"));
+  CHECK_EQ(f.w().province(f.p[0])->arch[3].chest, test::chestKey(f.w(), "emperor"));
   Id g = f.group();
   int calamities = 0;
   for (int tries = 0; tries < 8000 && calamities < 3; tries++) {
@@ -388,7 +401,7 @@ TEST(rules_arch_group_plague_infects_province) {
   ArchFix f;
   const Id g = f.group();
   f.tx([&](Tx& tx) { addArchGroupModifier(tx, f.A, g, ensureBuiltinMod(tx, schema::mod::ArchPlague)); });
-  CHECK_EQ(f.w().faction(f.A)->archGroup(g)->modTurns.at(builtinModId(f.w(), schema::mod::ArchPlague)), arch::kPlagueTurns);
+  CHECK_EQ(f.w().faction(f.A)->archGroup(g)->modTurns.at(builtinModId(f.w(), schema::mod::ArchPlague)), schema::kPlagueTurns);
   CHECK(archGroupReady(f.w(), f.A, g));   // с чумой — можно
   ArchReport r;
   f.tx([&](Tx& tx) { r = discoverSite(tx, f.A, g, f.p[0]); });
@@ -399,7 +412,7 @@ TEST(rules_arch_group_plague_infects_province) {
   f.tx([&](Tx& tx) {
     addArchGroupModifier(tx, f.A, g, ensureBuiltinMod(tx, schema::mod::ArchPlague));
     addModifier(tx, ModTarget::Province, f.p[1], ensureBuiltinMod(tx, schema::mod::PlagueImmunity));
-    tx.province(f.p[1]).arch[0].site = siteKey(tx.w(), arch::site::Ruins);
+    tx.province(f.p[1]).arch[0].site = test::siteKey(tx.w(), arch::site::Ruins);
   });
   f.tx([&](Tx& tx) { r = discoverSite(tx, f.A, g, f.p[1]); });
   CHECK_EQ(r.infected, Id(0));
@@ -476,39 +489,41 @@ TEST(rules_arch_open_chests) {
   Rng rng(7);
   // «Небольшой сундук»: 50 сокровищ (+10 %) и 1 тыс. золота.
   const double gold0 = f.w().faction(f.A)->treasury();
-  f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "small"), rng, 10); });
+  f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "small"), rng, 10); });
   CHECK_EQ(got.size(), size_t(3));
   CHECK(got[0].kind == ArchGain::Chest && got[0].depth == 0 && got[1].depth == 1);
   CHECK_NEAR(treasure(f.w(), f.A), 55, 1e-9);
   CHECK_NEAR(f.w().faction(f.A)->treasury(), gold0 + 1, 1e-9);
   // «Ящик»: случайный ресурс подгруппы «Руда / Обычная».
-  f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "box"), rng, 0); });
+  f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "box"), rng, 0); });
   const Id oreCommon = f.w().catalogs->groupId(schema::grp::OreCommon);
   CHECK(got.size() == 3 && got[2].kind == ArchGain::Resource && f.w().catalogs->resourceIn(got[2].id, oreCommon));
   // «Деревянный ларь»: без «Нефти».
-  const Id oil = resNamed(f.w(), "Нефть");
+  const Id oil = test::idByName(f.w().catalogs->resources, "Нефть");
   for (int i = 0; i < 40; i++) {
-    f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "woodCoffer"), rng, 0); });
+    f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "woodCoffer"), rng, 0); });
     for (const ArchGain& x : got) CHECK(!(x.kind == ArchGain::Resource && x.id == oil && oil != 0));
   }
-  // Обычная находка ушла государству при первом «Деревянном ларе», дальше — «не нашлось».
+  // Обычная находка копируемая: «Деревянный ларь» даёт её снова — штуки копятся в инвентаре государства.
   CHECK(relicPlace(f.w(), common).kind == RelicPlace::State);
-  CHECK(got.back().kind == ArchGain::NoRelic);
+  CHECK(relicCountAt(f.w(), common, RelicPlace{RelicPlace::State, f.A, 0, f.A}) > 1);
+  CHECK(got.back().kind == ArchGain::Relic && got.back().id == common);
   CHECK(relicPlace(f.w(), rare).kind == RelicPlace::Free);
   // «Ларец»: случайная эссенция 50.
-  f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "casket"), rng, 0); });
+  f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "casket"), rng, 0); });
   CHECK(got.size() == 3 && got[2].kind == ArchGain::Essence && got[2].amount == 50);
   CHECK_NEAR(f.w().faction(f.A)->essence(got[2].id), 50, 1e-9);
   // «Сундук древнего некроманта»: эссенция смерти 400 и трупы 500.
-  const Id death = essNamed(f.w(), "Эссенция смерти"), corpses = resourceId(f.w(), schema::kResCorpses);
+  const Id death = test::idByName(f.w().catalogs->essences, "Эссенция смерти"), corpses = resourceId(f.w(), schema::kResCorpses);
   const double death0 = f.w().faction(f.A)->essence(death), corpses0 = f.w().faction(f.A)->stock(corpses);
-  f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "necromancer"), rng, 0); });
+  f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "necromancer"), rng, 0); });
   CHECK_NEAR(f.w().faction(f.A)->essence(death) - death0, 400, 1e-9);
   CHECK_NEAR(f.w().faction(f.A)->stock(corpses) - corpses0, 500, 1e-9);
   // «Сокровище Бессмертного Императора»: вложенный сундук (глубина 1) и его содержимое (глубина 2).
-  f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "emperor"), rng, 0); });
+  f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "emperor"), rng, 0); });
   CHECK(got.size() >= 3 && got[1].kind == ArchGain::Chest && got[1].depth == 1 && got[2].depth == 2);
-  const std::vector<Id> four = {chestKey(f.w(), "offering"), chestKey(f.w(), "jarl"), chestKey(f.w(), "necromancer"), chestKey(f.w(), "cultist")};
+  const std::vector<Id> four = {test::chestKey(f.w(), "offering"), test::chestKey(f.w(), "jarl"), test::chestKey(f.w(), "necromancer"),
+                                test::chestKey(f.w(), "cultist")};
   CHECK(std::find(four.begin(), four.end(), got[1].id) != four.end());
   CHECK_EQ(archGainText(f.w(), got[0]), std::string("Сокровище Бессмертного Императора"));
 }
@@ -572,25 +587,29 @@ TEST(rules_arch_hide_and_unearth_relic) {
   // Провинцией владеет другое государство — откопать нельзя.
   f.tx([&](Tx& tx) { tx.province(f.p[0]).owner = f.B; });
   CHECK(!canUnearth(f.w(), f.p[0]));
-  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { unearthRelic(tx, f.p[0], RelicPlace{RelicPlace::Hero, hero, 0, f.A}); }); }), "спрятавшее"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { unearthRelic(tx, f.p[0]); }); }), "спрятавшее"));
   f.tx([&](Tx& tx) { tx.province(f.p[0]).owner = f.A; });
   CHECK(canUnearth(f.w(), f.p[0]));
-  // В хранилище постройки своего государства.
+  // Откопанная реликвия — в инвентаре государства.
   const int logs2 = int(f.w().log.size());
-  f.tx([&](Tx& tx) { unearthRelic(tx, f.p[0], RelicPlace{RelicPlace::Building, f.p[1], store, f.A}); });
-  CHECK(relicPlace(f.w(), relic).kind == RelicPlace::Building);
+  f.tx([&](Tx& tx) { unearthRelic(tx, f.p[0]); });
+  CHECK(relicPlace(f.w(), relic).kind == RelicPlace::State);
   CHECK_EQ(f.w().province(f.p[0])->hiddenRelic, Id(0));
   CHECK_EQ(int(f.w().log.size()), logs2);
-  // Из хранилища — снова спрятать, откопать герою.
+  // Из хранилища постройки — снова спрятать и откопать: снова в инвентарь государства.
+  f.tx([&](Tx& tx) { storeRelic(tx, f.p[1], store, relic); });
+  CHECK(relicPlace(f.w(), relic).kind == RelicPlace::Building);
   f.tx([&](Tx& tx) { hideRelic(tx, f.p[0], relic); });
-  f.tx([&](Tx& tx) { unearthRelic(tx, f.p[0], RelicPlace{RelicPlace::Hero, hero, 0, f.A}); });
+  f.tx([&](Tx& tx) { unearthRelic(tx, f.p[0]); });
+  CHECK(relicPlace(f.w(), relic).kind == RelicPlace::State);
+  f.tx([&](Tx& tx) { giveRelic(tx, hero, relic); });
   CHECK_EQ(relicHolder(f.w(), relic), hero);
 }
 
 // ---------------------------------------------------------------- режим правки
 TEST(rules_arch_edit_mode_slots) {
   ArchFix f;
-  const Id crypt = siteKey(f.w(), arch::site::Crypt), valley = siteKey(f.w(), arch::site::Valley);
+  const Id crypt = test::siteKey(f.w(), arch::site::Crypt), valley = test::siteKey(f.w(), arch::site::Valley);
   f.tx([&](Tx& tx) {
     setArchSlotOpen(tx, f.p[0], 0, true);
     tx.province(f.p[0]).arch[0].stage = 2;
@@ -598,7 +617,7 @@ TEST(rules_arch_edit_mode_slots) {
   // Место, которое уже есть в провинции, — нельзя.
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setArchSlotSite(tx, f.p[0], 0, crypt); }); }), "уже есть"));
   // Замена: этапы сброшены, сокровище — из наград нового места для слота.
-  f.tx([&](Tx& tx) { setArchSlotSite(tx, f.p[0], 2, siteKey(tx.w(), arch::site::Temple)); });
+  f.tx([&](Tx& tx) { setArchSlotSite(tx, f.p[0], 2, test::siteKey(tx.w(), arch::site::Temple)); });
   const ArchSlot s2 = f.w().province(f.p[0])->arch[2];
   const auto& rewards = f.w().catalogs->archSite(s2.site)->rewards[2];
   CHECK(std::find(rewards.begin(), rewards.end(), s2.chest) != rewards.end());
@@ -614,7 +633,7 @@ TEST(rules_arch_edit_mode_slots) {
 // ---------------------------------------------------------------- справочники
 TEST(rules_arch_catalogs_sites_and_chests) {
   ArchFix f;
-  const Id ruins = siteKey(f.w(), arch::site::Ruins);
+  const Id ruins = test::siteKey(f.w(), arch::site::Ruins);
   CHECK_EQ(f.w().catalogs->archSites.size(), size_t(10));
   CHECK_EQ(f.w().catalogs->chests.size(), size_t(16));
   f.tx([&](Tx& tx) { setArchSite(tx, ruins, "Руины первых королей", "castle"); });
@@ -651,9 +670,9 @@ TEST(rules_arch_catalogs_sites_and_chests) {
   for (const ArchSite& s : f.w().catalogs->archSites)
     for (const auto& list : s.rewards) CHECK(std::find(list.begin(), list.end(), old) == list.end());
   // Удаление вложенного сундука убирает его из списков «Сундук» (пустое поле — убирается).
-  const Id offering = chestKey(f.w(), "offering");
+  const Id offering = test::chestKey(f.w(), "offering");
   f.tx([&](Tx& tx) { removeChest(tx, offering); });
-  for (const ChestItem& it : f.w().catalogs->chest(chestKey(f.w(), "emperor"))->items)
+  for (const ChestItem& it : f.w().catalogs->chest(test::chestKey(f.w(), "emperor"))->items)
     if (it.kind == ChestItemKind::Chest) CHECK(std::find(it.chests.begin(), it.chests.end(), offering) == it.chests.end());
 }
 
@@ -682,6 +701,6 @@ TEST(rules_arch_tech_branch_effects) {
   CHECK_NEAR(st.treasurePct, 2, 1e-9);
   std::vector<ArchGain> got;
   Rng rng(3);
-  f.tx([&](Tx& tx) { got = openChest(tx, f.A, chestKey(tx.w(), "small"), rng, st.treasurePct); });
+  f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "small"), rng, st.treasurePct); });
   CHECK_NEAR(treasure(f.w(), f.A), 51, 1e-9);
 }

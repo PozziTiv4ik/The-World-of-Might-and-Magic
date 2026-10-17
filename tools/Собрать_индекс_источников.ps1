@@ -10,7 +10,6 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$today = Get-Date -Format 'yyyy-MM-dd'
 $sourceRoot = Join-Path $root '08_Источники'
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
 $targetPath = Join-Path $sourceRoot '00_Индекс_источников.md'
@@ -60,16 +59,13 @@ function Get-InboxState {
     return 'нет ссылки'
 }
 
-$inboxText = ''
-if (Test-Path -LiteralPath $inboxPath) {
-    $inboxText = Get-Content -Raw -Encoding UTF8 -LiteralPath $inboxPath
-}
+$inboxText = Read-WmmaText $inboxPath -AllowMissing
 
 $rows = @(
     Get-ChildItem -LiteralPath $sourceRoot -File -Filter '*.md' |
         Where-Object { $_.Name -ne '00_Индекс_источников.md' } |
         ForEach-Object {
-            $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName
+            $text = Read-WmmaText $_.FullName
             $relativePath = Get-WmmaRelativePath -Root $root $_.FullName
             $date = Get-WmmaMeta -Default '-' -Text $text -Field 'date'
 
@@ -93,35 +89,12 @@ $rows = @(
         Sort-Object Date, File
 )
 
-$lines = New-Object 'System.Collections.Generic.List[string]'
-$lines.Add('# Индекс источников') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('---') | Out-Null
-$lines.Add('type: source_index') | Out-Null
-$lines.Add('status: active') | Out-Null
-$lines.Add('canon_level: support') | Out-Null
-$lines.Add("generated_real_date: $today") | Out-Null
-$lines.Add('generated_by: tools/Собрать_индекс_источников.ps1') | Out-Null
-$lines.Add('---') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('Этот файл генерируется автоматически. Для пересборки используй `.\tools\Собрать_индекс_источников.ps1`.') | Out-Null
-$lines.Add('') | Out-Null
-$lines.Add('| Дата | Статус | Тип | Входящее | Источник | Файл |') | Out-Null
-$lines.Add('| --- | --- | --- | --- | --- | --- |') | Out-Null
+$lines = New-WmmaGeneratedHeader -Title 'Индекс источников' -Type 'source_index' -CanonLevel 'support' -Script 'Собрать_индекс_источников' `
+    -Intro 'Этот файл генерируется автоматически. Для пересборки используй `.\tools\Собрать_индекс_источников.ps1`.'
+$lines.Add('')
+Add-WmmaMarkdownTable $lines @('Дата', 'Статус', 'Тип', 'Входящее', 'Источник', 'Файл') @(
+    $rows | ForEach-Object { ,@($_.Date, $_.Status, $_.Type, $_.Inbox, $_.Title, "``$($_.File)``") }
+)
 
-foreach ($row in $rows) {
-    $lines.Add("| $($row.Date) | $($row.Status) | $($row.Type) | $($row.Inbox) | $($row.Title) | ``$($row.File)`` |") | Out-Null
-}
-
-Write-WmmaGeneratedText -Path $targetPath -Text (($lines -join "`n")+"`n")
-
-if (-not $SkipCheck) {
-    $global:LASTEXITCODE = 0
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if (-not $? -or $LASTEXITCODE -ne 0) {
-        exit 1
-    }
-}
-
-"Built source index: $(Get-WmmaRelativePath -Root $root $targetPath)"
+Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'source index' -SkipCheck:$SkipCheck
 }

@@ -11,14 +11,6 @@ using namespace rg::factest;
 
 namespace {
 
-Id characterByName(const World& w, std::string_view name) {
-  Id r = 0;
-  w.characters.each([&](const Character& c) {
-    if (!r && c.name == name) r = c.id;
-  });
-  return r;
-}
-
 Id ownedProvince(const World& w, Id state) {
   Id r = 0;
   w.provinces.each([&](const Province& p) {
@@ -27,35 +19,18 @@ Id ownedProvince(const World& w, Id state) {
   return r;
 }
 
-void shotClean(Harness& h, const std::string& name) {
-  h.waitMap();
-  h.dropToasts();
-  h.settle();
-  CHECK(h.shot(name));
-}
-
-// Щелчок по доле прямоугольника (сегменты переключателя).
-bool clickAt(Harness& h, const std::string& name, float fx) {
-  const RectF* r = h->uiRect(name);
-  if (!r) return false;
-  RectF rr = *r;
-  h.click(rr.x + rr.w * fx, rr.cy());
-  return true;
-}
-
 }  // namespace
 
 // ---------------------------------------------------------------- пленники, погибший, воскрешение
 TEST(app_heroes_captives_and_resurrect) {
-  HideTestRegs regs;
   Harness h("heroes_fate");
   h.demo();
   h.waitMap();
   h.dropToasts();
   const Id hel = findFaction(h->world(), "Северный союз Хельдвиг");
   const Id vk = findFaction(h->world(), "Империя Валь-Кетра");
-  const Id bjorn = characterByName(h->world(), "Бьорн Медведь");
-  const Id ulrika = characterByName(h->world(), "Ульрика Ледяная");
+  const Id bjorn = test::idByName(h->world().characters, "Бьорн Медведь");
+  const Id ulrika = test::idByName(h->world().characters, "Ульрика Ледяная");
   const Id grave = ownedProvince(h->world(), hel);
   CHECK(hel && vk && bjorn && ulrika && grave);
   CHECK(rules::characterHas(h->world(), ulrika, schema::mod::Living));
@@ -128,12 +103,11 @@ TEST(app_heroes_captives_and_resurrect) {
 
 // ---------------------------------------------------------------- модификаторы героя в инспекторе
 TEST(app_heroes_modifiers_inspector) {
-  HideTestRegs regs;
   Harness h("heroes_mods", 1440, 1000);
   h.demo();
   h.waitMap();
   h.dropToasts();
-  const Id hero = characterByName(h->world(), "Сэр Гарет Красный");
+  const Id hero = test::idByName(h->world().characters, "Сэр Гарет Красный");
   CHECK(hero != 0);
   CHECK(rules::characterHas(h->world(), hero, schema::mod::Living));
   CHECK(!rules::builtinModId(h->world(), schema::mod::Loyalist));   // записи ещё нет — предлагается шаблон
@@ -197,16 +171,15 @@ TEST(app_heroes_modifiers_inspector) {
 
 // ---------------------------------------------------------------- назначения: только доступные герои своего государства
 TEST(app_heroes_assignment_limits) {
-  HideTestRegs regs;
   Harness h("heroes_assign");
   h.demo();
   h.waitMap();
   h.dropToasts();
   const Id hel = findFaction(h->world(), "Северный союз Хельдвиг");
-  const Id ulrika = characterByName(h->world(), "Ульрика Ледяная");
-  const Id bjorn = characterByName(h->world(), "Бьорн Медведь");
-  const Id foreign = characterByName(h->world(), "Легат Максен");
-  const Id halvar = characterByName(h->world(), "Хальвар Мудрый");
+  const Id ulrika = test::idByName(h->world().characters, "Ульрика Ледяная");
+  const Id bjorn = test::idByName(h->world().characters, "Бьорн Медведь");
+  const Id foreign = test::idByName(h->world().characters, "Легат Максен");
+  const Id halvar = test::idByName(h->world().characters, "Хальвар Мудрый");
   CHECK(hel && ulrika && bjorn && foreign && halvar);
   CHECK(h->act("Погиб", [&](Tx& tx) { rules::heroFate(tx, ulrika, rules::Fate::Killed, 0, 0); }));
   const Id seat = h->world().faction(hel)->council[0].id;
@@ -259,7 +232,6 @@ TEST(app_heroes_assignment_limits) {
 
 // ---------------------------------------------------------------- вид государства и природа новых героев (ТЗ «Виды государств», п.1)
 TEST(app_heroes_state_kind) {
-  HideTestRegs regs;
   Harness h("heroes_state_kind");
   h.demo();
   h.waitMap();

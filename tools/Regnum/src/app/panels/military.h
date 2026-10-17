@@ -7,7 +7,7 @@
 // круге или фигурка (objectBadgeIn). Диалоги: битва
 // (dialogs/battle.cpp), встреча войск (dialogs/encounter.cpp), разделение (dialogs/split.cpp), штурм и захват
 // (dialogs/siege.cpp, dialogs/capture.cpp), судьба героев (dialogs/hero_fate.cpp). Инструменты: новое войско и флот
-// (tools_army.cpp), перетаскивание и штурм в инструменте выбора (tools.cpp).
+// (tools/army.cpp), перетаскивание и штурм в инструменте выбора (tools/select.cpp).
 #pragma once
 #include "app/app.h"
 #include "app/widgets.h"
@@ -60,6 +60,12 @@ std::string fmtMoney(double v);                    // золото до тыся
 Color leaderColor(const World& w, const Army& a);
 Color allyColor(const World& w, const Army& a);
 
+// ---------------------------------------------------------------- роли (ТЗ «Доработки №4», п.5)
+// Игровое действие с объектом на карте — за фракцию-лидера (союзным объектом управляет лидер): App::canPlay(лидер).
+bool playsLeader(App& a, const World& w, Id army);
+// Хотя бы одна фракция объекта — своя (окна войны: решение принимает участник).
+bool playsAny(App& a, const World& w, Id army);
+
 // ---------------------------------------------------------------- виджеты
 // Фигурка как на карте (жетон с силуэтом) в прямоугольнике r (точки интерфейса).
 void figureIn(RectF r, ArmyKind kind, Color c1, bool allied = false, Color c2 = Color(0, 0, 0, 0), bool selected = false);
@@ -69,8 +75,6 @@ const gfx::Image* commanderFace(const World& w, const Army& a);
 // второго союзника), без портрета — фигурка как на карте.
 void objectBadgeIn(const World& w, const Army& a, RectF r, bool selected = false);
 void figure(const World& w, const Army& a, float size, bool selected = false);   // в потоке: слот size × size (значок объекта)
-// Подсказка над прямоугольником без перехвата наведения и щелчка (подпись в ячейке строки таблицы).
-void cellTip(std::string_view key, RectF r, std::string_view text);
 // Флаг фракции в потоке (с подсказкой-названием).
 void factionFlag(const World& w, Id faction, float width, float height = 0);
 // Флаг и название фракции (щелчок — инспектор фракции).
@@ -115,7 +119,7 @@ void mercHireField(App& a, Id faction, Id row);
 // ---------------------------------------------------------------- флот (ТЗ «Доработки №3», п.3, 6; «№4», п.9)
 // Обмен отрядами двух объектов одного государства (dialogs/exchange.cpp); done(changed) — после закрытия окна.
 void openExchange(App& a, Id first, Id second, std::function<void(App&, bool)> done = {});
-// Высадка войска с флота: инструмент карты «Высадка войска» (tools_landing.cpp), Esc — отмена.
+// Высадка войска с флота: инструмент карты «Высадка войска» (tools/landing.cpp), Esc — отмена.
 void startLanding(App& a, Id fleet);
 // Вместимость флота строкой «занято / всего» с полосой (перегруз — красным); used < 0 — войско на борту.
 void capacityRow(App& a, Id fleet, i64 used = -1);
@@ -131,5 +135,11 @@ std::string fleetToolBlocked(App& a);
 Id& lastPlaceFaction();
 // Выбрать инструмент постановки объекта для фракции.
 void startPlacing(App& a, ArmyKind kind, Id faction);
+
+// Вкладки (ID для перехода и тестов): «Войска» и «Флот» фракции, «Состав» и «Войско на борту» войска.
+constexpr const char* kTabArmy = "faction.army";
+constexpr const char* kTabFleet = "faction.fleet";
+constexpr const char* kTabUnits = "army.units";
+constexpr const char* kTabCargo = "army.cargo";
 
 }  // namespace rg::app::mil

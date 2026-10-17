@@ -2,18 +2,13 @@
 // провинции (свои), репарации золотом за ход и срок (как в окне «Дань или репарации»), разовые выплаты золота и
 // ресурсов, рабы (не больше 5 % населения стороны), пленные герои, которых сторона держит, и «Стать вассалом».
 // Итоговое состояние (по умолчанию «Статус-кво»), причины, мешающие заключению (rules::truceProblems), —
-// rules::concludeTruce одним действием (отменяется Ctrl+Z).
+// rules::concludeTruce одним действием (отменяется Ctrl+Z). Роли (ТЗ «Доработки №4», п.5): перемирие и его условия —
+// игровое действие воюющего государства (App::play).
 #include "app/flows.h"
 #include "app/panels/faction_common.h"
 #include "gfx/icons.h"
 
 namespace rg::app {
-
-namespace edkit {   // поток фишек с переносом строк (editors/modifiers.cpp)
-void chipsBegin();
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
-void chipsEnd();
-}  // namespace edkit
 
 namespace {
 
@@ -36,16 +31,15 @@ struct TruceDlg final : Dialog {
     // Провинции.
     ui::caption("Провинции");
     if (!terms.provinces.empty()) {
-      edkit::chipsBegin();
+      ui::ChipFlow chipFlow;
       for (size_t i = 0; i < terms.provinces.size(); i++) {
         ui::IdScope ps{i64(terms.provinces[i])};
-        if (edkit::chip(w.provinceName(terms.provinces[i]), {.icon = "province", .color = g->color, .removable = true,
+        if (ui::flowChip(w.provinceName(terms.provinces[i]), {.icon = "province", .color = g->color, .removable = true,
                                                              .tooltip = "Провинция перейдёт к другой стороне"}) == ui::ChipAction::Remove) {
           terms.provinces.erase(terms.provinces.begin() + long(i));
           break;
         }
       }
-      edkit::chipsEnd();
     }
     {
       std::vector<const Province*> free;
@@ -213,9 +207,10 @@ struct TruceDlg final : Dialog {
     if (ui::button("Отмена")) return false;
     a.markUi("truce.cancel");
     // Без кнопки по умолчанию: Enter в полях условий только фиксирует значение, а не заключает перемирие.
-    if (ui::button("Заключить перемирие", {.variant = ui::Variant::Primary, .icon = "handshake", .disabled = !problems.empty() || a.readOnly()})) {
+    const bool party = a.canPlay(t.a) || a.canPlay(t.b);
+    if (ui::button("Заключить перемирие", {.variant = ui::Variant::Primary, .icon = "handshake", .disabled = !problems.empty() || !party})) {
       rules::Truce tr = t;
-      if (a.act("Перемирие", [&](Tx& tx) { rules::concludeTruce(tx, tr); })) {
+      if (a.play("Перемирие", [&](Tx& tx) { rules::concludeTruce(tx, tr); })) {
         a.toast("Перемирие: " + w.factionName(tr.a) + " и " + w.factionName(tr.b), ToastKind::Success, "handshake");
         return false;
       }
@@ -230,10 +225,7 @@ struct TruceDlg final : Dialog {
 namespace flow {
 
 void openTruce(App& a, Id stateA, Id stateB) {
-  if (a.readOnly()) {
-    a.act("Перемирие", [](Tx&) {});   // покажет подсказку о прошлом ходе
-    return;
-  }
+  if (!a.canPlay(stateA) && !w::checkPlay(a, stateB)) return;   // перемирие заключает сторона войны
   const World& w = a.world();
   const Faction* A = w.faction(stateA);
   const Faction* B = w.faction(stateB);

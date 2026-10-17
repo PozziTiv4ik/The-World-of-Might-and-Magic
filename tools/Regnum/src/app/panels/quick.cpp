@@ -1,6 +1,7 @@
 // Regnum — самое нужное о выделении в нижней строке (QuickReg): название правится на месте, рядом — владелец,
 // культура и вера провинции, численность и полководец войска, гильдия маршрута, правитель и казна фракции,
-// фракция персонажа. Поля не шире нужного; что не помещается в строку — не показывается.
+// фракция персонажа. Поля не шире нужного; что не помещается в строку — не показывается. Названия, культура и вера —
+// правка мира: у игрока только для чтения (ТЗ «Доработки №4», п.5).
 #include "app/panels/military.h"
 #include "app/widgets.h"
 
@@ -12,7 +13,7 @@ void nameField(App& a, std::string_view label, const std::string& value, float w
                const std::function<void(Tx&, const std::string&)>& set) {
   ui::Group g(width);
   std::string v = value;
-  if (ui::textField("name", v, {.placeholder = placeholder, .maxLength = 80, .readOnly = a.readOnly(), .tooltip = placeholder})) {
+  if (ui::textField("name", v, {.placeholder = placeholder, .maxLength = 80, .readOnly = !a.canEdit(), .tooltip = placeholder})) {
     std::string n = trim(v);
     if (!n.empty() && n != value) a.act(label, [&](Tx& tx) { set(tx, n); });
   }
@@ -26,7 +27,7 @@ void provinceQuick(App& a, Id pid) {
   const World& w = a.world();
   const Province* p = w.province(pid);
   if (!p) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   nameField(a, "Переименовать провинцию", p->name, 180, "Название провинции", [pid](Tx& tx, const std::string& n) { tx.province(pid).name = n; });
   if (p->sea) return;
   if (room(140)) {

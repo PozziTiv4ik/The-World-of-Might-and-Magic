@@ -302,12 +302,6 @@ bool changedOnDisk(const std::string& full, FileStamp& st) {
 }
 
 // ---------------------------------------------------------------- история ходов
-std::string turnFileName(int turn) {
-  char buf[40];
-  std::snprintf(buf, sizeof buf, "turn-%04d.json.gz", turn);
-  return buf;
-}
-
 // turn-NNNN.json.gz (снимок без номера) или turn-NNNN-SSSSSS.json.gz (ход и номер снимка).
 std::optional<std::pair<int, u64>> parseSnapName(std::string_view name) {
   constexpr std::string_view pre = "turn-", post = ".json.gz";
@@ -504,12 +498,6 @@ LoadResult load(const std::string& path) {
   return loadFrom(*src);
 }
 
-LoadResult loadBundle(const std::string& path) {
-  if (!fs::isFile(path)) fail("Архив не найден: «" + path + "»");
-  ZipSource src(path);
-  return loadFrom(src);
-}
-
 SaveResult save(const std::string& folder, const World& w, u32 dirtyTables, FileState* state, const SaveOptions& opt) {
   if (folder.empty()) fail("Не указана папка для сохранения мира");
   std::string err;
@@ -667,79 +655,6 @@ void convert(const std::string& src, const std::string& dst, Warnings* warnings,
 std::vector<SnapshotInfo> listSnapshots(const std::string& path) {
   auto src = openSource(path);
   return listFrom(*src);
-}
-
-SnapshotInfo writeSnapshot(const std::string& path, const World& w, const std::string& label) {
-  auto src = openSource(path);
-  SnapshotInfo info;
-  info.turn = std::max(1, w.turn());
-  info.file = std::string(kHistoryDir) + "/" + turnFileName(info.turn);
-  info.at = nowIso();
-  info.label = label;
-  info.name = w.meta->name;
-  std::vector<u8> gz = pack(w, 6);
-  info.size = gz.size();
-  std::string err;
-  if (src->bundle()) {
-    std::vector<SnapshotInfo> infos;
-    u64 head = 0;
-    auto history = readHistory(*src, &infos, &head);
-    history.erase(std::remove_if(history.begin(), history.end(), [&](auto& h) { return h.first == info.file; }), history.end());
-    infos.erase(std::remove_if(infos.begin(), infos.end(), [&](auto& s) { return s.file == info.file; }), infos.end());
-    history.push_back({info.file, bytesStr(gz)});
-    infos.push_back(info);
-    std::sort(history.begin(), history.end());
-    sortSnaps(infos);
-    std::string bytes = buildBundle(rawWorldFiles(*src), history, infos, head);
-    src.reset();
-    writeBundleFile(path, bytes);
-    return info;
-  }
-  u64 head = 0;
-  listFrom(*src, &head);
-  if (!fs::writeFileAtomic(fs::join(src->path(), info.file), gz, &err)) fail("Не удалось записать снимок хода: " + err);
-  auto list = listFrom(*src);
-  for (auto& s : list)
-    if (s.file == info.file) s = info;
-  if (!fs::writeFileAtomic(fs::join(src->path(), kHistoryIndex), indexText(list, head), &err)) fail("Не удалось записать историю ходов: " + err);
-  return info;
-}
-
-LoadResult loadSnapshot(const std::string& path, int turn) {
-  auto src = openSource(path);
-  std::string file;
-  for (auto& s : listFrom(*src))
-    if (s.turn == turn) file = s.file;   // последний снимок хода
-  if (file.empty()) fail("Нет снимка хода " + std::to_string(turn));
-  std::string err;
-  auto data = src->read(file, &err);
-  if (!data) fail("Не удалось прочитать снимок хода " + std::to_string(turn) + ": " + err);
-  return unpack(std::span<const u8>(reinterpret_cast<const u8*>(data->data()), data->size()), src->origin(file));
-}
-
-bool removeSnapshot(const std::string& path, int turn) {
-  auto src = openSource(path);
-  auto list = listFrom(*src);
-  auto it = std::find_if(list.begin(), list.end(), [&](auto& s) { return s.turn == turn; });
-  if (it == list.end()) return false;
-  std::string file = it->file;
-  list.erase(it);
-  std::string err;
-  u64 head = 0;
-  if (src->bundle()) {
-    std::vector<SnapshotInfo> infos;
-    auto history = readHistory(*src, &infos, &head);
-    history.erase(std::remove_if(history.begin(), history.end(), [&](auto& h) { return h.first == file; }), history.end());
-    infos.erase(std::remove_if(infos.begin(), infos.end(), [&](auto& s) { return s.file == file; }), infos.end());
-    std::string bytes = buildBundle(rawWorldFiles(*src), history, infos, head);
-    src.reset();
-    writeBundleFile(path, bytes);
-    return true;
-  }
-  listFrom(*src, &head);
-  if (!fs::remove(fs::join(src->path(), file), &err)) fail("Не удалось удалить снимок хода: " + err);
-  if (!fs::writeFileAtomic(fs::join(src->path(), kHistoryIndex), indexText(list, head), &err)) fail("Не удалось записать историю ходов: " + err);
-  return true;
 }
 
 // ---------------------------------------------------------------- история с ветвями (снимки с номерами)
@@ -1056,15 +971,6 @@ std::optional<Autosave> loadAutosaveInfo(AutosaveInfo info, std::string* error) 
 }
 
 }  // namespace
-
-std::optional<Autosave> loadAutosave(const std::string& dataDir, std::string* error) {
-  auto list = listAutosaves(dataDir);
-  if (list.empty()) {
-    if (error) *error = "автосохранений нет";
-    return std::nullopt;
-  }
-  return loadAutosaveInfo(std::move(list.front()), error);
-}
 
 std::optional<Autosave> loadAutosaveFor(const std::string& project, const std::string& dataDir, std::string* error) {
   std::string file = fs::join(fs::join(dataDirOr(dataDir), "autosave"), "autosave-" + autosaveSlot(project) + ".json.gz");

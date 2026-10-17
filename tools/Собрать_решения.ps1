@@ -53,12 +53,12 @@ function Render-DecisionLog {
     $decisions = @($Registry.decisions)
     $pendingDecisions = @(
         $decisions |
-            Where-Object { $_.state -eq 'pending' -or $_.id -like 'DEC-PENDING-*' } |
+            Where-Object { Test-WmmaPendingDecision $_ } |
             Sort-Object @{ Expression = { [int]($_.id -replace '^DEC-PENDING-', '') } }
     )
     $acceptedDecisions = @(
         $decisions |
-            Where-Object { $_.state -eq 'accepted' -and $_.id -match '^DEC-\d{3}$' } |
+            Where-Object { Test-WmmaAcceptedDecision $_ } |
             Sort-Object @{ Expression = { [int]($_.id -replace '^DEC-', '') } }
     )
     $lines = New-Object 'System.Collections.Generic.List[string]'
@@ -105,7 +105,7 @@ function Render-DecisionLog {
         Add-DecisionBlock -Lines $lines -Decision $decision
     }
 
-    Write-Utf8NoBom -Path $decisionLogPath -Text (($lines -join "`n").TrimEnd() + "`n")
+    Write-WmmaText $decisionLogPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
 $registry = Read-WmmaRegistry $root 'Решения'
@@ -113,22 +113,12 @@ $registry = Read-WmmaRegistry $root 'Решения'
 Render-DecisionLog -Registry $registry
 
 if (-not $Only) {
-    & (Join-Path $root 'tools\Собрать_вопросы.ps1') -SkipCheck
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-WmmaTool -Root $root -Name 'Собрать_вопросы' -Arguments @{ SkipCheck = $true }
 }
 
 if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Собрать_панель_хода.ps1') -SkipCheck
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-WmmaTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
+    Invoke-WmmaTool -Root $root -Name 'Проверить_проект'
 }
 
 "Updated decision registry and Markdown log: 09_Реестры/Решения.json"

@@ -25,13 +25,7 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
-$registryPath = Join-Path $root '09_Реестры\Решения.json'
-
-if (-not (Test-Path -LiteralPath $registryPath)) {
-    throw "Decision registry is missing: 09_Реестры/Решения.json. Restore the authoritative JSON registry from a verified backup."
-}
-
-$registry = (Get-Content -Raw -Encoding UTF8 -LiteralPath $registryPath) | ConvertFrom-Json
+$registry = Read-WmmaRegistry $root 'Решения'
 $decisions = @($registry.decisions)
 $pendingDecision = $decisions | Where-Object { $_.id -eq $PendingId } | Select-Object -First 1
 
@@ -41,7 +35,7 @@ if ($null -eq $pendingDecision) {
     throw "Cannot find $PendingId in 09_Реестры/Решения.json."
 }
 
-if ($pendingDecision.state -ne 'pending' -and $pendingDecision.id -notlike 'DEC-PENDING-*') {
+if (-not (Test-WmmaPendingDecision $pendingDecision)) {
     throw "$PendingId is not pending in 09_Реестры/Решения.json."
 }
 
@@ -70,9 +64,7 @@ $registry.decisions = @(
     $decisions | Where-Object { $_.id -ne $PendingId -and $_.id -ne $AcceptedId }
 ) + @($pendingDecision)
 
-$json = ($registry | ConvertTo-Json -Depth 8).TrimEnd() + "`n"
-$encoding = [System.Text.UTF8Encoding]::new($false)
-[System.IO.File]::WriteAllText($registryPath, $json, $encoding)
+Write-WmmaRegistry $root 'Решения' $registry
 
 $contextPath = Join-Path $root '01_Кампания\00_Текущий_контекст.md'
 if (Test-Path -LiteralPath $contextPath) {
@@ -107,18 +99,10 @@ if (Test-Path -LiteralPath $contextPath) {
         }
     }
 
-    [System.IO.File]::WriteAllText($contextPath, (($renumbered -join "`n").TrimEnd() + "`n"), $encoding)
+    Write-WmmaText $contextPath (($renumbered -join "`n").TrimEnd() + "`n")
 }
 
-& (Join-Path $root 'tools\Собрать_решения.ps1') -SkipCheck
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-if (-not $SkipCheck) {
-    & (Join-Path $root 'tools/Завершить_ход.ps1')
-    if($LASTEXITCODE -ne 0){throw 'Final turn validation failed.'}
-}
+Complete-WmmaMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
 
 "Closed decision: $PendingId -> $AcceptedId"
 }

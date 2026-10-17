@@ -31,17 +31,8 @@ function Add-QuestionTable {
         [object[]]$Questions
     )
 
-    $Lines.Add(('| ' + ($Header -join ' | ') + ' |'))
-    $Lines.Add(('| ' + (($Header | ForEach-Object { '---' }) -join ' | ') + ' |'))
-    foreach ($question in $Questions) {
-        $Lines.Add(('| ' + (@(
-            Format-WmmaTableCell $question.id
-            Format-WmmaTableCell $question.priority
-            Format-WmmaTableCell $question.text
-            Format-WmmaTableCell $question.owner
-            Format-WmmaTableCell $question.status
-        ) -join ' | ') + ' |'))
-    }
+    $rows = @($Questions | ForEach-Object { ,@($_.id, $_.priority, $_.text, $_.owner, $_.status) })
+    Add-WmmaMarkdownTable $Lines $Header $rows -Escape { param($Value) Format-WmmaTableCell $Value }
 }
 
 function Get-ActiveDecisionRows {
@@ -55,25 +46,6 @@ function Get-ActiveDecisionRows {
             $(if([string]::IsNullOrWhiteSpace($decision.owner)){$decision.player_character}else{$decision.owner})
             $(if([string]::IsNullOrWhiteSpace($decision.panel_status)){'active'}else{$decision.panel_status})
         )
-    }
-}
-
-function Add-DecisionTable {
-    param(
-        [System.Collections.Generic.List[string]]$Lines,
-        [object[]]$Rows
-    )
-
-    $Lines.Add('| ID | Приоритет | Вопрос | Владелец / ветка | Статус |')
-    $Lines.Add('| --- | --- | --- | --- | --- |')
-    foreach ($row in $Rows) {
-        $Lines.Add(('| ' + (@(
-            Format-WmmaTableCell $row[0]
-            Format-WmmaTableCell $row[1]
-            Format-WmmaTableCell $row[2]
-            Format-WmmaTableCell $row[3]
-            Format-WmmaTableCell $row[4]
-        ) -join ' | ') + ' |'))
     }
 }
 
@@ -123,7 +95,7 @@ function Render-OpenQuestions {
     $lines.Add('')
     $lines.Add('## Активные решения')
     $lines.Add('')
-    Add-DecisionTable -Lines $lines -Rows $decisionRows
+    Add-WmmaMarkdownTable $lines @('ID', 'Приоритет', 'Вопрос', 'Владелец / ветка', 'Статус') $decisionRows -Escape { param($Value) Format-WmmaTableCell $Value }
     $lines.Add('')
     $lines.Add("## $chapterHeading")
     $lines.Add('')
@@ -133,7 +105,7 @@ function Render-OpenQuestions {
     $lines.Add('')
     Add-QuestionTable -Lines $lines -Header @('ID', 'Приоритет', 'Вопрос', 'Область', 'Статус') -Questions $worldQuestions
 
-    Write-Utf8NoBom -Path $openQuestionsPath -Text (($lines -join "`n").TrimEnd() + "`n")
+    Write-WmmaText $openQuestionsPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
 function Render-ClosedQuestions {
@@ -178,7 +150,7 @@ function Render-ClosedQuestions {
         $lines.Add(('- {0} - `{1}`: {2}' -f $item.date, $item.id, (Format-WmmaTableCell $item.resolution)))
     }
 
-    Write-Utf8NoBom -Path $closedQuestionsPath -Text (($lines -join "`n").TrimEnd() + "`n")
+    Write-WmmaText $closedQuestionsPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
 $registry = Read-WmmaRegistry $root 'Вопросы'
@@ -187,22 +159,12 @@ Render-OpenQuestions -Registry $registry
 Render-ClosedQuestions -Registry $registry
 
 if (-not $Only) {
-    & (Join-Path $root 'tools\Собрать_срезы_реестров.ps1') -SkipCheck
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-WmmaTool -Root $root -Name 'Собрать_срезы_реестров' -Arguments @{ SkipCheck = $true }
 }
 
 if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Собрать_панель_хода.ps1') -SkipCheck
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-WmmaTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
+    Invoke-WmmaTool -Root $root -Name 'Проверить_проект'
 }
 
 "Updated question registry and Markdown views: 09_Реестры/Вопросы.json"

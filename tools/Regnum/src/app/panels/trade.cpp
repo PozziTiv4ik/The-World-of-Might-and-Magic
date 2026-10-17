@@ -1,9 +1,10 @@
 // Regnum — переговоры и торговля в панелях: вкладка фракции «Переговоры и торговля» (государства и гильдии,
 // ТЗ 1.b.vii, 1.d.iii; «Механика героев», п.2) — доходы и расходы по сделкам и дани, сделки фракции, «Новая сделка»
-// с заполненной стороной, дань. Окно сделок всего мира — раздел «Экономика» правой ленты.
+// с заполненной стороной, дань. Окно сделок всего мира — раздел «Экономика» правой ленты. Роли (ТЗ «Доработки №4»,
+// п.5): сделки и дань — игровые действия этой фракции (App::play); у чужой фракции — только просмотр.
 #include "app/app_internal.h"
-#include "app/dialogs/turn_ui.h"
 #include "app/editors/trade.h"
+#include "app/turn/turn_ui.h"
 #include "app/widgets.h"
 
 namespace rg::app {
@@ -32,8 +33,9 @@ void drawTab(App& a, Id fid) {
     std::string tb = fc ? "Получаем " + turnui::money(fc->incTribute) + " тыс., платим " + turnui::money(fc->expTribute) + " тыс." : std::string();
     ui::stat(fmtSigned(trib, 3) + " тыс.", "Дань за ход", {.icon = "tribute", .tone = trib < 0 ? ui::Tone::Danger : ui::Tone::Warning, .tooltip = tb});
   }
-  {
-    ui::Disabled dis(a.readOnly());
+  const bool play = a.canPlay(fid);
+  if (play || a.admin()) {   // игрок у чужой фракции кнопок не видит
+    ui::Disabled dis(!play);
     ui::Row r({ui::fr(1.4f), ui::fr(1)}, 30, 8);
     if (ui::button("Новая сделка", {.variant = ui::Variant::Primary, .icon = "plus", .fill = true})) newDeal(a, fid);
     a.markUi("faction.trade.new");
@@ -45,7 +47,7 @@ void drawTab(App& a, Id fid) {
   for (const Deal* d : all) (d->status == DealStatus::Active ? active : done).push_back(d);
   if (all.empty()) {
     ui::spacer(12);
-    if (ui::emptyState("handshake", "Сделок пока нет.", a.readOnly() ? std::string_view() : "Новая сделка", "plus")) newDeal(a, fid);
+    if (ui::emptyState("handshake", "Сделок пока нет.", play ? "Новая сделка" : std::string_view(), "plus")) newDeal(a, fid);
     return;
   }
   if (ui::Section s("Активные", "repeat", {.badge = std::to_string(active.size()), .card = false}); s) {

@@ -1,8 +1,8 @@
 // Regnum — помощник тестов интерфейса: кадры без окна, синтетические события, сохранение PNG.
 #pragma once
-#include "codec/png.h"
 #include "gfx/canvas.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
 #include "ui/ui.h"
 
 namespace rg::uitest {
@@ -143,13 +143,8 @@ struct H {
     post(e);
     drain();
   }
-  bool save(const std::string& name) const {
-    codec::RgbaImage out;
-    out.w = img.w;
-    out.h = img.h;
-    out.rgba = img.toRgba();
-    return codec::writePngFile(test::outDir() + "/ui_" + name + ".png", out, 6);
-  }
+  // Кадр в каталог артефактов: ui_<name>.png.
+  bool save(const std::string& name) const { return test::savePng("ui_" + name + ".png", img); }
   u32 px(float x, float y) const {
     int ix = int(x * scale), iy = int(y * scale);
     if (ix < 0 || iy < 0 || ix >= img.w || iy >= img.h) return 0;

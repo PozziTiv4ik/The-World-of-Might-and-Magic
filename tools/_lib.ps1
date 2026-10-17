@@ -6,6 +6,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/Context.ps1')
 . (Join-Path $PSScriptRoot 'lib/Connections.ps1')
 . (Join-Path $PSScriptRoot 'lib/Transactions.ps1')
+. (Join-Path $PSScriptRoot 'lib/Views.ps1')
+. (Join-Path $PSScriptRoot 'lib/Checks.ps1')
 
 function Get-WmmaToolLockPath {
     param(
@@ -144,5 +146,46 @@ function Invoke-WmmaToolMain {
         & $ScriptBlock
     } finally {
         Exit-WmmaToolLock -Lock $lock
+    }
+}
+
+# Runs a sibling command tools/<Name>.ps1 of the same project. A thrown error, a failed
+# status or a nonzero exit code of the child becomes an exception naming the step.
+function Invoke-WmmaTool {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [hashtable]$Arguments = @{}
+    )
+
+    $global:LASTEXITCODE = 0
+    & (Join-Path $Root "tools/$Name.ps1") @Arguments
+    if (-not $? -or $LASTEXITCODE -ne 0) {
+        throw "Tool step failed: $Name"
+    }
+}
+
+# Common tail of a write command: rebuild the affected views without checks, then run
+# the full Завершить_ход unless the caller deferred validation with -SkipCheck.
+function Complete-WmmaMutation {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root,
+
+        [string[]]$Rebuild = @(),
+
+        [switch]$SkipCheck
+    )
+
+    foreach ($name in $Rebuild) {
+        Invoke-WmmaTool -Root $Root -Name $name -Arguments @{ SkipCheck = $true }
+    }
+
+    if (-not $SkipCheck) {
+        Invoke-WmmaTool -Root $Root -Name 'Завершить_ход'
     }
 }

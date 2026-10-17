@@ -14,27 +14,12 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $frontTrackerPath = Join-Path $root '01_Кампания\06_Фронты_и_таймеры.md'
 
-function Format-ProjectReference {
-    param([string]$Value)
-
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        return $null
-    }
-
-    $reference = $Value.Trim() -replace '\\', '/'
-    if ($reference -match '^`.+`$' -or $reference -match '^[a-z]+://') {
-        return $reference
-    }
-
-    return "``$reference``"
-}
-
 function Format-LinksCell {
     param([object[]]$Links)
 
     $formatted = @(
         @($Links) |
-            ForEach-Object { Format-ProjectReference -Value $_ } |
+            ForEach-Object { Format-WmmaProjectReference $_ } |
             Where-Object { $_ }
     )
 
@@ -43,21 +28,6 @@ function Format-LinksCell {
     }
 
     return ($formatted -join ', ')
-}
-
-function Add-Table {
-    param(
-        [System.Collections.Generic.List[string]]$Lines,
-        [string[]]$Header,
-        [object[]]$Rows,
-        [scriptblock]$RenderRow
-    )
-
-    $Lines.Add(('| ' + ($Header -join ' | ') + ' |'))
-    $Lines.Add(('| ' + (($Header | ForEach-Object { '---' }) -join ' | ') + ' |'))
-    foreach ($row in $Rows) {
-        $Lines.Add((& $RenderRow $row))
-    }
 }
 
 function Render-FrontTracker {
@@ -87,55 +57,31 @@ function Render-FrontTracker {
     $lines.Add('')
     $lines.Add('Главная точка текущей главы остается в `01_Кампания/01_Активная_глава.md`. Здесь фиксируются не новые события, а удобная карта уже зафиксированных фронтов и ожидаемых триггеров.')
     $lines.Add('')
+    $escape = { param($Value) Format-WmmaTableCell $Value }
     $lines.Add('## Справочник FRONT-ID')
     $lines.Add('')
-    Add-Table -Lines $lines -Header @('ID', 'Фронт') -Rows $fronts -RenderRow {
-        param($row)
-        '| ' + (@(
-            Format-WmmaTableCell $row.id
-            Format-WmmaTableCell $row.name
-        ) -join ' | ') + ' |'
-    }
+    Add-WmmaMarkdownTable $lines @('ID', 'Фронт') @($fronts | ForEach-Object { ,@($_.id, $_.name) }) -Escape $escape
     $lines.Add('')
     $lines.Add('## Срочные развилки')
     $lines.Add('')
-    Add-Table -Lines $lines -Header @('ID', 'Приоритет', 'Фронт', 'Суть', 'Следующий триггер', 'Связанные файлы') -Rows $urgentForks -RenderRow {
-        param($row)
-        '| ' + (@(
-            Format-WmmaTableCell $row.id
-            Format-WmmaTableCell $row.priority
-            Format-WmmaTableCell $row.front
-            Format-WmmaTableCell $row.summary
-            Format-WmmaTableCell $row.trigger
-            Format-LinksCell @($row.links)
-        ) -join ' | ') + ' |'
-    }
+    # The links cell is a list of formatted references; the other cells are escaped here.
+    Add-WmmaMarkdownTable $lines @('ID', 'Приоритет', 'Фронт', 'Суть', 'Следующий триггер', 'Связанные файлы') @(
+        $urgentForks | ForEach-Object {
+            ,@((& $escape $_.id), (& $escape $_.priority), (& $escape $_.front), (& $escape $_.summary), (& $escape $_.trigger), (Format-LinksCell @($_.links)))
+        }
+    )
     $lines.Add('')
     $lines.Add('## Активные фронты')
     $lines.Add('')
-    Add-Table -Lines $lines -Header @('ID', 'Фронт', 'Контроль / участники', 'Текущее состояние', 'Риск', 'Следующий триггер') -Rows $activeFronts -RenderRow {
-        param($row)
-        '| ' + (@(
-            Format-WmmaTableCell $row.id
-            Format-WmmaTableCell $row.front
-            Format-WmmaTableCell $row.participants
-            Format-WmmaTableCell $row.state
-            Format-WmmaTableCell $row.risk
-            Format-WmmaTableCell $row.next_trigger
-        ) -join ' | ') + ' |'
-    }
+    Add-WmmaMarkdownTable $lines @('ID', 'Фронт', 'Контроль / участники', 'Текущее состояние', 'Риск', 'Следующий триггер') @(
+        $activeFronts | ForEach-Object { ,@($_.id, $_.front, $_.participants, $_.state, $_.risk, $_.next_trigger) }
+    ) -Escape $escape
     $lines.Add('')
     $lines.Add('## Таймеры угроз')
     $lines.Add('')
-    Add-Table -Lines $lines -Header @('ID', 'Таймер', 'Статус', 'Что считать срабатыванием') -Rows $timers -RenderRow {
-        param($row)
-        '| ' + (@(
-            Format-WmmaTableCell $row.id
-            Format-WmmaTableCell $row.timer
-            Format-WmmaTableCell $row.status
-            Format-WmmaTableCell $row.trigger
-        ) -join ' | ') + ' |'
-    }
+    Add-WmmaMarkdownTable $lines @('ID', 'Таймер', 'Статус', 'Что считать срабатыванием') @(
+        $timers | ForEach-Object { ,@($_.id, $_.timer, $_.status, $_.trigger) }
+    ) -Escape $escape
     $lines.Add('')
     $lines.Add('## Правило обновления')
     $lines.Add('')
@@ -145,7 +91,7 @@ function Render-FrontTracker {
         $lines.Add(('{0}. {1}' -f ($i + 1), $rules[$i]))
     }
 
-    Write-Utf8NoBom -Path $frontTrackerPath -Text (($lines -join "`n").TrimEnd() + "`n")
+    Write-WmmaText $frontTrackerPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
 $registry = Read-WmmaRegistry $root 'Фронты'
@@ -153,15 +99,8 @@ $registry = Read-WmmaRegistry $root 'Фронты'
 Render-FrontTracker -Registry $registry
 
 if (-not $SkipCheck) {
-    & (Join-Path $root 'tools\Собрать_панель_хода.ps1') -SkipCheck
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-
-    & (Join-Path $root 'tools\Проверить_проект.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-WmmaTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
+    Invoke-WmmaTool -Root $root -Name 'Проверить_проект'
 }
 
 "Updated front registry and Markdown tracker: 09_Реестры/Фронты.json"

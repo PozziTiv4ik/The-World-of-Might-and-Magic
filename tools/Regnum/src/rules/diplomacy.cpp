@@ -1,4 +1,4 @@
-// Regnum — дипломатия: симметричные отношения пары фракций (ТЗ 1.b.iv, 1.b.vi).
+// Regnum — дипломатия: симметричные отношения пары фракций.
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -15,7 +15,7 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
   Relation old = tx.w().relation(a, b);
   Relation nr{clamp(value, -100.0, 100.0), status};
   if (old == nr) return;
-  // ТЗ «Механика войн», п.2: войну государств завершает только перемирие (rules::concludeTruce — только между
+  // Войну государств завершает только перемирие (rules::concludeTruce — только между
   // государствами); война с участием гильдии меняется как прежде.
   if (old.s == RelStatus::War && status != RelStatus::War && fa.isState() && fb.isState())
     fail("Войну " + facName(tx.w(), a) + " и " + facName(tx.w(), b) + " можно завершить только перемирием");
@@ -24,7 +24,7 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
     addLog(tx, status == RelStatus::War ? LogKind::War : LogKind::Diplomacy,
            "Отношения " + facName(tx.w(), a) + " и " + facName(tx.w(), b) + ": " + utf8::lower(schema::relStatus(status).name),
            LogRefs{0, 0, {a, b}});
-  // Союзное войско существует только между союзниками (ТЗ 1.c.iv): конец союза распускает общие объекты.
+  // Союзное войско существует только между союзниками: конец союза распускает общие объекты.
   if (status != RelStatus::Alliance) splitBrokenAlliances(tx, a, b);
 }
 

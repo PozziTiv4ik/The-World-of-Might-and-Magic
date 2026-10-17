@@ -1,20 +1,14 @@
 // Regnum — общие помощники тестов значков, эмблем, флагов и фигурок: запись PNG, подписи, увеличение, покрытие.
 #pragma once
-#include "codec/png.h"
 #include "gfx/canvas.h"
 #include "gfx/text.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
 
 namespace rg::test::icons {
 
-inline void savePng(const gfx::Image& img, const std::string& name) {
-  codec::RgbaImage out;
-  out.w = img.w;
-  out.h = img.h;
-  out.rgba = img.toRgba();
-  const std::string path = test::outDir() + "/" + name + ".png";
-  CHECK_MSG(codec::writePngFile(path, out, 6), path);
-}
+// Лист в каталог артефактов: <name>.png; неудача записи роняет тест.
+inline void savePng(const gfx::Image& img, const std::string& name) { CHECK_MSG(test::savePng(name + ".png", img), name); }
 
 // Подпись мелким шрифтом (если системные шрифты недоступны — без подписи).
 inline void label(gfx::Canvas& c, std::string_view text, float x, float y, Color col, float size = 10.5f) {

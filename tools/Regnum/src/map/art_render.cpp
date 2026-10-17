@@ -185,9 +185,6 @@ Icon makeCastle() {
 //   10 глубина шапки (до кончиков зубцов), 11 высота выемок между зубцами, 12 серый шапки, 13–14 ширина и серый
 //   контура шапки; 15 отступ тени от низа шапки, 16–17 ширина и серый тени; 18–19 размер и серый тёмного кончика
 //   (0 — нет); 20 сдвиг зубцов вдоль шапки.
-constexpr int kMountainParams = 21;
-using MountainParams = std::array<float, kMountainParams>;
-
 u8 gray(float v) { return u8(clamp(int(std::lround(v)), 0, 255)); }
 
 Icon makeMountain(const MountainParams& p) {
@@ -263,8 +260,6 @@ Icon baked(Icon ic) {
 const MountainParams kMountainA = {8.688f, 0.625f, 8.275f, 9.225f, 13.000f, 92.000f, -0.100f, 124.000f, 1.950f, 88.000f, 4.175f, 1.300f, 217.000f, 1.300f, 230.000f, -0.100f, 0.300f, 34.000f, 0.000f, 40.000f, -0.088f};
 const MountainParams kMountainB = {9.250f, 0.150f, 9.256f, 9.800f, 12.600f, 94.000f, 1.150f, 182.000f, 0.575f, 46.000f, 4.400f, 0.688f, 244.000f, 0.724f, 224.000f, 0.250f, 1.275f, 26.000f, 0.956f, -1.000f, -0.400f};
 
-const MountainParams& mountainParams(int design) { return design == 1 ? kMountainB : kMountainA; }
-
 const Icon& iconOf(Sym k, int v = 0) {
   static const Icon mountainA = baked(makeMountain(mountainParams(0))), mountainB = baked(makeMountain(mountainParams(1)));
   static const Icon castle = baked(makeCastle()), tower = baked(makeTower());
@@ -280,27 +275,6 @@ void drawIcon(gfx::Canvas& c, const Icon& ic, gfx::Pt at, float scale, const Sty
   c.concat(gfx::Affine{scale, 0, 0, scale, at.x, at.y});
   for (const Part& p : ic.parts) c.fillPath(p.path, st.tone(p.gray));
   c.restore();
-}
-
-// Среднеквадратичная ошибка краски (255 − синий) рисунка горы против образца w × h с привязкой (ax, ay); вне образца
-// и в незначимых пикселях ожидается белое. Штраф — за вывернутые шапку и тень.
-double mountainError(const MountainParams& p, const std::vector<i16>& ink, int w, int h, int ax, int ay) {
-  const int M = 3, W = w + 2 * M, H = h + 2 * M;
-  gfx::Image img(W, H, gfx::premul(Color(255, 255, 255)));
-  gfx::Canvas c(img);
-  drawIcon(c, baked(makeMountain(p)), gfx::Pt{float(ax + M), float(ay + M)}, 1, Style{});
-  double e = 0;
-  for (int y = 0; y < H; y++)
-    for (int x = 0; x < W; x++) {
-      const int r = 255 - int(img.at(x, y) & 255);
-      const int tx = x - M, ty = y - M;
-      int t = 0;
-      if (tx >= 0 && ty >= 0 && tx < w && ty < h) t = std::max<int>(0, ink[size_t(ty) * size_t(w) + size_t(tx)]);
-      e += double(r - t) * double(r - t);
-    }
-  // Вершина — у середины основания (форма не перекашивается ради отдельных пикселей).
-  const double pen = std::max(0.0, std::fabs(double(p[0]) - (double(p[0]) - p[2] + p[0] + p[3]) * 0.5) - 0.6);
-  return std::sqrt(e / double(W * H)) + 50 * pen;
 }
 
 gfx::Stroke strokeOf(float w) {
@@ -372,44 +346,9 @@ void drawSymbol(gfx::Canvas& c, Sym kind, gfx::Pt at, float scale, int variant, 
   drawIcon(c, iconOf(kind, variant), at, scale, paletteStyle(Style{}, pal));
 }
 
-std::string fitMountainIcon(const std::vector<i16>& ink, int w, int h, int ax, int ay, int design, int maxEvals, double* error) {
-  MountainParams p = mountainParams(design);
-  double best = mountainError(p, ink, w, h, ax, ay);
-  std::array<float, kMountainParams> step;
-  for (int i = 0; i < kMountainParams; i++) {
-    const bool grayIdx = i == 5 || i == 7 || i == 9 || i == 12 || i == 14 || i == 17 || i == 19;
-    const bool widthIdx = i == 6 || i == 8 || i == 13 || i == 16 || i == 18;
-    step[size_t(i)] = grayIdx ? 16.f : widthIdx ? 0.2f : 0.4f;
-  }
-  int evals = 0;
-  for (int round = 0; round < 12 && evals < maxEvals; round++) {
-    bool improved = true;
-    while (improved && evals < maxEvals) {
-      improved = false;
-      for (int i = 0; i < kMountainParams && evals < maxEvals; i++) {
-        if (design == 0 && (i == 18 || i == 19)) continue;   // у рисунка 0 кончика нет
-        for (float sgn : {1.f, -1.f}) {
-          MountainParams q = p;
-          q[size_t(i)] += sgn * step[size_t(i)];
-          const double e = mountainError(q, ink, w, h, ax, ay);
-          evals++;
-          if (e < best - 1e-6) {
-            best = e;
-            p = q;
-            improved = true;
-            break;
-          }
-        }
-      }
-    }
-    for (float& s : step) s *= 0.5f;
-  }
-  if (error) *error = best;
-  std::string out = "{";
-  for (int i = 0; i < kMountainParams; i++) out += strf("%s%.3ff", i ? ", " : "", p[size_t(i)]);
-  return out + "}";
-}
+const MountainParams& mountainParams(int design) { return design == 1 ? kMountainB : kMountainA; }
 
+void drawMountain(gfx::Canvas& c, const MountainParams& p, gfx::Pt at, float scale) { drawIcon(c, baked(makeMountain(p)), at, scale, Style{}); }
 // ================================================================ слои
 void drawSea(gfx::Image& img, const Index& idx, const Xf& P, Palette pal) {
   const MapArt& a = idx.art();

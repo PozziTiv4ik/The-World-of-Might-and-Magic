@@ -1,29 +1,9 @@
 param([switch]$KeepFixture)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
+. (Join-Path $PSScriptRoot 'lib/Testing.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$testRoot=Resolve-WmmaPath $root ('.wmma/audit-tests/'+[guid]::NewGuid().ToString('N'))
-[IO.Directory]::CreateDirectory($testRoot)|Out-Null
-foreach($path in (Get-WmmaFileInventory $root).Keys){
-    $target=Resolve-WmmaPath $testRoot $path
-    [IO.Directory]::CreateDirectory((Split-Path -Parent $target))|Out-Null
-    [IO.File]::Copy((Resolve-WmmaPath $root $path),$target)
-}
-$passed=[Collections.Generic.List[string]]::new()
-function Assert-True([bool]$Condition,[string]$Message){if(-not $Condition){throw $Message}}
-function Expect-Failure([scriptblock]$Action,[string]$Message){
-    $failure=$null
-    try{& $Action|Out-Null}catch{$failure=$_}
-    if(-not $failure){throw $Message}
-    $global:LASTEXITCODE=0
-    return $failure.Exception.Message
-}
-function Step([string]$Name,[scriptblock]$Action){
-    $global:LASTEXITCODE=0
-    & $Action
-    if($LASTEXITCODE -ne 0){throw "Command failed: $Name"}
-    $passed.Add($Name);Write-Host "PASS: $Name"
-}
+$testRoot=New-WmmaProjectFixture $root 'audit-tests'
 $nl=[char]10
 $tick=[char]96
 Step 'Empty metadata stays empty' {
@@ -76,9 +56,9 @@ Step 'Source intake preserves embedded headings fences and status lines' {
     Assert-True ((Get-WmmaMeta $source 'status') -eq 'processed') 'Source lifecycle did not advance'
     Assert-WmmaReceiptPayload $testRoot $receipt
     & (Join-Path $testRoot 'tools/Обработать_входящее.ps1') -RequestId MSG-audit-raw -SkipCheck|Out-Null
-    [void](Expect-Failure {& (Join-Path $testRoot 'tools/Сцена_из_входящего.ps1') -RequestId MSG-audit-raw -Branch Другая -SkipCheck} 'Retry accepted a different branch')
+    Expect-Failure {& (Join-Path $testRoot 'tools/Сцена_из_входящего.ps1') -RequestId MSG-audit-raw -Branch Другая -SkipCheck} 'Retry accepted a different branch'
     Write-WmmaText (Join-Path $testRoot $receipt.source_path) ($source.Replace('Конец исходного текста.','Повреждение.'))
-    [void](Expect-Failure {& (Join-Path $testRoot 'tools/Сцена_из_входящего.ps1') -RequestId MSG-audit-raw -Branch Аудит -SkipCheck} 'Corrupted source passed retry')
+    Expect-Failure {& (Join-Path $testRoot 'tools/Сцена_из_входящего.ps1') -RequestId MSG-audit-raw -Branch Аудит -SkipCheck} 'Corrupted source passed retry'
     Write-WmmaText (Join-Path $testRoot $receipt.source_path) $source
 }
 Step 'Inbox-only payload and duplicate titles remain addressable by request ID' {
@@ -94,9 +74,9 @@ Step 'Scene replacement and invalid references fail before writing' {
     $scenePath=Join-Path $testRoot $r.scene_path
     $original=Read-WmmaText $scenePath
     $number=[int]([regex]::Match((Split-Path -Leaf $scenePath),'Сцена_(\d+)').Groups[1].Value)
-    [void](Expect-Failure {& (Join-Path $testRoot 'tools/Новая_сцена.ps1') -Branch Аудит -Title 'Одинаковое название' -Number $number -Force -SkipCheck} 'Scene force replaced stable identity')
+    Expect-Failure {& (Join-Path $testRoot 'tools/Новая_сцена.ps1') -Branch Аудит -Title 'Одинаковое название' -Number $number -Force -SkipCheck} 'Scene force replaced stable identity'
     Assert-True ((Read-WmmaText $scenePath) -ceq $original) 'Rejected replacement wrote the scene'
-    [void](Expect-Failure {& (Join-Path $testRoot 'tools/Новая_сцена.ps1') -Branch Аудит -Title 'Некорректная ссылка' -SourceIds SRC-missing -SkipCheck} 'Invalid source reference accepted')
+    Expect-Failure {& (Join-Path $testRoot 'tools/Новая_сцена.ps1') -Branch Аудит -Title 'Некорректная ссылка' -SourceIds SRC-missing -SkipCheck} 'Invalid source reference accepted'
 }
 Step 'Full rebuild validates embedded author messages and receipts' {
     Invoke-WmmaStageValidation $testRoot -Build
@@ -135,7 +115,7 @@ Step 'Validation detects stale memory and corrupted source payloads' {
     Write-WmmaText $path $original
 }
 # Transaction protocol tests use a tiny independent fixture. Real project build
-# and staged validation are exercised by Проверить_систему_v2.ps1.
+# and staged validation are exercised by Проверить_сценарии_контекста.ps1.
 $tx=Join-Path $testRoot '.wmma/protocol'
 [IO.Directory]::CreateDirectory($tx)|Out-Null
 Write-WmmaText (Join-Path $tx 'tools/Проверить_проект.ps1') 'exit 0'
@@ -148,7 +128,7 @@ Step 'Interrupted snapshot resumes and refuses changed base files' {
     $m=Read-WmmaJson $mp;$m.status='copying';Write-WmmaJson $mp $m
     [IO.File]::Delete((Resolve-WmmaPath (Join-Path $turn 'stage') 'existing.txt'))
     Write-WmmaText (Join-Path $tx 'existing.txt') 'concurrent'
-    [void](Expect-Failure {Start-WmmaTurn $tx TURN-copy 'Snapshot'} 'Changed source accepted during resume')
+    Expect-Failure {Start-WmmaTurn $tx TURN-copy 'Snapshot'} 'Changed source accepted during resume'
     Write-WmmaText (Join-Path $tx 'existing.txt') 'before'
     $m=Start-WmmaTurn $tx TURN-copy 'Snapshot'
     Assert-True ($m.status -eq 'editing' -and (Read-WmmaText (Join-Path $turn 'stage/existing.txt')) -ceq 'before') 'Partial snapshot was not resumed'
@@ -157,7 +137,7 @@ Step 'Stage failure reports the child diagnostic' {
     $turn=Get-WmmaTurnPath $tx TURN-copy
     $check=Join-Path $turn 'stage/tools/Проверить_проект.ps1'
     Write-WmmaText $check "Write-Output 'DIAGNOSTIC-audit-test'; exit 1"
-    $message=Expect-Failure {Invoke-WmmaStageValidation (Join-Path $turn 'stage')} 'Failed stage accepted'
+    $message=Expect-Failure {Invoke-WmmaStageValidation (Join-Path $turn 'stage')} 'Failed stage accepted' -PassThru
     Assert-True ($message.Contains('DIAGNOSTIC-audit-test')) 'Child failure detail swallowed'
     Write-WmmaText $check 'exit 0'
 }
@@ -169,14 +149,14 @@ Step 'Plan tampering backups interrupted apply and repeat restore' {
     $mp=Join-Path $turn 'transaction.json'
     $original=Read-WmmaText $mp;$m=Read-WmmaJson $mp
     $m.base.'existing.txt'=Get-WmmaHash 'tampered';Write-WmmaJson $mp $m
-    [void](Expect-Failure {Apply-WmmaTurn $tx TURN-copy} 'Tampered base accepted')
-    [void](Expect-Failure {Undo-WmmaTurn $tx TURN-copy} 'Tampered restore plan accepted')
+    Expect-Failure {Apply-WmmaTurn $tx TURN-copy} 'Tampered base accepted'
+    Expect-Failure {Undo-WmmaTurn $tx TURN-copy} 'Tampered restore plan accepted'
     Write-WmmaText $mp $original
-    [void](Expect-Failure {Apply-WmmaTurn $tx TURN-copy -FailAfter 1} 'Interruption did not fire')
+    Expect-Failure {Apply-WmmaTurn $tx TURN-copy -FailAfter 1} 'Interruption did not fire'
     Assert-True ((Apply-WmmaTurn $tx TURN-copy).status -eq 'committed') 'Interrupted apply failed to resume'
     $backup=Join-Path $turn 'backup/existing.txt'
     Write-WmmaText $backup 'corrupt'
-    [void](Expect-Failure {Undo-WmmaTurn $tx TURN-copy} 'Corrupt backup accepted')
+    Expect-Failure {Undo-WmmaTurn $tx TURN-copy} 'Corrupt backup accepted'
     Assert-True ((Read-WmmaText (Join-Path $tx 'existing.txt')) -ceq 'after') 'Rejected restore modified target'
     Write-WmmaText $backup 'before'
     Assert-True ((Undo-WmmaTurn $tx TURN-copy).status -eq 'restored') 'Restore failed'
@@ -189,5 +169,4 @@ Step 'An empty prepared turn is valid and repeatable' {
     Assert-True ((Apply-WmmaTurn $tx TURN-empty).status -eq 'committed') 'Empty apply failed'
     Assert-True ((Undo-WmmaTurn $tx TURN-empty).status -eq 'restored') 'Empty restore failed'
 }
-if(-not $KeepFixture){Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue}
-[pscustomobject]@{Passed=$passed.Count;Tests=@($passed);Fixture=$(if(Test-Path -LiteralPath $testRoot){$testRoot})}|ConvertTo-Json -Depth 6
+Complete-WmmaTestRun $testRoot -KeepFixture:$KeepFixture

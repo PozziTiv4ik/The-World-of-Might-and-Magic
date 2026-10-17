@@ -6,34 +6,11 @@
 using namespace rg;
 using namespace rg::apptest;
 
-namespace {
-
-// Провинция государства без войск, гарнизона и оккупации, где у точки подписи можно поставить войско.
-Id calmProvince(Harness& h, Id state, Id skip = 0) {
-  const World& w = h->world();
-  auto fs = geo::faces(w);
-  Id found = 0;
-  w.provinces.each([&](const Province& p) {
-    if (found || p.id == skip || p.sea || p.owner != state || p.occupied || !p.garrison.empty()) return;
-    i64 pop = 0;
-    for (const RacePop& r : p.races) pop += r.pop;
-    if (pop < 100) return;
-    const geo::ProvinceShape* sh = fs->shape(p.id);
-    if (!sh || !rules::validPosition(w, ArmyKind::Army, sh->label)) return;
-    bool busy = false;
-    w.armies.each([&](const Army& a) { busy = busy || app::mil::provinceUnder(w, a.pos) == p.id; });
-    if (!busy) found = p.id;
-  });
-  return found;
-}
-
-}  // namespace
-
 TEST(app_turn_events_full_mutiny) {
   Harness h("turn_events_mutiny", 1440, 1000);
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id pid = calmProvince(h, hel);
+  const Id pid = calmProvince(h, hel, 100);
   CHECK(pid != 0);
   if (!pid) return;
   const Id hero = freeHero(h, hel);
@@ -71,7 +48,7 @@ TEST(app_turn_events_garrison_mutiny) {
   Harness h("turn_events_garrison", 1440, 1000);
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id pid = calmProvince(h, hel);
+  const Id pid = calmProvince(h, hel, 100);
   CHECK(pid != 0);
   if (!pid) return;
   const Id row = h->world().faction(hel)->army[0].id;
@@ -110,7 +87,7 @@ TEST(app_turn_events_mutiny_attacks_loyal) {
   Harness h("turn_events_mutiny_loyal", 1440, 1000);
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id pid = calmProvince(h, hel);
+  const Id pid = calmProvince(h, hel, 100);
   CHECK(pid != 0);
   if (!pid) return;
   const Vec2 at = geo::faces(h->world())->shape(pid)->label;
@@ -135,7 +112,7 @@ TEST(app_turn_events_province_uprising) {
   Harness h("turn_events_uprising", 1440, 1000);
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id pid = calmProvince(h, hel);
+  const Id pid = calmProvince(h, hel, 100);
   CHECK(pid != 0);
   if (!pid) return;
   i64 pop = 0;

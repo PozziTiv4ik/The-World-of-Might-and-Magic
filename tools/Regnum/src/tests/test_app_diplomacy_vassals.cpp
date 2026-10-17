@@ -8,27 +8,8 @@ using namespace rg;
 using namespace rg::apptest;
 using namespace rg::factest;
 
-namespace {
-
-void shotClean(Harness& h, const std::string& name) {
-  h.waitMap();
-  h.settle();
-  CHECK(h.shot(name));
-}
-
-bool clickAt(Harness& h, const std::string& name, float fx) {
-  const RectF* r = h->uiRect(name);
-  if (!r) return false;
-  RectF rr = *r;
-  h.click(rr.x + rr.w * fx, rr.cy());
-  return true;
-}
-
-}  // namespace
-
 // ---------------------------------------------------------------- сюзерен в карточке вассала и восстание
 TEST(app_diplomacy_vassal_rebel) {
-  HideTestRegs regs;
   Harness h("diplomacy_vassal_rebel");
   h.demo();
   h.waitMap();
@@ -81,7 +62,6 @@ TEST(app_diplomacy_vassal_rebel) {
 
 // ---------------------------------------------------------------- объявление войны: сюзерен вассала, затем призыв
 TEST(app_diplomacy_vassal_war_flow) {
-  HideTestRegs regs;
   Harness h("diplomacy_vassal_war");
   h.demo();
   h.waitMap();
@@ -134,7 +114,6 @@ TEST(app_diplomacy_vassal_war_flow) {
 
 // ---------------------------------------------------------------- сюзерен вступает в войну за вассала
 TEST(app_diplomacy_vassal_defend_yes) {
-  HideTestRegs regs;
   Harness h("diplomacy_vassal_defend");
   h.demo();
   h.waitMap();
@@ -161,7 +140,6 @@ TEST(app_diplomacy_vassal_defend_yes) {
 
 // ---------------------------------------------------------------- на сюзерена напали: его вассалы — на защиту
 TEST(app_diplomacy_vassal_called_to_defend) {
-  HideTestRegs regs;
   Harness h("diplomacy_vassal_defense");
   h.demo();
   h.waitMap();

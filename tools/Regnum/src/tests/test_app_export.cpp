@@ -94,9 +94,9 @@ TEST(app_export_map_offscreen) {
   CHECK(last.b > 150 && last.r < 100);
 }
 
-TEST(bench_export_8k) {
+TEST(app_export_bench_8k) {
   // Замер экспорта 8K с подписями и записью PNG (не в обычном прогоне: REGNUM_BENCH=1).
-  if (!std::getenv("REGNUM_BENCH")) {
+  if (!test::envFlag("REGNUM_BENCH")) {
     std::printf("  пропущено: запуск с REGNUM_BENCH=1\n");
     return;
   }
@@ -107,12 +107,8 @@ TEST(bench_export_8k) {
   gfx::Image img = map::exportMap(h->basemap(), h->world(), 7680, o);
   const double tr = (nowSeconds() - t0) * 1000;
   t0 = nowSeconds();
-  codec::RgbaImage out;
-  out.w = img.w;
-  out.h = img.h;
-  out.rgba = img.toRgba();
   const std::string file = fs::join(h.root, "8k.png");
-  CHECK(codec::writePngFile(file, out, 6));
+  CHECK(codec::writePngFile(file, img.toRgbaImage(), 6));
   const double tw = (nowSeconds() - t0) * 1000;
   std::printf("  экспорт 7680 × 4320: отрисовка %.0f мс, PNG %.0f мс, файл %.1f МБ\n", tr, tw, double(fs::fileSize(file).value_or(0)) / 1048576.0);
 }

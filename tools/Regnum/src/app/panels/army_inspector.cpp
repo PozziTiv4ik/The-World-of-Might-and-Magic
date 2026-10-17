@@ -5,19 +5,13 @@
 // полководец (флотоводец), кнопки «Разделить», «Распустить союз», «Расформировать»; провинция под объектом; события.
 // Флот (ТЗ «Доработки №3», п.6): вместимость и вкладка «Войско на борту» с «Высадкой войска»; войско на борту — флот
 // вместо провинции. Союзный объект (ТЗ «Доработки №4», п.9): плитки фракций, у лидера — корона, у остальных —
-// «Вернуть войско».
+// «Вернуть войско». Роли (ТЗ «Доработки №4», п.5): отряды и герои плитки — за её фракцию, полководец, разделение,
+// союз, расформирование, высадка и мятеж — за лидера (App::play); название, верность, модификаторы и новый герой —
+// правка мира (администратор). Чужие объекты игрок видит только для чтения.
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
 #include "gfx/icons.h"
-
-namespace rg::app {
-namespace edkit {   // поток фишек с переносом строк (editors/modifiers.cpp)
-void chipsBegin();
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o);
-void chipsEnd();
-}  // namespace edkit
-}  // namespace rg::app
 
 namespace rg::app::mil {
 
@@ -47,17 +41,19 @@ void drawHeader(App& a, Id id) {
   {
     float aw = ui::avail().w;
     const float full = ui::measure(name, ui::Font::Heading) + 2;
-    float nw = std::min(full, std::max(40.f, aw - 34));
-    ui::Row nr({ui::px(nw), ui::px(26)}, 32, 4);
+    const bool rename = a.admin();   // название — правка мира
+    float nw = std::min(full, std::max(40.f, aw - (rename ? 34 : 0)));
+    const ui::Len cols[] = {ui::px(nw), ui::px(26)};
+    ui::Row nr(std::span<const ui::Len>(cols, rename ? 2 : 1), 32, 4);
     ui::label(name, {.font = ui::Font::Heading, .tooltip = full > nw ? std::string_view(name) : std::string_view()});   // не поместилось — полностью
-    ui::Disabled dis(a.readOnly());
-    if (ui::iconButton("edit", "Переименовать", {.size = ui::Size::Small, .shortcut = {platform::Key::F2, 0}})) {
+    ui::Disabled dis(!a.canEdit());
+    if (rename && ui::iconButton("edit", "Переименовать", {.size = ui::Size::Small, .shortcut = {platform::Key::F2, 0}})) {
       bool fleet = ar->isFleet();
       a.prompt(fleet ? "Переименовать флот" : "Переименовать войско", "Название", ar->name, [id, fleet](App& x, const std::string& v) {
         x.act(fleet ? "Переименовать флот" : "Переименовать войско", [&](Tx& tx) { rules::renameArmy(tx, id, v); });
       });
     }
-    a.markUi("army.rename");
+    if (rename) a.markUi("army.rename");
   }
   std::vector<Id> fs = factionsIn(*ar);
   if (fs.size() == 1) {
@@ -82,14 +78,15 @@ struct AddUnit {
 
 void setCount(App& a, const Army& ar, Id faction, Id row, i64 n) {
   Id id = ar.id;
-  a.act(ar.isFleet() ? "Корабли во флоте" : "Отряды в войске", [&](Tx& tx) { rules::setUnits(tx, id, faction, row, n); },
+  if (!w::checkPlay(a, faction)) return;
+  a.play(ar.isFleet() ? "Корабли во флоте" : "Отряды в войске", [&](Tx& tx) { rules::setUnits(tx, id, faction, row, n); },
         {.coalesce = "units:" + std::to_string(id) + ":" + std::to_string(row)});
 }
 
 void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
   const World& w = frameWorld(a);
   bool fleet = ar.isFleet();
-  bool ro = a.readOnly();
+  const bool ro = !a.canPlay(g.faction);   // отряды плитки — игровое действие её фракции
   auto c = rules::calc(w);
   struct L {
     UnitRow row;
@@ -122,6 +119,7 @@ void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
       a.markUi("army.unit." + std::to_string(g.faction) + "." + std::to_string(l.row.id));
       t.text(fmtCount(l.reserve), l.reserve > 0 ? ui::Ink::Success : ui::Ink::Muted);
       t.cell();
+      if (ro && !a.admin()) continue;   // чужая плитка у игрока — без кнопки
       if (ui::iconButton("close", fleet ? "Вернуть корабли в резерв" : "Вернуть отряд в резерв")) setCount(a, ar, g.faction, l.row.id, 0);
     }
     if (t.footer()) {
@@ -134,12 +132,12 @@ void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
   std::vector<UnitRow> avail;
   for (const UnitRow& r : all)   // торговые галеоны к флотам на карте не присоединяются (ТЗ «Доработки №3», п.6)
     if (rowCount(g, r.id) == 0 && !(fleet && r.type == int(ShipType::Galleon))) avail.push_back(r);
-  ui::Disabled dis(ro);
+  if (ro) return;   // чужая плитка — только просмотр
   if (all.empty()) {
     ui::HStack hs(0, ui::Align::Left, 6);
     ui::label(std::string("В таблице ") + (fleet ? "флота" : "войск") + " фракции нет строк", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info"});
     if (ui::link("Открыть", fleet ? "fleet" : "army")) {
-      a.ui.tabOf[SelType::Faction] = fleet ? "faction.fleet" : "faction.army";
+      a.ui.tabOf[SelType::Faction] = fleet ? mil::kTabFleet : mil::kTabArmy;
       a.select(SelType::Faction, g.faction);
     }
     return;
@@ -185,7 +183,8 @@ void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
     if (ui::button("Назначить", {.variant = ui::Variant::Primary, .icon = "check", .fill = true, .disabled = rowId == 0 || st.count <= 0})) {
       Id id = ar.id, fac = g.faction;
       i64 n = st.count;
-      if (a.act(fleet ? "Корабли во флоте" : "Отряды в войске", [&](Tx& tx) { rules::setUnits(tx, id, fac, rowId, n); })) ui::closePopup();
+      if (w::checkPlay(a, fac) && a.play(fleet ? "Корабли во флоте" : "Отряды в войске", [&](Tx& tx) { rules::setUnits(tx, id, fac, rowId, n); }))
+        ui::closePopup();
     }
     a.markUi("army.addunit.ok");
     ui::endPopup();
@@ -195,7 +194,9 @@ void unitsTable(App& a, const Army& ar, const ArmyGroup& g) {
 // ---------------------------------------------------------------- герои
 void setHeroes(App& a, const Army& ar, Id character, bool on) {
   Id id = ar.id;
-  a.act(on ? "Герой в войске" : "Убрать героя", [&](Tx& tx) {
+  const Character* ch = a.world().character(character);
+  if (!w::checkPlay(a, ch ? ch->faction : 0)) return;   // герои — за свою фракцию
+  a.play(on ? "Герой в войске" : "Убрать героя", [&](Tx& tx) {
     rules::setHero(tx, id, character, on);
     // Главный полководец — всегда один из героев, если они есть.
     const Army* cur = tx.w().army(id);
@@ -210,19 +211,22 @@ void setHeroes(App& a, const Army& ar, Id character, bool on) {
 
 void heroesList(App& a, const Army& ar, const ArmyGroup& g) {
   const World& w = frameWorld(a);
-  bool ro = a.readOnly();
+  const bool ro = !a.canPlay(g.faction);       // герои плитки — за её фракцию
+  const bool lead = a.canPlay(ar.leader());     // главный полководец — за лидера объекта
   for (Id h : g.heroes) {
     const Character* ch = w.character(h);
     if (!ch) continue;
     ui::IdScope s{i64(h)};
     bool cmd = ar.commander == h;
     ui::Row r({ui::px(22), ui::px(30), ui::fr(1), ui::px(30)}, 38, 8);
-    {
-      ui::Disabled dis(ro);
+    if (!lead && !a.admin()) {   // чужой объект у игрока — без выбора полководца
+      ui::next(22, 38);
+    } else {
+      ui::Disabled dis(!lead);
       int v = cmd ? 1 : 0;
-      if (ui::radio("##cmd", v, 1)) {
+      if (ui::radio("##cmd", v, 1) && lead) {
         Id id = ar.id;
-        a.act(ar.isFleet() ? "Главный флотоводец" : "Главный полководец", [&](Tx& tx) { rules::setCommander(tx, id, h); });
+        a.play(ar.isFleet() ? "Главный флотоводец" : "Главный полководец", [&](Tx& tx) { rules::setCommander(tx, id, h); });
       }
       ui::tooltip(leaderWord(ar));
       a.markUi("army.cmd." + std::to_string(h));
@@ -238,6 +242,7 @@ void heroesList(App& a, const Army& ar, const ArmyGroup& g) {
       ui::label(cmd ? std::string(leaderWord(ar)) : (ch->title.empty() ? std::string("Герой") : ch->title),
                 {.font = ui::Font::Caption, .ink = cmd ? ui::Ink::Accent : ui::Ink::Muted});
     }
+    if (ro && !a.admin()) continue;   // чужая плитка у игрока — без кнопки
     ui::Disabled dis(ro);
     if (ui::iconButton("close", "Убрать героя из войска")) setHeroes(a, ar, h, false);
   }
@@ -269,12 +274,14 @@ void heroesList(App& a, const Army& ar, const ArmyGroup& g) {
   std::vector<ui::Option> opts;
   for (size_t i = 0; i < list.size(); i++)
     opts.push_back(ui::Option{list[i]->name, list[i]->hero ? "hero" : "character", fc, hints[i], bool(busy[i])});
-  opts.push_back(ui::Option{"Новый герой", "user-plus", Color(0, 0, 0, 0), {}, false});
+  const bool create = a.canEdit();   // новый персонаж — правка мира
+  if (create) opts.push_back(ui::Option{"Новый герой", "user-plus", Color(0, 0, 0, 0), {}, false});
+  if (opts.empty()) return;
   int idx = -1;
   if (ui::combo("addhero", idx, opts, {.placeholder = "Добавить героя", .search = 1, .icon = "user-plus"})) {
     if (idx >= 0 && idx < int(ids.size()) && !busy[size_t(idx)]) {
       setHeroes(a, ar, ids[size_t(idx)], true);
-    } else if (idx == int(ids.size())) {
+    } else if (create && idx == int(ids.size())) {
       Id id = ar.id, fac = g.faction, nh = 0;
       a.act("Новый герой в войске", [&](Tx& tx) {
         nh = rules::createCharacter(tx, fac, "Новый герой");
@@ -312,15 +319,15 @@ void groupTile(App& a, const Army& ar, const ArmyGroup& g) {
         RectF ic = ui::next(26, 26);
         ui::at(RectF{ic.x + 4, ic.y + 4, 18, 18});
         ui::icon("crown", ui::Ink::Accent, 18, ar.isFleet() ? "Управляет союзным флотом" : "Управляет союзным войском");
-      } else if (back) {
+      } else if (back && (a.canPlay(g.faction) || a.admin())) {
         std::string why;
         const bool can = rules::canReturnGroup(w, ar.id, g.faction, &why);
         const char* tip = ar.isFleet() ? "Вернуть флот" : "Вернуть войско";
-        ui::Disabled dis(a.readOnly() || !can);
+        ui::Disabled dis(!a.canPlay(g.faction) || !can);   // вернуть своё войско — игровое действие фракции плитки
         if (ui::iconButton("group-leave", can ? std::string(tip) : std::string(tip) + "\n" + why, {.size = ui::Size::Small})) {
           const Id army = ar.id, fac = g.faction;
           Id nid = 0;
-          if (a.act(tip, [&](Tx& tx) { nid = rules::returnGroup(tx, army, fac); })) {
+          if (w::checkPlay(a, fac) && a.play(tip, [&](Tx& tx) { nid = rules::returnGroup(tx, army, fac); })) {
             a.toast(std::string(ar.isFleet() ? "Флот возвращён: «" : "Войско возвращено: «") + objectName(*a.world().army(nid)) + "»", ToastKind::Success, "group-leave");
           }
         }
@@ -432,13 +439,13 @@ void setArmyMods(App& a, Id army, const char* label, const std::function<void(Tx
 // Модификаторы войска фишками: срок в ходах на фишке (щелчок — правка срока), крестик — снять, «Добавить».
 void armyModifiers(App& a, const Army& ar) {
   const World& w = frameWorld(a);
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // модификаторы вручную — правка мира
   const Id id = ar.id;
   ui::IdScope scope("mods");
   bool any = false;
   for (Id mid : ar.modifiers) any = any || w.modifier(mid);
   if (any) {
-    edkit::chipsBegin();
+    ui::ChipFlow chipFlow;
     for (size_t i = 0; i < ar.modifiers.size(); i++) {
       const Id mid = ar.modifiers[i];
       const Modifier* m = w.modifier(mid);
@@ -455,10 +462,10 @@ void armyModifiers(App& a, const Army& ar) {
       co.icon = m->icon.empty() || !gfx::hasIcon(m->icon) ? "sparkles" : m->icon.c_str();
       co.color = m->color;
       co.removable = !ro;
-      co.clickable = true;
+      co.clickable = a.admin();   // срок и редактор — администратору
       co.tooltip = tip;
       const std::string name = (m->name.empty() ? std::string("Модификатор") : m->name) + (left > 0 ? " · " + std::to_string(left) : std::string());
-      ui::ChipAction act = edkit::chip(name, co);
+      ui::ChipAction act = ui::flowChip(name, co);
       a.markUi("army.mods.chip." + std::to_string(i));
       if (act == ui::ChipAction::Remove) {
         setArmyMods(a, id, "Снять модификатор войска", [mid](Tx&, std::vector<Id>& mods) { mods.erase(std::remove(mods.begin(), mods.end(), mid), mods.end()); });
@@ -481,7 +488,6 @@ void armyModifiers(App& a, const Army& ar) {
         ui::endPopup();
       }
     }
-    edkit::chipsEnd();
   }
   if (ro) return;
   std::vector<ModChoice> choices = modChoices(w, ar);
@@ -501,7 +507,7 @@ void armyModifiers(App& a, const Army& ar) {
 // «Мятеж» (ТЗ «Механика мятежа», п.1).
 void loyaltyCard(App& a, const Army& ar) {
   const World& w = frameWorld(a);
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // верность — показатель, правка мира
   const Id id = ar.id;
   const bool undead = rules::armyHas(w, id, schema::mod::UndeadArmy);
   const double delta = rules::loyaltyDelta(w, id);
@@ -532,14 +538,15 @@ void loyaltyCard(App& a, const Army& ar) {
   if (ar.loyalty < 0) {
     std::string why;
     const bool can = rules::canMutiny(w, id, &why);
-    {
-      ui::Disabled dis(ro || !can);
+    const bool play = a.canPlay(ar.leader());   // мятеж — игровое действие лидера
+    if (play || a.admin()) {
+      ui::Disabled dis(!play || !can);
       if (ui::button("Мятеж", {.variant = ui::Variant::Danger, .icon = "rebellion", .fill = true,
                                .tooltip = can ? std::string("Неверная часть войск государства в провинции отделится и восстанет") : why}))
         flow::startMutiny(a, id);
       a.markUi("army.mutiny");
     }
-    if (!can && !ro) ui::label(why, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info", .wrap = true});   // почему недоступно
+    if (!can && play) ui::label(why, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info", .wrap = true});   // почему недоступно
   }
 }
 
@@ -553,7 +560,7 @@ void runMutiny(App& a, Id army) {
   const Id origin = ar->leader();
   const Id pid = provinceUnder(before, ar->pos);
   rules::MutinyResult res;
-  if (!a.act("Мятеж: " + objectName(*ar), [&](Tx& tx) { res = rules::mutiny(tx, army); })) return;
+  if (!w::checkPlay(a, origin) || !a.play("Мятеж: " + objectName(*ar), [&](Tx& tx) { res = rules::mutiny(tx, army); })) return;
   const World& w = a.world();
   a.toast("Мятеж: " + w.factionName(res.rebelState) + (res.full ? " — войско восстало целиком" : ""), ToastKind::Warning, "rebellion");
   const Id rebelState = res.rebelState, rebel = res.rebelArmy;
@@ -583,7 +590,7 @@ void drawUnits(App& a, Id id) {
   const Army* ar = w.army(id);
   if (!ar) return;
   bool fleet = ar->isFleet();
-  bool ro = a.readOnly();
+  const bool ro = !a.canPlay(ar->leader());   // разделение, союз, расформирование, высадка — за лидера
   i64 heroes = 0;
   for (const ArmyGroup& g : ar->groups) heroes += i64(g.heroes.size());
   {
@@ -621,7 +628,7 @@ void drawUnits(App& a, Id id) {
     a.markUi("army.split");
   };
   const char* disbandTip = loaded ? "На борту войско — сначала высадите его" : nullptr;
-  {
+  if (!ro || a.admin()) {   // чужой объект у игрока — без кнопок
     ui::Disabled dis(ro);
     if (ar->allied()) {
       ui::Row r({ui::fr(1), ui::fr(1.25f), ui::px(36)}, 30, 8);
@@ -675,8 +682,8 @@ void drawCargo(App& a, Id id) {
     a.markUi("army.cargo.army");
     ui::label(fmtCount(n) + " " + plural(n, "воин", "воина", "воинов"), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   }
-  {
-    ui::Disabled dis(a.readOnly());
+  if (a.canPlay(fl->leader()) || a.admin()) {
+    ui::Disabled dis(!a.canPlay(fl->leader()));   // высадка — игровое действие хозяина флота
     if (ui::button("Высадка войска", {.variant = ui::Variant::Primary, .icon = "disembark", .fill = true,
                                       .tooltip = "Высадить войско на сушу у флота (Esc — отмена)"}))
       startLanding(a, id);
@@ -720,8 +727,8 @@ void drawLog(App& a, Id id) {
 
 
 HeaderReg header({"army.header", SelType::Army, 0, drawHeader});
-TabReg unitsTab({"army.units", "army", "Состав", 10, SelType::Army, nullptr, drawUnits});
-TabReg cargoTab({"army.cargo", "embark", "Войско на борту", 15, SelType::Army, cargoVisible, drawCargo, cargoBadge});
+TabReg unitsTab({mil::kTabUnits, "army", "Состав", 10, SelType::Army, nullptr, drawUnits});
+TabReg cargoTab({mil::kTabCargo, "embark", "Войско на борту", 15, SelType::Army, cargoVisible, drawCargo, cargoBadge});
 TabReg logTab({"army.log", "chronicle", "События", 20, SelType::Army, nullptr, drawLog});
 
 }  // namespace
@@ -737,11 +744,8 @@ void flow::startMutiny(App& a, Id army) {
     a.toast(why, ToastKind::Warning, "warning");
     return;
   }
-  if (a.readOnly()) {
-    a.act("Мятеж", [](Tx&) {});   // сообщение о просмотре прошлого хода
-    return;
-  }
   const Army& ar = *w.army(army);
+  if (!w::checkPlay(a, ar.leader())) return;   // мятеж — игровое действие лидера (причина — уведомлением)
   const Faction* f = w.faction(ar.leader());
   const std::string state = f && !f->name.empty() ? f->name : std::string("Без названия");
   const double p = std::min(100.0, -ar.loyalty);

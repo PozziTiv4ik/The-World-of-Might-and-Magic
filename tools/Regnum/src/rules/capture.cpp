@@ -1,29 +1,10 @@
-// Regnum — штурм гарнизона провинции и захват (ТЗ «Механика войн», п.4–5; «Модификаторы», 1.1–1.3, 1.16–1.17):
+// Regnum — штурм гарнизона провинции и захват:
 // захватить (оккупация), захватить и разграбить, разорить, опустошить.
 #include "rules/internal.h"
 
 namespace rg::rules {
 
 using namespace detail;
-
-namespace {
-
-constexpr i64 kMaxCount = 1000000000000000LL;
-
-i64 provincePop(const Province& p) {
-  i64 n = 0;
-  for (const RacePop& r : p.races) n += std::max<i64>(0, r.pop);
-  return n;
-}
-
-i64 unitsOf(const Army& a) {
-  i64 n = 0;
-  for (const ArmyGroup& g : a.groups)
-    for (const ArmyUnit& u : g.units) n += u.count;
-  return n;
-}
-
-}  // namespace
 
 bool canSiege(const World& w, Id army, Id province, std::string* why) {
   auto no = [&](std::string s) {
@@ -35,7 +16,7 @@ bool canSiege(const World& w, Id army, Id province, std::string* why) {
   if (a->isFleet()) return no("Флот не штурмует провинции");
   if (carrierOf(w, army)) return no("Войско на борту флота — сначала высадите его");
   if (a->allied()) return no("Союзное войско не штурмует провинции — сначала распустите союз");
-  // Войска без государства не вступают в бой с местными войсками и гарнизонами (ТЗ «Доработки №2», п.19.2.2).
+  // Войска без государства не вступают в бой с местными войсками и гарнизонами.
   if (const Faction* lf = w.faction(a->leader()); lf && lf->isWild()) return no("Войско без государства не штурмует провинции");
   const Province* p = w.province(province);
   if (!p) return no("Провинция не найдена");
@@ -100,8 +81,7 @@ BattleOutcome resolveSiege(Tx& tx, const SiegeResult& r) {
           left -= take;
         }
     }
-    for (ArmyRow& ar : tx.faction(faction).army)
-      if (ar.id == row) ar.total = std::max<i64>(0, ar.total - n);
+    if (ArmyRow* ar = findById(tx.faction(faction).army, row)) ar->total = std::max<i64>(0, ar->total - n);
   }
   // Потери гарнизона.
   for (auto& [row, n] : r.garrisonLosses) {
@@ -110,8 +90,7 @@ BattleOutcome resolveSiege(Tx& tx, const SiegeResult& r) {
     if (const ArmyRow* ar = O.armyRow(row); ar && unitRace(tx.w(), owner, *ar) == schema::kRaceLiving) livingG += n;
     for (GarrisonEntry& g : tx.province(r.province).garrison)
       if (g.row == row) g.count -= n;
-    for (ArmyRow& ar : tx.faction(owner).army)
-      if (ar.id == row) ar.total = std::max<i64>(0, ar.total - n);
+    if (ArmyRow* ar = findById(tx.faction(owner).army, row)) ar->total = std::max<i64>(0, ar->total - n);
   }
   auto& gs = tx.province(r.province).garrison;
   gs.erase(std::remove_if(gs.begin(), gs.end(), [](const GarrisonEntry& g) { return g.count <= 0; }), gs.end());
@@ -131,10 +110,7 @@ BattleOutcome resolveSiege(Tx& tx, const SiegeResult& r) {
   const std::string an = q(A.name.empty() ? std::string("Войско") : A.name);
   std::string text = "Штурм провинции " + provName(tx.w(), r.province) + ": " + an + " против гарнизона " + facName(tx.w(), owner);
   const bool anyLeft = attackerLeft > 0 || garrisonLeft > 0;
-  if (anyLeft) {
-    out.winner = r.attackerWins ? L : owner;
-    out.loser = r.attackerWins ? owner : L;
-  }
+  if (anyLeft) out.winner = r.attackerWins ? L : owner;
   if (anyLeft && r.attackerWins) {
     // Гарнизон разбит: уцелевшие возвращаются в резерв владельца, герои гарнизона — в окно «Судьба героев».
     for (Id h : P.garrisonHeroes) out.fallenHeroes.push_back(h);

@@ -1,8 +1,9 @@
 // Regnum — окна археологии (ТЗ «Доработки №2», п.3, 14–19): «Результат исследования в провинции «…»» и «Результат
 // раскопок в провинции «…»» — исход с шансом, место и этапы, полученное (сундуки с содержимым), опыт и уровень группы,
-// трагедия и пробуждение бедствия, появившееся войско без государства («Показать на карте»); затем, если группа в
-// смертельной опасности, — «Группу может спасти только божественное вмешательство»: 1000 эссенции государства или
-// отказ (группа погибает). Решение обязательно: окно спасения без него не закрывается.
+// трагедия и пробуждение бедствия, появившееся войско без государства («Показать на карте»); полученные реликвии лежат
+// в инвентаре государства (ТЗ «Доработки №4», п.4). Затем, если группа в смертельной опасности, — «Группу может спасти
+// только божественное вмешательство»: 1000 эссенции государства или отказ (группа погибает). Решение обязательно: окно
+// спасения без него не закрывается; решение — игровое действие за государство.
 #include "app/panels/arch_common.h"
 #include "app/panels/faction_common.h"
 
@@ -36,8 +37,9 @@ void gainRow(const World& w, const ArchGain& g, int i) {
   ui::IdScope sc(i);
   const ui::Theme& th = ui::theme();
   ui::Indent ind(float(std::min(g.depth, 4)) * 18.f);
-  if (g.kind == ArchGain::Relic) {
-    if (const Relic* r = w.relic(g.id)) w::relicRow(*r, rules::isArchFind(w, g.id) ? std::string("Археологическая находка") : std::string());
+  if (g.kind == ArchGain::Relic) {   // реликвия — в инвентаре государства
+    if (const Relic* r = w.relic(g.id))
+      w::relicRow(*r, std::string(rules::isArchFind(w, g.id) ? "Находка археологов" : schema::rarity(r->rarity).name) + " · в инвентаре государства");
     return;
   }
   const RectF row = ui::next(26);
@@ -136,12 +138,12 @@ struct DivineDlg final : Dialog {
     const Id s = state, g = group, e = essence;
     if (ui::button("Отказаться", {.variant = ui::Variant::Danger, .icon = "skull", .tooltip = "Группа погибнет"})) {
       decided = true;
-      a.act("Археологическая группа погибла", [&](Tx& tx) { rules::resolveArchDanger(tx, s, g, 0); });
+      a.play("Археологическая группа погибла", [&](Tx& tx) { rules::resolveArchDanger(tx, s, g, 0); });
       return false;
     }
     a.markUi("arch.divine.refuse");
     if (ui::button("Спасти", {.variant = ui::Variant::Primary, .icon = "sparkles", .disabled = e == 0, .isDefault = true})) {
-      if (a.act("Божественное вмешательство", [&](Tx& tx) { rules::resolveArchDanger(tx, s, g, e); })) {
+      if (a.play("Божественное вмешательство", [&](Tx& tx) { rules::resolveArchDanger(tx, s, g, e); })) {
         decided = true;
         return false;
       }

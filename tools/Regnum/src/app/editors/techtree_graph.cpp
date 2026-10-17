@@ -164,9 +164,8 @@ double curveDistance(const Curve& k, Vec2 p) {
 Ink ink() {
   const ui::Theme& t = ui::theme();
   Ink k;
-  k.dark = t.dark;
-  k.bg = t.dark ? Color::mix(t.bg, t.surface1, 0.35f) : Color::mix(t.bg, t.surface3, 0.25f);
-  k.grid = t.dark ? t.text.alpha(0.09f) : t.text.alpha(0.12f);
+  k.bg = Color::mix(t.bg, t.surface1, 0.35f);
+  k.grid = t.text.alpha(0.09f);
   k.surface = t.surface2;
   k.surfaceHi = t.surface3;
   k.border = t.border;
@@ -452,50 +451,6 @@ int canvasEmpty(RectF canvas, const char* icon, std::string_view text, std::stri
 }
 
 // ================================================================ фишки с переносом
-namespace {
-struct FlowState {
-  RectF area;
-  float x = 0, y = 0;
-  bool any = false;
-};
-std::vector<FlowState>& flows() {
-  static std::vector<FlowState> f;
-  return f;
-}
-constexpr float kChipH = 26, kChipGap = 6;
-}  // namespace
-
-ChipFlow::ChipFlow() {
-  FlowState f;
-  f.area = ui::avail();
-  f.x = f.area.x;
-  f.y = f.area.y;
-  flows().push_back(f);
-}
-
-ChipFlow::~ChipFlow() {
-  if (flows().empty()) return;
-  FlowState f = flows().back();
-  flows().pop_back();
-  if (f.any) ui::next(0, f.y + kChipH - f.area.y);
-}
-
-ui::ChipAction chip(std::string_view label, const ui::ChipOpt& o) {
-  if (flows().empty()) return ui::chip(label, o);
-  FlowState& f = flows().back();
-  // Ширина — как у ui::chip: текст Small + поля, значок или точка, крестик.
-  bool lead = o.icon || o.color.a > 0;
-  float w = std::ceil(ui::measure(ui::displayText(label), ui::Font::Small)) + 20 + (lead ? 16 : 0) + (o.removable ? 18 : 0);
-  w = std::min(w, std::max(40.f, f.area.w));
-  if (f.any && f.x + w > f.area.right() + 0.5f) {
-    f.x = f.area.x;
-    f.y += kChipH + kChipGap;
-  }
-  ui::at(RectF{f.x, f.y, w, kChipH});
-  f.x += w + kChipGap;
-  f.any = true;
-  return ui::chip(label, o);
-}
 
 bool effectChips(const World& w, const std::vector<Id>& modifiers) {
   bool any = false;
@@ -503,7 +458,7 @@ bool effectChips(const World& w, const std::vector<Id>& modifiers) {
     if (const Modifier* m = w.modifier(mid))
       for (int f = 0; f < kFxCount; f++) any = any || (m->has(Fx(f)) && m->fx[size_t(f)] != 0);
   if (!any) return false;
-  ChipFlow flow;
+  ui::ChipFlow flow(40);
   for (Id mid : modifiers) {
     const Modifier* m = w.modifier(mid);
     if (!m) continue;
@@ -511,7 +466,7 @@ bool effectChips(const World& w, const std::vector<Id>& modifiers) {
       if (!m->has(Fx(f)) || m->fx[size_t(f)] == 0) continue;
       ui::IdScope s(i64(mid) * 64 + f);
       double v = m->fx[size_t(f)];
-      tree::chip(w::effectText(Fx(f), v), {.icon = schema::effect(Fx(f)).icon, .tone = w::effectGood(Fx(f), v) ? ui::Tone::Success : ui::Tone::Danger,
+      ui::flowChip(w::effectText(Fx(f), v), {.icon = schema::effect(Fx(f)).icon, .tone = w::effectGood(Fx(f), v) ? ui::Tone::Success : ui::Tone::Danger,
                                      .tooltip = m->name});
     }
   }
@@ -522,12 +477,12 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, bool
   App& a = app();
   const World& w = a.world();
   ui::IdScope scope(id);
-  disabled = disabled || a.readOnly();
+  disabled = disabled || !a.canEdit();
   bool changed = false;
   bool any = false;
   for (Id mid : ids) any = any || w.modifier(mid) != nullptr;
   if (any) {
-    ChipFlow flow;
+    ui::ChipFlow flow(40);
     for (size_t i = 0; i < ids.size(); i++) {
       const Modifier* m = w.modifier(ids[i]);
       if (!m) continue;
@@ -544,7 +499,7 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, bool
       co.removable = !disabled;
       co.clickable = true;
       co.tooltip = tip;
-      ui::ChipAction act = tree::chip(m->name.empty() ? std::string_view("Модификатор") : std::string_view(m->name), co);
+      ui::ChipAction act = ui::flowChip(m->name.empty() ? std::string_view("Модификатор") : std::string_view(m->name), co);
       if (act == ui::ChipAction::Remove) {
         ids.erase(ids.begin() + long(i));
         changed = true;
@@ -587,25 +542,14 @@ bool factionSwitch(std::string_view id, Id& value, bool states, std::string_view
     if (a->kind != b->kind) return a->kind < b->kind;
     return compareRu(a->name, b->name) < 0;
   });
-  std::vector<std::string> names;
-  names.reserve(list.size());
-  for (const Faction* f : list) names.push_back(f->name.empty() ? std::string("Без названия") : f->name);
-  std::vector<ui::Option> opts;
-  int idx = -1;
-  for (size_t i = 0; i < list.size(); i++) {
-    opts.push_back(ui::Option{names[i], nullptr, list[i]->color, list[i]->isGuild() ? std::string_view("гильдия") : std::string_view(), false});
-    if (list[i]->id == value) idx = int(i);
-  }
+  w::IdOptions opts;
+  for (const Faction* f : list) opts.add(f->id, w::orName(f->name), nullptr, f->color, f->isGuild() ? "гильдия" : "");
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
   co.placeholder = noneLabel.empty() ? std::string_view("—") : noneLabel;
   co.icon = states ? "crown" : "tech-tree";
   co.tooltip = "Другое дерево";
-  if (!ui::combo(id, idx, std::span<const ui::Option>(opts), co)) return false;
-  Id nv = idx >= 0 && idx < int(list.size()) ? list[size_t(idx)]->id : 0;
-  if (nv == value) return false;
-  value = nv;
-  return true;
+  return w::idCombo(id, value, opts, co);
 }
 
 RectF emptyActionRect(std::string_view action, const char* actionIcon) {

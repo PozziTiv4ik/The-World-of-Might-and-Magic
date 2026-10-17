@@ -13,17 +13,6 @@
 namespace rg::app::fac {
 
 // ---------------------------------------------------------------- мир кадра
-const World& frameWorld(App& a) {
-  // Копии мира живут до начала следующего кадра (после endFrame текущего).
-  static std::vector<std::unique_ptr<World>> keep;
-  static u64 frame = ~0ull;
-  if (ui::frameIndex() != frame) {
-    keep.clear();
-    frame = ui::frameIndex();
-  }
-  keep.push_back(std::make_unique<World>(a.world()));
-  return *keep.back();
-}
 
 // ---------------------------------------------------------------- вид и названия
 KindInfo kindInfo(const Faction& f) {
@@ -44,11 +33,6 @@ bool isState(App& a, Id id) {
 bool isGuild(App& a, Id id) {
   const Faction* f = a.world().faction(id);
   return f && f->isGuild();
-}
-
-std::string resourceName(const World& w, Id res) {
-  const CatalogItem* c = w.resource(res);
-  return c ? (c->name.empty() ? std::string("Ресурс") : c->name) : std::string("Ресурс");
 }
 
 // ---------------------------------------------------------------- суммы
@@ -95,10 +79,12 @@ bool catalogField(App& a, std::string_view id, rules::CatalogList list, Id value
   }
   opts.back().label = labels.back();
   opts.back().icon = "plus";
+  // Справочники и показатели фракции правит только администратор (ТЗ «Доработки №4», п.5).
+  if (!a.canEdit()) opts.pop_back();
   ui::ComboOpt co;
   co.noneLabel = noneLabel;
   co.placeholder = noneLabel.empty() ? std::string_view("—") : noneLabel;
-  co.disabled = disabled || a.readOnly();
+  co.disabled = disabled || !a.canEdit();
   co.icon = defIcon;
   if (!ui::combo(id, idx, std::span<const ui::Option>(opts), co)) return false;
   if (idx == int(items.size())) {
@@ -146,7 +132,7 @@ bool statusPicker(std::string_view id, RelStatus& s, bool disabled) {
   RectF r = ui::lastItem().rect;
   Color c = relColor(s);
   float k = disabled ? 0.55f : 1.f;
-  ui::draw::rect(r, c.alpha((t.dark ? 0.16f : 0.12f) * k), t.radiusField);
+  ui::draw::rect(r, c.alpha(0.16f * k), t.radiusField);
   ui::draw::rectStroke(r, c.alpha(0.4f * k), t.radiusField, 1);
   ui::draw::icon(relIcon(s), RectF{r.x + 8, r.cy() - 7, 14, 14}, c.alpha(k));
   float tx = r.x + 27, chev = disabled ? 0.f : 20.f;
@@ -174,15 +160,6 @@ bool statusPicker(std::string_view id, RelStatus& s, bool disabled) {
 }
 
 // ---------------------------------------------------------------- суммы
-void moneyRow(const char* icon, Color iconColor, std::string_view label, double value, std::string_view tip, bool sign, ui::Ink valueInk) {
-  ui::IdScope s(label);
-  ui::Row row({ui::px(18), ui::fr(1), ui::px(108)}, 26, 8);
-  ui::iconColored(icon, iconColor, 16);
-  ui::label(label, {.ink = ui::Ink::Dim, .tooltip = tip});
-  std::string v = sign ? moneySigned(value) : money(value);
-  ui::label(v, {.font = ui::Font::Strong, .ink = std::fabs(value) < 0.005 ? ui::Ink::Muted : valueInk, .align = ui::Align::Right});
-}
-
 void shareBar(std::span<const Share> parts, float height) {
   const ui::Theme& t = ui::theme();
   RectF r = ui::next(height);
@@ -253,7 +230,7 @@ RowEvents factionRow(const Faction& f, std::string_view subtitle, std::string_vi
   float hv = ui::animate(wid ^ 0x51ull, it.hovered ? 1.f : 0.f, 0.1f);
   const float rad = 8;
   if (selected) {
-    ui::draw::rect(r, t.accent.alpha(t.dark ? 0.14f : 0.12f), rad);
+    ui::draw::rect(r, t.accent.alpha(0.14f), rad);
     ui::draw::rect(RectF{r.x, r.y + 9, 3, r.h - 18}, t.accent, 1.5f);
   } else if (hv > 0.01f) {
     ui::draw::rect(r, (it.held ? t.pressed : t.hover).alpha(std::min(1.f, hv * 1.4f)), rad);
@@ -419,8 +396,8 @@ Id createFactionUi(App& a, FactionKind kind) {
 void confirmDelete(App& a, Id faction) {
   const Faction* f = a.world().faction(faction);
   if (!f) return;
-  if (a.readOnly()) {
-    a.act("Удалить", [](Tx&) {});   // покажет подсказку о прошлом ходе
+  if (!a.canEdit()) {
+    a.act("Удалить", [](Tx&) {});   // покажет причину: прошлый ход или только администратору
     return;
   }
   bool st = f->isState();
@@ -457,8 +434,8 @@ Id createStateGuildUi(App& a, Id state) {
 }
 
 void openFlagEditor(App& a, Id faction) {
-  if (a.readOnly()) {
-    a.act("Флаг", [](Tx&) {});
+  if (!a.canEdit()) {
+    a.act("Флаг", [](Tx&) {});   // флаг — правка мира: причина отказа
     return;
   }
   if (!a.openDialog("flag", faction)) a.toast("Редактор флага недоступен", ToastKind::Warning, "flag");

@@ -1,11 +1,13 @@
 // Сценарии дерева технологий (ТЗ 1.b.v): вкладка фракции, полноэкранный редактор — создание, связи (цикл
-// запрещён), перемещение, удаление, «галочка» изученности, исследование по ходам, копирование дерева, снимки.
+// запрещён), перемещение, удаление, «галочка» изученности (изученная требует изученных предшествующих), исследование
+// по ходам, стоимость и требуемые постройки (списание и возврат), копирование дерева, снимки.
 #include "app/editors/techtree.h"
 #include "tests/test_app_trees_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
 using namespace rg::apptest::trees;
+namespace tr = rg::apptest::trees;
 
 namespace {
 
@@ -38,19 +40,6 @@ std::vector<Id> techsOf(const World& w, Id fid) {
     if (t.faction == fid) r.push_back(t.id);
   });
   return r;
-}
-
-Id techByName(const World& w, Id fid, const std::string& name) {
-  Id r = 0;
-  w.techs.each([&](const Tech& t) {
-    if (t.faction == fid && t.name == name) r = t.id;
-  });
-  return r;
-}
-
-bool hasPrereq(const World& w, Id tech, Id pre) {
-  const Tech* t = w.tech(tech);
-  return t && std::find(t->prereqs.begin(), t->prereqs.end(), pre) != t->prereqs.end();
 }
 
 // Плотное дерево: к шести технологиям демонстрационного мира — ещё пятнадцать со связями.
@@ -101,7 +90,6 @@ void denseTree(app::App& a, Id fid) {
 }  // namespace
 
 TEST(app_trees_tech_editor_visual) {
-  HideTestRegs hide;
   Harness h("trees_tech_visual", 1600, 1000);
   h.demo();
   Id fid = firstStateWithTechs(h.a());
@@ -114,7 +102,7 @@ TEST(app_trees_tech_editor_visual) {
   CHECK_EQ(h->ui.editor, std::string("techtree"));
   CHECK(h.shot("trees_tech"));
   // Выбор карточки: панель свойств и карточка сведений при наведении.
-  Id sel = techByName(h->world(), fid, "Руническая магия");
+  Id sel = test::techByName(h->world(), fid, "Руническая магия");
   CHECK(sel != 0);
   RectF nr = rectOf(h.a(), "tt.node." + std::to_string(sel));
   h.click(nr.x + nr.w * 0.4f, nr.y + nr.h * 0.6f);
@@ -143,7 +131,6 @@ TEST(app_trees_tech_editor_visual) {
 }
 
 TEST(app_trees_tech_editor_scale) {
-  HideTestRegs hide;
   // Экран 125 %: попадание по карточкам и чёткость схемы при масштабе устройства.
   Harness h("trees_tech_scale", 1600, 1000, 1.25f);
   h.demo();
@@ -161,7 +148,6 @@ TEST(app_trees_tech_editor_scale) {
 }
 
 TEST(app_trees_tech_tab) {
-  HideTestRegs hide;
   Harness h("trees_tech_tab");
   h.demo();
   Id fid = firstStateWithTechs(h.a());
@@ -190,7 +176,6 @@ TEST(app_trees_tech_tab) {
 }
 
 TEST(app_trees_tech_graph_edit) {
-  HideTestRegs hide;
   Harness h("trees_tech_graph");
   h.demo();
   Id fid = firstStateWithTechs(h.a());
@@ -229,16 +214,16 @@ TEST(app_trees_tech_graph_edit) {
   RectF nb = rectOf(h.a(), "tt.node." + std::to_string(b));
   h.drag(out.cx(), out.cy(), nb.cx(), nb.cy());
   h.settle();
-  CHECK(hasPrereq(h->world(), b, a));
+  CHECK(test::hasPrereq(h->world(), b, a));
   // Обратная связь создала бы цикл — отказ с объяснением, мир прежний.
   u64 v = h->store.version();
   RectF outB = rectOf(h.a(), "tt.out." + std::to_string(b));
   RectF na = rectOf(h.a(), "tt.node." + std::to_string(a));
   h.drag(outB.cx(), outB.cy(), na.cx(), na.cy());
   h.settle();
-  CHECK(!hasPrereq(h->world(), a, b));
+  CHECK(!test::hasPrereq(h->world(), a, b));
   CHECK_EQ(h->store.version(), v);
-  CHECK(hasToast(h.a(), "цикл", app::ToastKind::Warning));
+  CHECK(hasToast(h, "цикл", app::ToastKind::Warning));
   h->toasts().clear();
   // Перемещение перетаскиванием — одна запись отмены.
   Vec2 p0 = h->world().tech(a)->pos;
@@ -261,9 +246,9 @@ TEST(app_trees_tech_graph_edit) {
   CHECK(h->uiRect("tt.side.unlink") != nullptr);
   CHECK(h.shot("trees_tech_link"));
   clickRect(h, "tt.link.delete");
-  CHECK(!hasPrereq(h->world(), b, a));
+  CHECK(!test::hasPrereq(h->world(), b, a));
   undo(h);
-  CHECK(hasPrereq(h->world(), b, a));
+  CHECK(test::hasPrereq(h->world(), b, a));
   // «Галочка» на карточке: A без условий — изучена и снова снята.
   clickRect(h, "tt.check." + std::to_string(a));
   CHECK(h->world().tech(a)->studied);
@@ -272,7 +257,7 @@ TEST(app_trees_tech_graph_edit) {
   // B зависит от неизученной A — отметка отклонена правилами.
   clickRect(h, "tt.check." + std::to_string(b));
   CHECK(!h->world().tech(b)->studied);
-  CHECK(hasToast(h.a(), "Сначала изучите", app::ToastKind::Warning));
+  CHECK(hasToast(h, "Сначала изучите", app::ToastKind::Warning));
   h->toasts().clear();
   // Удаление технологии — с подтверждением; связи исчезают; отмена возвращает.
   clickRect(h, "tt.node." + std::to_string(a), 0.3f, 0.7f);
@@ -282,14 +267,13 @@ TEST(app_trees_tech_graph_edit) {
   CHECK(h.clickUi("dialog.ok"));
   h.settle();
   CHECK(h->world().tech(a) == nullptr);
-  CHECK(!hasPrereq(h->world(), b, a));
+  CHECK(!test::hasPrereq(h->world(), b, a));
   undo(h);
   CHECK(h->world().tech(a) != nullptr);
-  CHECK(hasPrereq(h->world(), b, a));
+  CHECK(test::hasPrereq(h->world(), b, a));
 }
 
 TEST(app_trees_tech_research_turns) {
-  HideTestRegs hide;
   Harness h("trees_tech_research");
   h.demo();
   Id fid = firstStateWithTechs(h.a());
@@ -340,7 +324,6 @@ TEST(app_trees_tech_research_turns) {
 }
 
 TEST(app_trees_tech_copy_tree) {
-  HideTestRegs hide;
   Harness h("trees_tech_copy");
   h.demo();
   Id from = firstStateWithTechs(h.a());
@@ -381,7 +364,6 @@ TEST(app_trees_tech_copy_tree) {
 }
 
 TEST(app_trees_tech_light_and_readonly) {
-  HideTestRegs hide;
   Harness h("trees_tech_light", 1440, 900, 1, kAltScheme);
   h.demo();
   Id fid = firstStateWithTechs(h.a());
@@ -403,7 +385,6 @@ TEST(app_trees_tech_light_and_readonly) {
 }
 
 TEST(app_trees_tech_copy_confirm_and_keys) {
-  HideTestRegs hide;
   Harness h("trees_tech_copy_confirm");
   h.demo();
   h.dropToasts();
@@ -457,9 +438,9 @@ TEST(app_trees_tech_copy_confirm_and_keys) {
   h.key(Key::Delete);
   h.settle();
   CHECK(!h->hasDialog("confirm"));
-  CHECK(!hasPrereq(h->world(), tech, pre));
+  CHECK(!test::hasPrereq(h->world(), tech, pre));
   undo(h);
-  CHECK(hasPrereq(h->world(), tech, pre));
+  CHECK(test::hasPrereq(h->world(), tech, pre));
   // Стрелки клавиатуры ходят по дереву; Esc закрывает редактор.
   clickRect(h, "tt.node." + std::to_string(pre), 0.3f, 0.75f);
   CHECK(h->uiRect("tt.side.name") != nullptr);
@@ -468,7 +449,6 @@ TEST(app_trees_tech_copy_confirm_and_keys) {
 }
 
 TEST(app_trees_tech_guild) {
-  HideTestRegs hide;
   Harness h("trees_tech_guild");
   h.demo();
   h.dropToasts();
@@ -502,4 +482,98 @@ TEST(app_trees_tech_guild) {
   h.dropToasts();
   h.settle();
   CHECK(h.shot("trees_tech_guild"));
+}
+
+// ---------------------------------------------------------------- 1.b.v: изученная технология с неизученным условием
+// В дереве технологий к уже изученной «Обработке железа» можно добавить условие «Мореходство» (не изучено).
+// Получается изученная технология, для которой не изучена предшествующая, — противоречит ТЗ 1.b.v.
+TEST(app_trees_tech_studied_needs_prereqs) {
+  Harness h("audit_tzstates_tech");
+  h.demo();
+  Id alm = findFaction(h->world(), "Королевство Альмарин");
+  Id iron = test::techByName(h->world(), alm, "Обработка железа");
+  Id sea = test::techByName(h->world(), alm, "Мореходство");
+  CHECK(alm && iron && sea);
+  CHECK(h->world().tech(iron)->studied);
+  CHECK(!h->world().tech(sea)->studied);
+  app::openTechTree(h.a(), alm, iron);
+  h.settle();
+  CHECK(h->uiRect("tt.side.addpre") != nullptr);
+  // Пункты списка — технологии дерева по порядку ID, кроме самой и её условий.
+  int idx = -1, n = 0;
+  h->world().techs.each([&](const Tech& t) {
+    if (t.faction != alm || t.id == iron || test::has(h->world().tech(iron)->prereqs, t.id)) return;
+    if (t.id == sea) idx = n;
+    n++;
+  });
+  CHECK(idx >= 0);
+  CHECK(h.clickUi("tt.side.addpre"));
+  for (int i = 0; i < idx; i++) h.key(Key::Down);
+  h.key(Key::Enter);
+  h.settle();
+  const Tech* t = h->world().tech(iron);
+  CHECK(t->studied);
+  CHECK(!h->world().tech(sea)->studied);
+  CHECK_MSG(!test::has(t->prereqs, sea), "изученная технология «Обработка железа» получила неизученное условие «Мореходство» — связь должна быть запрещена");
+  shotClean(h, "audit_tzstates_tech_studied_prereq");
+}
+
+// ---------------------------------------------------------------- технологии: стоимость и требуемые постройки
+TEST(app_trees_tech_cost) {
+  Harness h("econ2_tech", 1600, 1000);
+  h.demo();
+  h.dropToasts();
+  const tr::StateProv sp = tr::stateWithFreeSlots(h->world(), 2);
+  CHECK(sp.state && sp.province);
+  const Id basics = test::idByKey(h->world().techs, "archBasics");
+  const Id treasure = h->world().catalogs->resourceId(schema::kResArchTreasure);
+  CHECK(basics && treasure);
+  CHECK_NEAR(h->world().tech(basics)->cost.at(treasure), 100.0, 1e-9);
+  // Нет «Гильдии Археологов» и сокровищ — исследовать нельзя: причина видна, кнопка недоступна.
+  {
+    const rules::ResearchCheck rc = rules::canResearch(h->world(), basics, sp.state);
+    CHECK(!rc.ok);
+    CHECK(rc.problems.size() >= 2);
+  }
+  factionTab(h, sp.state, "faction.tech");
+  const std::string sb = std::to_string(basics);
+  CHECK(tr::revealIn(h, "faction.ctech.cost." + sb));
+  u64 v = h->store.version();
+  CHECK(tr::revealIn(h, "faction.ctech.start." + sb));
+  tr::clickQuick(h, "faction.ctech.start." + sb);
+  CHECK_EQ(h->store.version(), v);
+  shotClean(h, "econ2_tech_tab_locked", 60);
+  // Гильдия археологов достроена, сокровищ 150: начать — списано 100, остановить — возвращено.
+  const Id guild = test::buildingByKey(h->world(), schema::bld::ArchGuild, sp.state);
+  CHECK(guild != 0);
+  CHECK(h->act("Гильдия и сокровища", [&](Tx& tx) {
+    rules::placeBuilding(tx, sp.province, guild, 1);
+    tx.faction(sp.state).res[treasure] = 150;
+  }));
+  CHECK(rules::canResearch(h->world(), basics, sp.state).ok);
+  h.settle(40);
+  CHECK(tr::revealIn(h, "faction.ctech.start." + sb));
+  tr::clickQuick(h, "faction.ctech.start." + sb);
+  CHECK(rules::techState(h->world(), basics, sp.state).research);
+  CHECK_NEAR(h->world().faction(sp.state)->stock(treasure), 50.0, 1e-9);
+  shotClean(h, "econ2_tech_tab_research", 60);
+  CHECK(tr::revealIn(h, "faction.ctech.stop." + sb));
+  tr::clickQuick(h, "faction.ctech.stop." + sb);
+  CHECK(!rules::techState(h->world(), basics, sp.state).research);
+  CHECK_NEAR(h->world().faction(sp.state)->stock(treasure), 150.0, 1e-9);
+  // Редактор общего дерева: стоимость (ресурс через группы) и нужные постройки (по ключу встроенной постройки).
+  app::openTechTree(h.a(), 0, basics, sp.state);
+  h.settle(60);
+  CHECK(tr::revealSide(h, "tt.side.cost." + std::to_string(treasure), "tt.canvas"));
+  CHECK(h->uiRect("tt.side.need." + std::string(schema::bld::ArchGuild)) != nullptr);
+  CHECK(tr::typeSide(h, "tt.side.cost." + std::to_string(treasure), "120", "tt.canvas"));
+  CHECK_NEAR(h->world().tech(basics)->cost.at(treasure), 120.0, 1e-9);
+  const Id coal = test::idByName(h->world().catalogs->resources, "Уголь");
+  CHECK(tr::pickSide(h, "tt.side.addcost", "Уголь", "tt.canvas"));
+  CHECK(h->world().tech(basics)->cost.count(coal) == 1);
+  CHECK(tr::pickSide(h, "tt.side.addneed", "Порт", "tt.canvas"));
+  const std::vector<std::string>& keys = h->world().tech(basics)->needKeys;
+  CHECK(std::find(keys.begin(), keys.end(), std::string(schema::bld::Port)) != keys.end());
+  CHECK(!rules::canResearch(h->world(), basics, sp.state).ok);   // порта нет, угля нет
+  shotClean(h, "econ2_tech_editor", 60);
 }

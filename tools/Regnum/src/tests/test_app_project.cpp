@@ -1,22 +1,11 @@
 // Сценарии проекта: сохранение и повторное чтение без потерь, Ctrl+S только изменённых таблиц, вопрос о
 // несохранённых изменениях при закрытии, внешние изменения файлов (перечитать / оставить мои), автосохранение,
-// архив .regnum и встроенный проводник.
+// архив .regnum и встроенный проводник (колесо листает список и при выбранной записи, в покое окно не
+// перерисовывается). Файлы мира между сохранениями — test_app_project_files.cpp.
 #include "tests/test_app_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
-
-namespace {
-
-Id someProvince(const World& w) {
-  Id pid = 0;
-  w.provinces.each([&](const Province& p) {
-    if (!pid && !p.sea && p.owner) pid = p.id;
-  });
-  return pid;
-}
-
-}  // namespace
 
 TEST(app_project_save_reload) {
   Harness h("project_save");
@@ -33,7 +22,7 @@ TEST(app_project_save_reload) {
   CHECK(r.warnings.empty());
   CHECK(io::toJson(r.world) == io::toJson(h->store.world()));
   // Правка → «•» в заголовке → Ctrl+S пишет только файл провинций и world.json.
-  Id pid = someProvince(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   i64 geoTime = fs::mtime(fs::join(dir, "data/geo.json")).value_or(0);
   CHECK(h->act("Переименовать", [&](Tx& tx) { tx.province(pid).name = "Новое имя"; }));
   h.step();
@@ -63,7 +52,7 @@ TEST(app_project_save_reload) {
 TEST(app_project_dirty_close) {
   Harness h("project_close");
   h.demo();
-  Id pid = someProvince(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   CHECK(h->act("Правка", [&](Tx& tx) { tx.province(pid).contentment = 12; }));
   CHECK(!h->onCloseRequest());
   h.settle();
@@ -111,7 +100,7 @@ TEST(app_project_external_change) {
   h.demo();
   std::string dir = fs::join(h.root, "Мир");
   CHECK(h->saveTo(dir));
-  Id pid = someProvince(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   auto writeName = [&](const std::string& name) {
     World w = h->store.world();
     Tx tx(w);
@@ -153,7 +142,7 @@ TEST(app_project_autosave) {
   Harness h("project_autosave");
   h.demo();
   CHECK(h->act("Период", [](Tx& tx) { tx.settings().autosaveSec = 10; }));
-  Id pid = someProvince(h->world());
+  Id pid = test::firstOwnedLand(h->world());
   CHECK(h->act("Правка", [&](Tx& tx) { tx.province(pid).contentment = 33; }));
   hl::advance(11);
   h.frames(3);
@@ -163,7 +152,7 @@ TEST(app_project_autosave) {
   CHECK(!list.empty());
   CHECK(list.front().project.empty());
   std::string err;
-  auto as = io::loadAutosave(h.dataDir, &err);
+  auto as = io::loadAutosaveFor("", h.dataDir, &err);   // новый несохранённый мир
   CHECK(as.has_value());
   CHECK_NEAR(as->world.province(pid)->contentment, 33, 1e-9);
   // Папка проекта: изменения записываются сами (настройка «автосохранение в папку мира»).
@@ -305,4 +294,55 @@ TEST(app_project_autosave_wakes_idle_window) {
     got = hl::pump();
   }
   CHECK(got >= 1);
+}
+
+// Встроенный проводник (на Linux — единственный способ открыть/сохранить мир): после щелчка по записи список
+// каждый кадр прокручивается к ней (browser.cpp: if (sel >= 0) vl.scrollToRow(sel)) — колесо мыши не листает,
+// окно перерисовывается без остановки.
+TEST(app_project_browser_scroll_not_locked) {
+  Harness h("audit_cr_browser");
+  std::string dir = tempDir("audit_cr_browser_dirs");
+  for (int i = 0; i < 40; i++) fs::makeDirs(fs::join(dir, strf("Папка %02d", i)));
+  h->openDialog(app::detail::browserDialog(app::detail::BrowseMode::PickFolder, "Папка", dir, [](app::App&, const std::string&) {}));
+  h.settle();
+  CHECK(h->hasDialog("browser"));
+  // Список — правая часть окна проводника (слева «Места»), строки по 32 точки.
+  const RectF* lr = h->uiRect("browser.list");
+  CHECK(lr != nullptr);
+  std::printf("  browser.list rect: %.0f %.0f %.0f %.0f\n", lr->x, lr->y, lr->w, lr->h);
+  const RectF* ok = h->uiRect("browser.ok");
+  CHECK(ok != nullptr);
+  RectF list{ok->right() - 540, ok->y - 400, 540, 352};
+  // Щелчок по первой видимой папке — выбрана (золотая полоска слева).
+  h.click(list.x + 80, list.y + 30);
+  h.frames(20);
+  auto accent = [&] {
+    int n = 0;
+    for (float y = list.y; y < list.bottom(); y += 1)
+      for (float x = list.x; x < list.x + 10; x += 1) {
+        u32 p = h.pixel(x, y);
+        int r = int((p >> 16) & 255), g = int((p >> 8) & 255), b = int(p & 255);
+        if (r > 190 && g > 130 && g < 190 && b < 110) n++;
+      }
+    return n;
+  };
+  int accBefore = accent();
+  CHECK(h.shot("audit_cr_browser_before"));
+  h.move(list.cx(), list.cy());
+  hl::wheel(list.cx(), list.cy(), -15);
+  h.step();
+  h.frames(40);
+  int accAfter = accent();
+  CHECK(h.shot("audit_cr_browser_after_wheel"));
+  std::printf("  browser: selected-row accent pixels before=%d after wheel=%d\n", accBefore, accAfter);
+  CHECK(accBefore > 0);
+  CHECK_MSG(!(accBefore > 0 && accAfter > 0), "встроенный проводник: колесо мыши не уводит список от выбранной записи (scrollToRow каждый кадр)");
+  h.settle();   // полоса прокрутки гаснет после колеса — дождаться
+  int busy = 0;
+  for (int i = 0; i < 30; i++) {
+    h.frame();
+    if (h->animating()) busy++;
+  }
+  std::printf("  browser: busy frames while idle = %d/30\n", busy);
+  CHECK_MSG(busy == 0, "встроенный проводник с выбранной записью перерисовывает окно каждый кадр без событий");
 }

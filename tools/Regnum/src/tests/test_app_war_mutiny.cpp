@@ -9,22 +9,6 @@ using namespace rg::apptest;
 
 namespace {
 
-// Провинция государства без войск, гарнизона и оккупации, где у точки подписи можно поставить войско.
-Id quietProvince(Harness& h, Id state) {
-  const World& w = h->world();
-  auto fs = geo::faces(w);
-  Id found = 0;
-  w.provinces.each([&](const Province& p) {
-    if (found || p.sea || p.owner != state || p.occupied || !p.garrison.empty()) return;
-    const geo::ProvinceShape* sh = fs->shape(p.id);
-    if (!sh || !rules::validPosition(w, ArmyKind::Army, sh->label)) return;
-    bool busy = false;
-    w.armies.each([&](const Army& a) { busy = busy || app::mil::provinceUnder(w, a.pos) == p.id; });
-    if (!busy) found = p.id;
-  });
-  return found;
-}
-
 struct MutinySetup {
   Id hel = 0, province = 0, army = 0, hero = 0;
 };
@@ -32,7 +16,7 @@ struct MutinySetup {
 std::optional<MutinySetup> prepare(Harness& h, i64 units) {
   MutinySetup s;
   s.hel = factionByName(h->world(), "Хельдвиг");
-  s.province = quietProvince(h, s.hel);
+  s.province = calmProvince(h, s.hel);
   CHECK_MSG(s.province != 0, "нет провинции Хельдвига без войск и гарнизона");
   if (!s.province) return std::nullopt;
   s.hero = freeHero(h, s.hel);
@@ -54,7 +38,6 @@ std::optional<MutinySetup> prepare(Harness& h, i64 units) {
 // встроенный «Патриотизм» (+5 % за ход), срок в ходах, снять.
 TEST(app_war_loyalty_and_modifiers) {
   Harness h("war_loyalty", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 800);
   if (!s) return;
@@ -116,7 +99,6 @@ TEST(app_war_loyalty_and_modifiers) {
 // верные уничтожены — их герой в плену у мятежников; мятежники в провинции Хельдвига без его войск — захват.
 TEST(app_war_mutiny_partial) {
   Harness h("war_mutiny_partial", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 1000);
   if (!s) return;
@@ -175,7 +157,6 @@ TEST(app_war_mutiny_partial) {
 // «Судьба героя»; затем захват провинции (здесь — отказ).
 TEST(app_war_mutiny_full) {
   Harness h("war_mutiny_full", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 900);
   if (!s) return;
@@ -222,7 +203,6 @@ TEST(app_war_mutiny_full) {
 // часть переходит к ним, у оставшихся верность 0 %; окно битвы — с обновлёнными силами.
 TEST(app_war_mutiny_defect_before_battle) {
   Harness h("war_mutiny_defect", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 1000);
   if (!s) return;
@@ -256,10 +236,9 @@ TEST(app_war_mutiny_defect_before_battle) {
 // перешёл целиком — штурма нет, сразу выбор захвата.
 TEST(app_war_mutiny_garrison_defect) {
   Harness h("war_mutiny_garrison_defect", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   const Id hel = factionByName(h->world(), "Хельдвиг");
-  const Id pid = quietProvince(h, hel);
+  const Id pid = calmProvince(h, hel);
   CHECK(pid != 0);
   if (!pid) return;
   const Id row = h->world().faction(hel)->army[0].id;

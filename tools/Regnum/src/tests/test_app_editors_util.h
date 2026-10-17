@@ -49,39 +49,21 @@ inline bool enterValue(Harness& h, const std::string& name, const std::string& v
   return true;
 }
 
+// Сдвинуть выбор в поле со списком на steps пунктов (вниз — плюс) и подтвердить.
+inline bool comboStep(Harness& h, const std::string& name, int steps) {
+  if (!clickRevealed(h, name)) return false;
+  for (int i = 0; i < std::abs(steps); i++) h.key(steps > 0 ? Key::Down : Key::Up);
+  h.key(Key::Enter);
+  quick(h);
+  return true;
+}
+
 inline bool confirmDialog(Harness& h) {
   quick(h);
   if (!h->hasDialog("confirm")) return false;
   if (!h.clickUi("dialog.ok")) return false;
   quick(h);
   return !h->hasDialog("confirm");
-}
-
-// Щёлкнуть по i-й из n равных частей элемента (сегменты, вкладки с fill).
-inline bool clickPart(Harness& h, std::string_view name, int i, int n) {
-  const RectF* r = h->uiRect(name);
-  if (!r) return false;
-  RectF c = *r;
-  h.click(c.x + c.w * (float(i) + 0.5f) / float(n), c.cy());
-  return true;
-}
-
-inline void shotClean(Harness& h, const std::string& name) {
-  h.dropToasts();
-  quick(h);
-  h.settle();
-  CHECK(h.shot(name));
-}
-
-// Два первых государства мира.
-inline std::pair<Id, Id> twoStates(const World& w) {
-  Id a = 0, b = 0;
-  w.factions.each([&](const Faction& f) {
-    if (!f.isState()) return;
-    if (!a) a = f.id;
-    else if (!b) b = f.id;
-  });
-  return {a, b};
 }
 
 inline Id firstGuild(const World& w) {

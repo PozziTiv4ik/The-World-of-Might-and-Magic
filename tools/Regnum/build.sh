@@ -3,12 +3,17 @@
 #
 #   tools/Regnum/build.sh                 — собрать всё (regnum, regnum-cli, regnum-tests)
 #   tools/Regnum/build.sh regnum          — только приложение
-#   tools/Regnum/build.sh test-geo        — тесты одного модуля (модуль + зависимости)
+#   tools/Regnum/build.sh test-geo        — тесты одного модуля (модуль + зависимости): regnum-test-geo
 #   tools/Regnum/build.sh platform-demo   — окно-демонстрация платформы; bin/<os>/platform-demo --selftest — самопроверка
-#   tools/Regnum/build.sh --test [фильтр] — собрать regnum-tests и запустить
+#   tools/Regnum/build.sh [цель] --test [фильтр ...] — собрать тесты (по умолчанию regnum-tests) и запустить
+#     (параллельно; REGNUM_TEST_JOBS=1 — по одному). Фильтр — подстрока имени теста. После --test слово, совпадающее
+#     с целью (regnum, regnum-cli, regnum-tests, test-<модуль>, platform-demo), — цель, остальные — фильтры;
+#     после -- все слова — фильтры.
 #   tools/Regnum/build.sh --target linux-x64 regnum regnum-cli — сборка для другой системы через Zig
 #     (цели: linux-x64, linux-arm64, macos-arm64, macos-x64; Zig скачивается в .wmma/toolchains с проверкой SHA-256)
 #   --debug | --release (по умолчанию release), --clean, -j N
+#   --asan — с AddressSanitizer (поиск ошибок памяти): свои папки .build/<os>-asan/, программы — .build/<os>-asan/bin;
+#     например build.sh --asan --test (замеры времени под ним медленнее порогов — их провалы не показательны)
 #
 # Компилятор: переменная CXX; на Windows по умолчанию — закреплённый LLVM-MinGW из .wmma/toolchains.
 # Результат: tools/Regnum/bin/<os>/ (regnum[.exe], regnum-cli[.exe], regnum-tests[.exe]); при --target — bin/<цель>/.
@@ -25,16 +30,20 @@ TEST_FILTER=()
 CLEAN=0
 JOBS=""
 CROSS=""
+ASAN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) CROSS="$2"; shift ;;
+    --asan) ASAN=1 ;;
     --debug) CONFIG=debug ;;
     --release) CONFIG=release ;;
     --clean) CLEAN=1 ;;
-    --test) RUN_TESTS=1; shift; while [[ $# -gt 0 && "$1" != -* ]]; do TEST_FILTER+=("$1"); shift; done; continue ;;
+    --test) RUN_TESTS=1 ;;
+    --) shift; TEST_FILTER+=("$@"); break ;;
     -j) JOBS="$2"; shift ;;
     -*) echo "Неизвестный параметр: $1" >&2; exit 2 ;;
-    *) TARGETS+=("$1") ;;
+    regnum|regnum-cli|regnum-tests|platform-demo|test-*) TARGETS+=("$1") ;;
+    *) if [[ $RUN_TESTS == 1 ]]; then TEST_FILTER+=("$1"); else TARGETS+=("$1"); fi ;;
   esac
   shift
 done
@@ -116,8 +125,14 @@ exec %q c++ -target %s "$@"
 fi
 
 # REGNUM_BUILD_DIR / REGNUM_BIN_DIR — свои папки объектов и программ (параллельные сборки разных рабочих мест).
-BUILD="${REGNUM_BUILD_DIR:-$ROOT/.build/${CROSS:-$OS}-$CONFIG}"
-BIN="${REGNUM_BIN_DIR:-$ROOT/bin/${CROSS:-$OS}}"
+if [[ $ASAN == 1 ]]; then
+  [[ -n "$CROSS" ]] && { echo "--asan не сочетается с --target" >&2; exit 2; }
+  BUILD="${REGNUM_BUILD_DIR:-$ROOT/.build/$OS-asan}"
+  BIN="${REGNUM_BIN_DIR:-$ROOT/.build/$OS-asan/bin}"   # никогда не в bin/ (готовые сборки в репозитории)
+else
+  BUILD="${REGNUM_BUILD_DIR:-$ROOT/.build/${CROSS:-$OS}-$CONFIG}"
+  BIN="${REGNUM_BIN_DIR:-$ROOT/bin/${CROSS:-$OS}}"
+fi
 [[ $CLEAN == 1 ]] && rm -rf "$BUILD"
 mkdir -p "$BUILD/obj" "$BIN"
 
@@ -140,6 +155,12 @@ case $OS in
     PLATFORM=cocoa ;;
 esac
 if [[ -n "$CROSS" && $CONFIG == release ]]; then LDFLAGS+=(-s); fi   # без отладочной информации
+if [[ $ASAN == 1 ]]; then
+  CXXFLAGS+=(-fsanitize=address -fno-omit-frame-pointer -g)
+  # Среда AddressSanitizer на Windows — только DLL: без -static (DLL берутся из папки компилятора при запуске тестов).
+  _ld=(); for f in "${LDFLAGS[@]}"; do [[ $f == -static ]] || _ld+=("$f"); done
+  LDFLAGS=("${_ld[@]}" -fsanitize=address)
+fi
 
 # Модули и зависимости. Исходники модуля: src/<модуль>/**/*.cpp
 deps_of() {
@@ -151,25 +172,26 @@ deps_of() {
     geo) echo "base codec core" ;;
     rules) echo "base codec core geo" ;;
     map) echo "base codec gfx core geo rules" ;;
+    mapbake) echo "base codec gfx core geo rules map" ;;
     ui) echo "base codec gfx" ;;
     app) echo "base codec gfx core geo rules map ui" ;;
     *) return 1 ;;
   esac
 }
-ALL_MODULES="base codec gfx core geo rules map ui app"
+ALL_MODULES="base codec gfx core geo rules map mapbake ui app"
 
-module_sources() {  # $1 = модуль
-  local d="$SRC/$1"
-  [[ -d "$d" ]] || return 0
-  find "$d" -name '*.cpp' | sort
-}
+module_sources() { find "$SRC/$1" -name '*.cpp' | sort; }   # $1 = модуль (папка src/<модуль>)
 
-platform_sources() {  # $1 = win32|x11|cocoa|headless
-  local f="$SRC/platform/$1.cpp"
-  [[ -f "$f" ]] && echo "$f"
-  local c="$SRC/platform/common.cpp"
-  [[ -f "$c" ]] && echo "$c"
-  return 0
+platform_sources() { echo "$SRC/platform/$1.cpp"; echo "$SRC/platform/common.cpp"; }   # $1 = win32|x11|cocoa|headless
+# Звук (плеер саундтреков приложения): общий движок и вывод своей платформы; движку нужен модуль codec (WAV, теги).
+audio_sources() {   # $1 = win32|x11|cocoa|headless
+  echo "$SRC/platform/audio.cpp"
+  case "$1" in
+    win32) echo "$SRC/platform/audio_win32.cpp" ;;
+    x11) echo "$SRC/platform/audio_alsa.cpp" ;;
+    cocoa) echo "$SRC/platform/audio_mac.cpp" ;;
+    *) echo "$SRC/platform/audio_headless.cpp" ;;
+  esac
 }
 
 resolve_modules() {  # список модулей с зависимостями, в порядке ALL_MODULES
@@ -188,17 +210,25 @@ resolve_modules() {  # список модулей с зависимостями
   echo $out
 }
 
-obj_of() { local rel="${1#$SRC/}"; echo "$BUILD/obj/${rel%.cpp}.o"; }
+obj_of() { local rel="${1#$SRC/}"; OBJ="$BUILD/obj/${rel%.cpp}.o"; }   # -> OBJ (без подоболочки)
 
-needs_build() {  # $1 = src, $2 = obj
-  local src="$1" obj="$2" dep="$2.d"
+needs_build() {  # $1 = src, $2 = obj. Без внешних команд: на Windows каждый запуск процесса стоит десятки мс.
+  local src="$1" obj="$2" dep="$2.d" text="" f
   [[ -f "$obj" ]] || return 0
   [[ "$src" -nt "$obj" ]] && return 0
   [[ -f "$dep" ]] || return 0
-  local f
-  while IFS= read -r f; do
-    [[ -n "$f" && "$f" != *: && -f "$f" && "$f" -nt "$obj" ]] && return 0
-  done < <(sed -e 's/\\ /\x01/g' -e 's/\\$//' -e 's/^obj://' "$dep" | tr ' \t' '\n\n' | sed -e '/^$/d' -e 's/\x01/ /g')
+  IFS= read -r -d '' text < "$dep" || true
+  text="${text//\\ /$'\x01'}"    # экранированный пробел внутри пути
+  text="${text//\\$'\n'/ }"      # перенос строки
+  text="${text//$'\r'/}"
+  local IFS=$' \t\n'
+  set -f
+  for f in $text; do
+    [[ "$f" == *: ]] && continue   # цель «obj:»
+    f="${f//$'\x01'/ }"
+    if [[ -f "$f" && "$f" -nt "$obj" ]]; then set +f; return 0; fi
+  done
+  set +f
   return 1
 }
 
@@ -223,10 +253,10 @@ EOS
 
 compile_all() {  # аргументы — исходники
   local todo=()
-  local s o
+  local s
   for s in "$@"; do
-    o="$(obj_of "$s")"
-    if needs_build "$s" "$o"; then todo+=("$s"); fi
+    obj_of "$s"
+    if needs_build "$s" "$OBJ"; then todo+=("$s"); fi
   done
   [[ ${#todo[@]} -eq 0 ]] && return 0
   echo "== компиляция: ${#todo[@]} файл(ов), $JOBS потоков"
@@ -238,7 +268,7 @@ link_exe() {  # $1 = имя, $2 = gui|console, остальные — исход
   local name="$1" kind="$2"; shift 2
   compile_all "$@"
   local objs=() s
-  for s in "$@"; do objs+=("$(obj_of "$s")"); done
+  for s in "$@"; do obj_of "$s"; objs+=("$OBJ"); done
   local out="$BIN/$name$EXE"
   local extra=()
   [[ $kind == gui ]] && extra+=("${GUI_LDFLAGS[@]}")
@@ -252,37 +282,49 @@ link_exe() {  # $1 = имя, $2 = gui|console, остальные — исход
   fi
   echo "== сборка $name$EXE"
   # Объектные файлы — через файл ответов: длинный путь проекта × сотни файлов не помещаются в командную строку Windows.
-  local rsp="$BUILD/$name.rsp"
   # Git Bash: пути MSYS (/d/...) в файле ответов компилятор не понимает — пишутся пути Windows.
-  if command -v cygpath >/dev/null; then cygpath -m "${objs[@]}" | sed 's/.*/"&"/' > "$rsp"
-  else printf '"%s"\n' "${objs[@]}" > "$rsp"; fi
+  local rsp="$BUILD/$name.rsp" stamp="$BUILD/$name.stamp" list o
+  if command -v cygpath >/dev/null; then list="$(cygpath -m "${objs[@]}" | sed 's/.*/"&"/')"
+  else list="$(printf '"%s"\n' "${objs[@]}")"; fi
+  # Компоновка пропускается, если состав и объектные файлы не менялись, а программу не заменили после прошлой сборки
+  # (отметка хранит путь программы: сборка той же папки объектов в другую папку программ — новая компоновка).
+  if [[ -f "$out" && -f "$stamp" && -f "$rsp" && ! "$out" -nt "$stamp" && "$(<"$stamp")" == "$out" && "$(<"$rsp")" == "$list" ]]; then
+    local fresh=1
+    for o in "${objs[@]}"; do [[ "$o" -nt "$stamp" ]] && { fresh=0; break; }; done
+    [[ $fresh == 1 ]] && { echo "   без изменений"; return 0; }
+  fi
+  printf '%s\n' "$list" > "$rsp"
   "$CXX" "@$rsp" -o "$out" "${extra[@]}" "${LDFLAGS[@]}"
+  printf '%s' "$out" > "$stamp"
 }
 
 sources_for_modules() { local m; for m in "$@"; do module_sources "$m"; done; }
-nontest() { grep -v '/tests/' || true; }
+library_sources() { sources_for_modules "$@" | grep -v '/app/main\.cpp$'; }   # модули без точки входа приложения
+collect() { S=(); local l; while IFS= read -r l; do [[ -n "$l" ]] && S+=("$l"); done; }   # строки ввода -> массив S
 
 build_target() {
   local t="$1"
   case "$t" in
     regnum)
-      S=(); while IFS= read -r _l; do [[ -n "$_l" ]] && S+=("$_l"); done < <(sources_for_modules $(resolve_modules app); platform_sources $PLATFORM)
-      [[ -f "$SRC/app/main.cpp" ]] || { echo "Нет src/app/main.cpp — приложение ещё не собрано из модулей."; return 0; }
+      collect < <(sources_for_modules $(resolve_modules app); platform_sources $PLATFORM; audio_sources $PLATFORM)
       link_exe regnum gui "${S[@]}" ;;
-    regnum-cli)
-      S=(); while IFS= read -r _l; do [[ -n "$_l" ]] && S+=("$_l"); done < <(sources_for_modules $(resolve_modules map); find "$SRC/cli" -name '*.cpp' 2>/dev/null | sort; platform_sources headless)
-      [[ -f "$SRC/cli/cli_main.cpp" ]] || { echo "Нет src/cli/cli_main.cpp — пропуск regnum-cli."; return 0; }
+    regnum-cli)   # без платформы: консольным командам окно не нужно
+      collect < <(sources_for_modules $(resolve_modules mapbake) cli)
       link_exe regnum-cli console "${S[@]}" ;;
     regnum-tests)
-      S=(); while IFS= read -r _l; do [[ -n "$_l" ]] && S+=("$_l"); done < <(sources_for_modules $(resolve_modules app) | grep -v '/app/main.cpp' ; platform_sources headless; find "$SRC/tests" -name '*.cpp' | sort)
+      collect < <(library_sources $(resolve_modules app mapbake); platform_sources headless; audio_sources headless; module_sources tests)
       link_exe regnum-tests console "${S[@]}" ;;
     test-*)
-      local m="${t#test-}"
+      local m="${t#test-}" mods
       deps_of "$m" >/dev/null || { echo "Неизвестный модуль: $m"; exit 2; }
-      S=(); while IFS= read -r _l; do [[ -n "$_l" ]] && S+=("$_l"); done < <(sources_for_modules $(resolve_modules "$m") | grep -v '/app/main.cpp'; [[ $m == ui || $m == app || $m == map ]] && platform_sources headless; echo "$SRC/tests/test_main.cpp"; find "$SRC/tests" -name "test_${m}*.cpp" | sort)
+      mods=" $(resolve_modules "$m") "
+      # Платформа (headless) нужна только интерфейсу: ui и всё, что от него зависит; звук — приложению (его плеер).
+      collect < <(library_sources $mods; [[ "$mods" == *" ui "* ]] && platform_sources headless
+                  [[ "$mods" == *" app "* ]] && audio_sources headless; echo "$SRC/tests/test_main.cpp"
+                  find "$SRC/tests" -name "test_${m}_*.cpp" | sort)
       link_exe "regnum-test-$m" console "${S[@]}" ;;
     platform-demo)
-      S=(); while IFS= read -r _l; do [[ -n "$_l" ]] && S+=("$_l"); done < <(sources_for_modules base; platform_sources $PLATFORM; find "$SRC/platform/demo" -name '*.cpp' | sort)
+      collect < <(sources_for_modules base; platform_sources $PLATFORM; find "$SRC/platform/demo" -name '*.cpp' | sort)
       link_exe platform-demo console "${S[@]}" ;;
     *) echo "Неизвестная цель: $t"; exit 2 ;;
   esac
@@ -291,10 +333,14 @@ build_target() {
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   if [[ $RUN_TESTS == 1 ]]; then TARGETS=(regnum-tests); else TARGETS=(regnum regnum-cli regnum-tests); fi
 fi
-echo "Regnum: $OS/$CONFIG, компилятор: $CXX"
+echo "Regnum: $OS/$CONFIG$([[ $ASAN == 1 ]] && echo +asan), компилятор: $CXX"
 for t in "${TARGETS[@]}"; do build_target "$t"; done
 
 if [[ $RUN_TESTS == 1 ]]; then
+  if [[ $ASAN == 1 ]]; then
+    export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
+    [[ $OS == windows ]] && export PATH="$(dirname "$CXX"):$PATH"   # DLL среды AddressSanitizer и libc++
+  fi
   for t in "${TARGETS[@]}"; do
     case "$t" in
       regnum-tests) exe="$BIN/regnum-tests$EXE" ;;
@@ -302,6 +348,6 @@ if [[ $RUN_TESTS == 1 ]]; then
       *) continue ;;
     esac
     echo "== запуск $(basename "$exe")"
-    (cd "$REPO" && "$exe" "${TEST_FILTER[@]}")
+    (cd "$REPO" && "$exe" -j "${REGNUM_TEST_JOBS:-0}" "${TEST_FILTER[@]}")
   done
 fi

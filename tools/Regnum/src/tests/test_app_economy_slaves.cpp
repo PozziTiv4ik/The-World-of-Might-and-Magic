@@ -24,7 +24,6 @@ i64 atWork(const Province& p, Id race) {
 }  // namespace
 
 TEST(app_economy_slaves_faction) {
-  HideTestRegs hide;
   Harness h("economy_slaves_faction", 1440, 1100);
   h.demo();
   const Id st = biggestState(h->world());
@@ -67,7 +66,6 @@ TEST(app_economy_slaves_faction) {
 }
 
 TEST(app_economy_slaves_at_work) {
-  HideTestRegs hide;
   Harness h("economy_slaves_work", 1440, 1200);
   h.demo();
   const Id st = biggestState(h->world());

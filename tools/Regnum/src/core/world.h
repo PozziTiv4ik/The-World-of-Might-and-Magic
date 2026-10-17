@@ -19,80 +19,19 @@
 #include <unordered_map>
 
 #include "base/base.h"
+#include "base/flag.h"
+#include "core/catalogs.h"   // справочники и константы
+#include "core/table.h"      // Table, TableEdit
+#include "core/types.h"      // Id, перечисления, Seq, findById
 
 namespace rg {
-
-using Id = u32;  // 0 — «нет»
-
-// ================================================================ перечисления
-enum class Terrain : u8 { None = 0, Land = 1, Sea = 2 };
-enum class EdgeKind : u8 { Border = 0, Coast = 1, Frame = 2 };
-enum class ProvSize : u8 { Small = 0, Medium = 1, Large = 2 };
-enum class CityType : u8 { Outpost = 0, Village = 1, Town = 2, City = 3 };
-// Wild — войска без государства (пробуждённые стражи, вторжения из археологических мест): враждебны всем государствам,
-// фракция одна на мир и не показывается в списках государств и гильдий.
-enum class FactionKind : u8 { State = 0, Guild = 1, Wild = 2 };
-// Типы войск. В файлах хранятся строковые ID (schema::kUnitTypes), поэтому порядок можно менять.
-enum class UnitType : u8 {
-  LightInf, MediumInf, HeavyInf, LightCav, MediumCav, HeavyCav, AirCav, Flying, Casters, Ranged, Beasts, Monsters, Machines, Elementals, Count
-};
-// Морское чудовище — «судно» за эссенцию воды и ресурс подгруппы «Морские чудовища» (ключевой ресурс строки флота).
-enum class ShipType : u8 { ShipOfLine, Frigate, Galleon, SeaMonster, Count };
-enum class RelStatus : u8 { War = 0, Alliance = 1, Neutral = 2, Unknown = 3 };
-enum class BuildingCat : u8 { Military = 0, Economic = 1, Industrial = 2, Residential = 3, Religious = 4, Cult = 5, Count };
-// Редкость реликвии: обычная (белая подсветка), редкая (синяя), эпическая (фиолетовая), легендарная (оранжевая),
-// эпохальная (красная).
-enum class Rarity : u8 { Common = 0, Rare = 1, Epic = 2, Legendary = 3, Epochal = 4, Count };
-enum class ArmyKind : u8 { Army = 0, Fleet = 1 };
-enum class DealKind : u8 { Trade = 0, Tribute = 1, Reparations = 2 };
-enum class DealSide : u8 { A = 0, B = 1 };
-enum class DealMode : u8 { Once = 0, PerTurn = 1 };
-enum class DealStatus : u8 { Active = 0, Done = 1, Cancelled = 2 };
-enum class OccupiedIncome : u8 { Owner = 0, Occupier = 1, None = 2 };
-enum class LogKind : u8 { Turn, Economy, Build, Tech, War, Battle, Army, Fleet, Diplomacy, Trade, Province, Guild, Population, Note, Archaeology, Count };
-// Объекты карты, нарисованные кодом: знаки и фигуры (суша и берег — граф провинций, см. Edge).
-enum class SymbolKind : u8 { Mountain = 0, Peak = 1, Castle = 2, Tower = 3, Count };   // гора, крупная гора, замок, башня
-enum class ShapeKind : u8 { Water = 0, Islet = 1, Wall = 2, River = 3, Count };      // вода, островок, стена, река линией
-// Вид государства: государство живых (по умолчанию), нежити, демонов.
-enum class StateKind : u8 { Living = 0, Undead = 1, Demonic = 2, Count };
-// Где применяется модификатор: везде, провинция, государство (глобальный), войско, герой, археологическая группа
-// (модификаторы археологических групп назначаются только группам, и группам — только они).
-enum class ModKind : u8 { Any = 0, Province = 1, Faction = 2, Army = 3, Hero = 4, ArchGroup = 5, Count };
-// Позиция сделки: ресурс, провинция (переходит к другой стороне), пленный герой.
-enum class DealItemKind : u8 { Resource = 0, Province = 1, Hero = 2, Count };
-// Тип глобальной константы: число, список ресурсов с количествами, список значений.
-enum class ConstType : u8 { Number = 0, Resources = 1, Values = 2, Count };
-
-// Эффекты модификаторов (ТЗ 1.g.ii). Пределы и подписи — schema.h (kEffects).
-enum class Fx : u8 {
-  PopGrowthPct, TradePct, TradeFlat, BuildCostPct, ContentmentPerTurn, RebellionPct, ResourcePct, ResourceFlat, Slots,  // локальные
-  IncomePct, DiplomacyPerTurn, ArmyUpkeepPct, FleetUpkeepPct, ResearchTimePct,                                      // глобальные
-  LoyaltyPerTurn,                                                                                                     // войско
-  // Археологические группы (у модификатора группы — эта группа, у глобального — все группы государства).
-  ArchSuccessPct, ArchVitalityPct, ArchExpPct, ArchUpkeepPct,
-  // Глобальные (ветка технологий «Археология»): сокровища от всех действий групп, шанс обнаружения места,
-  // начальный уровень новых групп.
-  ArchTreasurePct, ArchDiscoveryPct, ArchStartLevel,
-  Count
-};
-constexpr int kFxCount = int(Fx::Count);
-
-// Последовательности идентификаторов.
-enum class Seq : u8 {
-  Province, Faction, Character, Modifier, Building, Tech, Army, Route, Deal, Log, Row, Council,
-  Node, Edge, Resource, Race, Culture, Religion, Government, Position, Symbol, Shape,
-  Essence, Relic, Special, ResGroup, HeroClass, Talent, RelicGroup, ArchSite, Chest, ArchGroup, Count
-};
-constexpr int kSeqCount = int(Seq::Count);
-
-constexpr Id kGold = 1;  // встроенный ресурс «Золото» = казна
 
 // ================================================================ сущности
 struct Node { Id id = 0; Vec2 p; };
 
 // Дуга плоского графа провинций: полилиния a -> pts... -> b.
 // pl/pr — провинция слева/справа по ходу a->b (0 — не назначено); tl/tr — суша/море по сторонам.
-// Береговые дуги (Coast) задаются базовой картой и не редактируются пользователем.
+// Береговые дуги (Coast) берутся из базовой карты (geo::initFromCoast) и правятся в режиме «Правка карты».
 struct Edge {
   Id id = 0;
   Id a = 0, b = 0;
@@ -121,6 +60,20 @@ struct Formation {
   std::map<Id, double> paidEss;   // эссенции элементов, отданные за формирование
 };
 struct Influence { Id guild = 0; double pct = 0; };          // торговое влияние гильдии, %
+// Стопка реликвий в месте хранения (инвентарь героя, хранилище постройки, инвентарь государства): уникальная реликвия
+// (легендарная, эпохальная) — всегда одна штука в одном месте; эпическая и ниже — сколько угодно штук в любых местах.
+struct RelicStack {
+  Id relic = 0;
+  i64 count = 1;
+  bool operator==(const RelicStack&) const = default;
+};
+// Штук реликвии в списке стопок (0 — нет).
+inline i64 relicCount(const std::vector<RelicStack>& v, Id relic) {
+  i64 n = 0;
+  for (const RelicStack& s : v)
+    if (s.relic == relic) n += s.count;
+  return n;
+}
 struct ProvBuilding {
   Id building = 0;
   int level = 1;            // уровень, который построен или строится
@@ -130,16 +83,18 @@ struct ProvBuilding {
   // и тому же плательщику). У достроенной постройки пусто; payer 0 — плательщик неизвестен или упразднён.
   std::map<Id, double> paid;
   Id payer = 0;
-  // Постройка преобразования: «Простаивает» (idle) или «Работает»; cycle — ходов до конца идущего цикла
+  // Постройка преобразования или иссушения: «Простаивает» (idle) или «Работает»; cycle — ходов до конца идущего цикла
   // преобразования (0 — цикл не идёт: при «Работает» новый начнётся в конце хода, если хватит ресурсов).
   bool idle = false;
   int cycle = 0;
+  int recipe = 0;                     // постройка преобразования: выбранный рецепт (индекс Building::recipes)
+  Id race = 0;                        // постройка иссушения: раса провинции, у которой отнимается население
   std::map<Id, double> paidEss;       // эссенции, уплаченные за строящийся уровень (возврат при отмене — тому же плательщику)
-  std::vector<Id> relics;             // хранилище реликвий: реликвии в инвентаре постройки
+  std::vector<RelicStack> relics;     // хранилище реликвий: реликвии в инвентаре постройки
   int builtLevel() const { return constructing ? level - 1 : level; }  // действующий уровень (0 — ещё нет)
 };
 
-// Археологический слот провинции (ТЗ «Доработки №2»): четыре слота — «Обычное», «Редкое», «Эпическое» и «Легендарное
+// Археологический слот провинции: четыре слота (kArchSlots) — «Обычное», «Редкое», «Эпическое» и «Легендарное
 // место». Место (site) и сокровище (chest — финальная награда исследования) назначаются при создании провинции;
 // open — слот исследован (место обнаружено), stage — пройдено этапов исследования места (все этапы — место
 // исследовано полностью, финальная награда получена).
@@ -150,17 +105,15 @@ struct ArchSlot {
   Id chest = 0;
   bool operator==(const ArchSlot&) const = default;
 };
-constexpr int kArchSlots = 4;
 
 struct Province {
   Id id = 0;
   std::string name;
   Id owner = 0;             // государство
   Id lord = 0;              // персонаж
-  bool sea = false;         // ТЗ 1.a.iii: морская провинция — без информации и без заливки
+  bool sea = false;         // морская провинция — без информации и без заливки
   std::string capital;      // название столицы
-  ProvSize size = ProvSize::Medium;
-  CityType city = CityType::Village;
+  ProvSize size = ProvSize::Medium;   // тип города — по населению (rules::cityType)
   Id resource = 0;          // ресурс каталога
   double resourceAmount = 0;  // ≥ 0
   std::vector<GarrisonEntry> garrison;
@@ -184,18 +137,9 @@ struct Province {
   std::array<ArchSlot, kArchSlots> arch{};  // археологические места
   Id hiddenRelic = 0;       // спрятанная реликвия (видна только в режиме правки археологии)
   Id hiddenBy = 0;          // государство, которое её спрятало (только оно может откопать)
+  int buildTurn = 0;        // ход, в который в провинции последний раз начато строительство (правило игрока)
   std::string notes;
   std::string entity;       // ID карточки кампании (необязательно)
-};
-
-enum class FlagPattern : u8 { Solid, H2, H3, V2, V3, Cross, Saltire, Quarters, Bend, Chevron, Border, Canton, Chief, Pale, Count };
-struct Flag {
-  bool image = false;            // true — изображение PNG, иначе конструктор
-  FlagPattern pattern = FlagPattern::Solid;
-  std::array<Color, 3> colors{Color::hex(0x7a4fd6), Color::hex(0xf2e3b3), Color::hex(0x1d2333)};
-  std::string emblem;            // имя эмблемы (gfx/emblems) или пусто
-  Color emblemColor = Color::hex(0xf2e3b3);
-  std::string png;               // байты PNG, если image
 };
 
 // race — раса отряда из глобальной константы «Расы для отрядов» (пусто — по виду государства и типу отряда).
@@ -203,7 +147,7 @@ struct Flag {
 // «Ездовых наземных», воздушная кавалерия — из «Ездовых летающих», звери — из «Зверей» кроме «Чудовищ», чудовища —
 // из «Чудовищ», механизмы — «Запчасти механизмов»), дополнительные ресурсы и эссенции элементов. Элементали
 // нанимаются только за эссенции и содержатся эссенциями (essUpkeep) вместо золота. special — особый отряд
-// справочника: тип, раса и цены строки повторяют его запись (rules::syncSpecialRows).
+// справочника: тип, раса и цены строки повторяют его запись (rules::setSpecial).
 struct ArmyRow {
   Id id = 0;
   std::string name;
@@ -217,7 +161,7 @@ struct ArmyRow {
   std::map<Id, double> essence;    // эссенции элементов на юнит при найме (≥ 0)
   std::map<Id, double> essUpkeep;  // элементали: эссенции на юнит в ход (содержание)
   Id special = 0;                  // особый отряд справочника (0 — обычный отряд)
-  // Наёмники (ТЗ «Доработки №3», п.13): найм и содержание — только золотом (hire — золота за юнит при найме),
+  // Наёмники: найм и содержание — только золотом (hire — золота за юнит при найме),
   // без населения и ресурсов при любом виде государства; раса «Наемники»; при мятеже всегда верны.
   bool merc = false;
   double hire = 0;
@@ -232,7 +176,7 @@ struct TechProgress {
   std::map<Id, double> paid;       // уплачено за идущее исследование (стоимость технологии; возврат при остановке)
   bool operator==(const TechProgress&) const = default;
 };
-// Археологическая группа государства (ТЗ «Доработки №2», п.1–2): опыт 0…1000 задаёт уровень 1…5, а уровень — базовые
+// Археологическая группа государства: опыт 0…1000 задаёт уровень 1…5, а уровень — базовые
 // содержание, шанс успеха и живучесть. busy — ход, в который группа уже участвовала в исследовании (одно за ход).
 struct ArchGroup {
   Id id = 0;
@@ -275,19 +219,19 @@ struct Faction {
   double provisionDebt = 0;      // недостача провизии: «Голод», пока больше нуля
   std::map<Id, TechProgress> techs;   // общие технологии (дерево без фракции): изучение этой фракцией
   std::vector<ArchGroup> archGroups;  // археологические группы
-  std::vector<Id> relics;             // реликвии государства вне инвентарей (находки археологов)
+  std::vector<RelicStack> relics;     // инвентарь государства: полученные реликвии (находки, раскопки), вне героев и построек
   std::string notes;
   std::string entity;
 
   bool isState() const { return kind == FactionKind::State; }
   bool isGuild() const { return kind == FactionKind::Guild; }
   bool isWild() const { return kind == FactionKind::Wild; }
-  const ArchGroup* archGroup(Id g) const { for (auto& a : archGroups) if (a.id == g) return &a; return nullptr; }
+  const ArchGroup* archGroup(Id g) const { return findById(archGroups, g); }
   double treasury() const { auto it = res.find(kGold); return it == res.end() ? 0 : it->second; }
   double stock(Id r) const { auto it = res.find(r); return it == res.end() ? 0 : it->second; }
   double essence(Id e) const { auto it = ess.find(e); return it == ess.end() ? 0 : it->second; }
-  const ArmyRow* armyRow(Id row) const { for (auto& r : army) if (r.id == row) return &r; return nullptr; }
-  const FleetRow* fleetRow(Id row) const { for (auto& r : fleet) if (r.id == row) return &r; return nullptr; }
+  const ArmyRow* armyRow(Id row) const { return findById(army, row); }
+  const FleetRow* fleetRow(Id row) const { return findById(fleet, row); }
 };
 
 struct Character {
@@ -301,10 +245,13 @@ struct Character {
   ModTurns modTurns;
   Id captor = 0;                 // взят в плен: пленившее государство
   Id burial = 0;                 // погиб: место захоронения (провинция)
-  std::vector<Id> inventory;     // инвентарь героя: реликвии (каждая реликвия — не больше чем у одного персонажа)
+  std::vector<RelicStack> inventory;   // инвентарь героя: реликвии (уникальная — не больше чем у одного персонажа)
   int level = 1;                 // уровень героя 1…60: очков талантов — по одному за уровень
   Id heroClass = 0;              // класс героя (справочник классов); 0 — без класса
-  std::vector<Id> talents;       // изученные таланты дерева своего класса (у каждого героя — своё)
+  Id subclass = 0;               // подкласс выбранного класса (его дерево талантов); 0 — не выбран
+  // Изученные ранги талантов дерева подкласса в порядке изучения: талант повторяется столько раз, сколько у него
+  // изучено рангов (у каждого героя — своё).
+  std::vector<Id> talents;
   std::string notes, entity;
 };
 
@@ -320,7 +267,7 @@ struct Modifier {
   std::string key;                    // встроенный модификатор (schema::kMod*); пусто — свой
   ModKind kind = ModKind::Any;        // где применяется
   int duration = 0;                   // ходов действия при установке (0 — бессрочно)
-  // Генерация за ход (ТЗ «Доработки №1», п.5): эссенции и ресурсы, которые модификатор даёт каждый ход — владельцу
+  // Генерация за ход: эссенции и ресурсы, которые модификатор даёт каждый ход — владельцу
   // провинции (модификатор провинции и её построек), государству (его модификаторы, технологии, автоматические),
   // фракции героя (модификатор героя).
   std::map<Id, double> essGen;
@@ -338,6 +285,13 @@ struct BuildingLevel {
   std::map<Id, double> essence;       // постройка генерации эссенции: эссенции владельцу каждый ход
   std::map<Id, double> essCost;       // цена уровня в эссенциях (вместе с cost)
   u32 ships = 0;                      // верфь: типы кораблей, которые открывает уровень (бит = ShipType)
+  // Производство при ресурсе провинции: если ресурс провинции — ключ, вместо produce этого ресурса — значение
+  // (лесопилка: 20 древесины, в провинции с ресурсом «Древесина» — 100).
+  std::map<Id, double> produceOnRes;
+  double extractPct = 0;              // постройка добычи: добыча ресурса провинции +N %
+  i64 drainPop = 0;                   // постройка иссушения: жителей выбранной расы в ход
+  std::map<Id, double> drainEss;      // постройка иссушения: эссенции за drainPop жителей (меньше жителей — меньше)
+  double upkeepCut = 0;               // снижение содержания армии: % (сумма по государству — не больше 50 %)
 };
 struct BuildingReq { Id building = 0; int level = 1; };
 // Требование «на государство» (соборы): чтобы построить в государстве (n + 1)-ю такую постройку, в его провинциях должно
@@ -352,9 +306,12 @@ struct ResAmount {
   double amount = 0;
   bool operator==(const ResAmount&) const = default;
 };
-// Постройка преобразования: до трёх разных ресурсов на входе → один на выходе за turns ходов (один цикл).
+// Рецепт постройки преобразования: до трёх разных ресурсов и до трёх эссенций на входе → один ресурс на выходе за
+// turns ходов (один цикл); name — название рецепта («Сталь»), пусто — по ресурсу на выходе.
 struct Recipe {
+  std::string name;
   std::vector<ResAmount> in;
+  std::vector<ResAmount> essIn;       // эссенции на входе (res — ID эссенции)
   ResAmount out;
   int turns = 1;
   bool operator==(const Recipe&) const = default;
@@ -371,8 +328,8 @@ struct Building {
   std::vector<BuildingLevel> levels{BuildingLevel{}};
   Vec2 pos;                           // положение на схеме дерева
   // Дополнительные возможности постройки.
-  bool convert = false;               // постройка преобразования (recipe)
-  Recipe recipe;
+  bool convert = false;               // постройка преобразования (рецепты; в провинции выбирается один)
+  std::vector<Recipe> recipes;
   bool essenceGen = false;            // постройка генерации эссенции (BuildingLevel::essence)
   bool specialAccess = false;         // постройка доступа к особым отрядам (specials)
   std::vector<Id> specials;           // особые отряды, которые государство может нанимать, пока постройка достроена
@@ -382,6 +339,14 @@ struct Building {
   bool shipyard = false;              // верфь: уровни открывают типы кораблей (BuildingLevel::ships)
   bool mercenary = false;             // гильдия наёмников: лимит наёмников государства
   bool coastal = false;               // только в приморской провинции (граничит с морем)
+  bool market = false;                // рынок: «Продать реликвии» хранилищ реликвий государства за золото
+  bool drain = false;                 // постройка иссушения: население выбранной расы → эссенции (BuildingLevel::drain*)
+  bool upkeepCut = false;             // снижение содержания армии государства (BuildingLevel::upkeepCut)
+  // Постройка добычи: требует ресурс провинции из групп extractGroups (с подгруппами), кроме extractExclude;
+  // уровни увеличивают его добычу (BuildingLevel::extractPct).
+  bool extract = false;
+  std::vector<Id> extractGroups, extractExclude;
+  u32 stateKinds = 0;                 // только для видов государства (бит = StateKind); 0 — для всех
   std::vector<StateReq> stateReqs;    // требования «на государство»
   std::string key;                    // встроенная постройка (schema::bld): правила узнают её по ключу
 };
@@ -420,6 +385,7 @@ struct Army {
   double loyalty = 100;               // верность войска, −100…100 %
   Id carrier = 0;                     // войско на борту флота (не стоит на карте; положение — у флота)
   Id cargo = 0;                       // флот: войско на борту (одно)
+  int acted = 0;                      // ход, в который войско (флот) истратило очко действий (правила игрока)
   std::vector<Id> modifiers;          // модификаторы войска («Армия нежити», «Патриотизм»…)
   ModTurns modTurns;
   bool isFleet() const { return kind == ArmyKind::Fleet; }
@@ -497,232 +463,6 @@ struct Relation {
 using RelMap = std::map<u64, Relation>;  // ключ relKey(a, b)
 inline u64 relKey(Id a, Id b) { if (a > b) std::swap(a, b); return (u64(a) << 32) | b; }
 
-struct CatalogItem {
-  Id id = 0;
-  std::string name;
-  Color color = Color::hex(0x888888);
-  std::string icon;
-  bool builtin = false;
-  std::string key;                    // встроенный ресурс (schema::kRes*): золото, трупы, энергия, запчасти механизмов
-  std::vector<Id> modifiers;          // должность: глобальные модификаторы, пока она занята
-  std::vector<Id> vacantModifiers;    // должность: глобальные модификаторы, пока она пустует
-  Id group = 0;                       // ресурс: группа справочника (0 — без группы)
-};
-// Группа ресурсов («Руда», её подгруппы «Обычная», «Особая»…). parent 0 — группа верхнего уровня. key — группа,
-// на которую опираются правила (schema::grp: провизия, звери, ездовые, чудовища); такую нельзя удалить.
-struct ResGroup {
-  Id id = 0;
-  std::string name;
-  Id parent = 0;
-  std::string key;
-};
-// Реликвия: уникальна (без количества), лежит не больше чем в одном месте: инвентарь героя, хранилище постройки,
-// реликвии государства или спрятана в провинции. Главенство редкости: эпохальная > легендарная > эпическая > редкая >
-// обычная (больше Rarity — выше). image — своё изображение (PNG/JPEG), entity — карточка проекта (портрет канона).
-struct Relic {
-  Id id = 0;
-  std::string name;
-  Rarity rarity = Rarity::Common;
-  std::string desc;
-  Id group = 0;                       // группа реликвий (RelicGroup)
-  std::string entity;
-  std::string image;
-};
-// Группа реликвий (дерево по parent, как группы ресурсов); key — группа правил («Археологические находки»).
-struct RelicGroup {
-  Id id = 0;
-  std::string name;
-  Id parent = 0;
-  std::string key;
-};
-// Талант дерева класса героя (как дерево талантов World of Warcraft): ярус row (сверху вниз) и столбец col, стоимость
-// 1…5 очков; prereq — талант, который нужно изучить раньше; modifiers — модификаторы героя, пока талант изучен.
-struct Talent {
-  Id id = 0;
-  std::string name, desc;
-  std::string icon = "star";
-  int row = 0, col = 0;
-  int cost = 1;
-  Id prereq = 0;
-  std::vector<Id> modifiers;
-};
-// Класс героя: дерево талантов общее для класса, изучение — у каждого героя своё (Character::talents). Талант яруса r
-// доступен, когда в дереве уже вложено не меньше r × tierPoints очков.
-struct HeroClass {
-  Id id = 0;
-  std::string name, desc;
-  std::string icon = "hero";
-  Color color = Color::hex(0x8c7ae6);
-  int tierPoints = 5;
-  std::vector<Talent> talents;
-  const Talent* talent(Id t) const { for (auto& x : talents) if (x.id == t) return &x; return nullptr; }
-};
-// Археологическое место (ТЗ «Доработки №2», п.4): постоянный список из десяти мест (новые не добавляются). rewards —
-// «Финальная награда исследования» по слотам (0 — «Обычное место» … 3 — «Легендарное место»): сундуки, из которых
-// случайно выбирается сокровище провинции.
-struct ArchSite {
-  Id id = 0;
-  std::string key;
-  std::string name;
-  std::string icon = "pickaxe";
-  std::array<std::vector<Id>, kArchSlots> rewards;
-};
-// Сундук сокровищ (ТЗ «Доработки №2», п.10): поля — археологическая награда, золото, ресурс (конкретный или случайный
-// из группы «Руда» или «Материалы», с исключениями), артефакт (случайная свободная реликвия группы с одной из редкостей),
-// эссенция (конкретная или случайная), сундук (случайный из списка).
-enum class ChestItemKind : u8 { Treasure = 0, Gold = 1, Resource = 2, Relic = 3, Essence = 4, Chest = 5, Count };
-struct ChestItem {
-  ChestItemKind kind = ChestItemKind::Treasure;
-  double amount = 0;
-  Id res = 0;                         // ресурс: конкретный (0 — случайный из group)
-  Id group = 0;                       // ресурс: группа для случайного выбора
-  std::vector<Id> exclude;            // ресурс: не выбирать
-  Id essence = 0;                     // эссенция: конкретная (0 — случайная из справочника)
-  Id relicGroup = 0;                  // артефакт: группа реликвий
-  u32 rarities = 0;                   // артефакт: допустимые редкости (бит = Rarity)
-  std::vector<Id> chests;             // сундук: случайный из списка
-  bool operator==(const ChestItem&) const = default;
-};
-struct Chest {
-  Id id = 0;
-  std::string key;                    // базовый сундук (сопоставление при дополнении мира)
-  std::string name;
-  std::string icon = "chest";
-  std::string desc;
-  std::vector<ChestItem> items;
-};
-// Особый отряд мира (справочник «Особые отряды»): нанимается государством, у которого достроена постройка
-// доступа (Building::specials). Поля — как у строки армии (ArmyRow).
-struct SpecialUnit {
-  Id id = 0;
-  std::string name;
-  UnitType type = UnitType::Monsters;
-  std::string race;                   // пусто — по виду государства и типу
-  Id keyRes = 0;
-  double keyPer = 1;
-  std::map<Id, double> extra, essence;
-  double upkeep = 0;
-  std::map<Id, double> essUpkeep;
-  std::string desc;
-};
-struct Catalogs {
-  std::vector<CatalogItem> resources, races, cultures, religions, governments, positions, essences;
-  std::vector<ResGroup> resGroups;    // группы ресурсов (порядок — как в справочнике)
-  std::vector<Relic> relics;
-  std::vector<SpecialUnit> specials;
-  std::vector<RelicGroup> relicGroups;
-  std::vector<HeroClass> classes;     // классы героев с деревьями талантов
-  std::vector<ArchSite> archSites;    // археологические места (постоянный список)
-  std::vector<Chest> chests;          // сундуки сокровищ
-  static const CatalogItem* find(const std::vector<CatalogItem>& list, Id id) {
-    for (auto& c : list) if (c.id == id) return &c;
-    return nullptr;
-  }
-  // Встроенный ресурс по ключу (nullptr — нет).
-  const CatalogItem* resourceByKey(std::string_view key) const {
-    for (auto& c : resources) if (c.key == key) return &c;
-    return nullptr;
-  }
-  Id resourceId(std::string_view key) const { const CatalogItem* c = resourceByKey(key); return c ? c->id : 0; }
-  const ResGroup* group(Id id) const {
-    for (auto& g : resGroups) if (g.id == id) return &g;
-    return nullptr;
-  }
-  const ResGroup* groupByKey(std::string_view key) const {
-    for (auto& g : resGroups) if (g.key == key) return &g;
-    return nullptr;
-  }
-  Id groupId(std::string_view key) const { const ResGroup* g = groupByKey(key); return g ? g->id : 0; }
-  // Группа g — сама root или её потомок (через parent).
-  bool inGroup(Id g, Id root) const {
-    for (int guard = 0; g && guard < 64; guard++) {
-      if (g == root) return true;
-      const ResGroup* x = group(g);
-      g = x ? x->parent : 0;
-    }
-    return false;
-  }
-  // Ресурс входит в группу root (с подгруппами).
-  bool resourceIn(Id res, Id root) const {
-    const CatalogItem* r = find(resources, res);
-    return r && root && inGroup(r->group, root);
-  }
-  const Relic* relic(Id id) const {
-    for (auto& r : relics) if (r.id == id) return &r;
-    return nullptr;
-  }
-  const SpecialUnit* special(Id id) const {
-    for (auto& s : specials) if (s.id == id) return &s;
-    return nullptr;
-  }
-  const RelicGroup* relicGroup(Id id) const {
-    for (auto& g : relicGroups) if (g.id == id) return &g;
-    return nullptr;
-  }
-  Id relicGroupId(std::string_view key) const {
-    for (auto& g : relicGroups) if (g.key == key) return g.id;
-    return 0;
-  }
-  // Группа реликвий g — сама root или её потомок.
-  bool inRelicGroup(Id g, Id root) const {
-    for (int guard = 0; g && guard < 64; guard++) {
-      if (g == root) return true;
-      const RelicGroup* x = relicGroup(g);
-      g = x ? x->parent : 0;
-    }
-    return false;
-  }
-  const HeroClass* heroClass(Id id) const {
-    for (auto& c : classes) if (c.id == id) return &c;
-    return nullptr;
-  }
-  // Класс, в дереве которого талант (nullptr — нет).
-  const HeroClass* classOfTalent(Id t) const {
-    for (auto& c : classes) if (c.talent(t)) return &c;
-    return nullptr;
-  }
-  const ArchSite* archSite(Id id) const {
-    for (auto& s : archSites) if (s.id == id) return &s;
-    return nullptr;
-  }
-  const ArchSite* archSiteByKey(std::string_view key) const {
-    for (auto& s : archSites) if (s.key == key) return &s;
-    return nullptr;
-  }
-  const Chest* chest(Id id) const {
-    for (auto& c : chests) if (c.id == id) return &c;
-    return nullptr;
-  }
-  const Chest* chestByKey(std::string_view key) const {
-    for (auto& c : chests) if (c.key == key) return &c;
-    return nullptr;
-  }
-};
-
-// Глобальная константа (ТЗ «Общие доработки», п.1): число, список ресурсов или список значений.
-struct Constant {
-  std::string key;                    // устойчивый ключ: встроенные — schema::kConst*, свои — «userN»
-  std::string name;
-  ConstType type = ConstType::Number;
-  double num = 0;
-  std::map<Id, double> res;
-  std::vector<std::string> values;
-  bool builtin = false;               // встроенная: не удаляется, тип не меняется
-  std::string desc;
-  std::map<Id, double> ess;           // список ресурсов: ещё и эссенции (стоимость морского чудовища)
-  // Наименьшие значения базовой стоимости (ТЗ «Доработки №3», п.7–8): цену можно увеличивать и дополнять, но нельзя
-  // уменьшить ниже базовой и убрать базовый ресурс или эссенцию.
-  std::map<Id, double> minRes, minEss;
-};
-struct Constants {
-  std::vector<Constant> list;         // порядок — как в интерфейсе
-  const Constant* find(std::string_view key) const {
-    for (auto& c : list) if (c.key == key) return &c;
-    return nullptr;
-  }
-  double num(std::string_view key, double def = 0) const { const Constant* c = find(key); return c && c->type == ConstType::Number ? c->num : def; }
-};
-
 struct Settings {
   float fillOpacity = 0.5f;
   bool labelStates = true, labelProvinces = true, labelArmies = true;
@@ -733,7 +473,7 @@ struct Settings {
   bool autosaveFolder = true;
   int autosaveSec = 60;
   // «Свободное редактирование флотов»: новый флот ставится в любое место карты; иначе — из вкладки «Флот» государства
-  // у верфи приморской провинции (ТЗ «Доработки №3», п.3).
+  // у верфи приморской провинции.
   bool freeFleets = false;
 };
 
@@ -754,126 +494,26 @@ struct Meta {
   std::string notes;
 };
 
-// ================================================================ таблица
-// Устойчивая таблица сущностей по ID: блоки по 64 записи, общие между версиями мира.
-template <class T>
-class Table {
- public:
-  static constexpr u32 kBits = 6, kSize = 1u << kBits, kMask = kSize - 1;
-  using Chunk = std::array<std::shared_ptr<const T>, kSize>;
-  using Chunks = std::vector<std::shared_ptr<const Chunk>>;
-
-  const T* get(Id id) const {
-    if (!chunks_ || id == 0) return nullptr;
-    u32 ci = id >> kBits;
-    if (ci >= chunks_->size()) return nullptr;
-    const auto& c = (*chunks_)[ci];
-    return c ? (*c)[id & kMask].get() : nullptr;
-  }
-  bool has(Id id) const { return get(id) != nullptr; }
-  u32 size() const { return count_; }
-  bool empty() const { return count_ == 0; }
-  // Обход по возрастанию ID: f(const T&).
-  template <class F> void each(F&& f) const {
-    if (!chunks_) return;
-    for (const auto& c : *chunks_) {
-      if (!c) continue;
-      for (const auto& e : *c) if (e) f(*e);
-    }
-  }
-  std::vector<Id> ids() const { std::vector<Id> r; r.reserve(count_); each([&](const T& e) { r.push_back(e.id); }); return r; }
-  std::vector<const T*> all() const { std::vector<const T*> r; r.reserve(count_); each([&](const T& e) { r.push_back(&e); }); return r; }
-  // Тождество версии: таблицы не менялись, если указатели блоков совпадают.
-  bool same(const Table& o) const { return chunks_ == o.chunks_; }
-  // Блоки, отличающиеся от другой версии (для точечной инвалидации кешей): вызывает f(id) для изменённых/удалённых/новых.
-  template <class F> void diff(const Table& o, F&& f) const {
-    size_t n = std::max(chunks_ ? chunks_->size() : 0, o.chunks_ ? o.chunks_->size() : 0);
-    for (size_t ci = 0; ci < n; ci++) {
-      auto a = chunks_ && ci < chunks_->size() ? (*chunks_)[ci] : nullptr;
-      auto b = o.chunks_ && ci < o.chunks_->size() ? (*o.chunks_)[ci] : nullptr;
-      if (a == b) continue;
-      for (u32 k = 0; k < kSize; k++) {
-        const T* x = a ? (*a)[k].get() : nullptr;
-        const T* y = b ? (*b)[k].get() : nullptr;
-        if (x != y) f(Id((ci << kBits) | k));
-      }
-    }
-  }
-
- private:
-  template <class> friend class TableEdit;
-  std::shared_ptr<const Chunks> chunks_;
-  u32 count_ = 0;
-};
-
-// Редактор таблицы внутри транзакции: копирует блоки и сущности при первом изменении.
-template <class T>
-class TableEdit {
- public:
-  using Chunk = typename Table<T>::Chunk;
-  using Chunks = typename Table<T>::Chunks;
-  static constexpr u32 kBits = Table<T>::kBits, kMask = Table<T>::kMask;
-
-  explicit TableEdit(Table<T>* t) : t_(t) {}
-
-  bool touched() const { return chunks_ != nullptr; }
-
-  T* mut(Id id) {
-    const T* cur = t_->get(id);
-    if (!cur) return nullptr;
-    auto it = owned_.find(id);
-    if (it != owned_.end()) return it->second;
-    auto p = std::make_shared<T>(*cur);
-    T* raw = p.get();
-    chunkFor(id)[id & kMask] = std::move(p);
-    owned_[id] = raw;
-    return raw;
-  }
-
-  T& put(T value) {
-    Id id = value.id;
-    if (id == 0) throw std::logic_error("TableEdit::put: id = 0");
-    bool existed = t_->get(id) != nullptr;
-    auto p = std::make_shared<T>(std::move(value));
-    T* raw = p.get();
-    chunkFor(id)[id & kMask] = std::move(p);
-    owned_[id] = raw;
-    if (!existed) t_->count_++;
-    return *raw;
-  }
-
-  bool erase(Id id) {
-    if (!t_->get(id)) return false;
-    chunkFor(id)[id & kMask].reset();
-    owned_.erase(id);
-    t_->count_--;
-    return true;
-  }
-
- private:
-  Chunk& chunkFor(Id id) {
-    if (!chunks_) {
-      chunks_ = t_->chunks_ ? std::make_shared<Chunks>(*t_->chunks_) : std::make_shared<Chunks>();
-      t_->chunks_ = chunks_;
-    }
-    u32 ci = id >> kBits;
-    if (ci >= chunks_->size()) chunks_->resize(ci + 1);
-    if (ci >= ownedChunks_.size()) ownedChunks_.resize(ci + 1);
-    if (!ownedChunks_[ci]) {
-      auto c = (*chunks_)[ci] ? std::make_shared<Chunk>(*(*chunks_)[ci]) : std::make_shared<Chunk>();
-      ownedChunks_[ci] = c;
-      (*chunks_)[ci] = c;
-    }
-    return *ownedChunks_[ci];
-  }
-
-  Table<T>* t_;
-  std::shared_ptr<Chunks> chunks_;
-  std::vector<std::shared_ptr<Chunk>> ownedChunks_;
-  std::unordered_map<Id, T*> owned_;
-};
-
 // ================================================================ мир
+// Таблицы сущностей мира — одна строка на таблицу: тип записи, поле World (и доступ w.province(id)), правка в Tx
+// (tx.province(id)), суффикс удаления (tx.eraseProvince(id)), бит TableBit, последовательность ID, подпись для ошибок.
+// Порядок — порядок разбора при чтении. Новая таблица — строка здесь, бит TableBit, файл и формат в core/io.
+#define RG_WORLD_TABLES(X)                                                                  \
+  X(Node, nodes, node, Node, TB_NODES, Seq::Node, "Узел")                                   \
+  X(Edge, edges, edge, Edge, TB_EDGES, Seq::Edge, "Граница")                                \
+  X(Province, provinces, province, Province, TB_PROVINCES, Seq::Province, "Провинция")      \
+  X(Faction, factions, faction, Faction, TB_FACTIONS, Seq::Faction, "Фракция")              \
+  X(Character, characters, character, Character, TB_CHARACTERS, Seq::Character, "Персонаж") \
+  X(Modifier, modifiers, modifier, Modifier, TB_MODIFIERS, Seq::Modifier, "Модификатор")    \
+  X(Building, buildings, building, Building, TB_BUILDINGS, Seq::Building, "Постройка")      \
+  X(Tech, techs, tech, Tech, TB_TECHS, Seq::Tech, "Технология")                             \
+  X(Army, armies, army, Army, TB_ARMIES, Seq::Army, "Войско")                               \
+  X(Route, routes, route, Route, TB_ROUTES, Seq::Route, "Маршрут")                          \
+  X(Deal, deals, deal, Deal, TB_DEALS, Seq::Deal, "Сделка")                                 \
+  X(LogEntry, log, logEntry, Log, TB_LOG, Seq::Log, "Запись хроники")                       \
+  X(MapSymbol, symbols, symbol, Symbol, TB_SYMBOLS, Seq::Symbol, "Знак карты")              \
+  X(MapShape, shapes, shape, Shape, TB_SHAPES, Seq::Shape, "Фигура карты")
+
 enum TableBit : u32 {
   TB_META = 1u << 0, TB_SETTINGS = 1u << 1, TB_CATALOGS = 1u << 2, TB_NODES = 1u << 3, TB_EDGES = 1u << 4,
   TB_PROVINCES = 1u << 5, TB_FACTIONS = 1u << 6, TB_CHARACTERS = 1u << 7, TB_RELATIONS = 1u << 8,
@@ -888,34 +528,15 @@ struct World {
   std::shared_ptr<const Settings> settings = std::make_shared<Settings>();
   std::shared_ptr<const Catalogs> catalogs = std::make_shared<Catalogs>();
   std::shared_ptr<const Constants> constants = std::make_shared<Constants>();
-  Table<Node> nodes;
-  Table<Edge> edges;
-  Table<Province> provinces;
-  Table<Faction> factions;
-  Table<Character> characters;
   std::shared_ptr<const RelMap> relations = std::make_shared<RelMap>();
-  Table<Modifier> modifiers;
-  Table<Building> buildings;
-  Table<Tech> techs;
-  Table<Army> armies;
-  Table<Route> routes;
-  Table<Deal> deals;
-  Table<LogEntry> log;
-  Table<MapSymbol> symbols;
-  Table<MapShape> shapes;
+  // Таблицы сущностей (RG_WORLD_TABLES): Table<Province> provinces; const Province* province(Id) const; …
+#define RG_WORLD_TABLE(T, field, name, ...) \
+  Table<T> field;                           \
+  const T* name(Id id) const { return field.get(id); }
+  RG_WORLD_TABLES(RG_WORLD_TABLE)
+#undef RG_WORLD_TABLE
 
   int turn() const { return meta->turn; }
-  const Province* province(Id id) const { return provinces.get(id); }
-  const Faction* faction(Id id) const { return factions.get(id); }
-  const Character* character(Id id) const { return characters.get(id); }
-  const Modifier* modifier(Id id) const { return modifiers.get(id); }
-  const Building* building(Id id) const { return buildings.get(id); }
-  const Tech* tech(Id id) const { return techs.get(id); }
-  const Army* army(Id id) const { return armies.get(id); }
-  const Route* route(Id id) const { return routes.get(id); }
-  const Deal* deal(Id id) const { return deals.get(id); }
-  const MapSymbol* symbol(Id id) const { return symbols.get(id); }
-  const MapShape* shape(Id id) const { return shapes.get(id); }
   // Объекты карты хранятся в мире (иначе показываются объекты базовой карты).
   bool ownMapObjects() const { return meta->mapObjects || !symbols.empty() || !shapes.empty(); }
   Relation relation(Id a, Id b) const;                 // по умолчанию: 0, «незнакомы»; a == b — союз 100
@@ -952,51 +573,16 @@ class Tx {
   RelMap& relations();
   Id nextId(Seq s);                         // выдать следующий ID последовательности
 
-  // Изменение сущности (копия при первом обращении). Нет такой сущности — UserError.
-  Node& node(Id id);
-  Edge& edge(Id id);
-  Province& province(Id id);
-  Faction& faction(Id id);
-  Character& character(Id id);
-  Modifier& modifier(Id id);
-  Building& building(Id id);
-  Tech& tech(Id id);
-  Army& army(Id id);
-  Route& route(Id id);
-  Deal& deal(Id id);
-  MapSymbol& symbol(Id id);
-  MapShape& shape(Id id);
-
-  // Добавление: ID выдаётся автоматически (поле id заполняется), если value.id == 0.
-  Node& add(Node v);
-  Edge& add(Edge v);
-  Province& add(Province v);
-  Faction& add(Faction v);
-  Character& add(Character v);
-  Modifier& add(Modifier v);
-  Building& add(Building v);
-  Tech& add(Tech v);
-  Army& add(Army v);
-  Route& add(Route v);
-  Deal& add(Deal v);
-  LogEntry& add(LogEntry v);
-  MapSymbol& add(MapSymbol v);
-  MapShape& add(MapShape v);
-
-  // Удаление записи без очистки ссылок (ссылки чистит rules::entities).
-  void eraseNode(Id id);
-  void eraseEdge(Id id);
-  void eraseProvince(Id id);
-  void eraseFaction(Id id);
-  void eraseCharacter(Id id);
-  void eraseModifier(Id id);
-  void eraseBuilding(Id id);
-  void eraseTech(Id id);
-  void eraseArmy(Id id);
-  void eraseRoute(Id id);
-  void eraseDeal(Id id);
-  void eraseSymbol(Id id);
-  void eraseShape(Id id);
+  // Таблицы сущностей (RG_WORLD_TABLES), например провинции:
+  //   Province& province(Id id) — изменение (копия при первом обращении); нет такой сущности — UserError;
+  //   Province& add(Province v) — добавление: ID выдаётся автоматически (поле id заполняется), если v.id == 0;
+  //   void eraseProvince(Id id) — удаление записи без очистки ссылок (ссылки чистит rules::entities).
+#define RG_TX_TABLE_API(T, field, name, Name, ...) \
+  T& name(Id id);                                  \
+  T& add(T v);                                     \
+  void erase##Name(Id id);
+  RG_WORLD_TABLES(RG_TX_TABLE_API)
+#undef RG_TX_TABLE_API
 
   // Отношения пары (симметричны).
   void setRelation(Id a, Id b, Relation r);
@@ -1017,90 +603,11 @@ class Tx {
   std::shared_ptr<Catalogs> catalogs_;
   std::shared_ptr<Constants> constants_;
   std::shared_ptr<RelMap> rel_;
-  TableEdit<Node> nodes_;
-  TableEdit<Edge> edges_;
-  TableEdit<Province> provinces_;
-  TableEdit<Faction> factions_;
-  TableEdit<Character> characters_;
-  TableEdit<Modifier> modifiers_;
-  TableEdit<Building> buildings_;
-  TableEdit<Tech> techs_;
-  TableEdit<Army> armies_;
-  TableEdit<Route> routes_;
-  TableEdit<Deal> deals_;
-  TableEdit<LogEntry> log_;
-  TableEdit<MapSymbol> symbols_;
-  TableEdit<MapShape> shapes_;
-};
-
-// ================================================================ хранилище
-struct TxOptions {
-  std::string coalesce;          // непустой ключ: подряд идущие транзакции объединяются в одну запись отмены
-  double coalesceSec = 1.5;
-  bool history = true;           // false — не попадает в стек отмены
-};
-
-struct Change {
-  enum Kind { Commit, Undo, Redo, Load } kind = Commit;
-  std::string label;
-  u32 tables = 0;                // TableBit
-  const World* before = nullptr; // предыдущее состояние (действительно только во время уведомления)
-  const World* after = nullptr;
-};
-
-class Store {
- public:
-  Store();
-  const World& world() const { return cur_; }
-  u64 version() const { return version_; }
-
-  // Выполнить изменение мира. fn(Tx&) может вернуть значение. Исключение — откат.
-  template <class F>
-  decltype(auto) transact(std::string_view label, F&& fn, const TxOptions& opt = {}) {
-    Tx tx(cur_);
-    if constexpr (std::is_void_v<decltype(fn(tx))>) {
-      fn(tx);
-      commit(label, std::move(tx), opt);
-    } else {
-      auto result = fn(tx);
-      commit(label, std::move(tx), opt);
-      return result;
-    }
-  }
-
-  bool canUndo() const { return !undo_.empty(); }
-  bool canRedo() const { return !redo_.empty(); }
-  std::string undoLabel() const { return undo_.empty() ? std::string() : undo_.back().label; }
-  std::string redoLabel() const { return redo_.empty() ? std::string() : redo_.back().label; }
-  bool undo();
-  bool redo();
-  void endCoalesce();
-  void clearHistory();
-
-  // Заменить мир целиком (открытие файла, восстановление снимка). Очищает отмену.
-  void replace(World w, std::string_view label, bool markSaved = true);
-
-  void markSaved();
-  u32 dirtyTables() const { return World::diff(cur_, saved_); }
-  bool dirty() const { return dirtyTables() != 0; }
-  const World& savedWorld() const { return saved_; }
-
-  // Подписка на изменения. Возвращает номер для отписки.
-  int subscribe(std::function<void(const Change&)> fn);
-  void unsubscribe(int token);
-
-  size_t limit = 400;
-
- private:
-  void commit(std::string_view label, Tx&& tx, const TxOptions& opt);
-  void notify(const Change& c);
-
-  struct Entry { std::string label; World before, after; std::string coalesce; double time = 0; };
-  World cur_, saved_;
-  std::vector<Entry> undo_, redo_;
-  u64 version_ = 1;
-  std::vector<std::pair<int, std::function<void(const Change&)>>> subs_;
-  int nextSub_ = 1;
+#define RG_TX_TABLE_EDIT(T, field, ...) TableEdit<T> field##_;
+  RG_WORLD_TABLES(RG_TX_TABLE_EDIT)
+#undef RG_TX_TABLE_EDIT
 };
 
 }  // namespace rg
+
+#include "core/store.h"

@@ -8,7 +8,7 @@ namespace rg {
 // ---------------------------------------------------------------- World
 Relation World::relation(Id a, Id b) const {
   if (a == b) return Relation{100, RelStatus::Alliance};
-  // Войска без государства враждебны всем (ТЗ «Доработки №2», п.19.1.2).
+  // Войска без государства враждебны всем.
   const Faction* fa = factions.get(a);
   const Faction* fb = factions.get(b);
   if ((fa && fa->isWild()) || (fb && fb->isWild())) return Relation{-100, RelStatus::War};
@@ -16,9 +16,51 @@ Relation World::relation(Id a, Id b) const {
   return it == relations->end() ? Relation{} : it->second;
 }
 
-std::string World::factionName(Id id) const { const Faction* f = faction(id); return f ? (f->name.empty() ? "Без названия" : f->name) : "\xE2\x80\x94"; }
-std::string World::provinceName(Id id) const { const Province* p = province(id); return p ? (p->name.empty() ? "Без названия" : p->name) : "\xE2\x80\x94"; }
-std::string World::characterName(Id id) const { const Character* c = character(id); return c ? (c->name.empty() ? "Без имени" : c->name) : "\xE2\x80\x94"; }
+int talentRank(const std::vector<Id>& learned, Id talent) { return int(std::count(learned.begin(), learned.end(), talent)); }
+
+int talentSpent(const SubClass& sc, const std::vector<Id>& learned) {
+  int s = 0;
+  for (Id id : learned)
+    if (const Talent* t = sc.talent(id)) s += t->cost;
+  return s;
+}
+
+int talentSpentAbove(const SubClass& sc, const std::vector<Id>& learned, int row) {
+  int s = 0;
+  for (Id id : learned)
+    if (const Talent* t = sc.talent(id); t && t->row < row) s += t->cost;
+  return s;
+}
+
+std::vector<Id> lawfulTalents(const SubClass& sc, const std::vector<Id>& learned, int points) {
+  std::vector<Id> keep;
+  std::map<Id, int> rank;
+  std::map<int, int> rowSpent;   // ярус → вложено очков
+  int spent = 0;
+  const int tier = std::max(1, sc.tierPoints);
+  for (Id id : learned) {
+    const Talent* t = sc.talent(id);
+    if (!t || rank[id] >= std::max(1, t->ranks)) continue;
+    if (t->prereq) {
+      const Talent* p = sc.talent(t->prereq);
+      if (!p || rank[t->prereq] < std::max(1, p->ranks)) continue;
+    }
+    int above = 0;
+    for (auto& [row, v] : rowSpent)
+      if (row < t->row) above += v;
+    if (above < t->row * tier) continue;
+    if (spent + t->cost > points) continue;
+    keep.push_back(id);
+    rank[id]++;
+    rowSpent[t->row] += t->cost;
+    spent += t->cost;
+  }
+  return keep;
+}
+
+std::string World::factionName(Id id) const { const Faction* f = faction(id); return f ? nameOr(f->name) : "\xE2\x80\x94"; }
+std::string World::provinceName(Id id) const { const Province* p = province(id); return p ? nameOr(p->name) : "\xE2\x80\x94"; }
+std::string World::characterName(Id id) const { const Character* c = character(id); return c ? nameOr(c->name, kNameless) : "\xE2\x80\x94"; }
 
 u32 World::diff(const World& a, const World& b) {
   u32 m = 0;
@@ -26,21 +68,11 @@ u32 World::diff(const World& a, const World& b) {
   if (a.settings != b.settings) m |= TB_SETTINGS;
   if (a.catalogs != b.catalogs) m |= TB_CATALOGS;
   if (a.constants != b.constants) m |= TB_CONSTANTS;
-  if (!a.nodes.same(b.nodes)) m |= TB_NODES;
-  if (!a.edges.same(b.edges)) m |= TB_EDGES;
-  if (!a.provinces.same(b.provinces)) m |= TB_PROVINCES;
-  if (!a.factions.same(b.factions)) m |= TB_FACTIONS;
-  if (!a.characters.same(b.characters)) m |= TB_CHARACTERS;
   if (a.relations != b.relations) m |= TB_RELATIONS;
-  if (!a.modifiers.same(b.modifiers)) m |= TB_MODIFIERS;
-  if (!a.buildings.same(b.buildings)) m |= TB_BUILDINGS;
-  if (!a.techs.same(b.techs)) m |= TB_TECHS;
-  if (!a.armies.same(b.armies)) m |= TB_ARMIES;
-  if (!a.routes.same(b.routes)) m |= TB_ROUTES;
-  if (!a.deals.same(b.deals)) m |= TB_DEALS;
-  if (!a.log.same(b.log)) m |= TB_LOG;
-  if (!a.symbols.same(b.symbols)) m |= TB_SYMBOLS;
-  if (!a.shapes.same(b.shapes)) m |= TB_SHAPES;
+#define RG_DIFF(T, field, name, Name, bit, ...) \
+  if (!a.field.same(b.field)) m |= bit;
+  RG_WORLD_TABLES(RG_DIFF)
+#undef RG_DIFF
   return m;
 }
 
@@ -67,11 +99,9 @@ World newWorld(const std::string& name) {
 }
 
 // ---------------------------------------------------------------- Tx
-Tx::Tx(const World& base)
-    : w_(base),
-      nodes_(&w_.nodes), edges_(&w_.edges), provinces_(&w_.provinces), factions_(&w_.factions),
-      characters_(&w_.characters), modifiers_(&w_.modifiers), buildings_(&w_.buildings), techs_(&w_.techs),
-      armies_(&w_.armies), routes_(&w_.routes), deals_(&w_.deals), log_(&w_.log), symbols_(&w_.symbols), shapes_(&w_.shapes) {}
+#define RG_TX_INIT(T, field, ...) , field##_(&w_.field)
+Tx::Tx(const World& base) : w_(base) RG_WORLD_TABLES(RG_TX_INIT) {}
+#undef RG_TX_INIT
 
 Meta& Tx::meta() {
   if (!metaOwned_) { meta_ = std::make_shared<Meta>(*w_.meta); w_.meta = meta_; metaOwned_ = true; touched_ |= TB_META; }
@@ -102,58 +132,24 @@ void Tx::setRelation(Id a, Id b, Relation r) {
   relations()[relKey(a, b)] = r;
 }
 
-#define RG_TX_TABLE(Type, name, field, bit, SEQ, label)                                              \
-  Type& Tx::name(Id id) {                                                                            \
-    Type* p = field.mut(id);                                                                         \
-    if (!p) fail(std::string(label) + " не найден(а): #" + std::to_string(id));                     \
-    touched_ |= bit;                                                                                 \
-    return *p;                                                                                       \
-  }                                                                                                  \
-  Type& Tx::add(Type v) {                                                                            \
-    if (v.id == 0) v.id = nextId(SEQ);                                                               \
-    else if (v.id > meta().seq[int(SEQ)]) meta().seq[int(SEQ)] = v.id;                               \
-    touched_ |= bit;                                                                                 \
-    return field.put(std::move(v));                                                                  \
+#define RG_TX_TABLE(T, field, name, Name, BIT, SEQ, LABEL)                      \
+  T& Tx::name(Id id) {                                                          \
+    T* p = field##_.mut(id);                                                    \
+    if (!p) fail(std::string(LABEL) + " не найден(а): #" + std::to_string(id)); \
+    touched_ |= BIT;                                                            \
+    return *p;                                                                  \
+  }                                                                             \
+  T& Tx::add(T v) {                                                             \
+    if (v.id == 0) v.id = nextId(SEQ);                                          \
+    else if (v.id > meta().seq[int(SEQ)]) meta().seq[int(SEQ)] = v.id;          \
+    touched_ |= BIT;                                                            \
+    return field##_.put(std::move(v));                                          \
+  }                                                                             \
+  void Tx::erase##Name(Id id) {                                                 \
+    if (field##_.erase(id)) touched_ |= BIT;                                    \
   }
-
-RG_TX_TABLE(Node, node, nodes_, TB_NODES, Seq::Node, "Узел")
-RG_TX_TABLE(Edge, edge, edges_, TB_EDGES, Seq::Edge, "Граница")
-RG_TX_TABLE(Province, province, provinces_, TB_PROVINCES, Seq::Province, "Провинция")
-RG_TX_TABLE(Faction, faction, factions_, TB_FACTIONS, Seq::Faction, "Фракция")
-RG_TX_TABLE(Character, character, characters_, TB_CHARACTERS, Seq::Character, "Персонаж")
-RG_TX_TABLE(Modifier, modifier, modifiers_, TB_MODIFIERS, Seq::Modifier, "Модификатор")
-RG_TX_TABLE(Building, building, buildings_, TB_BUILDINGS, Seq::Building, "Постройка")
-RG_TX_TABLE(Tech, tech, techs_, TB_TECHS, Seq::Tech, "Технология")
-RG_TX_TABLE(Army, army, armies_, TB_ARMIES, Seq::Army, "Войско")
-RG_TX_TABLE(Route, route, routes_, TB_ROUTES, Seq::Route, "Маршрут")
-RG_TX_TABLE(Deal, deal, deals_, TB_DEALS, Seq::Deal, "Сделка")
-RG_TX_TABLE(MapSymbol, symbol, symbols_, TB_SYMBOLS, Seq::Symbol, "Знак карты")
-RG_TX_TABLE(MapShape, shape, shapes_, TB_SHAPES, Seq::Shape, "Фигура карты")
+RG_WORLD_TABLES(RG_TX_TABLE)
 #undef RG_TX_TABLE
-
-LogEntry& Tx::add(LogEntry v) {
-  if (v.id == 0) v.id = nextId(Seq::Log);
-  else if (v.id > meta().seq[int(Seq::Log)]) meta().seq[int(Seq::Log)] = v.id;
-  touched_ |= TB_LOG;
-  return log_.put(std::move(v));
-}
-
-#define RG_TX_ERASE(fn, field, bit) \
-  void Tx::fn(Id id) { if (field.erase(id)) touched_ |= bit; }
-RG_TX_ERASE(eraseNode, nodes_, TB_NODES)
-RG_TX_ERASE(eraseEdge, edges_, TB_EDGES)
-RG_TX_ERASE(eraseProvince, provinces_, TB_PROVINCES)
-RG_TX_ERASE(eraseFaction, factions_, TB_FACTIONS)
-RG_TX_ERASE(eraseCharacter, characters_, TB_CHARACTERS)
-RG_TX_ERASE(eraseModifier, modifiers_, TB_MODIFIERS)
-RG_TX_ERASE(eraseBuilding, buildings_, TB_BUILDINGS)
-RG_TX_ERASE(eraseTech, techs_, TB_TECHS)
-RG_TX_ERASE(eraseArmy, armies_, TB_ARMIES)
-RG_TX_ERASE(eraseRoute, routes_, TB_ROUTES)
-RG_TX_ERASE(eraseDeal, deals_, TB_DEALS)
-RG_TX_ERASE(eraseSymbol, symbols_, TB_SYMBOLS)
-RG_TX_ERASE(eraseShape, shapes_, TB_SHAPES)
-#undef RG_TX_ERASE
 
 void Tx::replaceWorld(const World& w) {
   w_ = w;
@@ -163,20 +159,9 @@ void Tx::replaceWorld(const World& w) {
   catalogs_.reset();
   constants_.reset();
   rel_.reset();
-  nodes_ = TableEdit<Node>(&w_.nodes);
-  edges_ = TableEdit<Edge>(&w_.edges);
-  provinces_ = TableEdit<Province>(&w_.provinces);
-  factions_ = TableEdit<Faction>(&w_.factions);
-  characters_ = TableEdit<Character>(&w_.characters);
-  modifiers_ = TableEdit<Modifier>(&w_.modifiers);
-  buildings_ = TableEdit<Building>(&w_.buildings);
-  techs_ = TableEdit<Tech>(&w_.techs);
-  armies_ = TableEdit<Army>(&w_.armies);
-  routes_ = TableEdit<Route>(&w_.routes);
-  deals_ = TableEdit<Deal>(&w_.deals);
-  log_ = TableEdit<LogEntry>(&w_.log);
-  symbols_ = TableEdit<MapSymbol>(&w_.symbols);
-  shapes_ = TableEdit<MapShape>(&w_.shapes);
+#define RG_TX_RESET(T, field, ...) field##_ = TableEdit<T>(&w_.field);
+  RG_WORLD_TABLES(RG_TX_RESET)
+#undef RG_TX_RESET
   touched_ = TB_ALL;
 }
 

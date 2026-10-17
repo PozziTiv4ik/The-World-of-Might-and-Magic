@@ -1,57 +1,12 @@
 // Сценарии окна «Модификаторы» (ТЗ 1.g), окна «Справочники» и панели «Персонажи»: настоящие щелчки и ввод
 // на демонстрационном мире, проверки мира (в том числе отмена Ctrl+Z) и снимки экрана.
-#include "codec/png.h"
-#include "tests/test_app_util.h"
+#include "tests/test_app_editors_util.h"
 
 using namespace rg;
 using namespace rg::apptest;
+using namespace rg::apptest::editors;
 
 namespace {
-
-// Короткое ожидание: события и плавная прокрутка (settle ждал бы и мигание каретки после ввода).
-void quick(Harness& h) {
-  h.step();
-  h.frames(16);
-}
-
-// Прокрутить окно редактора колесом, пока элемент name не окажется в видимой части области area.
-bool reveal(Harness& h, const std::string& name, const char* area = "editor", float top = 8) {
-  for (int i = 0; i < 40; i++) {
-    const RectF* r = h->uiRect(name);
-    const RectF* ar = h->uiRect(area);
-    if (!r || !ar) return false;
-    float lo = ar->y + top, hi = ar->bottom() - 12;
-    if (r->y >= lo && r->bottom() <= hi) return true;
-    float notches = r->bottom() > hi ? -2.f : 2.f;
-    h.wheel(r->cx(), (lo + hi) * 0.5f, notches);
-    quick(h);
-  }
-  return false;
-}
-
-// Щелчок по элементу с прокруткой к нему.
-bool clickRevealed(Harness& h, const std::string& name, const char* area = "editor") {
-  if (!reveal(h, name, area)) return false;
-  return h.clickUi(name);
-}
-
-// Выбрать в поле со списком пункт по тексту поиска (щелчок, ввод, Enter).
-bool pickInCombo(Harness& h, const std::string& name, const std::string& query, const char* area = "editor") {
-  if (!clickRevealed(h, name, area)) return false;
-  h.type(query);
-  h.key(Key::Enter);
-  quick(h);
-  return true;
-}
-
-// Ввести значение в поле (щелчок — всё выделено, ввод, Enter).
-bool enterValue(Harness& h, const std::string& name, const std::string& value, const char* area = "editor") {
-  if (!clickRevealed(h, name, area)) return false;
-  h.retype(value);
-  h.key(Key::Enter);
-  quick(h);
-  return true;
-}
 
 const Modifier* modifierNamed(const World& w, const std::string& name) {
   const Modifier* r = nullptr;
@@ -71,32 +26,18 @@ Id landProvince(const World& w, Id owner = 0, int skip = 0) {
   return r;
 }
 
-bool confirmDialog(Harness& h) {
-  quick(h);
-  if (!h->hasDialog("confirm")) return false;
-  if (!h.clickUi("dialog.ok")) return false;
-  quick(h);
-  return !h->hasDialog("confirm");
-}
-
 // Небольшой портрет PNG: градиент с «лицом» (проверка декодирования и отрисовки).
 std::string writeTestPortrait(const std::string& dir) {
-  codec::RgbaImage img;
-  img.w = 240;
-  img.h = 320;
-  img.rgba.resize(size_t(img.w) * size_t(img.h) * 4);
-  for (int y = 0; y < img.h; y++)
-    for (int x = 0; x < img.w; x++) {
-      u8* p = &img.rgba[(size_t(y) * size_t(img.w) + size_t(x)) * 4];
-      double dx = (x - 120) / 70.0, dy = (y - 120) / 90.0;
-      bool face = dx * dx + dy * dy < 1;
-      double sx = (x - 120) / 120.0, sy = (y - 330) / 120.0;
-      bool body = sx * sx + sy * sy < 1;
-      p[0] = u8(face ? 226 : body ? 120 : 40 + y / 6);
-      p[1] = u8(face ? 186 : body ? 40 : 52 + y / 8);
-      p[2] = u8(face ? 150 : body ? 52 : 90 + x / 6);
-      p[3] = 255;
-    }
+  codec::RgbaImage img = test::makeRgba(240, 320, [](int x, int y, u8* p) {
+    double dx = (x - 120) / 70.0, dy = (y - 120) / 90.0;
+    bool face = dx * dx + dy * dy < 1;
+    double sx = (x - 120) / 120.0, sy = (y - 330) / 120.0;
+    bool body = sx * sx + sy * sy < 1;
+    p[0] = u8(face ? 226 : body ? 120 : 40 + y / 6);
+    p[1] = u8(face ? 186 : body ? 40 : 52 + y / 8);
+    p[2] = u8(face ? 150 : body ? 52 : 90 + x / 6);
+    p[3] = 255;
+  });
   std::string path = fs::join(dir, "portrait.png");
   codec::writePngFile(path, img, 6);
   return path;

@@ -30,7 +30,6 @@ struct TextStyle {
 // Поиск системных шрифтов (повторные вызовы возвращают первый результат). false — нет шрифта с кириллицей,
 // в error — сообщение для пользователя.
 bool initFonts(std::string* error = nullptr);
-bool fontsReady();
 // Описание выбранных шрифтов (для журнала и окна «О программе»): «UI Regular: Segoe UI — C:/Windows/Fonts/segoeui.ttf».
 std::vector<std::string> fontReport();
 // Основной шрифт стиля и его синтетическое утолщение (nullptr — шрифтов нет).

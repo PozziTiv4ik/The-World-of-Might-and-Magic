@@ -137,18 +137,18 @@ void autoSection(App& a, const std::vector<rules::AutoMod>& autos) {
           c.tip += "\nИтого: " + w::effectText(Fx(k), am.m->fx[size_t(k)] * am.scale);
         }
     }
-    c.clickable = am.modifier != 0;
+    c.clickable = am.modifier != 0 && a.admin();   // редактор модификаторов — только администратору
     chips.push_back(std::move(c));
   }
   auto [k, act] = chipFlow("auto", chips, "mods.auto.");
-  if (k >= 0 && act == ui::ChipAction::Click && autos[size_t(k)].modifier) a.openEditor("modifiers", autos[size_t(k)].modifier);
+  if (k >= 0 && act == ui::ChipAction::Click && autos[size_t(k)].modifier && a.admin()) a.openEditor("modifiers", autos[size_t(k)].modifier);
 }
 
 void drawModifiers(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // модификаторы вручную — правка мира
   const bool state = f->isState();
   const std::vector<rules::AutoMod> autos = rules::autoModifiers(w, id);
 

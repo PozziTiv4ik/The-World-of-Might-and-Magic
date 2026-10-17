@@ -23,12 +23,12 @@ constexpr float kRowH = 30;
 // Пункт списка; true — подпись или подсказка справа обрезаны многоточием (tip — полный текст для подсказки).
 bool drawOptionRow(RectF row, const Option& op, bool highlighted, bool selected, bool none, std::string& tip) {
   const Theme& t = C().th;
-  if (highlighted) cmdRect(row, t.dark ? t.surface3.lighten(0.04f) : t.surface3, 6);
+  if (highlighted) cmdRect(row, t.surface3.lighten(0.04f), 6);
   float x = row.x + 10;
   Color fg = op.disabled ? t.textMuted : (none ? t.textDim : t.text);
   if (op.color.a > 0) {
     draw::circle(x + 5, row.cy(), 5, op.color);
-    draw::ring(x + 5, row.cy(), 5, 1, Color(0, 0, 0, t.dark ? 80 : 35));
+    draw::ring(x + 5, row.cy(), 5, 1, Color(0, 0, 0, 80));
     x += 20;
   } else if (op.icon) {
     cmdIcon(op.icon, RectF{x, row.cy() - 8, 16, 16}, selected ? t.accent : t.textDim);
@@ -115,7 +115,7 @@ static bool comboImpl(std::string_view name, int& index, int count, const std::f
   float x = r.x + 10;
   if (cur >= 0 && sel.color.a > 0) {
     draw::circle(x + 5, r.cy(), 5, sel.color);
-    draw::ring(x + 5, r.cy(), 5, 1, Color(0, 0, 0, t.dark ? 80 : 35));
+    draw::ring(x + 5, r.cy(), 5, 1, Color(0, 0, 0, 80));
     x += 20;
   } else if ((cur >= 0 && sel.icon) || o.icon) {
     cmdIcon(cur >= 0 && sel.icon ? sel.icon : o.icon, RectF{x, r.cy() - 8, 16, 16}, t.textDim);
@@ -364,9 +364,9 @@ bool multiSelect(std::string_view name, std::vector<int>& selected, std::span<co
           RectF row = next(kRowH);
           Interaction ri = interact(id(i64(i)), row);
           bool on = std::find(selected.begin(), selected.end(), i) != selected.end();
-          if (ri.hovered) cmdRect(row, t.dark ? t.surface3.lighten(0.04f) : t.surface3, 6);
+          if (ri.hovered) cmdRect(row, t.surface3.lighten(0.04f), 6);
           RectF box{row.x + 10, row.cy() - 8, 16, 16};
-          cmdRect(box, on ? t.accent : (t.dark ? t.surface3 : t.surface2), 4);
+          cmdRect(box, on ? t.accent : t.surface3, 4);
           if (!on) cmdStroke(box, t.borderStrong, 4, 1.25f);
           else drawCheckGlyph(RectF{box.x - 1, box.y - 1, 18, 18}, t.onAccent, 1);
           float tx = box.right() + 10;
@@ -450,12 +450,11 @@ std::string hexOf(Color c, bool alpha) {
 }
 
 void checker(RectF r, float rad) {
-  const Theme& t = C().th;
-  cmdRect(r, t.dark ? Color::hex(0x9aa0a8) : Color::hex(0xd8d2c6), rad);
+  cmdRect(r, Color::hex(0x9aa0a8), rad);
   float s = 5;
   draw::pushClip(r);
   for (float y = r.y; y < r.bottom(); y += s)
-    for (float x = r.x + (int((y - r.y) / s) % 2) * s; x < r.right(); x += 2 * s) cmdRect(RectF{x, y, std::min(s, r.right() - x), std::min(s, r.bottom() - y)}, t.dark ? Color::hex(0x6f7886) : Color::hex(0xf4f1ea));
+    for (float x = r.x + (int((y - r.y) / s) % 2) * s; x < r.right(); x += 2 * s) cmdRect(RectF{x, y, std::min(s, r.right() - x), std::min(s, r.bottom() - y)}, Color::hex(0x6f7886));
   draw::popClip();
 }
 
@@ -502,7 +501,7 @@ bool colorPicker(std::string_view name, Color& col, const ColorOpt& o) {
     float hv = animate(id(i64(i) + 2000), si.hovered ? 1.f : 0.f);
     RectF d = s.inset(-1.5f * hv);
     cmdRect(d, pal[i], 6);
-    cmdStroke(d, Color(0, 0, 0, t.dark ? 70 : 40), 6, 1);
+    cmdStroke(d, Color(0, 0, 0, 70), 6, 1);
     if (same) cmdStroke(s.expand(3), t.accent, 8, 2);
     if (si.clicked) {
       Color nc = pal[i];
@@ -580,7 +579,7 @@ bool colorPicker(std::string_view name, Color& col, const ColorOpt& o) {
     RectF prev = next(30);
     if (col.a < 255) checker(prev, 7);
     cmdRect(prev, col, 7);
-    cmdStroke(prev, Color(0, 0, 0, t.dark ? 70 : 40), 7, 1);
+    cmdStroke(prev, Color(0, 0, 0, 70), 7, 1);
     TextOpt to;
     to.maxLength = o.alpha ? 9 : 7;
     to.filter = [](u32 cp) { return (cp >= '0' && cp <= '9') || (cp >= 'a' && cp <= 'f') || (cp >= 'A' && cp <= 'F') || cp == '#'; };
@@ -641,7 +640,7 @@ bool colorButton(std::string_view name, Color& col, const ColorOpt& o) {
   }
   if (col.a < 255) checker(sw, 5);
   cmdRect(sw, col, 5);
-  cmdStroke(sw, Color(0, 0, 0, t.dark ? 90 : 45), 5, 1);
+  cmdStroke(sw, Color(0, 0, 0, 90), 5, 1);
   setLast(wid, r, it);
   focusRing(r, t.radiusField);
   if (!o.tooltip.empty() && !open) tooltip(o.tooltip);

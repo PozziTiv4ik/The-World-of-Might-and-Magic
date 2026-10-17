@@ -7,6 +7,8 @@
 
 namespace rg::rules::detail {
 
+using schema::kMaxCount;   // предел численностей
+
 // ---------------------------------------------------------------- тексты
 inline std::string q(const std::string& s) { return "«" + s + "»"; }  // «…»
 std::string amount(double v);                          // число для сообщений (до тысячных)
@@ -19,6 +21,17 @@ std::string buildingName(const World& w, Id b);        // «Название» �
 std::string techName(const World& w, Id t);            // «Название» технологии
 // Название, не совпадающее с существующими (base, base 2, base 3, …).
 std::string uniqueName(const std::vector<std::string>& taken, const std::string& base);
+
+using schema::nextTreePos;   // позиция нового узла схемы дерева
+
+// ---------------------------------------------------------------- цены найма (rules/rows.cpp)
+constexpr double kMaxAmount = 1e12;   // предел количеств ресурсов и эссенций в ценах
+void needAmount(double v, const char* what);   // число 0…kMaxAmount, иначе отказ с подписью what
+// Ключевой ресурс юнита типа type (per на юнит); special — особый отряд: любой ресурс справочника, не меньше 1 на юнит.
+void checkKey(const World& w, UnitType type, Id res, double per, bool special = false);
+// Ключевой ресурс, раса и цены под новый тип: неподходящее снимается (у особого отряда ключевой ресурс — любой).
+void fitToType(const World& w, ArmyRow& r);
+void fitToType(const World& w, SpecialUnit& s);
 
 // ---------------------------------------------------------------- проверки
 const Faction& needFaction(const World& w, Id id);
@@ -45,6 +58,28 @@ template <class V, class X> bool eraseValue(V& v, const X& x) {
   if (it == v.end()) return false;
   v.erase(it, v.end());
   return true;
+}
+
+// ---------------------------------------------------------------- численности
+// Население провинции (сумма рас, отрицательные не считаются).
+inline i64 provincePop(const Province& p) {
+  i64 n = 0;
+  for (const RacePop& r : p.races) n += std::max<i64>(0, r.pop);
+  return n;
+}
+// Отряды объекта (все группы).
+inline i64 unitsOf(const Army& a) {
+  i64 n = 0;
+  for (const ArmyGroup& g : a.groups)
+    for (const ArmyUnit& u : g.units) n += u.count;
+  return n;
+}
+// Фракции объекта в порядке групп (без повторов).
+inline std::vector<Id> factionsOf(const Army& a) {
+  std::vector<Id> r;
+  for (const ArmyGroup& g : a.groups)
+    if (std::find(r.begin(), r.end(), g.faction) == r.end()) r.push_back(g.faction);
+  return r;
 }
 
 // ---------------------------------------------------------------- запасы
@@ -74,14 +109,7 @@ ArchStats archStatsWith(const World& w, const ArchGroup& g, const Effects& facti
 int slotsOf(const Province& p, const Effects& fx);
 double costFactorOf(const Effects& fx);
 
-// ---------------------------------------------------------------- расчёт
-std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs);
-
 // ---------------------------------------------------------------- строительство
-// Стоимость уровня (1…) с множителем провинции; только положительные позиции.
-std::map<Id, double> levelCost(const Building& b, int level, double factor);
-// Цена уровня в эссенциях с множителем провинции.
-std::map<Id, double> levelEssCost(const Building& b, int level, double factor);
 // Вернуть плательщику уплаченное за строящийся уровень (pb — копия записи). Возвращает получателя (0 — никому).
 Id refundPaid(Tx& tx, const ProvBuilding& pb);
 // Снесённая постройка-хранилище: её реликвии переходят государству state (нет государства — становятся свободными).
@@ -114,10 +142,6 @@ void dropProvinceRecord(Tx& tx, Id province, const std::string& why);
 // Отношения пары перестали быть союзом: союзные объекты, где есть обе фракции, распускаются на отдельные.
 void splitBrokenAlliances(Tx& tx, Id a, Id b);
 
-// ---------------------------------------------------------------- сделки
-Id conclude(Tx& tx, Deal d, bool log);
-std::string dealText(const World& w, const Deal& d);
-
 // ---------------------------------------------------------------- войска
 // Вернуть воинов строки армии: живые — в население государства, нежить — в трупы, демоны — в демоническую энергию.
 void returnWarriors(Tx& tx, Id faction, const ArmyRow& row, i64 count);
@@ -137,6 +161,10 @@ double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHero
 MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id garrison = 0);
 // Название нового объекта: «Войско №N» / «Флот №N» — наименьший свободный номер среди объектов фракции.
 std::string defaultArmyName(const World& w, ArmyKind kind, Id faction);
+// Название союзного объекта по умолчанию (объединение войск разных фракций).
+constexpr const char* kAlliedArmy = "Союзное войско";
+constexpr const char* kAlliedFleet = "Союзный флот";
+inline bool isAlliedName(const std::string& name) { return name == kAlliedArmy || name == kAlliedFleet; }
 
 // ---------------------------------------------------------------- флот (rules/naval.cpp)
 // Войско на борту существующего флота (не стоит на карте: размещение и попадание мышью его не учитывают).

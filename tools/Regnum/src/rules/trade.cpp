@@ -1,4 +1,4 @@
-// Regnum — торговля, подарки, дань и репарации (ТЗ 1.b.vii, 1.e.ii; RULES.md §8).
+// Regnum — торговля, подарки, дань и репарации.
 #include "rules/internal.h"
 
 namespace rg::rules {
@@ -21,7 +21,6 @@ std::string sideText(const World& w, const Deal& d, DealSide side) {
     if (it.from == side) parts.push_back(itemText(w, it));
   return join(parts, ", ");
 }
-}  // namespace
 
 std::string dealText(const World& w, const Deal& d) {
   std::string A = facName(w, d.a), B = facName(w, d.b);
@@ -39,12 +38,12 @@ Id conclude(Tx& tx, Deal d, bool log) {
   bool perTurn = false;
   for (DealItem& it : d.items) {
     Id payer = it.from == DealSide::A ? d.a : d.b, payee = it.from == DealSide::A ? d.b : d.a;
-    if (it.kind == DealItemKind::Province) {   // провинция переходит к другой стороне (ТЗ «Механика войн», п.3)
+    if (it.kind == DealItemKind::Province) {   // провинция переходит к другой стороне
       it.left = 0;
       setProvinceOwner(tx, it.ref, payee);
       continue;
     }
-    if (it.kind == DealItemKind::Hero) {       // обмен пленными (ТЗ «Механика героев», п.2)
+    if (it.kind == DealItemKind::Hero) {       // обмен пленными
       it.left = 0;
       const Character& c = *tx.w().character(it.ref);
       if (c.faction == payee) {
@@ -73,6 +72,7 @@ Id conclude(Tx& tx, Deal d, bool log) {
   return id;
 }
 
+}  // namespace
 }  // namespace detail
 
 DealCheck validateDeal(const World& w, const Deal& d) {

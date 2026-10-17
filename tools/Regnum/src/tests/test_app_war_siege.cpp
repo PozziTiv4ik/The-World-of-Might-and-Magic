@@ -46,12 +46,11 @@ std::optional<Setup> prepare(Harness& h, i64 garrison, Id skipProvince = 0) {
 // Гарнизон 300: перетаскивание на замок — «Штурм: …», окно штурма, гарнизон разбит, «Захватить и разграбить».
 TEST(app_war_siege_drag_plunder) {
   Harness h("war_siege_plunder", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 300);
   if (!s) return;
   const Vec2 from = h->world().army(s->army)->pos;
-  dragArmy(h, screenOf(h, from), screenOf(h, s->spot.center), "war_siege_ghost");
+  dragTo(h, screenOf(h, from), screenOf(h, s->spot.center), "war_siege_ghost");
   h.settle();
   CHECK(h->hasDialog("siege"));
   // Войско встало у стен.
@@ -103,12 +102,11 @@ TEST(app_war_siege_drag_plunder) {
 // войску — «Неправедное деяние» и «Мучения совести».
 TEST(app_war_siege_no_garrison_devastate) {
   Harness h("war_siege_devastate", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 0);
   if (!s) return;
   const Vec2 from = h->world().army(s->army)->pos;
-  dragArmy(h, screenOf(h, from), screenOf(h, s->spot.center));
+  dragTo(h, screenOf(h, from), screenOf(h, s->spot.center));
   h.settle();
   CHECK(!h->hasDialog("siege"));
   CHECK(h->hasDialog("capture"));
@@ -142,12 +140,11 @@ TEST(app_war_siege_no_garrison_devastate) {
 // Гарнизон устоял, войско уничтожено: «Судьба героев» — убит, место захоронения — провинция штурма.
 TEST(app_war_siege_defeat_hero_fate) {
   Harness h("war_siege_defeat", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 300);
   if (!s) return;
   const Vec2 from = h->world().army(s->army)->pos;
-  dragArmy(h, screenOf(h, from), screenOf(h, s->spot.center));
+  dragTo(h, screenOf(h, from), screenOf(h, s->spot.center));
   h.settle();
   CHECK(h->hasDialog("siege"));
   const Id hrow = h->world().faction(s->hel)->army[0].id;
@@ -173,12 +170,11 @@ TEST(app_war_siege_defeat_hero_fate) {
 // «Отступить» из окна штурма: войско возвращается на исходную позицию, гарнизон цел.
 TEST(app_war_siege_retreat) {
   Harness h("war_siege_retreat", 1440, 1000);
-  RealArmyTools tools;
   h.demo();
   auto s = prepare(h, 200);
   if (!s) return;
   const Vec2 from = h->world().army(s->army)->pos;
-  dragArmy(h, screenOf(h, from), screenOf(h, s->spot.center));
+  dragTo(h, screenOf(h, from), screenOf(h, s->spot.center));
   h.settle();
   CHECK(h->hasDialog("siege"));
   CHECK(h.clickUi("siege.retreat"));

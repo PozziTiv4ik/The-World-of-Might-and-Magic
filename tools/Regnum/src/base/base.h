@@ -21,7 +21,6 @@ namespace rg {
 
 using i8 = int8_t; using i16 = int16_t; using i32 = int32_t; using i64 = int64_t;
 using u8 = uint8_t; using u16 = uint16_t; using u32 = uint32_t; using u64 = uint64_t;
-using f32 = float; using f64 = double;
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kInf = std::numeric_limits<double>::infinity();
@@ -88,10 +87,8 @@ struct RectF {
     return {ax, ay, std::max(0.f, bx - ax), std::max(0.f, by - ay)};
   }
   // Отрезать полосу от края (для раскладки): возвращает полосу, сам прямоугольник уменьшается.
-  RectF cutLeft(float a) { a = std::min(a, w); RectF r{x, y, a, h}; x += a; w -= a; return r; }
   RectF cutRight(float a) { a = std::min(a, w); RectF r{right() - a, y, a, h}; w -= a; return r; }
   RectF cutTop(float a) { a = std::min(a, h); RectF r{x, y, w, a}; y += a; h -= a; return r; }
-  RectF cutBottom(float a) { a = std::min(a, h); RectF r{x, bottom() - a, w, a}; h -= a; return r; }
   constexpr bool operator==(const RectF& o) const = default;
 };
 
@@ -103,8 +100,6 @@ struct Color {
   constexpr Color(u8 r_, u8 g_, u8 b_, u8 a_ = 255) : r(r_), g(g_), b(b_), a(a_) {}
   // 0xRRGGBB (непрозрачный)
   static constexpr Color hex(u32 rgb) { return Color(u8(rgb >> 16), u8(rgb >> 8), u8(rgb), 255); }
-  // 0xRRGGBBAA
-  static constexpr Color hexa(u32 rgba) { return Color(u8(rgba >> 24), u8(rgba >> 16), u8(rgba >> 8), u8(rgba)); }
   constexpr Color alpha(float k) const { return Color(r, g, b, u8(std::clamp(a * k, 0.f, 255.f) + 0.5f)); }
   constexpr Color withA(u8 na) const { return Color(r, g, b, na); }
   constexpr bool operator==(const Color& o) const = default;

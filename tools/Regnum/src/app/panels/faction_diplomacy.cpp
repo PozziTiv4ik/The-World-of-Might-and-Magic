@@ -4,6 +4,8 @@
 // изменение здесь видно во вкладке другой стороны. Фильтр государств и гильдий, войны и союзы выделены.
 // «В войне» здесь — объявление войны этим государством (rules::declareWar, затем вассалитет — flow::afterWarDeclared);
 // война двух государств заблокирована и завершается только перемирием (ТЗ «Механика войн», п.2 — flow::openTruce).
+// Роли (ТЗ «Доработки №4», п.5): состояние отношений, объявление войны и перемирие — игровые действия этой фракции
+// (App::play); значение отношений −100…100 — правка мира (администратор).
 #include "app/flows.h"
 #include "app/panels/faction_common.h"
 
@@ -12,7 +14,8 @@ namespace {
 
 using namespace fac;
 
-void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, bool ro) {
+void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r) {
+  const bool ro = !a.canPlay(id), edit = a.canEdit();
   const ui::Theme& t = ui::theme();
   const Faction* o = w.faction(r.other);
   const Faction* self = w.faction(id);
@@ -25,11 +28,11 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
   const float h = wide ? 46 : 74;
   RectF rr = ui::next(h);
   a.markUi("dip.row." + std::to_string(other), rr);
-  Color bg = t.dark ? t.stripe : t.surface3.alpha(0.55f);
-  if (war) bg = t.danger.alpha(t.dark ? 0.09f : 0.07f);
-  else if (ally) bg = t.success.alpha(t.dark ? 0.08f : 0.07f);
+  Color bg = t.stripe;
+  if (war) bg = t.danger.alpha(0.09f);
+  else if (ally) bg = t.success.alpha(0.08f);
   ui::draw::rect(rr, bg, t.radiusCard);
-  ui::draw::rectStroke(rr, war ? t.danger.alpha(0.35f) : ally ? t.success.alpha(0.32f) : (t.dark ? t.hover : t.border), t.radiusCard, 1);
+  ui::draw::rectStroke(rr, war ? t.danger.alpha(0.35f) : ally ? t.success.alpha(0.32f) : t.hover, t.radiusCard, 1);
   if (war || ally) ui::draw::rect(RectF{rr.x, rr.y + 10, 3, rr.h - 20}, relColor(r.status), 1.5f);
   ui::Area area(rr.inset(12, 8), 0);
   ui::gap(4);
@@ -46,7 +49,7 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
   const double shown = rules::relationValue(w, id, other);
   auto valueField = [&] {
     double v = shown;
-    if (ui::numberField("value", v, {.min = -100, .max = 100, .step = 1, .sign = true, .disabled = ro,
+    if (ui::numberField("value", v, {.min = -100, .max = 100, .step = 1, .sign = true, .disabled = !edit,
                                      .tooltip = bonus != 0 ? "Отношения −100…100 с учётом одной веры" : "Отношения −100…100"})) {
       const double stored = clamp(v - bonus, -100.0, 100.0);
       a.act("Отношения", [&](Tx& tx) { rules::setRelation(tx, id, other, stored, r.status); },
@@ -73,17 +76,18 @@ void relationRow(App& a, const World& w, Id id, const rules::RelationRow& r, boo
       ui::Row inner({ui::fr(1), ui::px(26)}, 26, 4);
       statusPicker("status", s, true);
       a.markUi("dip.status." + std::to_string(other));
-      if (ui::iconButton("handshake", "Заключить перемирие", {.variant = ui::Variant::Secondary, .size = ui::Size::Small, .disabled = ro}))
+      if (ro && !a.admin()) ui::next(26, 26);   // чужое государство у игрока — без кнопки
+      else if (ui::iconButton("handshake", "Заключить перемирие", {.variant = ui::Variant::Secondary, .size = ui::Size::Small, .disabled = ro}))
         flow::openTruce(a, id, other);
-      a.markUi("dip.truce." + std::to_string(other));
+      if (!ro || a.admin()) a.markUi("dip.truce." + std::to_string(other));
       return;
     }
     if (statusPicker("status", s, ro)) {
       if (s == RelStatus::War) {
         // Объявление войны этим государством: «в войне», −25; затем сюзерены и вассалы (ТЗ «Вассалитет»).
-        if (a.act("Объявить войну: " + w.factionName(other), [&](Tx& tx) { rules::declareWar(tx, id, other); })) flow::afterWarDeclared(a, id, other);
+        if (a.play("Объявить войну: " + w.factionName(other), [&](Tx& tx) { rules::declareWar(tx, id, other); })) flow::afterWarDeclared(a, id, other);
       } else {
-        a.act("Состояние отношений", [&](Tx& tx) { rules::setRelation(tx, id, other, r.value, s); });
+        a.play("Состояние отношений", [&](Tx& tx) { rules::setRelation(tx, id, other, r.value, s); });
       }
     }
     a.markUi("dip.status." + std::to_string(other));
@@ -118,7 +122,7 @@ void drawDiplomacy(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
   if (!f) return;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // новое государство — правка мира
   std::vector<rules::RelationRow> all = rules::relationsOf(w, id);
   int counts[4] = {};
   for (auto& r : all) counts[int(r.status)]++;
@@ -168,7 +172,7 @@ void drawDiplomacy(App& a, Id id) {
     if (!o) continue;
     if ((filter == 1 && !o->isState()) || (filter == 2 && !o->isGuild())) continue;
     ui::IdScope sc{i64(r.other)};
-    relationRow(a, w, id, r, ro);
+    relationRow(a, w, id, r);
     shown++;
   }
   if (!shown) ui::emptyState("diplomacy", filter == 2 ? "Гильдий пока нет." : "Государств, кроме этого, пока нет.");

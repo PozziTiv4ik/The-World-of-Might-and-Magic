@@ -398,7 +398,7 @@ TEST(ui_core_theme_switch_and_tokens) {
   CHECK_EQ(std::string(ui::schemeInfo(0).id), std::string("sapphire"));
   for (int i = 0; i < ui::schemeCount(); i++) {
     const ui::Theme t = ui::schemeTheme(i);
-    CHECK(t.dark && t.bg.luminance() < 0.03 && t.text.luminance() > 0.8);
+    CHECK(t.bg.luminance() < 0.03 && t.text.luminance() > 0.8);
     CHECK(t.surface1.luminance() > t.bg.luminance() && t.surface3.luminance() > t.surface1.luminance());
     for (int j = 0; j < i; j++) {
       CHECK(std::string(ui::schemeInfo(i).id) != ui::schemeInfo(j).id);

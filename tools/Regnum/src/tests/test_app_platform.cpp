@@ -4,10 +4,10 @@
 #include <fstream>
 #include <thread>
 
-#include "codec/png.h"
 #include "platform/common.h"
 #include "platform/platform.h"
 #include "tests/test.h"
+#include "tests/test_png.h"
 
 using namespace rg;
 using namespace rg::platform;
@@ -69,22 +69,7 @@ struct Recorder : App {
   }
 };
 
-void savePng(const Frame& f, const std::string& name) {
-  codec::RgbaImage img;
-  img.w = f.w;
-  img.h = f.h;
-  img.rgba.resize(size_t(f.w) * size_t(f.h) * 4);
-  for (int y = 0; y < f.h; y++)
-    for (int x = 0; x < f.w; x++) {
-      u32 p = f.row(y)[x];
-      u8* d = &img.rgba[(size_t(y) * size_t(f.w) + size_t(x)) * 4];
-      d[0] = u8(p >> 16);
-      d[1] = u8(p >> 8);
-      d[2] = u8(p);
-      d[3] = u8(p >> 24);
-    }
-  CHECK(codec::writePngFile(test::outDir() + "/" + name, img));
-}
+void savePng(const Frame& f, const std::string& name) { CHECK(test::savePng(name, test::argbToRgba(f, 0, 0, f.w, f.h, 1, false))); }
 
 }  // namespace
 

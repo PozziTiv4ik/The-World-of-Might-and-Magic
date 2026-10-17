@@ -1,8 +1,8 @@
 // Regnum — каркас приложения: состояние интерфейса, реестры расширения, действия, проект.
 //
 // Каждая панель, диалог, редактор и инструмент живёт в своём .cpp и регистрируется статическим объектом
-// (TabReg, HeaderReg, DrawerReg, EditorReg, ToolReg, CommandReg, DialogReg). Оболочка (app/shell.cpp) рисует
-// зарегистрированное. Панели читают мир через app.world() и меняют его только через app.act():
+// (TabReg, HeaderReg, QuickReg, SectionReg, DrawerReg, EditorReg, BuiltinToolReg, CommandReg, DialogReg). Оболочка
+// (app/shell/) рисует зарегистрированное. Панели читают мир через app.world() и меняют его только через app.act():
 //
 //   static void drawOverview(App& a, Id pid) {
 //     const Province* p = a.world().province(pid);
@@ -127,7 +127,7 @@ struct TabDef {
   const char* id;                      // "province.economy"
   const char* icon;                    // значок вкладки
   const char* title;                   // подсказка
-  int order;                           // порядок слева направо
+  int order;                           // порядок слева направо (уникален среди вкладок одного вида выделения)
   SelType type;                        // для какого инспектора
   bool (*visible)(App&, Id);           // nullptr — всегда (например, вкладки только для гильдий)
   void (*draw)(App&, Id);              // тело вкладки (ui:: внутри прокручиваемой области инспектора или страницы)
@@ -209,12 +209,17 @@ struct ToolDef {
   const char* shortcut;                // «V», «K», «Shift+P»; пусто или nullptr — нет
   bool editMode;                       // доступен только при включённой правке границ
   std::function<std::unique_ptr<MapTool>()> make;
-  int order = 100;                     // порядок на панели инструментов
+  int order = 100;                     // порядок на панели инструментов (уникален)
   bool mapMode = false;                // доступен только при включённой правке карты
   bool hidden = false;                 // не на ленте инструментов (включается кнопкой панели)
   std::string (*blocked)(App&) = nullptr;   // непусто — инструмент недоступен, причина (подсказка, уведомление)
 };
+// Регистрация инструмента; тот же id заменяет прежнюю (тесты подставляют свои инструменты).
 struct ToolReg { explicit ToolReg(const ToolDef& d); };
+// Встроенный инструмент приложения: регистрируется и запоминается — restoreBuiltinTools() возвращает все встроенные
+// после подмены. Порядок (order) у инструментов уникален.
+struct BuiltinToolReg { explicit BuiltinToolReg(const ToolDef& d); };
+void restoreBuiltinTools();
 const ToolDef* findTool(ToolId id);
 const std::vector<ToolDef>& toolDefs();
 
@@ -227,6 +232,9 @@ struct CommandDef {
   bool (*enabled)(App&);               // nullptr — всегда
   bool global = false;                 // срабатывает и при фокусе в текстовом поле
   const char* group = nullptr;         // раздел справки F1 («Файл», «Карта»...); nullptr — «Общие»
+  // Порядок в палитре и справке F1 (разделы справки — по первой команде с сочетанием); команды с равным
+  // порядком — в порядке объявления в файле. Встроенные команды оболочки (commands.cpp) — 100.
+  int order = 100;
 };
 struct CommandReg { explicit CommandReg(const CommandDef& d); };
 const std::vector<CommandDef>& commands();
@@ -278,6 +286,9 @@ struct Toast {
 
 // ---------------------------------------------------------------- состояние интерфейса
 enum class Screen : u8 { Start, Editor };
+// Роль за редактором (на сеанс мира): администратор редактора — всё без ограничений; игрок — за одно государство,
+// только игровые действия (App::play), без справочников и режимов правки мира, показателей и ресурсов.
+enum class Role : u8 { Admin, Player };
 // Что занимает место карты: карта, редактор, страница сущности (выделение страницей) или каталог раздела.
 enum class View : u8 { Map, Editor, Entity, Directory };
 struct UiState {
@@ -299,6 +310,8 @@ struct UiState {
   std::map<std::string, std::string> lastEditor;   // последний редактор раздела
   bool inspectorHidden = false;            // панель выделения свёрнута (кнопка в нижней строке)
   std::optional<int> viewTurn;             // просмотр снимка прошлого хода (только чтение)
+  Role role = Role::Admin;                 // роль за редактором (выбор при открытии мира)
+  Id playerState = 0;                      // игрок: государство, за которое он играет
   int scheme = 0;                          // цветокор (ui::schemeInfo): тон интерфейса и цвета карты
   float uiScale = 1.0f;                    // пользовательский множитель 0,9…1,5
   bool schemeMap = false;                  // карта в цветах цветокора (иначе — исходные цвета: синее море, белая суша)
@@ -319,7 +332,8 @@ struct TurnSnapshot {
 struct AppConfig {
   std::string dataDir;                     // данные пользователя (пусто — fs::userDataDir())
   std::string basemapDir;                  // базовая карта (пусто — поиск assets/basemap рядом с программой и в tools/Regnum)
-  bool savePrefs = true;                   // запоминать тему, масштаб, ширину панелей (dataDir/app.json)
+  bool savePrefs = true;                   // запоминать цветокор, масштаб, ширину панелей (dataDir/app.json)
+  bool askRole = false;                    // окно выбора роли при открытии мира (программа regnum; тесты — по выбору)
 };
 
 // ---------------------------------------------------------------- приложение
@@ -335,9 +349,20 @@ class App : public platform::App {
   // Мир для отображения: снимок прошлого хода при просмотре истории, иначе текущий.
   const World& world() const;
   bool readOnly() const { return ui.viewTurn.has_value(); }
+  // ---- роль: администратор редактора или игрок за государство
+  bool admin() const { return ui.role == Role::Admin; }
+  bool player() const { return ui.role == Role::Player; }
+  Id playerState() const { return player() ? ui.playerState : 0; }
+  // Правка мира (справочники, режимы правки карты, показатели и ресурсы, деревья): администратор, не на прошлом ходу.
+  bool canEdit() const { return !readOnly() && admin(); }
+  // Игровое действие за фракцию faction (строить, управлять, дипломатия, торговля, войны, войска, технологии, герои):
+  // администратор — за любую, игрок — только за своё государство; не на прошлом ходу.
+  bool canPlay(Id faction) const { return !readOnly() && (admin() || (faction != 0 && faction == ui.playerState)); }
   // Изменение мира. UserError — предупреждение, прочее — ошибка (с записью в журнал); изменения откатываются.
-  // Возвращает успех. При readOnly() — отказ с подсказкой.
+  // Возвращает успех. При readOnly() — отказ с подсказкой; игроку act() недоступен (отказ «только администратору»).
   bool act(std::string_view label, const std::function<void(Tx&)>& fn, const TxOptions& opt = {});
+  // Игровое действие: то же, что act(), но доступно и игроку (за какую фракцию — проверяет вызывающий: canPlay).
+  bool play(std::string_view label, const std::function<void(Tx&)>& fn, const TxOptions& opt = {});
   void undo();                             // Ctrl+Z (с подсказкой «Отменено: …»)
   void redo();                             // Ctrl+Y, Ctrl+Shift+Z
   bool dirty() const;                      // есть несохранённые изменения
@@ -375,6 +400,13 @@ class App : public platform::App {
   void error(const std::exception& e);     // UserError — предупреждение, прочее — ошибка с записью в журнал
   // Подтверждение: при согласии вызывается onYes (в контексте кадра).
   void confirm(std::string title, std::string text, std::string okLabel, bool danger, std::function<void(App&)> onYes);
+  // Опасное действие (удаление, снос) с подтверждением: к text добавляется «Действие можно отменить Ctrl+Z.»; при
+  // согласии — act(actLabel, fn), после успеха — then.
+  void confirmAct(std::string title, std::string text, std::string okLabel, std::string actLabel, std::function<void(Tx&)> fn,
+                  std::function<void(App&)> then = {});
+  // То же для игрового действия (снос постройки, роспуск войска): при согласии — play(actLabel, fn).
+  void confirmPlay(std::string title, std::string text, std::string okLabel, std::string actLabel, std::function<void(Tx&)> fn,
+                   std::function<void(App&)> then = {});
   // Выбор из нескольких действий (кнопки слева направо, последняя — основная, Enter); onPick(индекс), −1 — закрыто
   // без выбора. firstSubtle — первая кнопка приглушённая (например, «Не сохранять»).
   void choose(std::string title, std::string text, std::vector<std::string> buttons, std::function<void(App&, int)> onPick,
@@ -396,7 +428,8 @@ class App : public platform::App {
   void showSettings();
   RectF mapArea() const;                   // часть окна между панелями (логические пиксели)
   // Прямоугольник элемента оболочки прошлого кадра (логические пиксели окна) по имени: «topbar.endturn»,
-  // «tool.select», «tool.borders», «mode.3», «start.new», «inspector» и т. д. (тесты, обучение).
+  // «tool.select», «tool.borders», «mode.3», «start.new», «inspector» и т. д. (тесты, обучение). Указатель
+  // действителен, пока элемент рисуется: следующие кадры обновляют прямоугольник на месте.
   const RectF* uiRect(std::string_view name) const;
   void markUi(std::string_view name);      // запомнить прямоугольник последнего элемента ui под именем
   void markUi(std::string_view name, RectF r);   // то же для прямоугольника в точках интерфейса (панели)

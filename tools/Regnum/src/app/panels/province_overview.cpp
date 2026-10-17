@@ -1,52 +1,16 @@
 // Regnum — вкладка «Обзор» инспектора провинции (ТЗ 1.a.vi, 1.a.ix, 1.f.i): показатели, владелец и колонизация
-// провинции без владельца («Общие доработки», п.3), лорд, столица, пустошь нежити и осквернение («Виды государств»,
-// п.6, 7, 10, 11), величина и тип города со слотами, оккупация с оккупационным гарнизоном («Общие доработки», п.14),
-// заметки и связь с каноном («Фиксы», п.7–8). Вкладка «Море» — короткая заметка для морской провинции (ТЗ 1.a.iii).
-#include "app/canon.h"
+// провинции без владельца («Общие доработки», п.3; окно: государство и переселенцы — не меньше 500), лорд, столица,
+// пустошь нежити и осквернение («Виды государств», п.6, 7, 10, 11; очищение — с переселенцами), величина и тип города
+// по населению со слотами, оккупация с оккупационным гарнизоном («Общие доработки», п.14), заметки и связь с каноном
+// («Фиксы», п.7–8). Вкладка «Море» — короткая заметка для морской провинции (ТЗ 1.a.iii).
+// Роли: владелец, величина, столица, оккупация — правка мира (App::canEdit); лорд, колонизация, пустошь и осквернение —
+// игровые действия государства (App::canPlay, App::play), оккупационный гарнизон — оккупанта.
+#include "app/common/canon.h"
 #include "app/panels/military.h"
-#include "app/widgets.h"
-
-namespace rg::app::prov {
-// province_common.cpp
-const World& frameWorld(App& a);
-struct TipLine {
-  std::string label, value;
-  ui::Tone tone = ui::Tone::Neutral;
-  bool total = false;
-};
-struct ChipSpec {
-  std::string label;
-  const char* icon = nullptr;
-  Color color{0, 0, 0, 0};
-  ui::Tone tone = ui::Tone::Neutral;
-  std::string tooltip;
-  bool clickable = false;
-};
-std::string num(double v);
-std::string pct(double v, bool sign = false);
-std::string popText(double v);
-std::string gold(double v);
-void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width = 300);
-std::vector<TipLine> rebellionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
-std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
-std::vector<TipLine> productionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
-std::vector<TipLine> slotLines(const World& wd, const rules::ProvinceCalc& pc);
-int flowChips(std::string_view key, const std::vector<ChipSpec>& chips);
-void hatchSwatch(RectF r, Color c);
-Id defaultOccupier(const World& wd, const Province& p);
-}  // namespace rg::app::prov
+#include "app/panels/province_common.h"
 
 namespace rg::app {
 namespace {
-
-bool landOnly(App& a, Id pid) {
-  const Province* p = a.world().province(pid);
-  return p && !p->sea;
-}
-bool seaOnly(App& a, Id pid) {
-  const Province* p = a.world().province(pid);
-  return p && p->sea;
-}
 
 const char* plSlots(int n) { return plural(n, "слот", "слота", "слотов"); }
 
@@ -66,9 +30,11 @@ const char* modIcon(const World& wd, std::string_view key, const char* fallback)
   return m && !m->icon.empty() ? m->icon.c_str() : fallback;
 }
 
-// Величина провинции и тип города: значки с подсказками, под ними — выбранное значение и вклад в слоты.
-void settlement(App& a, const Province& p, bool ro) {
+// Величина провинции (правка мира) и тип города по населению (только показ: четыре ступени, текущая — золотом,
+// пороги — в подсказках): значки, под ними — значение и вклад в слоты.
+void settlement(App& a, const Province& p, bool edit) {
   Id pid = p.id;
+  const ui::Theme& th = ui::theme();
   ui::Row row({ui::fr(3), ui::fr(4)}, ui::kAuto, 12);
   {
     ui::Group g(0, 6);
@@ -81,7 +47,7 @@ void settlement(App& a, const Province& p, bool ro) {
       segs[size_t(i)] = ui::Segment{e.icon, {}, tips[size_t(i)]};
     }
     int size = int(p.size);
-    if (ui::segmented("size", size, std::span<const ui::Segment>(segs), {.disabled = ro}))
+    if (ui::segmented("size", size, std::span<const ui::Segment>(segs), {.disabled = !edit}))
       a.act("Величина провинции", [&](Tx& tx) { tx.province(pid).size = ProvSize(clamp(size, 0, 2)); });
     a.markUi("province.size");
     const schema::EnumInfo& cur = schema::provSize(p.size);
@@ -90,59 +56,146 @@ void settlement(App& a, const Province& p, bool ro) {
   {
     ui::Group g(0, 6);
     ui::caption("Тип города");
-    std::array<std::string, 4> tips;
-    std::array<ui::Segment, 4> segs;
-    for (int i = 0; i < 4; i++) {
-      const schema::EnumInfo& e = schema::kCityTypes[i];
-      tips[size_t(i)] = std::string(e.name) + " · " + fmtSigned(e.value) + " " + plSlots(e.value);
-      segs[size_t(i)] = ui::Segment{e.icon, {}, tips[size_t(i)]};
+    const CityType ct = rules::cityType(p);
+    const i64 pop = populationOf(p);
+    // Пороги ступеней: аванпост до 1000, деревня 1000–10 000, небольшой город 10 000–50 000, большой город от 50 000.
+    const std::array<std::string, 4> ranges = {"до " + fmtNum(double(schema::kVillagePop)),
+                                               fmtNum(double(schema::kVillagePop)) + "–" + fmtNum(double(schema::kTownPop)),
+                                               fmtNum(double(schema::kTownPop)) + "–" + fmtNum(double(schema::kCityPop)),
+                                               "от " + fmtNum(double(schema::kCityPop))};
+    std::string all = "Тип города — по населению: " + fmtNum(double(pop)) + " жителей";
+    for (int i = 0; i < 4; i++) all += std::string("\n") + schema::kCityTypes[i].name + " — " + ranges[size_t(i)];
+    {
+      const RectF row0 = ui::avail();
+      ui::HStack hs(30, ui::Align::Left, 4);
+      for (int i = 0; i < 4; i++) {
+        const schema::EnumInfo& e = schema::kCityTypes[i];
+        const bool cur = i == int(ct);
+        const RectF r = ui::next(30, 30);
+        ui::draw::rect(r, cur ? th.accent.alpha(0.18f) : th.surface3.alpha(0.5f), 7);
+        ui::draw::rectStroke(r, cur ? th.accent.alpha(0.7f) : th.border, 7, 1);
+        ui::draw::icon(e.icon, r.inset(6), cur ? th.accent : th.textMuted);
+        ui::hoverTip("##city" + std::to_string(i), r,
+                     std::string(e.name) + ": " + ranges[size_t(i)] + " жителей · " + fmtSigned(e.value) + " " + plSlots(e.value));
+      }
+      a.markUi("province.city", RectF{row0.x, row0.y, 4 * 30 + 3 * 4, 30});
     }
-    int city = int(p.city);
-    if (ui::segmented("city", city, std::span<const ui::Segment>(segs), {.disabled = ro}))
-      a.act("Тип города", [&](Tx& tx) { tx.province(pid).city = CityType(clamp(city, 0, 3)); });
-    a.markUi("province.city");
-    const schema::EnumInfo& cur = schema::cityType(p.city);
-    ui::label(std::string(cur.name) + " · " + fmtSigned(cur.value), {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    const schema::EnumInfo& cur = schema::cityType(ct);
+    ui::label(std::string(cur.name) + " · " + fmtSigned(cur.value), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .tooltip = all});
+    a.markUi("province.cityName");
   }
 }
 
 // ---------------------------------------------------------------- колонизация
-// Выбор государства-колонизатора: казна справа; не хватает золота — пункт недоступен. Отказ правила (опустошённая
-// провинция) показывается уведомлением.
-void colonizePopup(App& a, Id pid, double cost) {
-  if (!ui::beginPopup("colonize", {.width = 300, .maxHeight = 380})) return;
-  const World& wd = prov::frameWorld(a);
-  std::vector<const Faction*> states;
-  wd.factions.each([&](const Faction& f) {
-    if (f.isState()) states.push_back(&f);
-  });
-  std::sort(states.begin(), states.end(), [](const Faction* x, const Faction* y) { return compareRu(x->name, y->name) < 0; });
-  ui::caption("Колонизировать");
-  if (states.empty()) ui::label("Государств нет.", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-  for (const Faction* f : states) {
-    ui::IdScope s{i64(f->id)};
-    const bool lack = cost > 0 && f->treasury() + 1e-9 < cost;
-    const std::string hint = prov::gold(f->treasury());
-    const std::string tip = lack ? "В казне " + hint + ", нужно " + prov::gold(cost) : std::string();
-    if (ui::listItem(f->name.empty() ? std::string("Без названия") : f->name, {.dot = f->color, .hint = hint, .disabled = lack, .tooltip = tip})) {
-      Id fid = f->id;
-      ui::closePopup();
-      a.act("Колонизация", [&](Tx& tx) { rules::colonize(tx, pid, fid); });
-    }
-    a.markUi("province.colonize." + std::to_string(f->id));
+// Окно «Колонизация»: государство-колонизатор (игрок — только своё; казна и сколько жителей можно переселить — справа,
+// не хватает золота или жителей — пункт недоступен), переселенцы — не меньше 500 и не больше доступных
+// (rules::settlersAvailable), цена — константа «Стоимость колонизации». Отказ правила — уведомлением.
+struct Colonize final : Dialog {
+  Id pid = 0, state = 0;
+  i64 settlers = schema::kMinSettlers;
+  const char* id() const override { return "province.colonize"; }
+  Style style(App& a) override {
+    const Province* p = a.world().province(pid);
+    return {"Колонизация · " + (p ? prov::provinceTitle(*p) : std::string("провинция")), "flag", ui::Tone::Accent, 460};
   }
-  ui::endPopup();
-}
+  bool draw(App& a) override {
+    const World& wd = prov::frameWorld(a);
+    const Province* p = wd.province(pid);
+    if (!p || p->sea || p->owner) return false;
+    const double cost = std::max(0.0, rules::constantOf(wd, schema::cst::ColonizationCost).num);
+    // Государства, за которые можно действовать.
+    std::vector<const Faction*> states;
+    wd.factions.each([&](const Faction& f) {
+      if (f.isState() && a.canPlay(f.id)) states.push_back(&f);
+    });
+    std::sort(states.begin(), states.end(), [](const Faction* x, const Faction* y) { return compareRu(x->name, y->name) < 0; });
+    if (state && std::none_of(states.begin(), states.end(), [&](const Faction* f) { return f->id == state; })) state = 0;
+    if (!state && states.size() == 1) state = states[0]->id;
+    ui::caption("Государство");
+    {
+      w::IdOptions opts;
+      for (const Faction* f : states) {
+        const bool lack = cost > 0 && f->treasury() + 1e-9 < cost;
+        const i64 avail = rules::settlersAvailable(wd, f->id, pid);
+        const bool few = avail < schema::kMinSettlers;
+        opts.add(f->id, w::orName(f->name), nullptr, f->color, lack ? "казна " + prov::gold(f->treasury()) : few ? "жителей " + fmtNum(double(avail)) : prov::gold(f->treasury()),
+                 lack || few);
+      }
+      Id pick = state;
+      if (w::idCombo("state", pick, opts, {.placeholder = states.empty() ? "Нет государств" : "Выберите государство", .search = 1, .disabled = states.empty()}))
+        state = pick;
+      a.markUi("colonize.state");
+    }
+    const Faction* f = wd.faction(state);
+    const i64 avail = f ? rules::settlersAvailable(wd, state, pid) : 0;
+    ui::caption("Переселенцы");
+    {
+      ui::Row r({ui::fr(1), ui::px(150)}, 30, 8);
+      const double hi = double(std::max<i64>(schema::kMinSettlers, avail));
+      settlers = clamp<i64>(settlers, schema::kMinSettlers, i64(hi));
+      ui::numberField("settlers", settlers, {.min = double(schema::kMinSettlers), .max = hi, .step = 100, .icon = "population", .steppers = true,
+                                             .disabled = !f || avail < schema::kMinSettlers,
+                                             .tooltip = "Не меньше " + fmtNum(double(schema::kMinSettlers)) + " и не больше жителей в других провинциях государства"});
+      a.markUi("colonize.settlers");
+      ui::label("из " + fmtNum(double(avail)), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right,
+                                              .tooltip = "Жителей в провинциях государства — переселяются поровну"});
+    }
+    {
+      ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
+      ui::stat(prov::gold(cost), "Стоимость", {.icon = "coins", .tone = ui::Tone::Accent, .tooltip = "Константа «Стоимость колонизации»"});
+      a.markUi("colonize.cost");
+      if (f) {
+        const double after = f->treasury() - cost;
+        ui::stat(prov::gold(after), "Казна после", {.icon = "treasury", .tone = after < 0 ? ui::Tone::Danger : ui::Tone::Neutral,
+                                                    .tooltip = "Сейчас " + prov::gold(f->treasury())});
+      } else {
+        ui::stat("—", "Казна после", {.icon = "treasury", .tone = ui::Tone::Neutral});
+      }
+    }
+    // Опустошённая провинция: назначить государству нельзя, пока действует модификатор.
+    const bool devastated = rules::provinceHas(wd, pid, schema::mod::Devastated);
+    std::string why;
+    if (a.readOnly()) why = "Открыт прошлый ход";
+    else if (devastated) why = "Провинция опустошена: пока действует модификатор, назначить её государству нельзя";
+    else if (!f) why = "Выберите государство";
+    else if (cost > 0 && f->treasury() + 1e-9 < cost) why = "В казне " + prov::gold(f->treasury()) + ", нужно " + prov::gold(cost);
+    else if (avail < schema::kMinSettlers) why = "Нужно не меньше " + fmtNum(double(schema::kMinSettlers)) + " переселенцев: у государства " + fmtNum(double(avail));
+    if (!why.empty()) {
+      ui::label(why, {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
+      a.markUi("colonize.why");
+    }
+    ui::ModalFooter footer;
+    if (ui::button("Отмена")) return false;
+    a.markUi("dialog.cancel");
+    if (ui::button("Колонизировать", {.variant = ui::Variant::Primary, .icon = "flag", .disabled = !why.empty(), .isDefault = true})) {
+      const Id id = pid, sid = state;
+      const i64 n = settlers;
+      if (a.play("Колонизация", [&](Tx& tx) { rules::colonize(tx, id, sid, n); })) {
+        a.toast(w::orName(f->name) + " колонизирует " + prov::provinceTitle(*p) + ": " + fmtNum(double(n)) + " переселенцев", ToastKind::Success, "flag");
+        return false;
+      }
+    }
+    a.markUi("colonize.ok");
+    return true;
+  }
+};
 
-void colonizeRow(App& a, const Province& p, bool ro) {
+void colonizeRow(App& a, const Province& p) {
   const World& wd = prov::frameWorld(a);
   const double cost = std::max(0.0, rules::constantOf(wd, schema::cst::ColonizationCost).num);
+  // Колонизировать может администратор (за любое государство) или игрок (за своё).
+  bool any = false;
+  wd.factions.each([&](const Faction& f) { any = any || (f.isState() && a.canPlay(f.id)); });
   {
     ui::Row r({ui::fr(1), ui::px(104)}, 30, 8);
-    if (ui::button("Колонизировать", {.icon = "flag", .fill = true, .disabled = ro, .tooltip = "Сделать государство владельцем за золото казны"}))
-      ui::openPopup("colonize");
+    if (ui::button("Колонизировать", {.icon = "flag", .fill = true, .disabled = !any,
+                                      .tooltip = any ? std::string_view("Сделать государство владельцем: золото казны и переселенцы")
+                                                     : std::string_view(a.readOnly() ? "Открыт прошлый ход" : "Нет государства, за которое можно действовать")})) {
+      auto d = std::make_unique<Colonize>();
+      d->pid = p.id;
+      a.openDialog(std::move(d));
+    }
     a.markUi("province.colonize");
-    colonizePopup(a, p.id, cost);
     ui::HStack hs(30, ui::Align::Right, 6);
     ui::iconColored(w::resourceIcon(wd, kGold), w::resourceColor(wd, kGold), 16, "Стоимость колонизации");
     ui::label(prov::gold(cost), {.font = ui::Font::Strong, .tooltip = "Стоимость колонизации"});
@@ -178,34 +231,43 @@ LandActs landActs(const World& wd, const Province& p) {
   return r;
 }
 
-// Окно «Очистить пустошь нежити»: сколько жителей переселить из других провинций государства (целое число).
+// Окно «Очистить пустошь нежити»: сколько жителей переселить из других провинций государства — не меньше 500 и не
+// больше доступных (rules::settlersAvailable).
 struct Settlers final : Dialog {
   Id pid = 0;
-  i64 count = 0;
+  i64 count = schema::kMinSettlers;
   const char* id() const override { return "province.settlers"; }
   Style style(App&) override { return {"Очистить пустошь нежити", "sun", ui::Tone::Accent, 420}; }
   bool draw(App& a) override {
     const World& wd = prov::frameWorld(a);
     const Province* p = wd.province(pid);
     if (!p || !landActs(wd, *p).cleanseWaste) return false;
-    const i64 avail = std::max<i64>(0, rules::statePopulation(wd, p->owner) - populationOf(*p));
-    count = clamp<i64>(count, 0, avail);
+    const i64 avail = rules::settlersAvailable(wd, p->owner, pid);
+    const bool enough = avail >= schema::kMinSettlers;
+    count = clamp<i64>(count, schema::kMinSettlers, std::max<i64>(schema::kMinSettlers, avail));
     ui::prop("Переселенцев", "population");
-    ui::numberField("count", count, {.min = 0, .max = double(avail), .step = 100, .steppers = true, .tooltip = "Не больше населения государства"});
+    ui::numberField("count", count, {.min = double(schema::kMinSettlers), .max = double(std::max<i64>(schema::kMinSettlers, avail)), .step = 100,
+                                     .steppers = true, .disabled = !enough,
+                                     .tooltip = "Не меньше " + fmtNum(double(schema::kMinSettlers)) + " и не больше жителей в других провинциях государства"});
     a.markUi("settlers.count");
     {
       ui::HStack hs(22, ui::Align::Right, 6);
-      ui::label("Население государства", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
-      ui::label(fmtNum(double(avail)), {.font = ui::Font::Small, .ink = ui::Ink::Dim});
+      ui::label("Можно переселить", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+      ui::label(fmtNum(double(avail)), {.font = ui::Font::Small, .ink = enough ? ui::Ink::Dim : ui::Ink::Warning});
+      a.markUi("settlers.avail");
+    }
+    if (!enough) {
+      ui::label("Нужно не меньше " + fmtNum(double(schema::kMinSettlers)) + " жителей в других провинциях государства",
+                {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
+      a.markUi("settlers.why");
     }
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     a.markUi("dialog.cancel");
-    if (ui::button("Очистить", {.variant = ui::Variant::Primary, .icon = "sun", .isDefault = true})) {
+    if (ui::button("Очистить", {.variant = ui::Variant::Primary, .icon = "sun", .disabled = !enough || !a.canPlay(p->owner), .isDefault = true})) {
       Id id = pid;
       i64 n = count;
-      a.act("Очистить пустошь нежити", [&](Tx& tx) { rules::cleanseWasteland(tx, id, n); });
-      return false;
+      if (a.play("Очистить пустошь нежити", [&](Tx& tx) { rules::cleanseWasteland(tx, id, n); })) return false;
     }
     a.markUi("settlers.ok");
     return true;
@@ -213,7 +275,7 @@ struct Settlers final : Dialog {
 };
 
 // Состояние земли (пустошь, осквернение, доход с ценности) и действия владельца.
-void landSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool ro) {
+void landSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool can) {
   const World& wd = prov::frameWorld(a);
   const Id pid = p.id;
   const bool waste = rules::hasModKey(wd, p.modifiers, schema::mod::UndeadWaste);
@@ -237,18 +299,18 @@ void landSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool 
     prov::flowChips("land", chips);
     a.markUi("province.land", RectF{at.x, at.y, at.w, std::max(0.f, ui::avail().y - at.y - ui::theme().gap)});
   }
-  ui::Disabled dis(ro);
+  ui::Disabled dis(!can);
   const std::string name = p.name.empty() ? std::string("Провинция") : p.name;
   if (acts.waste) {
     if (ui::button("Обратить в пустошь нежити", {.variant = ui::Variant::Danger, .icon = "skull", .fill = true}))
       a.confirm("Обратить в пустошь нежити?", "Население «" + name + "» (" + fmtNum(double(populationOf(p))) + ") станет трупами владельца. Отменить — Ctrl+Z.",
-                "Обратить", true, [pid](App& x) { x.act("Обратить в пустошь нежити", [&](Tx& tx) { rules::makeWasteland(tx, pid); }); });
+                "Обратить", true, [pid](App& x) { x.play("Обратить в пустошь нежити", [&](Tx& tx) { rules::makeWasteland(tx, pid); }); });
     a.markUi("province.waste");
   }
   if (acts.desecrate) {
     if (ui::button("Осквернить провинцию", {.variant = ui::Variant::Danger, .icon = "flame", .fill = true}))
       a.confirm("Осквернить провинцию?", "«" + name + "» станет осквернённой, владелец получит демоническую энергию. Отменить — Ctrl+Z.", "Осквернить", true,
-                [pid](App& x) { x.act("Осквернить провинцию", [&](Tx& tx) { rules::desecrate(tx, pid); }); });
+                [pid](App& x) { x.play("Осквернить провинцию", [&](Tx& tx) { rules::desecrate(tx, pid); }); });
     a.markUi("province.desecrate");
   }
   if (acts.cleanseWaste) {
@@ -261,18 +323,19 @@ void landSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool 
   }
   if (acts.cleanseDesecration) {
     if (ui::button("Очистить осквернённую провинцию", {.icon = "sun", .fill = true}))
-      a.act("Очистить осквернённую провинцию", [&](Tx& tx) { rules::cleanseDesecration(tx, pid); });
+      a.play("Очистить осквернённую провинцию", [&](Tx& tx) { rules::cleanseDesecration(tx, pid); });
     a.markUi("province.cleanseDesecration");
   }
 }
 
 // ---------------------------------------------------------------- оккупационный гарнизон
 // Отряды из резерва оккупанта (не больше резерва) и счётчик ходов без гарнизона и войск оккупанта.
-void occupationGarrison(App& a, const Province& p, bool ro) {
+void occupationGarrison(App& a, const Province& p) {
   const World& wd = prov::frameWorld(a);
   const Id pid = p.id, occ = p.occupier;
   const Faction* of = wd.faction(occ);
   if (!of || !of->isState()) return;
+  const bool ro = !a.canPlay(occ);   // гарнизон ставит оккупант
   ui::spacer(2);
   ui::caption("Оккупационный гарнизон");
   std::vector<mil::UnitRow> rows = mil::unitRows(wd, occ, false);
@@ -307,7 +370,7 @@ void occupationGarrison(App& a, const Province& p, bool ro) {
       if (ui::numberField("n", n, {.min = 0, .max = double(l.count + l.reserve), .disabled = ro,
                                    .tooltip = "Не больше резерва: " + mil::fmtCount(l.reserve) + " свободно"})) {
         Id row = l.row.id;
-        a.act("Оккупационный гарнизон", [&](Tx& tx) { rules::setOccupationGarrison(tx, pid, row, n); },
+        a.play("Оккупационный гарнизон", [&](Tx& tx) { rules::setOccupationGarrison(tx, pid, row, n); },
               {.coalesce = "occGarrison:" + std::to_string(pid) + ":" + std::to_string(row)});
       }
       a.markUi("province.occGarrison." + std::to_string(l.row.id));
@@ -337,7 +400,8 @@ void drawOverview(App& a, Id pid) {
   const Province* p = wd.province(pid);
   if (!p) return;
   ui::IdScope ps{i64(pid)};
-  bool ro = a.readOnly();
+  const bool edit = a.canEdit();                            // правка мира
+  const bool play = p->owner && a.canPlay(p->owner);        // игровые действия владельца
   auto calc = rules::calc(wd);
   rules::ProvinceCalc none;
   const rules::ProvinceCalc* pcp = calc->province(pid);
@@ -361,26 +425,26 @@ void drawOverview(App& a, Id pid) {
   if (ui::Section s("Владение", "crown"); s) {
     ui::prop("Государство", "crown");
     Id owner = p->owner;
-    if (w::factionPicker("owner", owner, w::FactionFilter::States, "Без владельца", 0, ro))
+    if (w::factionPicker("owner", owner, w::FactionFilter::States, "Без владельца", 0, !edit))
       a.act("Владелец провинции", [&](Tx& tx) { rules::setProvinceOwner(tx, pid, owner); });
     a.markUi("province.owner");
-    if (!p->owner) colonizeRow(a, *p, ro);
+    if (!p->owner) colonizeRow(a, *p);
     ui::prop("Лорд", "lord");
     Id lord = p->lord;
     // Назначать можно только доступных героев государства-владельца (rules::setLord).
-    if (w::characterPicker("lord", lord, p->owner, "Не назначен", p->owner != 0, ro || (!p->owner && !p->lord)))
-      a.act("Лорд провинции", [&](Tx& tx) { rules::setLord(tx, pid, lord); });
+    if (w::characterPicker("lord", lord, p->owner, "Не назначен", p->owner != 0 && edit, !play))
+      a.play("Лорд провинции", [&](Tx& tx) { rules::setLord(tx, pid, lord); });
     a.markUi("province.lord");
     ui::prop("Столица", "capital");
     std::string cap = p->capital;
-    if (ui::textField("capital", cap, {.placeholder = "Название города", .maxLength = 80, .disabled = ro}))
+    if (ui::textField("capital", cap, {.placeholder = "Название города", .maxLength = 80, .disabled = !edit}))
       a.act("Столица провинции", [&](Tx& tx) { tx.province(pid).capital = trim(cap); });
     a.markUi("province.capital");
-    landSection(a, *p, pc, ro);
+    landSection(a, *p, pc, play);
   }
 
   if (ui::Section s("Поселение и слоты", "slots"); s) {
-    settlement(a, *p, ro);
+    settlement(a, *p, edit);
     ui::spacer(2);
     std::string val = fmtNum(pc.slotsUsed) + " / " + fmtNum(pc.slots);
     ui::stat(val, "Слоты построек: занято / всего", {.icon = "slots", .tone = pc.slotsUsed > pc.slots ? ui::Tone::Danger : ui::Tone::Success,
@@ -391,7 +455,7 @@ void drawOverview(App& a, Id pid) {
 
   if (ui::Section s("Оккупация", "occupied", {.defaultOpen = true}); s) {
     bool occ = p->occupied;
-    if (ui::toggle("Оккупирована", occ, ro)) {
+    if (ui::toggle("Оккупирована", occ, !edit)) {
       if (occ) {
         Id def = p->occupier && p->occupier != p->owner ? p->occupier : prov::defaultOccupier(wd, *p);
         if (!def) a.toast("Нет государства, которое могло бы оккупировать провинцию", ToastKind::Warning, "occupied");
@@ -404,14 +468,14 @@ void drawOverview(App& a, Id pid) {
     {
       ui::Row r({ui::fr(1), ui::px(30)}, 30, 8);
       Id oc = p->occupied ? p->occupier : 0;
-      if (w::factionPicker("occupier", oc, w::FactionFilter::States, "", p->owner, ro || !p->occupied) && oc)
+      if (w::factionPicker("occupier", oc, w::FactionFilter::States, "", p->owner, !edit || !p->occupied) && oc)
         a.act("Оккупант провинции", [&](Tx& tx) { rules::setOccupied(tx, pid, oc); });
       a.markUi("province.occupier");
       RectF sw = ui::next(30, 30);
       if (const Faction* of = p->occupied ? wd.faction(p->occupier) : nullptr) prov::hatchSwatch(sw.inset(5), of->color);
       else ui::draw::rectStroke(sw.inset(5), ui::theme().border, 3, 1);
     }
-    if (p->occupied && p->occupier) occupationGarrison(a, *p, ro);
+    if (p->occupied && p->occupier) occupationGarrison(a, *p);
   }
 
   // Заметки и канон (ТЗ «Фиксы», п.7–8): при связи с карточкой заметки — только чтение.
@@ -422,14 +486,14 @@ void drawOverview(App& a, Id pid) {
 // Морская провинция: без сведений, одна строка и действие.
 void drawSea(App& a, Id pid) {
   ui::spacer(8);
-  bool ro = a.readOnly();
+  const bool ro = !a.canEdit();
   if (ui::emptyState("sea", "Морская провинция.", ro ? std::string_view() : "Сделать сухопутной", "land"))
     a.act("Сделать провинцию сухопутной", [&](Tx& tx) { rules::setProvinceSea(tx, pid, false); });
   a.markUi("province.seanote");
 }
 
-TabReg tabSea({"province.sea", "sea", "Морская провинция", 5, SelType::Province, seaOnly, drawSea});
-TabReg tabOverview({"province.overview", "info", "Обзор", 10, SelType::Province, landOnly, drawOverview});
+TabReg tabSea({"province.sea", "sea", "Морская провинция", 5, SelType::Province, prov::seaOnly, drawSea});
+TabReg tabOverview({"province.overview", "info", "Обзор", 10, SelType::Province, prov::landOnly, drawOverview});
 
 }  // namespace
 }  // namespace rg::app

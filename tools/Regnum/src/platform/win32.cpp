@@ -164,14 +164,12 @@ HCURSOR makeArtCursor(const char* const art[16], int k) {
 }
 
 // ---------------------------------------------------------------- состояние окна
-struct State {
+struct State : detail::Dispatch {
   HINSTANCE inst = nullptr;
   std::atomic<HWND> hwnd{nullptr};
   HWND helper = nullptr;               // невидимое окно для буфера обмена вне run()
   DWORD mainThread = 0;
-  App* app = nullptr;
   WindowConfig cfg;
-  bool ready = false;                  // окно создано, события можно доставлять
 
   UINT dpi = 96;
   float scale = 1;
@@ -187,17 +185,10 @@ struct State {
   bool bufferReset = true;
   u64 frameIndex = 0;
 
-  std::atomic<bool> dirty{true};
   std::atomic<bool> wakePosted{false};
   std::atomic<bool> wakeEvent{false};
-  int callbackDepth = 0;               // мы внутри обработчика приложения (вложенные циклы диалогов)
   int modalDepth = 0;                  // системный модальный цикл (рамка, меню)
   bool rendering = false;
-  bool quitting = false;
-  bool closePending = false;
-  int exitCode = 0;
-  std::exception_ptr error;
-  std::deque<Event> queue;
 
   // Мышь.
   int buttonsDown = 0;
@@ -302,14 +293,6 @@ Key mapKey(WPARAM vk, LPARAM lp) {
   }
 }
 
-void push(Event e) {
-  if (e.type == EventType::Text && !g.queue.empty() && g.queue.back().type == EventType::Text) {
-    g.queue.back().text += e.text;  // склеиваем подряд идущий ввод (IME, вставка суррогатов)
-    return;
-  }
-  g.queue.push_back(std::move(e));
-}
-
 Event mouseEvent(EventType t, LPARAM lp) {
   Event e;
   e.type = t;
@@ -317,34 +300,6 @@ Event mouseEvent(EventType t, LPARAM lp) {
   e.y = float(GET_Y_LPARAM(lp)) / g.scale;
   e.mods = currentMods();
   return e;
-}
-
-template <class F>
-void guarded(F&& f) {
-  g.callbackDepth++;
-  try {
-    f();
-  } catch (...) {
-    if (!g.error) g.error = std::current_exception();
-    g.quitting = true;
-  }
-  g.callbackDepth--;
-}
-
-void flushEvents() {
-  if (!g.app || !g.ready || g.callbackDepth > 0) return;
-  while (!g.queue.empty() && !g.quitting) {
-    Event e = std::move(g.queue.front());
-    g.queue.pop_front();
-    g.dirty = true;  // каждое доставленное событие — новый кадр
-    guarded([&] { g.app->onEvent(e); });
-  }
-}
-
-bool callAnimating() {
-  bool anim = false;
-  if (g.app && g.callbackDepth == 0) guarded([&] { anim = g.app->animating(); });
-  return anim;
 }
 
 // ---------------------------------------------------------------- кадр
@@ -418,7 +373,7 @@ bool canRender() {
 // Отрисовать кадр приложения; present — сразу вывести в окно.
 void renderNow(bool present) {
   if (!canRender()) return;
-  flushEvents();
+  g.flushEvents();
   if (g.quitting || !canRender()) return;
   if (!ensureBuffer(g.cw, g.ch)) return;
   GdiFlush();  // GDI не должен держать незавершённые операции с памятью DIB
@@ -434,7 +389,7 @@ void renderNow(bool present) {
   const double t0 = time();
   g.rendering = true;
   g.source = nullptr;
-  guarded([&] { g.app->onFrame(f); });
+  g.guarded([&] { g.app->onFrame(f); });
   g.rendering = false;
   g.bufferReset = false;
   g.source = f.source;
@@ -641,21 +596,6 @@ void applyDarkFrame() {
   if (FAILED(DwmSetWindowAttribute(h, 20, &v, sizeof v))) DwmSetWindowAttribute(h, 19, &v, sizeof v);
 }
 
-void requestClose() {
-  if (!g.app || g.quitting) return;
-  if (g.callbackDepth > 0) {
-    g.closePending = true;
-    return;
-  }
-  flushEvents();
-  bool ok = false;
-  guarded([&] { ok = g.app->onCloseRequest(); });
-  if (ok && !g.quitting) {
-    g.quitting = true;
-    g.exitCode = 0;
-  }
-}
-
 void releaseMouseButtons() {
   for (int b = 0; b < 5; b++) {
     if (!(g.buttonsDown & (1 << b))) continue;
@@ -666,7 +606,7 @@ void releaseMouseButtons() {
     e.button = b;
     e.clicks = g.lastClicks[size_t(b)];
     e.mods = currentMods();
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.buttonsDown = 0;
 }
@@ -678,7 +618,7 @@ void releaseKeys() {
     Event e;
     e.type = EventType::KeyUp;
     e.key = Key(k);
-    push(std::move(e));
+    g.push(std::move(e));
   }
 }
 
@@ -700,14 +640,14 @@ void onMouseButton(int button, bool down, LPARAM lp) {
     e.clicks = g.lastClicks[size_t(button)];
     if (g.buttonsDown == 0 && GetCapture() == h) ReleaseCapture();
   }
-  push(std::move(e));
+  g.push(std::move(e));
   if (!down && g.buttonsDown == 0 && !g.mouseInside) {  // перетаскивание закончилось за пределами окна
     Event leave;
     leave.type = EventType::MouseLeave;
     leave.x = g.mx;
     leave.y = g.my;
     leave.mods = currentMods();
-    push(std::move(leave));
+    g.push(std::move(leave));
   }
 }
 
@@ -733,7 +673,7 @@ void onWheel(bool horizontal, WPARAM wp, LPARAM lp) {
   float v = precise ? notches * float(lines) * (100.f / 3.f) : notches;
   if (horizontal) e.wheelX = v;
   else e.wheelY = v;
-  push(std::move(e));
+  g.push(std::move(e));
 }
 
 void onSize(WPARAM type, int w, int h) {
@@ -748,7 +688,7 @@ void onSize(WPARAM type, int w, int h) {
   e.width = float(w) / g.scale;
   e.height = float(h) / g.scale;
   e.scale = g.scale;
-  push(std::move(e));
+  g.push(std::move(e));
   g.dirty = true;
   // Синхронная отрисовка: содержимое следует за рамкой при перетаскивании края.
   renderNow(true);
@@ -777,7 +717,7 @@ void onDpiChanged(UINT dpi, const RECT* suggested) {
   e.width = float(g.cw) / g.scale;
   e.height = float(g.ch) / g.scale;
   e.scale = g.scale;
-  push(std::move(e));
+  g.push(std::move(e));
   g.dirty = true;
   if (g.mouseInside) SetCursor(cursorHandle(g.cursor));
   updateImePosition();
@@ -801,13 +741,13 @@ void onDropFiles(HDROP drop) {
   e.x = float(p.x) / g.scale;
   e.y = float(p.y) / g.scale;
   e.mods = currentMods();
-  if (!e.files.empty()) push(std::move(e));
+  if (!e.files.empty()) g.push(std::move(e));
 }
 
 void modalTick() {
   if (g.callbackDepth > 0 || !g.ready) return;
-  flushEvents();
-  if (g.dirty || callAnimating()) renderNow(true);
+  g.flushEvents();
+  if (g.dirty || g.callAnimating()) renderNow(true);
 }
 
 LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
@@ -883,7 +823,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
       Event e = mouseEvent(EventType::MouseMove, lp);
       g.mx = e.x;
       g.my = e.y;
-      push(std::move(e));
+      g.push(std::move(e));
       return 0;
     }
     case WM_MOUSELEAVE:
@@ -895,7 +835,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         e.x = g.mx;
         e.y = g.my;
         e.mods = currentMods();
-        push(std::move(e));
+        g.push(std::move(e));
       }
       return 0;
     case WM_LBUTTONDOWN: onMouseButton(MouseLeft, true, lp); return 0;
@@ -933,7 +873,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         e.mods = currentMods();
         e.repeat = down && ((lp >> 30) & 1);
         g.keyDown[size_t(k)] = down;
-        push(std::move(e));
+        g.push(std::move(e));
       }
       if (msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP) break;  // Alt+F4 и Alt+Пробел обрабатывает система
       return 0;
@@ -951,7 +891,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         e.type = EventType::Text;
         e.text = std::move(s);
         e.mods = currentMods();
-        push(std::move(e));
+        g.push(std::move(e));
       }
       return 0;
     }
@@ -961,7 +901,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         Event e;
         e.type = EventType::Text;
         e.text = utf8::encode(u32(wp));
-        push(std::move(e));
+        g.push(std::move(e));
       }
       return FALSE;
     case WM_IME_STARTCOMPOSITION:
@@ -970,7 +910,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_SETFOCUS: {
       Event e;
       e.type = EventType::FocusIn;
-      push(std::move(e));
+      g.push(std::move(e));
       updateImePosition();
       return 0;
     }
@@ -979,14 +919,14 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
       g.utf16 = detail::Utf16Input();
       Event e;
       e.type = EventType::FocusOut;
-      push(std::move(e));
+      g.push(std::move(e));
       return 0;
     }
     case WM_DROPFILES:
       onDropFiles(reinterpret_cast<HDROP>(wp));
       return 0;
     case WM_CLOSE:
-      requestClose();
+      g.requestClose();
       return 0;
     case WM_ENDSESSION:
       if (wp) savePlacementNow();
@@ -999,7 +939,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
       if (g.wakeEvent.exchange(false)) {
         Event e;
         e.type = EventType::Wake;
-        push(std::move(e));
+        g.push(std::move(e));
       }
       g.dirty = true;
       if (g.modalDepth > 0) modalTick();
@@ -1248,16 +1188,16 @@ int run(App& app, const WindowConfig& cfg) {
     e.width = float(g.cw) / g.scale;
     e.height = float(g.ch) / g.scale;
     e.scale = g.scale;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   if (g.wakeEvent.exchange(false)) {  // wake() до запуска цикла
     Event e;
     e.type = EventType::Wake;
-    push(std::move(e));
+    g.push(std::move(e));
   }
   g.wakePosted = false;
   g.dirty = true;
-  flushEvents();
+  g.flushEvents();
   if (!maximize) renderNow(false);  // первый кадр готов до показа окна — без вспышки фона
   ShowWindow(h, maximize ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL);
   UpdateWindow(h);
@@ -1270,13 +1210,13 @@ int run(App& app, const WindowConfig& cfg) {
   while (!g.quitting) {
     pumpMessages();
     if (g.quitting) break;
-    flushEvents();
+    g.flushEvents();
     if (g.closePending && g.callbackDepth == 0) {
       g.closePending = false;
-      requestClose();
+      g.requestClose();
     }
     if (g.quitting) break;
-    bool anim = callAnimating();
+    bool anim = g.callAnimating();
     if (g.quitting) break;
     bool visible = g.cw > 0 && g.ch > 0 && !IsIconic(h);
     if (visible && (g.dirty || anim)) {

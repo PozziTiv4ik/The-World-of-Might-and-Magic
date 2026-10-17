@@ -5,14 +5,7 @@
 using namespace rg;
 using namespace rg::iotest;
 
-namespace {
-
-std::string read(const std::string& path) { return fs::readFile(path).value_or(std::string()); }
-void write(const std::string& path, const std::string& text) { CHECK(fs::writeFileAtomic(path, text)); }
-
-}  // namespace
-
-TEST(io_map_file_format) {
+TEST(core_io_map_file_format) {
   World w = richWorld();
   std::string dir = tempDir("map-format");
   io::save(dir, w, TB_ALL);
@@ -32,7 +25,7 @@ TEST(io_map_file_format) {
   CHECK_MSG(d.empty(), d);
 }
 
-TEST(io_map_missing_file_old_world) {
+TEST(core_io_map_missing_file_old_world) {
   // Мир прежней версии: нет data/map.json, флага нет — без предупреждений, объекты базовой карты.
   World w = richWorld();
   {
@@ -65,7 +58,7 @@ TEST(io_map_missing_file_old_world) {
   CHECK(!r2.world.meta->mapObjects);
 }
 
-TEST(io_map_normalize) {
+TEST(core_io_map_normalize) {
   World w = richWorld();
   std::string dir = tempDir("map-norm");
   io::save(dir, w, TB_ALL);
@@ -121,7 +114,7 @@ TEST(io_map_normalize) {
   CHECK(r.fixedTables & TB_MAPART);
 }
 
-TEST(io_map_tx_and_diff) {
+TEST(core_io_map_tx_and_diff) {
   World w = newWorld("Карта");
   Tx tx(w);
   MapSymbol s;

@@ -1,6 +1,7 @@
 // Regnum — окно «Судьба героев» (ТЗ «Механика героев», п.1): герои уничтоженного войска (флота) или восставшего
 // целиком войска — сбежал (вернулся в своё государство), убит (модификатор «Мертв», место захоронения — провинция
-// битвы), взят в плен (модификатор «Взят в плен», пленившее государство). Решение — одной записью отмены.
+// битвы), взят в плен (модификатор «Взят в плен», пленившее государство). Решение — одной записью отмены. Роли (ТЗ
+// «Доработки №4», п.5): решает участник — пленившее государство или фракция одного из героев (App::play).
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -39,6 +40,14 @@ struct HeroFateDialog final : Dialog {
     return c && f && f->isState() && c->faction != captor;
   }
 
+  // Участник: пленившее государство или фракция кого-то из героев.
+  bool party(App& a, const World& w) const {
+    if (a.canPlay(captor)) return true;
+    for (Id h : heroes)
+      if (const Character* c = w.character(h); c && a.canPlay(c->faction)) return true;
+    return false;
+  }
+
   Fate fateOf(const World& w, Id h) const {
     auto it = fate.find(h);
     Fate f = it == fate.end() ? Fate::Fled : it->second;
@@ -51,7 +60,7 @@ struct HeroFateDialog final : Dialog {
     for (Id h : heroes)
       if (w.character(h)) list.push_back({h, fateOf(w, h)});
     const Id cap = captor, bur = w.province(burial) ? burial : 0;
-    if (!a.act(list.size() > 1 ? "Судьба героев" : "Судьба героя", [&](Tx& tx) {
+    if (!party(a, w) || !a.play(list.size() > 1 ? "Судьба героев" : "Судьба героя", [&](Tx& tx) {
           for (auto& [h, f] : list)
             if (tx.w().character(h)) rules::heroFate(tx, h, f, f == Fate::Captured ? cap : 0, bur);
         }))
@@ -126,7 +135,7 @@ struct HeroFateDialog final : Dialog {
     }
     ui::ModalFooter f;
     {
-      ui::Disabled dis(a.readOnly());
+      ui::Disabled dis(!party(a, w));
       if (ui::button("Применить", {.variant = ui::Variant::Primary, .icon = "check", .isDefault = true})) {
         apply(a);
         if (decided) return false;
