@@ -3,7 +3,7 @@
 // государства (≥ 0), провизия государства живых (группа «Провизия» с подгруппами: запас, расход населения поровну с
 // её ресурсов, недостача — «Голод», что будет после хода), таблица ресурсов по группам справочника (сворачиваемые
 // группы с суммами, поиск, «скрыть пустые»; запас правится в строке; приход — добыча, постройки и преобразование,
-// расход — провизия и преобразование; «Золото», «Трупы» и «Демоническая энергия» — всегда первыми), эссенции
+// расход — провизия и преобразование (в подсказках — постройки плана хода с множителем производства); «Золото», «Трупы» и «Демоническая энергия» — всегда первыми), эссенции
 // элементов (запас, генерация построек, содержание элементалей, долг — красным), рабы по расам («Механика войн»,
 // п.1), дань и репарации и вход в диалог «Навязать дань / репарации». Золото и ресурсы — до тысячных. Снижение
 // содержания армии постройками (казармы) — строкой расходов. Налог, дань и репарации — игровые действия государства
@@ -302,10 +302,39 @@ void resourcesSection(App& a, const World& w, const Faction& f, const rules::Fac
 }
 
 // Таблица ресурсов раздела: строки групп (свернуть, суммы) и ресурсов (запас — правка в строке).
+// План преобразования хода по ресурсам (FactionCalc::conversions): строки «постройка · провинция ×N: количество» —
+// сколько берут начинающиеся циклы и дают завершающиеся (с множителем производства). Подсказки прихода и расхода.
+struct ConvLines {
+  std::map<Id, std::vector<std::string>> in, out;
+};
+ConvLines convLines(const World& w, const rules::FactionCalc& fc) {
+  ConvLines c;
+  for (const rules::ConvertStep& s : fc.conversions) {
+    const Building* b = w.building(s.building);
+    const std::string who = w::orName(b ? b->name : std::string(), "Постройка") + " · " + w.provinceName(s.province) +
+                            (s.mult > 1 ? " ×" + std::to_string(s.mult) : std::string());
+    for (auto& [r, v] : s.in) c.in[r].push_back(who + ": " + amount(v));
+    if (s.finish)
+      for (const ResAmount& x : s.out) c.out[x.res].push_back(who + ": +" + amount(x.amount));
+  }
+  return c;
+}
+std::string convTip(const std::map<Id, std::vector<std::string>>& m, Id r) {
+  auto it = m.find(r);
+  if (it == m.end()) return {};
+  const std::vector<std::string>& l = it->second;
+  constexpr size_t kMax = 6;
+  std::string s;
+  for (size_t i = 0; i < l.size() && i < kMax; i++) s += "\n  " + l[i];
+  if (l.size() > kMax) s += "\n  ещё " + std::to_string(l.size() - kMax);
+  return s;
+}
+
 void resourceTable(App& a, const World& w, const Faction& f, const rules::FactionCalc& fc, Id id, bool ro, ResourceView& v,
                    std::span<const ui::Column> cols, bool wide) {
   EcoPrefs& pf = prefs(a);
   const ui::Theme& th = ui::theme();
+  const ConvLines conv = convLines(w, fc);
   ui::Table t("resources", cols, int(v.rows.size()), {.rowHeight = 36, .selectable = false, .emptyIcon = "resource", .emptyText = "Ресурсов нет"});
   for (int i : t) {
     const DispRow& row = v.rows[size_t(i)];
@@ -384,10 +413,10 @@ void resourceTable(App& a, const World& w, const Faction& f, const rules::Factio
     a.markUi("economy.stock." + std::to_string(r));
     const double in = inflow(fl), out = outflow(fl);
     std::string inTip = "Добыча и постройки: " + amount(fl.production);
-    if (fl.conversionOut > kEps) inTip += "\nПреобразование: +" + amount(fl.conversionOut);
+    if (fl.conversionOut > kEps) inTip += "\nПреобразование: +" + amount(fl.conversionOut) + convTip(conv.out, r);
     std::string outTip;
     if (fl.consumption > kEps) outTip = "Провизия населения: " + amount(fl.consumption);
-    if (fl.conversionIn > kEps) outTip += (outTip.empty() ? "" : "\n") + std::string("Преобразование: ") + amount(fl.conversionIn);
+    if (fl.conversionIn > kEps) outTip += (outTip.empty() ? "" : "\n") + std::string("Преобразование: ") + amount(fl.conversionIn) + convTip(conv.in, r);
     std::string tr;
     if (fl.tradeIn > kEps) tr += "+" + amount(fl.tradeIn);
     if (fl.tradeOut > kEps) tr += (tr.empty() ? "" : " ") + amountSigned(-fl.tradeOut);

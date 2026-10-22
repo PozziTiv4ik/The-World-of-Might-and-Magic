@@ -248,7 +248,7 @@ int setTalent(Tx& tx, const Talent& t0) {
     if (contains(mods, m)) continue;
     if (x->kind != ModKind::Any && x->kind != ModKind::Hero)
       fail("Модификатор «" + x->name + "» не для героев: таланту подходят модификаторы видов «Везде» и «Для героев»");
-    if (x->key == schema::mod::Dead || x->key == schema::mod::Captive || schema::isAutoKey(x->key))
+    if (x->key == schema::mod::Dead || x->key == schema::mod::Captive || x->key == schema::mod::Arrested || schema::isAutoKey(x->key))
       fail("Модификатор «" + x->name + "» — состояние героя или ставится сам: талант его не даёт");
     mods.push_back(m);
   }
@@ -526,6 +526,7 @@ std::vector<std::string> lichProblems(const World& w, Id character, Id relic) {
   if (!characterHas(w, character, schema::mod::Necromancer)) out.push_back("Возвысить до Лича можно только некроманта");
   if (characterHas(w, character, schema::mod::Dead)) out.push_back(q(w.characterName(character)) + " мёртв");
   else if (characterHas(w, character, schema::mod::Captive)) out.push_back(q(w.characterName(character)) + " в плену");
+  else if (characterHas(w, character, schema::mod::Arrested)) out.push_back(q(w.characterName(character)) + " под арестом");
   const Faction* f = w.faction(c->faction);
   if (!f || !f->isState()) {
     out.push_back("Герой не служит государству — трупы и эссенцию смерти платит его государство");

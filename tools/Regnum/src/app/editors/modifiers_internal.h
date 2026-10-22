@@ -46,9 +46,10 @@ std::string effectSummary(const World& w, const Modifier& m);      // кратк
 void usageSection(App& a, const Modifier& m, const std::map<std::string, std::vector<Id>>& autos, bool ro);
 
 // ---------------------------------------------------------------- эффекты и генерация (modifiers_effects.cpp)
-enum class FxGroup : u8 { Local, Global, Army, Arch };
+enum class FxGroup : u8 { Local, Global, Army, Arch, Hero };
 u32 archMask();                                                     // эффекты археологических групп
 void effectGroup(App& a, const Modifier& m, FxGroup group, bool ro);
+u32 heroMask();   // эффекты героя (EffectInfo::hero)
 void genSection(App& a, const Modifier& m, bool ro);
 
 }  // namespace rg::app::modedit

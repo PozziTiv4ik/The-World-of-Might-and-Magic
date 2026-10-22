@@ -187,7 +187,10 @@ TEST(app_province_tax_and_resource) {
   setNumber(h, "province.baseTrade", "200");
   const rules::ProvinceCalc* pc = rules::calc(h->world())->province(pid);
   CHECK_NEAR(pc->tradeBase, 200, 1e-9);
-  CHECK_NEAR(pc->tradeValue, std::max(0.0, 200 * (1 + pc->fx[Fx::TradePct] / 100 + routeBonusOf(h->world(), pid)) + pc->fx[Fx::TradeFlat]), 1e-6);
+  CHECK_NEAR(pc->tradeValue, std::max(0.0, 200 * (1 + pc->fx[Fx::TradePct] / 100 + routeBonusOf(h->world(), pid)) + pc->fx[Fx::TradeFlat] +
+                                              double(pc->population) / 100),
+             1e-6);
+  CHECK_NEAR(pc->tradePop, double(pc->population) / 100, 1e-9);
   CHECK(h->uiRect("province.tradeValue") != nullptr);
   CHECK(h->uiRect("province.income") != nullptr);
   // Золото — до тысячных (ТЗ «Фиксы», п.13): количество ресурса и базовая ценность принимают три знака.

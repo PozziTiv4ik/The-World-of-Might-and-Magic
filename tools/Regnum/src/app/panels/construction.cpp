@@ -1,11 +1,13 @@
 // Regnum — вкладка провинции «Постройки» (ТЗ 1.f.i–ii): слоты (величина, тип города по населению, модификаторы),
 // постройки с уровнями и улучшением, стройки с ходом, отменой (возврат стоимости) и мгновенным завершением, снос, выбор
 // нового строительства. Возможности построек (ТЗ «Доработки», п.3, 5; «Ввод новых механик», п.4–5; «Доработки №2–4»):
-// преобразование — «Работает / Простаивает», выбор рецепта (пока не идёт цикл), ход цикла, «Ждёт ресурсы»; иссушение —
+// преобразование — «Работает / Простаивает», множитель производства ×1…×N (технологии «Стимуляция промышленности»),
+// выбор рецепта (пока не идёт цикл; количества — с множителем), ход цикла, «Ждёт ресурсы»; иссушение —
 // режим, раса провинции, сколько жителей отнимается и сколько эссенции за ход; добыча — прибавка добычи ресурса
-// провинции; снижение содержания армии; генерация эссенции и особые отряды; лечение, заражение, продажа реликвий
+// провинции (необязательная добыча фермы — без предупреждения); снижение содержания армии; генерация эссенции и особые
+// отряды; лечение, заражение, продажа реликвий
 // (construction_roles.cpp); хранилище реликвий (relic_store.cpp).
-// Роли: строить, улучшать, отменять, сносить, режим, рецепт, раса иссушения — игровые действия владельца
+// Роли: строить, улучшать, отменять, сносить, режим, множитель, рецепт, раса иссушения — игровые действия владельца
 // (App::canPlay, App::play; игроку — одна новая постройка в провинции за ход); «Завершить сейчас» — правка мира.
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
@@ -34,34 +36,89 @@ void modeSwitch(App& a, Id pid, const ProvBuilding& pb, bool can, const char* wo
   a.markUi(mark);
 }
 
-// Постройка преобразования в провинции: режим, выбор рецепта (пока не идёт цикл; rules::setPbRecipe), рецепт (нехватка
-// входов у владельца — красным), ход цикла (ProvBuilding::cycle — ходов до конца) или состояние: новый цикл начнётся в
-// конце хода (шаг есть в плане FactionCalc::conversions) либо «Ждёт ресурсы».
+// Рецепт с множителем производства: количества на входе и выходе — ×mult.
+Recipe scaled(const Recipe& r, int mult) {
+  Recipe s = r;
+  for (std::vector<ResAmount>* v : {&s.in, &s.essIn, &s.out})
+    for (ResAmount& x : *v) x.amount *= double(mult);
+  return s;
+}
+
+// Множитель производства ×1…×max (rules::setPbMult): открытые технологиями «Стимуляция промышленности» — доступны,
+// следующий — недоступен с названием нужной технологии; во время цикла — только показ, причина в подсказке.
+void multPicker(App& a, Id pid, const ProvBuilding& pb, Id owner, bool can) {
+  const World& w = a.world();
+  const Id bid = pb.building;
+  const int mult = std::clamp(pb.mult, 1, schema::kMaxProductionMult);
+  const int max = owner ? rules::maxProductionMult(w, owner) : 1;
+  const int shown = std::max(mult, std::min(max + 1, schema::kMaxProductionMult));
+  std::vector<std::string> labels, hints;
+  for (int m = 1; m <= shown; m++) {
+    labels.push_back("×" + std::to_string(m));
+    hints.push_back(m > max ? "«Стимуляция промышленности " + std::to_string(m - 1) + "»" : std::string());
+  }
+  std::vector<ui::Option> opts;
+  for (int m = 1; m <= shown; m++) opts.push_back(ui::Option{labels[size_t(m - 1)], nullptr, Color(0, 0, 0, 0), hints[size_t(m - 1)], m > max && m != mult});
+  const bool busy = pb.cycle > 0;
+  const std::string tip = busy       ? "Идёт цикл: множитель можно сменить после его конца, через " + nTurns(pb.cycle)
+                          : max <= 1 ? std::string("Множитель производства: больше ×1 открывают технологии «Стимуляция промышленности»")
+                                     : "Множитель производства: цикл берёт и даёт по рецепту ×N; открыто до ×" + std::to_string(max);
+  int idx = mult - 1;
+  if (ui::combo("mult", idx, std::span<const ui::Option>(opts), {.disabled = !can || busy, .popupWidth = 300, .tooltip = tip}) && idx >= 0 && idx + 1 != mult) {
+    const int m = idx + 1;
+    a.play("Множитель производства", [&](Tx& tx) { rules::setPbMult(tx, pid, bid, m); });
+  }
+  a.markUi("prov.mult." + std::to_string(bid));
+}
+
+// Ресурсы на выходе рецепта кратко: «Кожа 40 · Кость 20» (подпись пункта выбора рецепта).
+std::string outText(const World& w, const Recipe& r) {
+  std::vector<std::string> p;
+  for (const ResAmount& x : r.out)
+    if (w.resource(x.res) && x.amount > 0) p.push_back(w::resourceName(w, x.res) + " " + fmtNum(x.amount, 3));
+  return join(p, " · ");
+}
+
+// Постройка преобразования в провинции: режим и множитель производства, выбор рецепта (пока не идёт цикл;
+// rules::setPbRecipe), рецепт с множителем (нехватка входов у владельца — красным), ход цикла (ProvBuilding::cycle — ходов
+// до конца) или состояние: новый цикл начнётся в конце хода (шаг есть в плане FactionCalc::conversions) либо «Ждёт
+// ресурсы».
 void converter(App& a, Id pid, const ProvBuilding& pb, const Building& b, const Faction* owner, const rules::FactionCalc* fc, bool can) {
   const World& w = a.world();
   ui::IdScope cs("convert");
   const Id bid = b.id;
   const std::string id = std::to_string(bid);
   const Recipe* rcp = rules::activeRecipe(b, pb);
-  const Recipe rc = rcp ? *rcp : Recipe{};
+  const int mult = std::clamp(pb.mult, 1, schema::kMaxProductionMult);
+  const Recipe rc = scaled(rcp ? *rcp : Recipe{}, mult);
   const int turns = std::max(1, rc.turns);
   ui::separator();
-  modeSwitch(a, pid, pb, can, "Преобразует ресурсы по рецепту", "prov.convert." + id);
-  // Несколько рецептов — выбор (во время цикла — только показ, причина в подсказке).
+  {
+    ui::Row row({ui::fr(1), ui::px(76)}, 24, 6);
+    modeSwitch(a, pid, pb, can, "Преобразует ресурсы по рецепту", "prov.convert." + id);
+    multPicker(a, pid, pb, owner ? owner->id : 0, can);
+  }
+  // Несколько рецептов — выбор (во время цикла — только показ, причина в подсказке); справа — ресурсы на выходе.
   if (b.recipes.size() > 1) {
-    std::vector<std::string> names;
+    std::vector<std::string> names, outs;
     names.reserve(b.recipes.size());
-    for (const Recipe& r : b.recipes) names.push_back(rules::recipeTitle(w, r).empty() ? std::string("Рецепт") : rules::recipeTitle(w, r));
+    outs.reserve(b.recipes.size());
+    for (const Recipe& r : b.recipes) {
+      names.push_back(rules::recipeTitle(w, r).empty() ? std::string("Рецепт") : rules::recipeTitle(w, r));
+      outs.push_back(outText(w, scaled(r, mult)));
+    }
     std::vector<ui::Option> opts;
     for (size_t i = 0; i < b.recipes.size(); i++) {
-      const Id out = b.recipes[i].out.res;
-      opts.push_back(ui::Option{names[i], out ? w::resourceIcon(w, out) : "convert", out ? w::resourceColor(w, out) : Color(0, 0, 0, 0)});
+      const Id out = b.recipes[i].out.empty() ? Id(0) : b.recipes[i].out.front().res;
+      opts.push_back(ui::Option{names[i], out ? w::resourceIcon(w, out) : "convert", out ? w::resourceColor(w, out) : Color(0, 0, 0, 0), outs[i]});
     }
     int idx = std::clamp(pb.recipe, 0, int(b.recipes.size()) - 1);
     const bool busy = pb.cycle > 0;
-    const std::string tip = busy ? "Идёт цикл: рецепт можно сменить после его конца, через " + nTurns(pb.cycle) : std::string("Рецепт преобразования");
-    if (ui::combo("recipe", idx, std::span<const ui::Option>(opts), {.icon = "convert", .disabled = !can || busy, .tooltip = tip}) && idx >= 0 &&
-        idx != pb.recipe) {
+    const std::string tip = busy ? "Идёт цикл: рецепт можно сменить после его конца, через " + nTurns(pb.cycle)
+                                 : "Рецепт преобразования · " + std::to_string(b.recipes.size()) + " " + plural(i64(b.recipes.size()), "рецепт", "рецепта", "рецептов");
+    if (ui::combo("recipe", idx, std::span<const ui::Option>(opts),
+                  {.icon = "convert", .disabled = !can || busy, .popupWidth = std::max(ui::avail().w, 420.f), .maxVisible = 12, .tooltip = tip}) &&
+        idx >= 0 && idx != pb.recipe) {
       const int r = idx;
       a.play("Рецепт преобразования", [&](Tx& tx) { rules::setPbRecipe(tx, pid, bid, r); });
     }
@@ -70,6 +127,9 @@ void converter(App& a, Id pid, const ProvBuilding& pb, const Building& b, const 
   {
     std::vector<bld::Token> tk = bld::recipeTokens(w, rc, pb.idle ? nullptr : owner);
     tk.insert(tk.begin(), bld::Token{"convert", ui::theme().info, {}, ui::Ink::Normal, "Преобразование ресурсов"});
+    if (mult > 1)
+      tk.insert(tk.begin() + 1, bld::Token{{}, Color(0, 0, 0, 0), "×" + std::to_string(mult), ui::Ink::Accent,
+                                           "Множитель производства: количества — ×" + std::to_string(mult) + " по рецепту", ui::Font::Small});
     bld::tokens(tk);
     a.markUi("prov.recipe." + id);
   }
@@ -94,7 +154,9 @@ void converter(App& a, Id pid, const ProvBuilding& pb, const Building& b, const 
       a.markUi("prov.cycleStart." + id);
     } else {
       ui::label("Ждёт ресурсы", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "hourglass",
-                                 .tooltip = "Цикл начнётся, когда у государства хватит ресурсов и эссенций на входе"});
+                                 .tooltip = mult > 1 ? "Цикл начнётся, когда у государства хватит ресурсов и эссенций на входе с множителем ×" +
+                                                           std::to_string(mult)
+                                                     : std::string("Цикл начнётся, когда у государства хватит ресурсов и эссенций на входе")});
       a.markUi("prov.waiting." + id);
     }
   }
@@ -159,12 +221,19 @@ void drainer(App& a, const Province& p, const ProvBuilding& pb, const Building& 
   a.markUi("prov.drainWhy." + id);
 }
 
-// Постройка добычи: прибавка добычи ресурса провинции уровнем (или почему не действует).
+// Постройка добычи: прибавка добычи ресурса провинции уровнем (или почему не действует). Необязательная добыча (ферма)
+// при другом ресурсе — без предупреждения: постройка работает, добыча не растёт.
 void extractor(App& a, const Province& p, const Building& b, int level, const rules::ProvinceCalc* pc) {
   const World& w = a.world();
   if (level < 1 || level > int(b.levels.size())) return;
   const double pct = b.levels[size_t(level - 1)].extractPct;
   const std::string id = std::to_string(b.id);
+  if (!rules::extractAllowed(w, b, p.resource) && b.extractOptional) {
+    ui::label(p.resource ? "«" + w::resourceName(w, p.resource) + "» не из групп добычи — добыча не растёт" : std::string("Нет ресурса — добыча не растёт"),
+              {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "pickaxe", .wrap = true, .tooltip = "Добывает больше: " + bld::extractText(w, b)});
+    a.markUi("prov.extract." + id);
+    return;
+  }
   if (!rules::extractAllowed(w, b, p.resource)) {
     ui::label(p.resource ? "Ресурс провинции «" + w::resourceName(w, p.resource) + "» не добывается этой постройкой" : std::string("У провинции нет ресурса"),
               {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true, .tooltip = "Добывает: " + bld::extractText(w, b)});

@@ -282,12 +282,12 @@ TEST(rules_build_conversion) {
     tx.province(f.p[0]).owner = f.A;
     mill = createBuilding(tx, 0, "Сталеварня");
     setBuildingRole(tx, mill, BuildingRole::Convert, true);
-    setRecipe(tx, mill, 0, Recipe{"", {ResAmount{iron, 2}, ResAmount{wood, 1}}, {}, ResAmount{steel, 1}, 2});
+    setRecipe(tx, mill, 0, Recipe{"", {ResAmount{iron, 2}, ResAmount{wood, 1}}, {}, {ResAmount{steel, 1}}, 2});
     placeBuilding(tx, f.p[0], mill, 1);
     tx.faction(f.A).res[iron] = 3;
     tx.faction(f.A).res[wood] = 5;
   });
-  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setRecipe(tx, mill, 0, Recipe{"", {ResAmount{iron, 1}, ResAmount{iron, 1}}, {}, ResAmount{steel, 1}, 1}); }); }),
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setRecipe(tx, mill, 0, Recipe{"", {ResAmount{iron, 1}, ResAmount{iron, 1}}, {}, {ResAmount{steel, 1}}, 1}); }); }),
             "разными"));
   // Ход 1: цикл начинается (ресурсы списаны), ход 2: сталь.
   CHECK_NEAR(f.fc(f.A).resources.at(iron).conversionIn, 2, 1e-12);

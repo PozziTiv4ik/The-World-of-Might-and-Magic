@@ -319,6 +319,7 @@ void Norm::run() {
   routes();
   deals();
   log();
+  plots();
   relations();
   counters();
   natures();

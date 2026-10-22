@@ -37,8 +37,15 @@ void setConvertIdle(Tx& tx, Id province, Id building, bool idle);
 void setPbRecipe(Tx& tx, Id province, Id building, int recipe);
 // Раса провинции, у которой постройка иссушения отнимает население (0 — не выбрана: постройка простаивает).
 void setDrainRace(Tx& tx, Id province, Id building, Id race);
+// Множитель производства постройки преобразования в провинции (×1…×100; пока не идёт цикл): больше ×1 — не выше
+// множителя, который открыли государству-владельцу технологии «Стимуляция промышленности».
+void setPbMult(Tx& tx, Id province, Id building, int mult);
+// Наибольший множитель производства государства: 1 + изученные подряд технологии ветки (industry2, industry3…).
+int maxProductionMult(const World& w, Id state);
 // Ресурс подходит постройке добычи (группы extractGroups с подгруппами, кроме extractExclude); не добыча — всегда.
 bool extractAllowed(const World& w, const Building& b, Id res);
+// Постройка добычи с необязательной добычей (ферма): ставится при любом ресурсе провинции.
+void setExtractOptional(Tx& tx, Id building, bool on);
 // Требование «на государство» (соборы): чтобы построить (n + 1)-ю постройку, нужно per × (n + 1) достроенных req.
 void setStateReq(Tx& tx, Id building, Id req, int per);  // per 0 — снять
 // Возможности постройки: хранилище реликвий, целительство, чума, верфь, гильдия наёмников,
@@ -72,11 +79,12 @@ std::vector<Id> techUnlocks(const World& w, Id tech);          // построй
 // Культовая постройка: общая — одна на всю карту, уникальная — одна у своего государства.
 // Провинция, где она уже есть или строится (кроме exceptProvince); 0 — нигде.
 Id cultBuiltIn(const World& w, Id building, Id exceptProvince = 0);
-// Рецепты постройки преобразования: до трёх разных ресурсов и эссенций на входе, срок цикла ≥ 1 хода; index ==
-// число рецептов — новый рецепт в конец. Удаление рецепта переводит провинции с ним на первый.
+// Рецепты постройки преобразования: до трёх разных ресурсов и эссенций на входе, до трёх разных ресурсов на выходе,
+// срок цикла ≥ 1 хода; index == число рецептов — новый рецепт в конец. Удаление рецепта переводит провинции с ним на
+// первый.
 void setRecipe(Tx& tx, Id building, int index, const Recipe& r);
 void removeRecipe(Tx& tx, Id building, int index);
-std::string recipeTitle(const World& w, const Recipe& r);      // название или ресурс на выходе
+std::string recipeTitle(const World& w, const Recipe& r);      // название или первый ресурс на выходе
 const Recipe* activeRecipe(const Building& b, const ProvBuilding& pb);   // выбранный в провинции; nullptr — рецептов нет
 // Дополнительные возможности постройки: преобразование, генерация эссенции, доступ к особым отрядам, иссушение
 // населения, снижение содержания армии, добыча ресурса провинции. Выключение снимает их данные (рецепты и циклы в

@@ -72,6 +72,28 @@ struct TurnDigest {
 };
 TurnDigest digest(const World& w, const rules::TurnReport& rep, int page = kPageAll);
 
+// ---------------------------------------------------------------- готовность игроков (ТЗ «Доработки №1», п.1)
+// Игрок отмечает готовность завершить ход за своё государство (rules::setTurnReady), ход завершает администратор.
+// Строки таблицы готовности: государства с отметкой этого хода, затем — приглушённо — основные игровые государства
+// без неё; внутри — основные первыми, по названию.
+struct ReadyRow {
+  Id state = 0;
+  bool ready = false, main = false;
+};
+std::vector<ReadyRow> readiness(const World& w);
+int readyCount(const World& w);                                 // государств, отметивших готовность в этом ходу
+// Таблица готовности: флаг и название, отметка «Готов» (основные без отметки — приглушённо); height > 0 — своя
+// прокрутка. Строки помечаются «<mark>.<государство>».
+void readinessTable(App& a, const World& w, std::string_view id, float height, std::string_view mark);
+// Отметка-кнопка состояния («Готов», «Защищён»): зелёная подложка и рамка, значок и подпись по ширине подписи;
+// key — ID в текущей области, tip — подсказка (с сочетанием s). true — щелчок (снять отметку).
+bool statePill(std::string_view key, std::string_view label, const char* icon, std::string_view tip, ui::Shortcut s = {},
+               ui::Size size = ui::Size::Normal);
+float statePillWidth(std::string_view label, ui::Size size = ui::Size::Normal);
+// Игрок: отметить готовность завершить ход за своё государство или снять отметку (игровое действие, отменяется
+// Ctrl+Z); короткое уведомление.
+void toggleReady(App& a);
+
 // Прокрутка высотой по содержимому прошлого кадра, но не выше maxH (модальные окна).
 class FitScroll {
  public:

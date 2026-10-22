@@ -1,6 +1,8 @@
 // Regnum — внутреннее разбора исходной карты (mapbake/art_extract*.cpp): штампы знаков, их поиск и отладочные
 // изображения. Не для использования вне mapbake.
 #pragma once
+#include <deque>
+
 #include "mapbake/art_extract.h"
 #include "mapbake/basemap_build.h"
 
@@ -62,6 +64,25 @@ class StampFinder {
       }
     return {dn ? double(dg) / dn : 1.0, ln ? double(lg) / ln : 1.0};
   }
+  // Корреляция (Пирсона) образца с краской в значимых пикселях: сходство формы независимо от яркости линий
+  // (бледный или сглаженный штамп). 0 — образец или краска однородны.
+  double correlation(const Stamp& s, int x, int y) const {
+    i64 n = 0, sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+    for (int j = 0; j < s.h; j++)
+      for (int i = 0; i < s.w; i++) {
+        const i64 t = s.ink[size_t(j) * size_t(s.w) + size_t(i)];
+        if (t < 0) continue;
+        const i64 v = ink(x + i, y + j);
+        n++;
+        sa += t;
+        sb += v;
+        saa += t * t;
+        sbb += v * v;
+        sab += t * v;
+      }
+    const double va = double(n * saa - sa * sa), vb = double(n * sbb - sb * sb);
+    return va > 0 && vb > 0 ? double(n * sab - sa * sb) / std::sqrt(va * vb) : 0.0;
+  }
 
  private:
   const u8* px_;
@@ -94,6 +115,9 @@ struct SymbolSearch {
   void mark(const Stamp& s, int x0, int y0);
   // Пиксель — краска знака (не вода).
   bool isInk(size_t i) const { return 255 - int(flat.rgba[i * 4 + 2]) >= 32 && int(flat.rgba[i * 4 + 2]) - int(flat.rgba[i * 4]) <= 40; }
+  // Область comp (габарит bx0..bx1 × by0..by1) — бледные края уже найденного замка или башни: почти все её пиксели
+  // на линиях штампа или рядом с ними (краска там светлее штампа, и mark их не объяснил).
+  bool stampRemnant(const std::vector<u32>& comp, int bx0, int by0, int bx1, int by1) const;
 
   const codec::RgbaImage& flat;
   const int w, h;
@@ -102,13 +126,15 @@ struct SymbolSearch {
   int mountainVariants = 0;
   Stamp tower, castle;
   std::vector<Base> bases;
+  std::deque<Stamp> faded;       // штампы бледных знаков (deque — указатели placed на них не сдвигаются)
   std::vector<Placed> placed;    // штамп каждого знака art.symbols того же номера (у знаков этапа 6 штампа нет)
   std::vector<u8> explained;     // объяснённые штампами пиксели (для поиска стен, крупных гор и проверки)
 };
 
 // 4. Штампы в целых пикселях: поиск по ключевым пикселям, подтверждение по всему штампу, отсев повторов.
 void placeStamps(SymbolSearch& S, MapArt& art, ExtractReport& rep);
-// 5. Второй проход: штампы со сдвигом на долю пикселя, другого размера и частично перекрытые.
+// 5. Второй проход: штампы со сдвигом на долю пикселя, другого размера и частично перекрытые; где ни один не подошёл —
+//    бледные и сглаженные замки и башни (по корреляции формы).
 void placeShiftedStamps(SymbolSearch& S, MapArt& art, ExtractReport& rep);
 
 // ---------------------------------------------------------------- отладка (art_extract_dev.cpp)

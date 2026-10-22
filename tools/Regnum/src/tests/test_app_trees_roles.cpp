@@ -81,12 +81,13 @@ TEST(app_trees_roles_editor) {
   CHECK_EQ(rec0(h->world(), b).in.size(), size_t(2));
   CHECK(pickByGroup(h, "bt.recipe.0.in.1", "Руда", "Медь"));
   CHECK_EQ(rec0(h->world(), b).in[1].res, copper);
-  // Выход — через категорию ресурсов; количество до тысячных.
+  // Выход — через категорию ресурсов (пустой рецепт — сразу выбор первого ресурса); количество до тысячных.
   CHECK(pickSide(h, "bt.recipe.0.out", "Бронза"));
-  CHECK_EQ(rec0(h->world(), b).out.res, bronze);
-  CHECK_NEAR(rec0(h->world(), b).out.amount, 1, 1e-12);
+  CHECK_EQ(rec0(h->world(), b).out.size(), size_t(1));
+  CHECK_EQ(rec0(h->world(), b).out[0].res, bronze);
+  CHECK_NEAR(rec0(h->world(), b).out[0].amount, 1, 1e-12);
   CHECK(typeSide(h, "bt.recipe.0.outamount", "2,5"));
-  CHECK_NEAR(rec0(h->world(), b).out.amount, 2.5, 1e-12);
+  CHECK_NEAR(rec0(h->world(), b).out[0].amount, 2.5, 1e-12);
   // Срок цикла: «+» поля.
   CHECK(revealSide(h, "bt.recipe.0.turns"));
   RectF tr = rectOf(h.a(), "bt.recipe.0.turns");

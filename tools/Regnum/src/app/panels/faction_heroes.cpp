@@ -65,18 +65,20 @@ void drawHeroes(App& a, Id id) {
     return compareRu(x->name, y->name) < 0;
   });
   double upkeep = 0;
-  int inArmy = 0, dead = 0, captive = 0;
+  int inArmy = 0, dead = 0, captive = 0, arrested = 0;
   for (const Character* c : heroes) {
     upkeep += std::max(0.0, c->upkeep);
     if (armyOfCharacter(w, c->id)) inArmy++;
     if (rules::characterHas(w, c->id, schema::mod::Dead)) dead++;
     else if (rules::characterHas(w, c->id, schema::mod::Captive)) captive++;
+    else if (rules::characterHas(w, c->id, schema::mod::Arrested)) arrested++;
   }
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
     std::string tip = "В войсках и флотах: " + std::to_string(inArmy);
     if (dead) tip += "\nПогибли: " + std::to_string(dead);
     if (captive) tip += "\nВ плену: " + std::to_string(captive);
+    if (arrested) tip += "\nПод арестом: " + std::to_string(arrested);
     ui::stat(fmtInt(i64(heroes.size())), plural(i64(heroes.size()), "герой", "героя", "героев"), {.icon = "hero", .tone = ui::Tone::Accent, .tooltip = tip});
     ui::stat(fmtGold(upkeep), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Входит в расход «специалисты»"});
   }

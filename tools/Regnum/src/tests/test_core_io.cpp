@@ -645,8 +645,9 @@ TEST(core_io_recent_projects) {
 
 TEST(core_io_project_files) {
   auto& files = io::projectFiles();
-  CHECK_EQ(files.size(), size_t(16));
+  CHECK_EQ(files.size(), size_t(17));
   CHECK_EQ(std::string(files.back().path), std::string("world.json"));
+  CHECK_EQ(io::tablesOfFile("data/plots.json"), u32(TB_PLOTS));
   u32 all = 0;
   for (auto& f : files) {
     CHECK_MSG((all & f.tables) == 0, f.path);

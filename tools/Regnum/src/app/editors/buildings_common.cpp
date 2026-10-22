@@ -207,7 +207,9 @@ bool recipeValid(const World& w, const Recipe& r) {
   bool in = false;
   for (const ResAmount& x : r.in) in = in || (x.amount > 0 && w.resource(x.res));
   for (const ResAmount& x : r.essIn) in = in || (x.amount > 0 && w.essence(x.res));
-  return in && r.out.res && w.resource(r.out.res);
+  bool out = false;
+  for (const ResAmount& x : r.out) out = out || (x.amount > 0 && w.resource(x.res));
+  return in && out;
 }
 
 std::vector<Token> recipeTokens(const World& w, const Recipe& r, const Faction* payer) {
@@ -231,11 +233,14 @@ std::vector<Token> recipeTokens(const World& w, const Recipe& r, const Faction* 
   }
   if (out.empty()) out.push_back({"warning", th.warning, "нет входа", ui::Ink::Warning, {}, ui::Font::Small});
   out.push_back({"arrow-right", th.textMuted, {}, ui::Ink::Muted, {}});
-  if (const CatalogItem* c = w.resource(r.out.res))
-    out.push_back({w::resourceIcon(w, r.out.res), w::legible(w::resourceColor(w, r.out.res), 0.12f), fmtNum(r.out.amount, 3), ui::Ink::Success,
-                   w::orName(c->name, "Ресурс") + " на выходе: " + fmtNum(r.out.amount, 3)});
-  else
-    out.push_back({"warning", th.warning, "нет выхода", ui::Ink::Warning, {}, ui::Font::Small});
+  bool any = false;
+  for (const ResAmount& x : r.out)
+    if (const CatalogItem* c = w.resource(x.res)) {
+      out.push_back({w::resourceIcon(w, x.res), w::legible(w::resourceColor(w, x.res), 0.12f), fmtNum(x.amount, 3), ui::Ink::Success,
+                     w::orName(c->name, "Ресурс") + " на выходе: " + fmtNum(x.amount, 3)});
+      any = true;
+    }
+  if (!any) out.push_back({"warning", th.warning, "нет выхода", ui::Ink::Warning, {}, ui::Font::Small});
   out.push_back({"hourglass", th.textMuted, nTurns(std::max(1, r.turns)), ui::Ink::Muted, "Цикл преобразования", ui::Font::Small});
   return out;
 }
@@ -246,8 +251,10 @@ std::string recipeText(const World& w, const Recipe& r) {
     if (const CatalogItem* c = w.resource(x.res); c && x.amount > 0) in.push_back(c->name + " " + fmtNum(x.amount, 3));
   for (const ResAmount& x : r.essIn)
     if (const CatalogItem* c = w.essence(x.res); c && x.amount > 0) in.push_back(c->name + " " + fmtNum(x.amount, 3));
-  const CatalogItem* o = w.resource(r.out.res);
-  std::string s = (in.empty() ? std::string("—") : join(in, " + ")) + " → " + (o ? o->name + " " + fmtNum(r.out.amount, 3) : std::string("—")) + " · " +
+  std::vector<std::string> out;
+  for (const ResAmount& x : r.out)
+    if (const CatalogItem* c = w.resource(x.res)) out.push_back(c->name + " " + fmtNum(x.amount, 3));
+  std::string s = (in.empty() ? std::string("—") : join(in, " + ")) + " → " + (out.empty() ? std::string("—") : join(out, " + ")) + " · " +
                   nTurns(std::max(1, r.turns));
   return trim(r.name).empty() ? s : trim(r.name) + ": " + s;
 }
@@ -317,8 +324,11 @@ std::vector<Token> featureTokens(const World& w, const Building& b, const Buildi
   }
   if (b.extract) {
     const double v = L ? L->extractPct : 0;
+    const std::string more = "Добыча ресурса провинции" + (L ? " +" + pctText(v) : std::string()) + ": " + extractText(w, b);
     tk.push_back({"pickaxe", Color::hex(kExtractInk), L && v > 0 ? "+" + pctText(v) : std::string(), ui::Ink::Success,
-                  "Добыча ресурса провинции" + (L ? " +" + pctText(v) : std::string()) + ": " + extractText(w, b), ui::Font::Small});
+                  b.extractOptional ? "Добыча не обязательна: ставится при любом ресурсе провинции\n" + more + " — ресурс провинции из этих групп добывается больше"
+                                    : more,
+                  ui::Font::Small});
   }
   if (b.drain) {
     std::vector<Token> d = L ? drainTokens(w, *L) : std::vector<Token>{};

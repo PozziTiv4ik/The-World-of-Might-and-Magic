@@ -92,8 +92,8 @@ void placeChecks(const World& w, const Province& p, const Building& b, const Pro
       if ((b.stateKinds >> unsigned(k)) & 1u) kinds.push_back(schema::stateKind(StateKind(k)).name);
     r.push_back("Только для вида государства: " + join(kinds, ", "));
   }
-  // Постройка добычи: нужен ресурс провинции из её групп.
-  if (b.extract && !extractAllowed(w, b, p.resource))
+  // Постройка добычи: нужен ресурс провинции из её групп (кроме необязательной добычи — ферма).
+  if (b.extract && !b.extractOptional && !extractAllowed(w, b, p.resource))
     r.push_back(p.resource && w.resource(p.resource) ? "Ресурс провинции «" + resName(w, p.resource) + "» не добывается этой постройкой"
                                                      : "Нужен ресурс провинции, который добывает эта постройка");
   if (!pb && int(p.buildings.size()) >= slots)
@@ -442,6 +442,41 @@ void setPbRecipe(Tx& tx, Id province, Id building, int recipe) {
     if (x.building == building) x.recipe = recipe;
 }
 
+int maxProductionMult(const World& w, Id state) {
+  // Технологии ветки по множителю; множитель ×N доступен, когда изучены все технологии ×2…×N.
+  std::map<int, Id> branch;
+  w.techs.each([&](const Tech& t) {
+    if (t.faction != 0) return;
+    if (int m = schema::industryMultOf(t.key)) branch.emplace(m, t.id);
+  });
+  int best = 1;
+  for (int m = 2; m <= schema::kMaxProductionMult; m++) {
+    auto it = branch.find(m);
+    if (it == branch.end() || !techStudied(w, it->second, state)) break;
+    best = m;
+  }
+  return best;
+}
+
+void setPbMult(Tx& tx, Id province, Id building, int mult) {
+  const Province& p = needProvince(tx.w(), province);
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.convert) fail(buildingName(tx.w(), building) + " — не постройка преобразования");
+  const ProvBuilding* pb = findPb(p, building);
+  if (!pb) fail("Постройки " + buildingName(tx.w(), building) + " нет в провинции");
+  if (mult < 1 || mult > schema::kMaxProductionMult) fail("Множитель производства — от ×1 до ×" + std::to_string(schema::kMaxProductionMult));
+  if (pb->mult == mult) return;
+  if (pb->cycle > 0) fail("Идёт цикл преобразования — множитель можно сменить после его конца: осталось " + nTurns(pb->cycle));
+  if (mult > 1) {
+    const int max = maxProductionMult(tx.w(), p.owner);
+    if (mult > max)
+      fail(max <= 1 ? std::string("Множитель больше ×1 открывают технологии «Стимуляция промышленности»")
+                    : "Государству открыт множитель до ×" + std::to_string(max) + " — следующие открывают технологии «Стимуляция промышленности»");
+  }
+  for (ProvBuilding& x : tx.province(province).buildings)
+    if (x.building == building) x.mult = mult;
+}
+
 void setDrainRace(Tx& tx, Id province, Id building, Id race) {
   const Province& p = needProvince(tx.w(), province);
   const Building& b = needBuilding(tx.w(), building);
@@ -581,9 +616,14 @@ void checkRecipe(const World& w, const Recipe& r) {
     for (size_t k = 0; k < i; k++)
       if (r.essIn[k].res == r.essIn[i].res) fail("Эссенции на входе должны быть разными");
   }
-  if (r.out.res && !w.resource(r.out.res)) fail("Ресурс на выходе не найден");
-  needFinite(r.out.amount, "Количество на выходе");
-  if (r.out.amount < 0) fail("Количество на выходе не может быть меньше нуля");
+  if (r.out.size() > 3) fail("На выходе — не больше трёх разных ресурсов");
+  for (size_t i = 0; i < r.out.size(); i++) {
+    if (r.out[i].res && !w.resource(r.out[i].res)) fail("Ресурс на выходе не найден");
+    needFinite(r.out[i].amount, "Количество на выходе");
+    if (r.out[i].amount < 0) fail("Количество на выходе не может быть меньше нуля");
+    for (size_t k = 0; k < i; k++)
+      if (r.out[k].res && r.out[k].res == r.out[i].res) fail("Ресурсы на выходе должны быть разными");
+  }
   if (r.turns < 1 || r.turns > 1000) fail("Срок преобразования — от 1 до 1000 ходов");
 }
 
@@ -650,8 +690,9 @@ void removeRecipe(Tx& tx, Id building, int index) {
 
 std::string recipeTitle(const World& w, const Recipe& r) {
   if (!trim(r.name).empty()) return r.name;
-  const CatalogItem* o = w.resource(r.out.res);
-  return o ? o->name : std::string("Рецепт");
+  for (const ResAmount& x : r.out)
+    if (const CatalogItem* o = w.resource(x.res)) return o->name;
+  return "Рецепт";
 }
 
 const Recipe* activeRecipe(const Building& b, const ProvBuilding& pb) {
@@ -670,13 +711,14 @@ void setBuildingRole(Tx& tx, Id building, BuildingRole role, bool on) {
         m.recipes.clear();
         for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
                return std::any_of(p.buildings.begin(), p.buildings.end(),
-                                  [&](const ProvBuilding& x) { return x.building == building && (x.idle || x.cycle || x.recipe); });
+                                  [&](const ProvBuilding& x) { return x.building == building && (x.idle || x.cycle || x.recipe || x.mult != 1); });
              }))
           for (ProvBuilding& x : tx.province(pid).buildings)
             if (x.building == building) {
               x.idle = false;
               x.cycle = 0;
               x.recipe = 0;
+              x.mult = 1;
             }
       }
       return;
@@ -716,6 +758,7 @@ void setBuildingRole(Tx& tx, Id building, BuildingRole role, bool on) {
       if (!on) {
         m.extractGroups.clear();
         m.extractExclude.clear();
+        m.extractOptional = false;
         for (BuildingLevel& l : m.levels) l.extractPct = 0;
       }
       return;
@@ -842,6 +885,12 @@ void setLevelUpkeepCut(Tx& tx, Id building, int level, double pct) {
   needFinite(pct, "Снижение содержания");
   if (pct < 0 || pct > schema::kMaxUpkeepCut) fail("Снижение содержания — от 0 до 50 %");
   levelRef(tx, building, level).upkeepCut = pct;
+}
+
+void setExtractOptional(Tx& tx, Id building, bool on) {
+  const Building& b = needBuilding(tx.w(), building);
+  if (!b.extract) fail(buildingName(tx.w(), building) + " — не постройка добычи");
+  if (b.extractOptional != on) tx.building(building).extractOptional = on;
 }
 
 void setExtractGroups(Tx& tx, Id building, const std::vector<Id>& groups, const std::vector<Id>& exclude) {

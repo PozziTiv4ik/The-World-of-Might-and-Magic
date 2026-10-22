@@ -15,3 +15,4 @@
 #include "rules/archaeology.h"  // археология
 #include "rules/naval.h"        // флот: посадка, высадка, обмен, верфи
 #include "rules/talents.h"      // классы героев, таланты, лич, группы реликвий
+#include "rules/plots.h"        // заговоры, заказные убийства, контрразведка

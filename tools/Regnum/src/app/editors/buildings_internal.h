@@ -37,6 +37,7 @@ struct BN {
   bool relicStore = false, healing = false, plague = false, shipyard = false, mercenary = false, coastal = false;
   bool market = false, drain = false, upkeepCut = false, extract = false;
   std::vector<Id> extractGroups, extractExclude;   // постройка добычи: группы ресурсов и исключения
+  bool extractOptional = false;                    // добыча не обязательна (ферма): ставится при любом ресурсе
   u32 stateKinds = 0;                              // только для видов государства (0 — для всех)
   std::vector<Recipe> recipes;
   std::vector<Id> specials;

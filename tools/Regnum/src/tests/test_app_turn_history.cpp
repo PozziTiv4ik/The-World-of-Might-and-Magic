@@ -63,11 +63,11 @@ TEST(app_turn_history_flow_and_rollback) {
   CHECK(World::diff(before, h->store.world()) == 0);
   shotClean(h, "turn2_confirm");
   // Вкладки: ресурсы, события, внимание.
-  CHECK(clickPart(h, "turn.confirm.tabs", 1, 4));
+  CHECK(clickPart(h, "turn.confirm.tabs", 1, 5));
   shotClean(h, "turn2_confirm_resources");
-  CHECK(clickPart(h, "turn.confirm.tabs", 2, 4));
+  CHECK(clickPart(h, "turn.confirm.tabs", 2, 5));
   shotClean(h, "turn2_confirm_events");
-  CHECK(clickPart(h, "turn.confirm.tabs", 3, 4));
+  CHECK(clickPart(h, "turn.confirm.tabs", 3, 5));
   shotClean(h, "turn2_confirm_warnings");
   CHECK(h->hasDialog("turn.confirm"));
   CHECK(h.clickUi("dialog.ok"));

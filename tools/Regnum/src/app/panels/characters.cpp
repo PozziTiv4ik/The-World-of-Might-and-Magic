@@ -54,9 +54,9 @@ bool characterRow(App& a, const Character& c, const chars::Roles& roles, bool se
     ui::draw::icon("star-filled", sr, th.accent);
     right = sr.x - 8;
   }
-  // Состояние героя (ТЗ «Механика героев»): погиб или в плену.
+  // Состояние героя (ТЗ «Механика героев»): погиб, в плену или под арестом.
   const bool dead = rules::characterHas(w, c.id, schema::mod::Dead);
-  if (dead || rules::characterHas(w, c.id, schema::mod::Captive)) {
+  if (dead || rules::characterHas(w, c.id, schema::mod::Captive) || rules::characterHas(w, c.id, schema::mod::Arrested)) {
     RectF sr{right - 16, r.cy() - 8, 16, 16};
     ui::draw::icon(dead ? "skull" : "shackles", sr, dead ? th.danger : th.warning);
     right = sr.x - 8;

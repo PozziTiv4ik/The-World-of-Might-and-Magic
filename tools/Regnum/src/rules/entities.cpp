@@ -75,9 +75,12 @@ Id createFaction(Tx& tx, FactionKind kind, const std::string& name) {
   f.flag.colors[0] = f.color;
   f.res[kGold] = 0;
   const Id id = tx.add(std::move(f)).id;
-  // «Гильдия Археологов» — культовая постройка уникального дерева каждого государства.
-  if (kind == FactionKind::State)
+  // «Гильдия Археологов», «Штаб Разведки» и «Штаб Контрразведки» — культовые постройки уникального дерева каждого
+  // государства.
+  if (kind == FactionKind::State) {
     tx.add(content::archGuildFor(id, nextTreePos(tx.w().buildings, [&](const Building& x) { return x.owner == id; })));
+    content::addIntelBuildings(tx, id);
+  }
   return id;
 }
 
@@ -124,11 +127,15 @@ void removeFaction(Tx& tx, Id faction) {
     if (g.suzerain == faction) g.suzerain = 0;
     if (g.rebelOf == faction) g.rebelOf = 0;
   }
-  // Пленники упразднённого государства освобождаются.
-  for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return c.captor == faction; })) {
+  // Пленники и заключённые упразднённого государства освобождаются.
+  for (Id cid : idsWhere(tx.w().characters, [&](const Character& c) { return c.captor == faction || c.jailer == faction; })) {
     for (Id m : std::vector<Id>(tx.w().character(cid)->modifiers))
-      if (const Modifier* x = tx.w().modifier(m); x && x->key == schema::mod::Captive) dropModifier(tx, ModTarget::Character, cid, m);
-    tx.character(cid).captor = 0;
+      if (const Modifier* x = tx.w().modifier(m); x && ((x->key == schema::mod::Captive && tx.w().character(cid)->captor == faction) ||
+                                                        (x->key == schema::mod::Arrested && tx.w().character(cid)->jailer == faction)))
+        dropModifier(tx, ModTarget::Character, cid, m);
+    Character& c = tx.character(cid);
+    if (c.captor == faction) c.captor = 0;
+    if (c.jailer == faction) c.jailer = 0;
   }
   for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) { return p.occupier == faction && !p.occGarrison.empty(); }))
     tx.province(pid).occGarrison.clear();
@@ -156,6 +163,7 @@ void removeFaction(Tx& tx, Id faction) {
     }
   }
   tx.eraseFaction(faction);
+  fitPlots(tx);   // заговоры против упразднённого государства и его заговоры удаляются
   addLog(tx, LogKind::Note, std::string(state ? "Государство " : "Гильдия ") + name + (state ? " упразднено" : " упразднена"),
          LogRefs{0, 0, {faction}});
 }
@@ -218,6 +226,7 @@ void needAssignable(const World& w, Id character, Id faction, const char* role) 
   const Character& c = needCharacter(w, character);
   if (characterHas(w, character, schema::mod::Dead)) fail(q(w.characterName(character)) + " мёртв — его нельзя назначить " + role);
   if (characterHas(w, character, schema::mod::Captive)) fail(q(w.characterName(character)) + " в плену — его нельзя назначить " + role);
+  if (characterHas(w, character, schema::mod::Arrested)) fail(q(w.characterName(character)) + " под арестом — его нельзя назначить " + role);
   if (c.faction != faction)
     fail(q(w.characterName(character)) + (c.faction ? " — герой " + facName(w, c.faction) : std::string(" не состоит ни в одной фракции")) +
          ": назначать " + role + " можно только героев " + facName(w, faction));
@@ -268,6 +277,7 @@ void removeCharacter(Tx& tx, Id character) {
   needCharacter(tx.w(), character);
   clearAssignments(tx, character);   // места в совете остаются пустыми
   tx.eraseCharacter(character);      // реликвии инвентаря освобождаются вместе с ним
+  fitPlots(tx);
 }
 
 Id createModifier(Tx& tx, const std::string& name) {

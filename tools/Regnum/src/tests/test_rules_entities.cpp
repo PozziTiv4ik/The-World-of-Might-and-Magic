@@ -59,12 +59,12 @@ TEST(rules_entities_new_world_content) {
   CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Ore)).size(), size_t(19));   // группа — с подгруппами
   CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::MountsGround)).size(), size_t(23));
   CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::MountsFlying)).size(), size_t(13));
-  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::WarBeasts)).size(), size_t(15));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::WarBeasts)).size(), size_t(16));
   CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Monsters)).size(), size_t(31));
-  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Beasts)).size(), size_t(87));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Beasts)).size(), size_t(88));
   CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::SeaMonsters)).size(), size_t(5));
   CHECK_EQ(provisionResources(w).size(), size_t(17));
-  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Materials)).size(), size_t(35));
+  CHECK_EQ(resourcesIn(w, w.catalogs->groupId(schema::grp::Materials)).size(), size_t(38));
   // Трупы и демоническая энергия — сразу в справочнике (начальные запасы задаются без первого начисления).
   CHECK(w.catalogs->resourceId(schema::kResCorpses) && w.catalogs->resourceId(schema::kResEnergy));
   const Id parts = w.catalogs->resourceId(schema::kResMechParts);

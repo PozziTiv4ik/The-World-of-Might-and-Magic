@@ -53,6 +53,11 @@ struct Curve {
   Vec2 p0, c0, c1, p1;
 };
 Curve curve(Vec2 from, Vec2 to);
+// Связь карточки from с карточкой to (прямоугольники схемы) по их взаимному положению: цель правее — из правого края в
+// левый; левее (ряд «змейкой» справа налево) — из левого края в правый; под или над (столбцы перекрываются) — из
+// нижнего края в верхний или наоборот.
+Curve linkCurve(const Box2& from, const Box2& to);
+Box2 curveBox(const Curve& k);                  // габариты кривой (по опорным точкам)
 Vec2 curveAt(const Curve& k, double t);
 double curveDistance(const Curve& k, Vec2 p);   // расстояние в мировых единицах
 

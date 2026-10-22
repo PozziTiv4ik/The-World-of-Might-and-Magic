@@ -140,6 +140,35 @@ Curve curve(Vec2 from, Vec2 to) {
   return Curve{from, {from.x + k, from.y}, {to.x - k, to.y}, to};
 }
 
+Curve linkCurve(const Box2& a, const Box2& b) {
+  constexpr double kSlack = 12;   // небольшое перекрытие по горизонтали — ещё «правее» или «левее»
+  const double ay = (a.y0 + a.y1) * 0.5, by = (b.y0 + b.y1) * 0.5;
+  if (b.x0 >= a.x1 - kSlack) return curve({a.x1, ay}, {b.x0, by});
+  if (b.x1 <= a.x0 + kSlack) {
+    const Vec2 p0{a.x0, ay}, p1{b.x1, by};
+    const double k = std::max(48.0, std::fabs(p0.x - p1.x) * 0.5);
+    return Curve{p0, {p0.x - k, p0.y}, {p1.x + k, p1.y}, p1};
+  }
+  const double ax = (a.x0 + a.x1) * 0.5, bx = (b.x0 + b.x1) * 0.5;
+  if (b.y0 >= a.y1) {
+    const Vec2 p0{ax, a.y1}, p1{bx, b.y0};
+    const double k = std::max(24.0, (p1.y - p0.y) * 0.5);
+    return Curve{p0, {p0.x, p0.y + k}, {p1.x, p1.y - k}, p1};
+  }
+  if (b.y1 <= a.y0) {
+    const Vec2 p0{ax, a.y0}, p1{bx, b.y1};
+    const double k = std::max(24.0, (p0.y - p1.y) * 0.5);
+    return Curve{p0, {p0.x, p0.y - k}, {p1.x, p1.y + k}, p1};
+  }
+  return curve({a.x1, ay}, {b.x0, by});   // карточки перекрываются — петля наружу
+}
+
+Box2 curveBox(const Curve& k) {
+  Box2 b;
+  for (Vec2 p : {k.p0, k.c0, k.c1, k.p1}) b.add(p);
+  return b;
+}
+
 Vec2 curveAt(const Curve& k, double t) {
   double u = 1 - t;
   double a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
@@ -213,9 +242,14 @@ void drawGrid(gfx::Canvas& c, RectF dev, float scale, const Camera& cam, const I
 
 void drawCurve(gfx::Canvas& c, const Curve& k, Color col, float width, double zoom, bool arrow, bool dashed) {
   float w = screenWidth(width, zoom) / float(zoom);
-  Vec2 end = k.p1;
   float ah = screenWidth(9, zoom) / float(zoom);
-  if (arrow) end = {k.p1.x - ah * 0.8, k.p1.y};
+  // Стрелка — по касательной в конце (связь может входить слева, справа, сверху или снизу).
+  Vec2 d = k.p1 - k.c1;
+  if (d.len2() < 1e-12) d = k.p1 - k.p0;
+  d = d.len2() < 1e-12 ? Vec2{1, 0} : d.norm();
+  const Vec2 n = d.perp();
+  Vec2 end = k.p1;
+  if (arrow) end = k.p1 - d * (double(ah) * 0.8);
   gfx::Path p;
   p.moveTo(float(k.p0.x), float(k.p0.y));
   p.cubicTo(float(k.c0.x), float(k.c0.y), float(k.c1.x), float(k.c1.y), float(end.x), float(end.y));
@@ -227,11 +261,12 @@ void drawCurve(gfx::Canvas& c, const Curve& k, Color col, float width, double zo
   c.strokePath(p, st, gfx::Paint(col));
   if (arrow) {
     gfx::Path t;
-    float x = float(k.p1.x), y = float(k.p1.y);
-    t.moveTo(x, y);
-    t.lineTo(x - ah, y - ah * 0.55f);
-    t.lineTo(x - ah * 0.78f, y);
-    t.lineTo(x - ah, y + ah * 0.55f);
+    t.moveTo(float(k.p1.x), float(k.p1.y));
+    const std::pair<double, double> head[] = {{1.0, -0.55}, {0.78, 0.0}, {1.0, 0.55}};   // назад и вбок, доли ah
+    for (auto [back, side] : head) {
+      const Vec2 q = k.p1 - d * (back * double(ah)) + n * (side * double(ah));
+      t.lineTo(float(q.x), float(q.y));
+    }
     t.close();
     c.fillPath(t, gfx::Paint(col));
   }

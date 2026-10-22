@@ -45,9 +45,17 @@ void roleLines(App& a, const Building& b, const BuildingLevel* L) {
       tk.push_back({"convert", th.info, n ? std::to_string(n) + " " + plural(n, "рецепт", "рецепта", "рецептов") : std::string("нет рецептов"),
                     n ? ui::Ink::Normal : ui::Ink::Warning, "Преобразование ресурсов — рецепт выбирается в провинции" + (lines.empty() ? std::string() : "\n" + join(lines, "\n")),
                     ui::Font::Small});
-      // Выходы рецептов значками.
+      // Ресурсы на выходе рецептов — значками, каждый один раз (подсказка — рецепты, которые его дают).
+      std::vector<Id> outs;
+      std::map<Id, std::vector<std::string>> by;
       for (const Recipe& rc : b.recipes)
-        if (rc.out.res && w.resource(rc.out.res)) tk.push_back({w::resourceIcon(w, rc.out.res), w::resourceColor(w, rc.out.res), {}, ui::Ink::Normal, bld::recipeText(w, rc)});
+        for (const ResAmount& x : rc.out) {
+          if (!x.res || !w.resource(x.res)) continue;
+          if (!by.count(x.res)) outs.push_back(x.res);
+          by[x.res].push_back(bld::recipeText(w, rc));
+        }
+      for (Id r : outs)
+        tk.push_back({w::resourceIcon(w, r), w::legible(w::resourceColor(w, r), 0.12f), {}, ui::Ink::Normal, w::resourceName(w, r) + "\n" + join(by[r], "\n")});
     }
     bld::tokens(tk, 6);
   }

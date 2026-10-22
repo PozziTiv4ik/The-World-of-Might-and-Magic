@@ -1,5 +1,5 @@
 // Regnum — нормализация: войска и флот (группы, отряды, герои, войско на борту), торговые маршруты, сделки,
-// хроника, отношения.
+// хроника, заговоры, отношения.
 #include "core/io_normalize.h"
 
 namespace rg::io::norm {
@@ -210,6 +210,106 @@ void Norm::log() {
     ch |= fixEnum(l.kind, int(LogKind::Count), LogKind::Note, F_LOG, where, "kind");
     ch |= fixRefList(l.factions, Seq::Faction, F_LOG, where, "factions", [](Id) { return true; });
     if (ch) tx.add(std::move(l));  // запись с тем же ID заменяется
+  });
+}
+
+void Norm::plots() {
+  const World base = w();
+  std::unordered_set<Id> provTaken, heroTaken;   // провинции и герои уже в заговоре (первом по ID)
+  base.plots.each([&](const Plot& p0) {
+    const std::string where = refStr(Seq::Plot, p0.id);
+    Plot p = p0;
+    bool ch = fixEnum(p.kind, int(PlotKind::Count), PlotKind::External, F_PLOTS, where, "kind");
+    if (!isState(p.target)) {
+      warn(F_PLOTS, where + ".target", p.target && exists(Seq::Faction, p.target) ? refStr(Seq::Faction, p.target) + " — не государство: заговор удалён"
+                                                                                  : "нет государства-цели — заговор удалён");
+      tx.erasePlot(p.id);
+      return;
+    }
+    if (p.external()) {
+      if (!isState(p.owner) || p.owner == p.target) {
+        warn(F_PLOTS, where + ".owner", p.owner == p.target && p.owner ? std::string("заказчик совпадает с целью — заговор удалён")
+                                                                       : "нет государства-заказчика — заговор удалён");
+        tx.erasePlot(p.id);
+        return;
+      }
+    } else if (p.owner) {
+      warn(F_PLOTS, where + ".owner", "у внутреннего заговора нет заказчика — ссылка удалена");
+      p.owner = 0;
+      ch = true;
+    }
+    ch |= fixNum(p.created, 1, kMaxTurn, 1, F_PLOTS, where, "created");
+    ch |= fixNum(p.stage, 0, schema::kPlotStages, 0, F_PLOTS, where, "stage");
+    ch |= fixNum(p.revealTurn, 0, kMaxTurn, 0, F_PLOTS, where, "revealTurn");
+    if (!p.found && p.stage) {   // раскрытые этапы — только у обнаруженного заговора
+      p.stage = 0;
+      ch = true;
+    }
+    // Провинции: существующие сухопутные, без повторов и не в другом заговоре.
+    std::vector<PlotProvince> provs;
+    for (size_t i = 0; i < p.provinces.size(); i++) {
+      PlotProvince x = p.provinces[i];
+      const std::string at = where + ".provinces[" + std::to_string(i) + "]";
+      const Province* pr = base.province(x.province);
+      if (!pr || pr->sea || provTaken.count(x.province)) {
+        warn(F_PLOTS, at, !pr ? "нет провинции " + ref(Seq::Province, x.province) + " — удалена из заговора"
+                              : pr->sea ? refStr(Seq::Province, x.province) + " — морская провинция: удалена из заговора"
+                                        : refStr(Seq::Province, x.province) + " уже в другом заговоре — удалена");
+        ch = true;
+        continue;
+      }
+      provTaken.insert(x.province);
+      ch |= fixNum(x.commitment, 0.0, 100.0, 0.0, F_PLOTS, at, "commitment");
+      ch |= fixNum(x.sponsored, 0, kMaxTurn, 0, F_PLOTS, at, "sponsored");
+      ch |= fixAmounts(x.supplies, Seq::Resource, resourceIds(), F_PLOTS, at, "supplies");
+      provs.push_back(std::move(x));
+    }
+    if (provs != p.provinces) p.provinces = std::move(provs);
+    // Герои: участники, приглашённые, угрозы — существующие персонажи, каждый в одном списке и одном заговоре.
+    auto fixHeroes = [&](std::vector<Id>& list, const char* field) {
+      std::vector<Id> keep;
+      for (Id h : list) {
+        if (!h) continue;
+        if (!base.character(h)) {
+          warn(F_PLOTS, where + "." + field, "нет персонажа " + refStr(Seq::Character, h) + " — удалён");
+          ch = true;
+          continue;
+        }
+        if (heroTaken.count(h)) {
+          warn(F_PLOTS, where + "." + field, refStr(Seq::Character, h) + " уже в заговоре — удалён");
+          ch = true;
+          continue;
+        }
+        heroTaken.insert(h);
+        keep.push_back(h);
+      }
+      if (keep.size() != list.size()) list = std::move(keep);
+    };
+    fixHeroes(p.heroes, "heroes");
+    fixHeroes(p.invited, "invited");
+    fixHeroes(p.threats, "threats");
+    if (p.leader && std::find(p.heroes.begin(), p.heroes.end(), p.leader) == p.heroes.end()) {
+      warn(F_PLOTS, where + ".leader", refStr(Seq::Character, p.leader) + " — не участник заговора: лидер снят");
+      p.leader = 0;
+      ch = true;
+    }
+    // Заказные убийства — только угроз заговору, по одному на героя.
+    std::vector<PlotHit> hits;
+    for (size_t i = 0; i < p.hits.size(); i++) {
+      PlotHit h = p.hits[i];
+      const std::string at = where + ".hits[" + std::to_string(i) + "]";
+      if (std::find(p.threats.begin(), p.threats.end(), h.character) == p.threats.end() ||
+          std::any_of(hits.begin(), hits.end(), [&](const PlotHit& y) { return y.character == h.character; })) {
+        warn(F_PLOTS, at, ref(Seq::Character, h.character) + " — не угроза заговору или повтор: заказ удалён");
+        ch = true;
+        continue;
+      }
+      ch |= fixNum(h.gold, 0.0, 1e12, 0.0, F_PLOTS, at, "gold");
+      ch |= fixNum(h.turn, 0, kMaxTurn, 0, F_PLOTS, at, "turn");
+      hits.push_back(h);
+    }
+    if (hits.size() != p.hits.size()) p.hits = std::move(hits);
+    if (ch) tx.plot(p.id) = std::move(p);
   });
 }
 

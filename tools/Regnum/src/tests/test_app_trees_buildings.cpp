@@ -47,7 +47,7 @@ void denseBuildings(app::App& a) {
       if (b.name == "Рынок") market = b.id;
       if (b.name == "Казармы") barracks = b.id;
       if (b.name == "Кузница") forge = b.id;
-      if (b.name == "Жилой квартал") quarter = b.id;
+      if (b.name == "Плодородные угодья") quarter = b.id;
     });
     auto add = [&](const char* name, const char* icon, BuildingCat cat, int levels, std::initializer_list<std::pair<Id, int>> reqs) {
       Id id = rules::createBuilding(tx, 0, name);
@@ -310,10 +310,12 @@ TEST(app_trees_buildings_unique_and_entries) {
   h.settle();
   CHECK(h->uiRect("bt.node." + std::to_string(uniq)) != nullptr);
   CHECK(h->uiRect("bt.node." + std::to_string(market)) == nullptr);
-  // Новая постройка здесь — уникальная для государства.
+  // Новая постройка здесь — уникальная для государства (кроме неё — уникальные базовых записей: гильдия археологов,
+  // штабы разведки и контрразведки).
+  const size_t before = buildingsOf(h->world(), owner).size();
   clickRect(h, "bt.add");
   std::vector<Id> mine = buildingsOf(h->world(), owner);
-  CHECK_EQ(mine.size(), size_t(2));
+  CHECK_EQ(mine.size(), before + 1);
   h.dropToasts();
   h.settle();
   CHECK(h.shot("trees_buildings_unique"));

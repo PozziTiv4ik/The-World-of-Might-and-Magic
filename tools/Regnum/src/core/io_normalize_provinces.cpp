@@ -189,6 +189,12 @@ void Norm::provinces() {
           b.race = 0;
           bch = true;
         }
+        // Множитель производства — только у постройки преобразования, ×1…×100.
+        if (!def->convert && b.mult != 1) {
+          b.mult = 1;
+          bch = true;
+        }
+        bch |= fixNum(b.mult, 1, schema::kMaxProductionMult, 1, F_PROVINCES, at, "mult");
         res.push_back(b);
       }
       if (bch) { p.buildings = std::move(res); ch = true; }

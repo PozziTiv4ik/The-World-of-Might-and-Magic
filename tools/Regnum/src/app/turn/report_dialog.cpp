@@ -1,8 +1,9 @@
 // Regnum — отчёт о завершённом ходе (DialogReg «turn.report»): ход N → N+1, карточки фракций с изменением
 // казны, доходом и расходом, изменения запасов ресурсов и эссенций элементов, голод (недостача провизии); записи
 // хроники хода по видам (щелчок — показать на карте); предупреждения: долги, голод, нехватка эссенций на содержание
-// элементалей, недостачи по сделкам, восстания. Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16):
-// основные игровые государства и остальные фракции.
+// элементалей, недостачи по сделкам, восстания; исходы заказных убийств заговоров (администратору: вероятность, погиб
+// или выжил). Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16): основные игровые государства и остальные
+// фракции.
 #include "app/app_internal.h"
 #include "app/turn/turn_ui.h"
 #include "app/widgets.h"
@@ -21,6 +22,41 @@ void kindHeader(LogKind k, size_t n) {
   iconTile(RectF{r.x, r.cy() - 11, 22, 22}, logIcon(k), logTone(k));
   ui::label(logName(k), {.font = ui::Font::Strong});
   ui::badge(std::to_string(n), ui::Tone::Neutral);
+}
+
+// Исход заказного убийства — на странице государства героя (основные или остальные).
+bool hitOnPage(const World& w, const rules::HitOutcome& o, int page) {
+  const Character* c = w.character(o.character);
+  return page == kPageAll || isMainState(w, c ? c->faction : 0) == (page == kPageMain);
+}
+
+// Строка исхода: портрет, имя и государство героя с заговором, вероятность (подсказка — бросок), «Погиб» или «Выжил».
+void hitRow(App& a, const World& w, const rules::HitOutcome& o) {
+  const ui::Theme& th = ui::theme();
+  const Character* c = w.character(o.character);
+  ui::IdScope s{i64(o.character)};
+  const RectF top = ui::avail();
+  {
+    ui::Row r({ui::px(30), ui::fr(1), ui::px(64), ui::px(84)}, 36, 10);
+    if (c) w::heroAvatar(*c, 30);
+    else ui::next(30);
+    {
+      const RectF cell = ui::next(36);
+      const std::string name = c ? w::orName(c->name, "Без имени") : std::string("Герой");
+      std::string sub = c ? w.factionName(c->faction) : std::string();
+      if (const Plot* p = w.plot(o.plot)) sub += " · " + rules::plotTitle(w, *p);
+      ui::draw::text(name, RectF{cell.x, cell.y, cell.w, 19}, ui::Font::Strong, th.text);
+      ui::draw::text(sub, RectF{cell.x, cell.y + 19, cell.w, 16}, ui::Font::Small, th.textMuted);
+      ui::hoverTip("##who", cell, name + "\n" + sub);
+    }
+    ui::label(fmtPct(o.chance), {.ink = ui::Ink::Dim, .align = ui::Align::Right,
+                                 .tooltip = "Вероятность успеха · бросок " + fmtNum(o.roll, 1)});
+    {
+      ui::HStack hs(24, ui::Align::Right, 0);
+      ui::tag(o.killed ? "Погиб" : "Выжил", o.killed ? ui::Tone::Danger : ui::Tone::Success, o.killed ? "skull" : "shield");
+    }
+  }
+  a.markUi("turn.report.hit." + std::to_string(o.character), RectF{top.x, top.y, top.w, 36});
 }
 
 struct ReportDlg : Dialog {
@@ -143,6 +179,18 @@ struct ReportDlg : Dialog {
             if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
         }
         a.markUi("turn.report.warnings");
+      }
+      // Заказные убийства заговоров: кто, вероятность, погиб или выжил (только администратору — шансы и броски).
+      std::vector<const rules::HitOutcome*> hits;
+      if (a.admin())
+        for (const rules::HitOutcome& o : rep.hits)
+          if (hitOnPage(w, o, page)) hits.push_back(&o);
+      if (!hits.empty()) {
+        {
+          ui::Card c({.pad = 12, .icon = "skull", .title = "Заказные убийства", .tone = ui::Tone::Danger});
+          for (const rules::HitOutcome* o : hits) hitRow(a, w, *o);
+        }
+        a.markUi("turn.report.hits");
       }
       // Казна фракций
       if (lines.empty()) {

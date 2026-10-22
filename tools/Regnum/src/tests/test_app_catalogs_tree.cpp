@@ -348,7 +348,7 @@ TEST(app_catalogs_tree_usage) {
     rules::setBuildingRole(tx, forge, rules::BuildingRole::Convert, true);
     Recipe rc;
     rc.in = {ResAmount{steel, 5}};
-    rc.out = ResAmount{black, 1};
+    rc.out = {ResAmount{black, 1}};
     rc.turns = 2;
     rules::setRecipe(tx, forge, 0, rc);
   }));

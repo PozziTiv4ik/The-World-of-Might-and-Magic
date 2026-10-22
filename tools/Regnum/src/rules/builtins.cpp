@@ -196,7 +196,8 @@ bool provinceHas(const World& w, Id province, std::string_view key) {
 }
 bool heroAvailable(const World& w, Id character) {
   const Character* c = w.character(character);
-  return c && !hasModKey(w, c->modifiers, schema::mod::Dead) && !hasModKey(w, c->modifiers, schema::mod::Captive);
+  return c && !hasModKey(w, c->modifiers, schema::mod::Dead) && !hasModKey(w, c->modifiers, schema::mod::Captive) &&
+         !hasModKey(w, c->modifiers, schema::mod::Arrested);
 }
 
 // ================================================================ модификаторы сущностей
@@ -279,6 +280,7 @@ void dropModifier(Tx& tx, ModTarget t, Id target, Id modifier) {
     Character& c = tx.character(target);
     if (key == schema::mod::Dead) c.burial = 0;
     if (key == schema::mod::Captive) c.captor = 0;
+    if (key == schema::mod::Arrested) c.jailer = 0;
   }
   // Любое снятие «Чумы» даёт провинции «Временный иммунитет».
   if (t == ModTarget::Province && key == schema::mod::Plague) {
@@ -325,12 +327,14 @@ void addModifier(Tx& tx, ModTarget t, Id target, Id modifier, int turns) {
   s.list->push_back(modifier);
   if (n > 0) (*s.turns)[modifier] = n;
   else s.turns->erase(modifier);
-  if (t == ModTarget::Character && (key == schema::mod::Dead || key == schema::mod::Captive)) {
-    // Мёртвый и пленный снимаются со всех назначений.
+  if (t == ModTarget::Character && (key == schema::mod::Dead || key == schema::mod::Captive || key == schema::mod::Arrested)) {
+    // Мёртвый, пленный и арестованный снимаются со всех назначений.
     if (key == schema::mod::Dead) {
       if (Id cap = modByKey(tx.w(), tx.w().character(target)->modifiers, schema::mod::Captive)) dropModifier(tx, t, target, cap);
+      if (Id arr = modByKey(tx.w(), tx.w().character(target)->modifiers, schema::mod::Arrested)) dropModifier(tx, t, target, arr);
     }
     clearAssignments(tx, target);
+    if (key == schema::mod::Dead) fitPlots(tx);   // мёртвый выходит из заговоров
   }
   if (t == ModTarget::Army && key == schema::mod::UndeadArmy) tx.army(target).loyalty = schema::kMaxLoyalty;
 }

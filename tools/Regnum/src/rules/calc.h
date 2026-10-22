@@ -19,6 +19,7 @@ struct ProvinceCalc {
   CityType city = CityType::Outpost;  // тип города по населению
   int slotsSize = 0, slotsCity = 0, slotsMods = 0, slots = 0, slotsUsed = 0;
   double tradeBase = 0, tradeValue = 0;
+  double tradePop = 0;                // торговая ценность от населения: +1 за каждые 100 жителей
   int routes = 0;
   double production = 0;              // добыча ресурса за ход
   double extractPct = 0;              // постройки добычи: добыча ресурса провинции +%
@@ -56,15 +57,17 @@ struct ResourceFlow {
 // государства, героев), содержание элементалей и расход построек преобразования (может увести запас в долг).
 struct EssenceFlow { double stock = 0, generation = 0, upkeep = 0, conversionIn = 0, net = 0; };
 // Шаг постройки преобразования в конце хода (план расчёта, его же исполняет endTurn): start — начинается цикл (ресурсы
-// на входе списываются), finish — цикл завершается (ресурс на выходе поступает), cycle — ходов до конца после хода.
+// на входе списываются), finish — цикл завершается (ресурсы на выходе поступают), cycle — ходов до конца после хода.
+// Количества — с множителем производства постройки (mult).
 struct ConvertStep {
   Id province = 0, building = 0;
   bool start = false, finish = false;
   int cycle = 0;
   std::map<Id, double> in;            // списывается при начале цикла
   std::map<Id, double> essIn;         // эссенции, списываемые при начале цикла (через поток эссенций хода)
-  ResAmount out;                      // поступает при завершении
+  std::vector<ResAmount> out;         // поступает при завершении
   int recipe = 0;                     // рецепт постройки
+  int mult = 1;                       // множитель производства
 };
 // Постройка иссушения в конце хода: у расы race провинции отнимается pop жителей, государство получает эссенции ess.
 struct DrainStep {

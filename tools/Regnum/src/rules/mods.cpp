@@ -148,7 +148,7 @@ struct FxSum {
     const auto& info = schema::kEffects[i];
     switch (level) {
       case Level::Province: return info.local;
-      case Level::Faction: return !info.local;
+      case Level::Faction: return !info.local && !info.hero;
       case Level::Army: return info.army;
       case Level::Arch: return info.arch;
     }

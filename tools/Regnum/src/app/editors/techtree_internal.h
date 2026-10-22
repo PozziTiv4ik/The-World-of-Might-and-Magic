@@ -2,6 +2,7 @@
 // изучающей фракции, состояние редактора, действия, сцена холста и панель свойств. Только для файлов редактора.
 #pragma once
 #include <unordered_map>
+#include <unordered_set>
 
 #include "app/editors/buildings.h"
 #include "app/editors/techtree.h"
@@ -115,9 +116,14 @@ struct Card {
 struct EdgeD {
   Curve k;
   Color col;
+  Color from, to;          // гнёзда на концах связи (цвета состояния карточек)
   float width = 2;
   bool hot = false, sel = false;
 };
+// Прямоугольник карточки и связь «условие → технология» по взаимному положению карточек (tree::linkCurve: ветка
+// «змейкой» идёт и справа налево, и вниз).
+inline Box2 cardBox(const TN& t) { return Box2{t.pos.x, t.pos.y, t.pos.x + kW, t.pos.y + kH}; }
+inline Curve techLink(const TN& pre, const TN& t) { return linkCurve(cardBox(pre), cardBox(t)); }
 // Условие из общего дерева у технологии фракции: плашка слева от карточки (состояние для этой фракции) и стрелка во
 // вход; щелчок — общее дерево с этой технологией.
 struct Ext {

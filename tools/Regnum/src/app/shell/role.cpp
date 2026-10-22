@@ -478,12 +478,16 @@ void validate(App& a) {
 }
 
 // ================================================================ ограничения игрока
-bool sectionAllowed(const App& a, std::string_view section) { return a.admin() || section != "reference"; }
+bool sectionAllowed(const App& a, std::string_view section) {
+  if (a.admin()) return true;
+  const SectionDef* s = findSection(section);
+  return !(s && s->adminOnly);   // справочники, решения администратора
+}
 
 bool editorAllowed(const App& a, std::string_view editor) {
   if (a.admin()) return true;
   const EditorDef* e = findEditor(editor);
-  return !(e && e->group && std::string_view(e->group) == "reference");
+  return !(e && e->group && !sectionAllowed(a, e->group));
 }
 
 bool toolAllowed(const App& a, ToolId t) { return a.admin() || t == ToolId::Select || t == ToolId::Pan; }

@@ -116,8 +116,8 @@ TEST(rules_build_features_recipes_and_essence_inputs) {
   f.tx([&](Tx& tx) {
     works = createBuilding(tx, 0, "Сталелитейная");
     setBuildingRole(tx, works, BuildingRole::Convert, true);
-    setRecipe(tx, works, 0, Recipe{"Сталь", {{iron, 1}, {coal, 1}}, {}, {steel, 1}, 1});
-    setRecipe(tx, works, 1, Recipe{"Бронза", {{copper, 1}, {coal, 1}, {tin, 1}}, {}, {bronze, 1}, 1});
+    setRecipe(tx, works, 0, Recipe{"Сталь", {{iron, 1}, {coal, 1}}, {}, {{steel, 1}}, 1});
+    setRecipe(tx, works, 1, Recipe{"Бронза", {{copper, 1}, {coal, 1}, {tin, 1}}, {}, {{bronze, 1}}, 1});
     placeBuilding(tx, f.p[0], works, 1);
     Faction& a = tx.faction(f.A);
     a.res[iron] = 5;
@@ -142,7 +142,7 @@ TEST(rules_build_features_recipes_and_essence_inputs) {
   f.tx([&](Tx& tx) {
     sprinkler = createBuilding(tx, 0, "Окропительница");
     setBuildingRole(tx, sprinkler, BuildingRole::Convert, true);
-    setRecipe(tx, sprinkler, 0, Recipe{"", {{iron, 1}}, {{blood, 1}}, {red, 1}, 1});
+    setRecipe(tx, sprinkler, 0, Recipe{"", {{iron, 1}}, {{blood, 1}}, {{red, 1}}, 1});
     placeBuilding(tx, f.p[0], sprinkler, 1);
   });
   // Без эссенции крови — ждёт.

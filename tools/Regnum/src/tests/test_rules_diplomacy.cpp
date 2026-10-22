@@ -83,6 +83,55 @@ TEST(rules_diplomacy_truce_and_war_lock) {
   CHECK_NEAR(f.fc(f.A).incTribute, 10, 1e-9);
 }
 
+// Все земли побеждённого — победителю вместе с запасами; валюты — только если у побеждённого нет войск и флота.
+TEST(rules_diplomacy_truce_conquest_loot) {
+  Fix f;
+  const Id iron = test::idByName(f.w().catalogs->resources, "Железо");
+  const Id corpses = resourceId(f.w(), schema::kResCorpses);
+  const Id ess = f.w().catalogs->essences.front().id;
+  Id row = 0, army = 0;
+  f.tx([&](Tx& tx) {
+    const Id race = addRace(tx);
+    own(tx, f.p[0], f.A, race, 1000);
+    own(tx, f.p[1], f.B, race, 1000);
+    own(tx, f.p[2], f.B, race, 1000);
+    declareWar(tx, f.A, f.B);
+    Faction& b = tx.faction(f.B);
+    b.res[kGold] = 500;
+    b.res[iron] = 40;
+    b.res[corpses] = 7;
+    b.ess[ess] = 12;
+    row = addArmyRow(tx, f.B, UnitType::LightInf, "", 10, 1);
+    army = createArmy(tx, ArmyKind::Army, f.B, center(1));
+    setUnits(tx, army, f.B, row, 10);
+  });
+  const World start = f.w();
+  Truce t;
+  t.a = f.A;
+  t.b = f.B;
+  t.fromB.provinces = {f.p[1], f.p[2]};
+  f.tx([&](Tx& tx) { concludeTruce(tx, t); });
+  // Войско у побеждённого есть — валюты (золото, трупы) остаются у него.
+  CHECK_NEAR(f.w().faction(f.A)->stock(iron), 40, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->essence(ess), 12, 1e-9);
+  CHECK_NEAR(f.w().faction(f.B)->stock(iron), 0, 1e-9);
+  CHECK_NEAR(f.w().faction(f.B)->treasury(), 500, 1e-9);
+  CHECK_NEAR(f.w().faction(f.B)->stock(corpses), 7, 1e-9);
+  CHECK(!lastLog(f.w(), "забирает запасы").empty());
+  // Без войск — и валюты.
+  f.s.replace(start, "test");
+  f.tx([&](Tx& tx) { tx.eraseArmy(army); });
+  f.tx([&](Tx& tx) { concludeTruce(tx, t); });
+  CHECK_NEAR(f.w().faction(f.A)->treasury(), 500, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->stock(corpses), 7, 1e-9);
+  CHECK_NEAR(f.w().faction(f.B)->treasury(), 0, 1e-9);
+  // Не все земли — запасы остаются.
+  f.s.replace(start, "test");
+  t.fromB.provinces = {f.p[1]};
+  f.tx([&](Tx& tx) { concludeTruce(tx, t); });
+  CHECK_NEAR(f.w().faction(f.B)->stock(iron), 40, 1e-9);
+}
+
 TEST(rules_diplomacy_vassalage) {
   Fix f;
   f.tx([&](Tx& tx) { setSuzerain(tx, f.A, f.B); });

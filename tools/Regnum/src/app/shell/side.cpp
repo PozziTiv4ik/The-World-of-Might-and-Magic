@@ -78,6 +78,18 @@ void modeCheck(bool on, bool ro) {
 // Высота столбца кнопок: n кнопок, s черт, промежуток 4.
 float columnH(int n, int s) { return n * kBtnL + s * 9 + std::max(0, n + s - 1) * 4; }
 
+// Число на значке кнопки ленты (правый верхний угол): красная таблетка с обводкой цветом ленты.
+RectF countBadge(RectF btn, int n) {
+  const ui::Theme& th = ui::theme();
+  const std::string text = n > 99 ? std::string("99+") : std::to_string(n);
+  const float h = 15, w = std::max(h, std::ceil(ui::measure(text, ui::Font::Caption)) + 8);
+  const RectF b{std::round(btn.right() - w + 4), std::round(btn.y - 3), w, h};
+  ui::draw::rect(b.expand(1.5f), th.surface1, (h + 3) * 0.5f);
+  ui::draw::rect(b, th.danger, h * 0.5f);
+  ui::draw::text(text, b, ui::Font::Caption, Color(255, 255, 255), ui::Align::Center);
+  return b;
+}
+
 }  // namespace
 
 void toolStrip(App& a, RectF r) {
@@ -156,13 +168,25 @@ void sectionStrip(App& a, RectF r) {
     ui::Area ar(RectF{r.x + pad, r.y + top, r.w - 2 * pad, r.h - top}, 0);
     ui::gap(4);
     for (auto& sec : sections()) {
-      if (!role::sectionAllowed(a, sec.id)) continue;   // игрок: без справочников
+      if (!role::sectionAllowed(a, sec.id)) continue;   // игрок: без справочников и решений администратора
       ui::IdScope s(sec.id);
       std::string tip = sec.title;
+      int badge = 0;
+      if (sec.badge) {
+        try {
+          badge = sec.badge(a);
+        } catch (const std::exception& e) {
+          a.error(e);
+        }
+      }
+      if (badge > 0) tip += " · ждут решения: " + std::to_string(badge);
       if (ui::iconButton(sec.icon, tip, {.size = ui::Size::Large, .toggled = act == &sec})) a.openSection(sec.id);
       if (sec.shortcut) ui::tooltip(tip, parseShortcut(sec.shortcut));
       a.markUi(std::string("section.") + sec.id);
       a.markUi(std::string("drawer.") + sec.id);
+      if (badge > 0) {
+        a.markUi(std::string("section.") + sec.id + ".badge", countBadge(ui::lastItem().rect, badge));
+      }
     }
   }
   // Панели карты — внизу ленты.

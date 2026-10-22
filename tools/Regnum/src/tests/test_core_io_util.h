@@ -121,6 +121,9 @@ inline World richWorld() {
   f1.res = {{kGold, 15000.5}, {2, 320}, {900, 3}};
   f1.modifiers = {1};
   f1.tax = 15;
+  f1.readyTurn = 7;
+  f1.detectTurn = 6;
+  f1.prison = {{1, 300}, {2, 12}};
   f1.notes = "Заметки фракции";
   f1.entity = "FAC-0001";
   tx.add(f1);
@@ -143,6 +146,7 @@ inline World richWorld() {
   f3.color = Color::hex(0x992222);
   f3.fleet = {{4, "Пиратский флот", ShipType::Frigate, 5, 10}};
   f3.army = {{5, "Орда", UnitType::Monsters, 50, 7}};
+  f3.conspiracy = true;
   tx.add(f3);
   m.seq[int(Seq::Row)] = 5;
   m.seq[int(Seq::Council)] = 2;
@@ -171,6 +175,7 @@ inline World richWorld() {
   c3.name = "Адмирал Кейл";
   c3.faction = 3;
   c3.modifiers = {3};
+  c3.jailer = 1;
   tx.add(c3);
 
   Modifier m1;
@@ -222,6 +227,21 @@ inline World richWorld() {
   b2.requires_ = {{1, 2}};
   b2.pos = {200, 40.25};
   tx.add(b2);
+  // Преобразование с тремя ресурсами на выходе и добыча с необязательным ресурсом провинции.
+  Building b3;
+  b3.id = 3;
+  b3.name = "Бойня";
+  b3.cat = BuildingCat::Industrial;
+  b3.convert = true;
+  b3.recipes = {Recipe{"Мамонты", {{2, 1}}, {}, {{900, 40}, {kGold, 2.5}, {2, 7}}, 2}};
+  tx.add(b3);
+  Building b4;
+  b4.id = 4;
+  b4.name = "Ферма";
+  b4.cat = BuildingCat::Residential;
+  b4.extract = true;
+  b4.extractOptional = true;
+  tx.add(b4);
 
   Tech t1;
   t1.id = 1;
@@ -280,6 +300,11 @@ inline World richWorld() {
   p3.owner = 1;
   p3.occupied = true;
   p3.occupier = 3;
+  ProvBuilding pb3;
+  pb3.building = 3;
+  pb3.mult = 4;
+  pb3.cycle = 1;
+  p3.buildings = {pb3};
   tx.add(p3);
 
   Edge e1;
@@ -399,6 +424,32 @@ inline World richWorld() {
   g2.army = 99;  // войско давно расформировано: в хронике это допустимо
   tx.add(g2);
 
+  // Заговоры: внешний (Арден против Зар) и внутренний (против Ардена) с заказом убийства и сведениями контрразведки.
+  Plot pl1;
+  pl1.id = 1;
+  pl1.kind = PlotKind::External;
+  pl1.owner = 1;
+  pl1.target = 3;
+  pl1.name = "Тайный совет";
+  pl1.provinces = {PlotProvince{3, 45.5, 6, {{2, 10}, {900, 2.5}}}};
+  pl1.heroes = {3};
+  pl1.leader = 3;
+  pl1.created = 5;
+  tx.add(pl1);
+  Plot pl2;
+  pl2.id = 2;
+  pl2.kind = PlotKind::Internal;
+  pl2.target = 1;
+  pl2.heroes = {1};
+  pl2.threats = {2};
+  pl2.hits = {PlotHit{2, 300, 7, true}};
+  pl2.found = true;
+  pl2.stage = 2;
+  pl2.revealTurn = 7;
+  pl2.alarm = true;
+  tx.add(pl2);
+  m.seq[int(Seq::Plot)] = 2;
+
   tx.setRelation(1, 3, Relation{-25, RelStatus::War});
   tx.setRelation(1, 2, Relation{50.5, RelStatus::Alliance});
   tx.setRelation(2, 3, Relation{0, RelStatus::Neutral});
@@ -468,7 +519,7 @@ inline std::string diffWorld(const World& a, const World& b) {
     for (size_t i = 0; i < x.buildings.size(); i++) {
       auto &p = x.buildings[i], &q = y.buildings[i];
       RG_D(p.building == q.building && p.level == q.level && p.constructing == q.constructing && p.left == q.left && p.paid == q.paid &&
-               p.payer == q.payer,
+               p.payer == q.payer && p.mult == q.mult && p.cycle == q.cycle,
            "buildings");
     }
     RG_D(x.modifiers == y.modifiers && x.occupied == y.occupied && x.occupier == y.occupier && x.notes == y.notes && x.entity == y.entity, "прочие поля");
@@ -495,12 +546,14 @@ inline std::string diffWorld(const World& a, const World& b) {
     }
     RG_D(x.res == y.res && x.modifiers == y.modifiers && x.tax == y.tax && x.homeState == y.homeState && x.stateGuild == y.stateGuild &&
              x.notes == y.notes && x.entity == y.entity, "прочие поля");
+    RG_D(x.readyTurn == y.readyTurn && x.detectTurn == y.detectTurn && x.conspiracy == y.conspiracy && x.prison.size() == y.prison.size(), "заговоры");
+    for (size_t i = 0; i < x.prison.size(); i++) RG_D(x.prison[i].race == y.prison[i].race && x.prison[i].pop == y.prison[i].pop, "prison");
     return "";
   });
   if (!d.empty()) return d;
   d = diffTable(a.characters, b.characters, "character", [](const Character& x, const Character& y) {
     return x.name == y.name && x.title == y.title && x.faction == y.faction && x.hero == y.hero && x.upkeep == y.upkeep &&
-                   x.portrait == y.portrait && x.notes == y.notes && x.entity == y.entity ? "" : "поля";
+                   x.portrait == y.portrait && x.notes == y.notes && x.entity == y.entity && x.jailer == y.jailer ? "" : "поля";
   });
   if (!d.empty()) return d;
   d = diffTable(a.modifiers, b.modifiers, "modifier", [](const Modifier& x, const Modifier& y) {
@@ -518,6 +571,7 @@ inline std::string diffWorld(const World& a, const World& b) {
       auto &p = x.levels[i], &q = y.levels[i];
       RG_D(p.turns == q.turns && p.cost == q.cost && p.modifiers == q.modifiers && p.desc == q.desc, "levels");
     }
+    RG_D(x.convert == y.convert && x.recipes == y.recipes && x.extract == y.extract && x.extractOptional == y.extractOptional, "возможности");
     return "";
   });
   if (!d.empty()) return d;
@@ -562,6 +616,13 @@ inline std::string diffWorld(const World& a, const World& b) {
   if (!d.empty()) return d;
   d = diffTable(a.shapes, b.shapes, "shape", [](const MapShape& x, const MapShape& y) {
     return x.kind == y.kind && x.pts == y.pts && x.holes == y.holes && x.w == y.w && x.dash == y.dash ? "" : "поля";
+  });
+  if (!d.empty()) return d;
+  d = diffTable(a.plots, b.plots, "plot", [](const Plot& x, const Plot& y) {
+    return x.kind == y.kind && x.owner == y.owner && x.target == y.target && x.name == y.name && x.provinces == y.provinces &&
+                   x.heroes == y.heroes && x.invited == y.invited && x.threats == y.threats && x.leader == y.leader && x.hits == y.hits &&
+                   x.created == y.created && x.found == y.found && x.stage == y.stage && x.revealTurn == y.revealTurn && x.alarm == y.alarm
+               ? "" : "поля";
   });
   return d;
 }

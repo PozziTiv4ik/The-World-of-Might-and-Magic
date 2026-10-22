@@ -58,10 +58,9 @@ void dropResourceRefs(Tx& tx, Id res) {
       const size_t in = rc.in.size();
       rc.in.erase(std::remove_if(rc.in.begin(), rc.in.end(), [&](const ResAmount& x) { return x.res == res; }), rc.in.end());
       ch |= rc.in.size() != in;
-      if (rc.out.res == res) {
-        rc.out = ResAmount{};
-        ch = true;
-      }
+      const size_t out = rc.out.size();
+      rc.out.erase(std::remove_if(rc.out.begin(), rc.out.end(), [&](const ResAmount& x) { return x.res == res; }), rc.out.end());
+      ch |= rc.out.size() != out;
     }
     if (contains(b.extractExclude, res)) {
       eraseValue(b.extractExclude, res);

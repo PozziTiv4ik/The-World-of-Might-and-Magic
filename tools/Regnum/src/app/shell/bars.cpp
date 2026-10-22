@@ -2,9 +2,11 @@
 // Верхняя: знак «REGNUM», мир (меню файла и состояние сохранения), режим карты (на странице — её заголовок), посередине
 // параметры инструмента карты или отметка прошлого хода, справа плеер саундтреков (shell/player.cpp), поиск, отмена и
 // повтор, сохранение, настройки.
-// Нижняя: выделенный объект (или объект под указателем), координаты, ход и «Завершить ход».
+// Нижняя: выделенный объект (или объект под указателем), координаты, ход и «Завершить ход» (у игрока — отметка
+// готовности завершить ход).
 #include "app/shell/player.h"
 #include "app/shell/shell_internal.h"
+#include "app/turn/turn_ui.h"
 #include "base/fs.h"
 #include "gfx/text.h"
 
@@ -246,6 +248,36 @@ float selectionInfo(App& a, RectF r, bool withName) {
   return x + nw;
 }
 
+// «Завершить ход» у правого края right (подсказка администратору — сколько игроков готовы, точка — есть готовые);
+// у игрока ход завершает администратор: кнопка отмечает готовность его государства, отмеченная — зелёная «Готов»
+// (щелчок снимает отметку). Возвращает левый край кнопки.
+float endTurnButton(App& a, float right, float by, bool ro) {
+  const World& w = a.store.world();
+  const ui::Shortcut sc = parseShortcut("Ctrl+Enter");
+  ui::Disabled dis(ro);
+  if (a.player() && !ro && rules::turnReady(w, a.ui.playerState)) {
+    const float bw = turnui::statePillWidth("Готов");
+    ui::at(RectF{right - bw, by, bw, 30});
+    if (turnui::statePill("endturn.ready", "Готов", "check", "Готов завершить ход · отменить готовность", sc)) a.endTurn();
+    a.markUi("topbar.endturn");
+    return right - bw;
+  }
+  ui::at(RectF{right - 30, by, 30, 30});
+  if (a.player()) {
+    if (ui::iconButton("next-turn", "Готов завершить ход", {.variant = ui::Variant::Primary})) a.endTurn();
+    ui::tooltip("Готов завершить ход", sc);
+  } else {
+    const int ready = turnui::readyCount(w);
+    std::string tip = "Завершить ход: доходы, расходы, стройки, исследования";
+    if (ready > 0) tip += "\nГотовы завершить ход: " + std::to_string(ready);
+    if (ui::iconButton("next-turn", "Завершить ход", {.variant = ui::Variant::Primary, .badge = ready > 0, .badgeColor = ui::theme().success}))
+      a.endTurn();
+    ui::tooltip(tip, sc);
+  }
+  a.markUi("topbar.endturn");
+  return right - 30;
+}
+
 }  // namespace
 
 void bottomBar(App& a, RectF r) {
@@ -256,15 +288,8 @@ void bottomBar(App& a, RectF r) {
   const float by = r.y + std::round((r.h - 30) * 0.5f);
   const bool ro = a.readOnly();
 
-  // Справа: ход (история ходов) и «Завершить ход».
-  float rx = r.right() - 8 - 30;
-  {
-    ui::at(RectF{rx, by, 30, 30});
-    ui::Disabled dis(ro);
-    if (ui::iconButton("next-turn", "Завершить ход", {.variant = ui::Variant::Primary})) a.endTurn();
-    ui::tooltip("Завершить ход: доходы, расходы, стройки, исследования", parseShortcut("Ctrl+Enter"));
-    a.markUi("topbar.endturn");
-  }
+  // Справа: ход (история ходов) и «Завершить ход»; у игрока — отметка готовности завершить ход.
+  float rx = endTurnButton(a, r.right() - 8, by, ro);
   {
     int turn = ro ? *a.ui.viewTurn : a.store.world().turn();
     std::string label = "Ход " + std::to_string(turn);

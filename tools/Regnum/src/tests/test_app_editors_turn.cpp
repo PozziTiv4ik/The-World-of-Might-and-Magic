@@ -61,10 +61,10 @@ TEST(app_editors_turn_pages) {
   CHECK(h->uiRect("turn.confirm.row." + std::to_string(firstOther)) != nullptr);
   shotClean(h, "editors_turn_confirm_other");
   // Вкладки страницы остальных: события и предупреждения.
-  CHECK(clickPart(h, "turn.confirm.tabs", 2, 4));
+  CHECK(clickPart(h, "turn.confirm.tabs", 2, 5));
   quick(h);
   CHECK(h->hasDialog("turn.confirm"));
-  CHECK(clickPart(h, "turn.confirm.tabs", 0, 4));
+  CHECK(clickPart(h, "turn.confirm.tabs", 0, 5));
   quick(h);
   // Завершить ход — отчёт с теми же страницами.
   CHECK(h.clickUi("dialog.ok"));

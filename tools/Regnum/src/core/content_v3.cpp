@@ -436,7 +436,7 @@ void Seeder::buildingsV3() {
     r.name = name ? name : "";
     for (auto& [n, v] : in)
       if (Id id = res(n)) r.in.push_back(ResAmount{id, v});
-    r.out = ResAmount{res(out), 1};
+    r.out = {ResAmount{res(out), 1}};
     r.turns = 1;
     return r;
   };

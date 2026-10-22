@@ -89,7 +89,7 @@ TEST(rules_recruit_key_resources) {
   CHECK(keyAllowed(w, UnitType::Machines, parts));
   CHECK(!keyAllowed(w, UnitType::Machines, test::idByName(w.catalogs->resources, "Сталь")));
   CHECK_EQ(keyResources(w, UnitType::LightCav).size(), size_t(23));
-  CHECK_EQ(keyResources(w, UnitType::Beasts).size(), size_t(51));   // без чудовищ и морских чудовищ
+  CHECK_EQ(keyResources(w, UnitType::Beasts).size(), size_t(52));   // без чудовищ и морских чудовищ
   CHECK(keyResources(w, UnitType::LightInf).empty());
   CHECK(!schema::needsKeyResource(UnitType::Flying));
 }

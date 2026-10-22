@@ -187,6 +187,7 @@ struct Item {
   bool doubleClicked = false;
   bool changed = false;        // значение изменилось в этом кадре
   bool deactivated = false;    // взаимодействие закончилось в этом кадре (отпущен, фиксация текста)
+  bool tipHover = false;       // указатель над элементом — и над недоступным (подсказка с причиной)
 };
 const Item& lastItem();
 // Фокус клавиатуры (с видимым кольцом): ui::setKeyboardFocus(ui::id("search")) — например, по Ctrl+F.
@@ -210,6 +211,7 @@ struct Interaction {
   float mx = 0, my = 0;        // указатель (точки интерфейса)
   bool focused = false;
   bool keyActivated = false;   // Enter/Пробел при фокусе
+  bool hoveredDisabled = false;  // указатель над недоступным элементом (без взаимодействия; для подсказок)
 };
 Interaction interact(WidgetId id, RectF r, u32 flags = IfNone);
 struct Mouse {

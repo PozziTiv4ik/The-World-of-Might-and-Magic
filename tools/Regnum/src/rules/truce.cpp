@@ -41,6 +41,51 @@ void termProblems(const World& w, Id giver, Id taker, const TruceTerms& t, std::
   (void)taker;
 }
 
+// Сухопутные провинции государства.
+int landCount(const World& w, Id state) {
+  int n = 0;
+  w.provinces.each([&](const Province& p) {
+    if (p.owner == state && !p.sea) n++;
+  });
+  return n;
+}
+
+// Государство, отдавшее по перемирию последние провинции (ТЗ «Доработки №1», п.18): победителю переходят все его
+// ресурсы и эссенции, кроме группы «Валюты»; если у побеждённого не осталось ни одного войска и флота на карте —
+// и валюты (золото тоже).
+void conquestLoot(Tx& tx, Id loser, Id winner, std::vector<std::string>& parts) {
+  const World& w = tx.w();
+  bool forces = false;
+  w.armies.each([&](const Army& a) {
+    for (const ArmyGroup& g : a.groups) forces = forces || g.faction == loser;
+  });
+  const Id currencies = w.catalogs->groupId(schema::grp::Currencies);
+  auto currency = [&](Id r) { return r == kGold || (currencies && w.catalogs->resourceIn(r, currencies)); };
+  const Faction L = *w.faction(loser);
+  std::vector<std::string> got;
+  bool gold = false;
+  for (auto& [r, v] : L.res) {
+    if (!(v > 1e-9) || !w.resource(r) || (currency(r) && forces)) continue;
+    addStock(tx.faction(loser), r, -v);
+    addStock(tx.faction(winner), r, v);
+    if (r == kGold) gold = true;
+    else got.push_back(resName(w, r) + " " + amount(v));
+  }
+  for (auto& [e, v] : L.ess) {
+    if (!(v > 1e-9) || !w.essence(e)) continue;
+    tx.faction(loser).ess[e] -= v;
+    if (std::fabs(tx.w().faction(loser)->essence(e)) < 1e-9) tx.faction(loser).ess.erase(e);
+    tx.faction(winner).ess[e] += v;
+    got.push_back(w.essence(e)->name + " " + amount(v));
+  }
+  if (got.empty() && !gold) return;
+  std::string text = facName(w, winner) + " забирает запасы " + facName(w, loser);
+  if (gold) text += " (с казной: " + fmtGold(L.treasury()) + ")";
+  else if (forces) text += " (валюты остаются: у побеждённого есть войска)";
+  if (!got.empty()) text += ": " + join(got, ", ");
+  parts.push_back(text);
+}
+
 }  // namespace
 
 i64 truceSlavesMax(const World& w, Id giver) { return i64(std::floor(double(statePopulation(w, giver)) * schema::kTruceSlavesShare)); }
@@ -119,8 +164,12 @@ void concludeTruce(Tx& tx, const Truce& t) {
       parts.push_back(gn + " становится вассалом " + tn);
     }
   };
+  const int landA = landCount(tx.w(), t.a), landB = landCount(tx.w(), t.b);
   apply(t.a, t.b, t.fromA);
   apply(t.b, t.a, t.fromB);
+  // Все земли побеждённого — победителю: и его запасы (без валют, пока у побеждённого есть войска).
+  if (landA > 0 && !t.fromA.provinces.empty() && landCount(tx.w(), t.a) == 0) conquestLoot(tx, t.a, t.b, parts);
+  if (landB > 0 && !t.fromB.provinces.empty() && landCount(tx.w(), t.b) == 0) conquestLoot(tx, t.b, t.a, parts);
   Relation r = tx.w().relation(t.a, t.b);
   tx.setRelation(t.a, t.b, Relation{r.v, t.status});
   addLog(tx, LogKind::Diplomacy,

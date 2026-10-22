@@ -325,7 +325,8 @@ World build(const Basemap& bm) {
     f.culture = cultures[i];
     f.government = Id(d.government);
     f.religion = stateReligion[i];
-    f.tax = 8 + double(i % 4) * 3;
+    // Налог 2…5,75 % (прежде 8…17 %): текущая ценность провинций выросла на население / 100, доходы — прежнего порядка.
+    f.tax = 2 + double(i % 4) * 1.25;
     f.res[kGold] = 1500 + 450 * double(i);
     f.res[resGrain] = 300 + 40 * double(i);
     f.res[resWood] = 200 + 25 * double(i);
@@ -476,7 +477,7 @@ World build(const Basemap& bm) {
   const Id bBarracks = baseBuilding(schema::bld::Barracks);
   for (BuildingLevel& lv : tx.building(bMarket).levels) lv.modifiers.push_back(mRoad);
   const Id bForge = building(0, "Кузница", "hammer", BuildingCat::Industrial, 2, mMines);
-  const Id bQuarter = building(0, "Жилой квартал", "house", BuildingCat::Residential, 2, mFertile);
+  const Id bQuarter = building(0, "Плодородные угодья", "grain", BuildingCat::Residential, 2, mFertile);   // не путать с базовым «Жилым кварталом»
   const Id bExchange = building(st[5], "Янтарная биржа", "trade", BuildingCat::Economic, 1, mRoad);
   for (size_t i = 0; i < st.size(); i++) {
     const auto& list = stateProv[i];

@@ -29,6 +29,20 @@ TEST(mapbake_extract_matches_assets) {
   a.sourceSha256 = codec::sha256Hex(bytes->data(), bytes->size());
   std::printf("%s", rep.text().c_str());
   CHECK(rep.unexplainedInk * 100 < rep.inkPixels);   // меньше 1 % краски не объяснено объектами
+  // Серый сглаженный замок (уменьшен с размытием) у (3802, 1566) — знак, а не стены; ни одна стена не лежит целиком
+  // в габарите замка или башни (бледные края найденного знака — не стена).
+  bool grayCastle = false;
+  for (const art::Symbol& q : a.symbols) grayCastle = grayCastle || (q.kind == art::Sym::Castle && std::fabs(q.x - 3802) < 1 && std::fabs(q.y - 1566) < 1);
+  CHECK(grayCastle);
+  for (const art::Line& l : a.lines)
+    for (const art::Symbol& q : a.symbols) {
+      if (q.kind != art::Sym::Castle && q.kind != art::Sym::Tower) continue;
+      const RectF b = q.kind == art::Sym::Tower ? RectF(-5, -15, 10, 15) : RectF(-20, -31, 40, 31);
+      bool inside = true;
+      for (const Vec2& p : l.pts)
+        inside = inside && p.x >= q.x + b.x * q.s - 1 && p.x <= q.x + b.right() * q.s + 1 && p.y >= q.y + b.y * q.s - 1 && p.y <= q.y + b.bottom() * q.s + 1;
+      CHECK_MSG(!inside, strf("стена у (%.1f, %.1f) целиком внутри знака", l.pts[0].x, l.pts[0].y));
+    }
   auto committed = fs::readFile(fs::join(dir, "map.json"));
   CHECK(committed.has_value());
   CHECK_MSG(art::toJson(a) == *committed, "map.json в репозитории устарел: пересоберите regnum-cli build-map");

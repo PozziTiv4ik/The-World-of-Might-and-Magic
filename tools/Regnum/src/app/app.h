@@ -19,8 +19,8 @@
 //  - Значение из транзакции получают захватом: Id nid = 0; a.act("…", [&](Tx& tx) { nid = rules::createArmy(...); });
 //  - Занятые оболочкой клавиши: V, H (инструменты), E (правка границ), F (показать выделенное), 1–9 (режимы карты),
 //    M, L (слои карты), Home, +/− (масштаб), Пробел (панорама), Esc, F1, F11,
-//    Ctrl+K/N/O/S/Shift+S/Z/Y/Shift+Z/Enter/Q/W/, (запятая). Ctrl+1…9 — разделы и панели правой ленты
-//    (SectionDef::shortcut, DrawerDef::shortcut).
+//    Ctrl+K/N/O/S/Shift+S/Z/Y/Shift+Z/Enter/Q/W/, (запятая). Ctrl+0…9 — разделы и панели правой ленты
+//    (SectionDef::shortcut, DrawerDef::shortcut; Ctrl+8 — модификаторы).
 //  - Колбэки реестров вызываются внутри кадра интерфейса; исключение из них превращается в уведомление.
 //  - Сценарные тесты оболочки — src/tests/test_app_util.h (apptest::Harness: настоящий App на headless-платформе).
 #pragma once
@@ -185,6 +185,8 @@ struct SectionDef {
   SelType type = SelType::None;        // сущности раздела (страница сущности — вкладки TabDef этого типа)
   bool (*owns)(App&, Id) = nullptr;    // сущность относится к разделу (государство или гильдия); nullptr — все этого типа
   const char* allTitle = nullptr;      // пункт каталога в навигации страницы: «Все государства»
+  int (*badge)(App&) = nullptr;        // число на значке ленты (> 0; ожидающие решения); nullptr — нет
+  bool adminOnly = false;              // только администратору: игроку раздел и его редакторы скрыты и недоступны
 };
 struct SectionReg { explicit SectionReg(const SectionDef& d); };
 const std::vector<SectionDef>& sections();

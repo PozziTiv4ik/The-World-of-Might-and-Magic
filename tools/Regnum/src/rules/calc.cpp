@@ -43,10 +43,21 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
   pc.slots = slotsOf(p, fx);
   pc.slotsUsed = int(p.buildings.size());
 
-  // Торговая ценность: каждый маршрут +10 % и ещё +2,5 % за каждое государство на его пути.
+  // Население.
+  std::map<Id, i64> races;
+  for (const RacePop& r : p.races) {
+    i64 n = std::max<i64>(0, r.pop);
+    races[r.race] += n;
+    pc.population += n;
+  }
+  pc.races = sortedRaces(races);
+
+  // Торговая ценность: каждый маршрут +10 % и ещё +2,5 % за каждое государство на его пути; население — +1 за каждые
+  // 100 жителей.
   pc.routes = routes;
   pc.tradeBase = std::max(0.0, p.baseTrade);
-  pc.tradeValue = std::max(0.0, pc.tradeBase * (1.0 + fx[Fx::TradePct] / 100.0 + routeBonus) + fx[Fx::TradeFlat]);
+  pc.tradePop = double(pc.population) * schema::kTradePerPerson;
+  pc.tradeValue = std::max(0.0, pc.tradeBase * (1.0 + fx[Fx::TradePct] / 100.0 + routeBonus) + fx[Fx::TradeFlat] + pc.tradePop);
 
   // Добыча ресурса: модификаторы и достроенные постройки добычи (шахта), которым подходит ресурс провинции.
   if (owner)
@@ -68,15 +79,6 @@ void calcProvince(const World& w, const SourceIndex& si, const Province& p, int 
   pc.taxState = owner ? std::max(0.0, owner->tax) : 0.0;
   pc.taxLocal = p.localTax;
   pc.taxTotal = clamp(pc.taxState + pc.taxLocal, schema::kMinTotalTax, schema::kMaxTotalTax);
-
-  // Население.
-  std::map<Id, i64> races;
-  for (const RacePop& r : p.races) {
-    i64 n = std::max<i64>(0, r.pop);
-    races[r.race] += n;
-    pc.population += n;
-  }
-  pc.races = sortedRaces(races);
 
   // Гильдии: доход только при наличии штаба.
   const double V = pc.tradeValue, t = pc.taxTotal;
@@ -212,39 +214,44 @@ void planConversion(const World& w, const std::vector<const Province*>& mine, st
       s.province = p->id;
       s.building = b->id;
       s.recipe = std::clamp(pb.recipe, 0, int(b->recipes.size()) - 1);
-      s.out = rc.out;
+      // Множитель производства: цикл берёт и даёт по рецепту mult раз.
+      s.mult = std::clamp(pb.mult, 1, schema::kMaxProductionMult);
+      const double k = double(s.mult);
+      for (const ResAmount& x : rc.out)
+        if (x.res && x.amount > 0 && w.resource(x.res)) s.out.push_back(ResAmount{x.res, x.amount * k});
       if (pb.cycle > 0) {
         s.cycle = pb.cycle - 1;
       } else {
-        bool any = false, ok = rc.out.res && w.resource(rc.out.res);
+        bool any = false, ok = !s.out.empty();
         for (const ResAmount& x : rc.in) {
           if (!(x.amount > 0) || !w.resource(x.res)) continue;
           any = true;
-          if (avail[x.res] + 1e-9 < x.amount) ok = false;
+          if (avail[x.res] + 1e-9 < x.amount * k) ok = false;
         }
         for (const ResAmount& x : rc.essIn) {
           if (!(x.amount > 0) || !w.essence(x.res)) continue;
           any = true;
-          if (availEss[x.res] + 1e-9 < x.amount) ok = false;
+          if (availEss[x.res] + 1e-9 < x.amount * k) ok = false;
         }
         if (!any || !ok) continue;   // нет рецепта или не хватает ресурсов — ждёт
         s.start = true;
         for (const ResAmount& x : rc.in)
           if (x.amount > 0 && w.resource(x.res)) {
-            s.in[x.res] += x.amount;
-            avail[x.res] -= x.amount;
+            s.in[x.res] += x.amount * k;
+            avail[x.res] -= x.amount * k;
           }
         for (const ResAmount& x : rc.essIn)
           if (x.amount > 0 && w.essence(x.res)) {
-            s.essIn[x.res] += x.amount;
-            availEss[x.res] -= x.amount;
+            s.essIn[x.res] += x.amount * k;
+            availEss[x.res] -= x.amount * k;
           }
         s.cycle = std::max(1, rc.turns) - 1;
       }
       s.finish = s.cycle == 0;
       for (auto& [r, v] : s.in) fc.resources[r].conversionIn += v;
       for (auto& [e, v] : s.essIn) fc.essences[e].conversionIn += v;
-      if (s.finish && s.out.res && s.out.amount > 0) fc.resources[s.out.res].conversionOut += s.out.amount;
+      if (s.finish)
+        for (const ResAmount& x : s.out) fc.resources[x.res].conversionOut += x.amount;
       fc.conversions.push_back(std::move(s));
     }
   }

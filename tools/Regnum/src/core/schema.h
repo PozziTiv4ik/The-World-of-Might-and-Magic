@@ -32,6 +32,9 @@ extern const EnumInfo kConstTypes[int(ConstType::Count)];
 extern const EnumInfo kChestItemKinds[int(ChestItemKind::Count)];
 // Редкость реликвий: color — цвет подсветки (белая, синяя, фиолетовая, оранжевая, красная).
 extern const EnumInfo kRarities[int(Rarity::Count)];
+// Виды заговоров (PlotKind).
+extern const EnumInfo kPlotKinds[int(PlotKind::Count)];
+inline const EnumInfo& plotKind(PlotKind k) { return kPlotKinds[int(k) >= 0 && int(k) < int(PlotKind::Count) ? int(k) : 0]; }
 inline const EnumInfo& rarity(Rarity r) { return kRarities[int(r) >= 0 && int(r) < int(Rarity::Count) ? int(r) : 0]; }
 inline const EnumInfo& stateKind(StateKind k) { return kStateKinds[int(k) >= 0 && int(k) < int(StateKind::Count) ? int(k) : 0]; }
 inline const EnumInfo& modKind(ModKind k) { return kModKinds[int(k) >= 0 && int(k) < int(ModKind::Count) ? int(k) : 0]; }
@@ -73,6 +76,7 @@ struct EffectInfo {
   const char* icon;
   bool army = false;    // действует на войска (модификатор войска; у государства — на все его войска)
   bool arch = false;    // действует на археологические группы (модификатор группы; у государства — на все его группы)
+  bool hero = false;    // действует только на самого героя (модификатор героя, таланты): не глобальный
 };
 extern const EffectInfo kEffects[kFxCount];
 inline const EffectInfo& effect(Fx f) { return kEffects[int(f)]; }
@@ -279,7 +283,24 @@ constexpr const char* PlagueImmunity = "plagueImmunity";  // Временный 
 constexpr const char* ArchWounded = "archWounded";        // Ранение в ходе исследования (археологическая группа)
 constexpr const char* ArchPlague = "archPlague";          // Заражение чумой (археологическая группа)
 constexpr const char* ArchValues = "archValues";          // Ценности археологии (гильдия археологов)
+// Заговоры: модификаторы героев для заказных убийств, арест, модификаторы провинций после ареста заговорщиков.
+constexpr const char* Vigilant = "vigilant";              // Бдительный: −25 % к успеху заказного убийства
+constexpr const char* Paranoid = "paranoid";              // Параноик: −50 %
+constexpr const char* Immortal = "immortal";              // Бессмертный: −100 %
+constexpr const char* Careless = "careless";              // Неосмотрительный: +5 %
+constexpr const char* Overconfident = "overconfident";    // Чрезмерно самоуверенный: +15 %
+constexpr const char* Arrested = "arrested";              // Под арестом (как «Взят в плен», без пленителя)
+constexpr const char* PlotArrests = "plotArrests";        // Аресты заговорщиков: приверженность не растёт (5 ходов)
+constexpr const char* PlotExposed = "plotExposed";        // Раскрытый заговор: провинцию нельзя взять в заговор (5 ходов)
+// Модификаторы уровней построек (ключ — префикс и номер уровня, levelModKey): «Жилой квартал I…V» (прирост населения
+// +1…+5 %), «Гильдия строителей I…V» (слоты +1…+5), «Штаб Разведки I…V» (+10…+50 % к успеху заказных убийств),
+// «Штаб Контрразведки I…III» (−10…−30 % к успеху заказных убийств против героев государства).
+constexpr const char* HousingLevel = "housing";
+constexpr const char* BuildersLevel = "builders";
+constexpr const char* IntelLevel = "intelHq";
+constexpr const char* CounterIntelLevel = "counterIntelHq";
 }  // namespace mod
+std::string levelModKey(const char* prefix, int level);
 // Шаблоны встроенных модификаторов (id = 0) в постоянном порядке.
 const std::vector<Modifier>& builtinModifiers();
 const Modifier* builtinModifier(std::string_view key);
@@ -348,12 +369,38 @@ constexpr const char* CorpseMill = "corpseMill";   // «Мясопилка»: т
 constexpr const char* Drainer = "drainer";         // «Иссушительница»
 constexpr const char* Sprinkler = "sprinkler";     // «Окропительница»
 constexpr const char* Steelworks = "steelworks";   // «Сталелитейная»
+// Постройки «Доработок №1» (2026-10-22) и штабы разведки и контрразведки (уникальное дерево каждого государства).
+constexpr const char* Farm = "farm";               // «Ферма»: добыча провизии, овощи, зерно, фрукты, курицы
+constexpr const char* Slaughterhouse = "slaughterhouse";   // «Бойня»
+constexpr const char* CultAltar = "cultAltar";     // «Алтарь культа»: демоническая энергия
+constexpr const char* HolyTemple = "consecrationTemple";   // «Храм освящения»
+constexpr const char* UnholyTemple = "desecrationTemple";  // «Храм осквернения»
+constexpr const char* AbyssEnricher = "abyssEnricher";     // «Обогатитель бездны»
+constexpr const char* NecroEnricher = "necroEnricher";     // «Некротический обогатитель»
+constexpr const char* Housing = "housing";         // «Жилой квартал»: прирост населения
+constexpr const char* WarWorkshop = "warWorkshop"; // «Военная мастерская»: порох
+constexpr const char* EngWorkshop = "engineeringWorkshop"; // «Инженерная мастерская»
+constexpr const char* CharcoalPit = "charcoalPit"; // «Углежогная яма»
+constexpr const char* BuildersGuild = "buildersGuild";     // «Гильдия строителей»: слоты
+constexpr const char* IntelHq = "intelHq";         // «Штаб Разведки» (уникальная культовая)
+constexpr const char* CounterIntelHq = "counterIntelHq";   // «Штаб Контрразведки» (уникальная культовая)
 }  // namespace bld
 // Технологии, на которые опираются правила (Tech::key).
 namespace tech {
 constexpr const char* ArchValues = "archValues";   // «Ценности археологии»: гильдия археологов даёт сокровища
 constexpr const char* MagicPowder = "magicPowder"; // «Производство магического пороха»: алхимический преобразователь
+constexpr const char* Powder = "powder";           // «Производство пороха»: военная мастерская
+// Ветка «Стимуляция промышленности»: технология с ключом industryN (N = 2…100) открывает множитель производства ×N.
+constexpr const char* IndustryPrefix = "industry";
 }  // namespace tech
+// Множитель производства постройки преобразования: ×1 … ×100.
+constexpr int kMaxProductionMult = 100;
+// Ветка «Стимуляция промышленности»: срок технологии и цена (×N для технологии множителя ×N).
+constexpr int kIndustryTechTurns = 5;
+constexpr double kIndustryTechGold = 10, kIndustryTechParts = 50;
+// Множитель, который открывает технология с ключом key (industryN → N); 0 — не технология ветки.
+int industryMultOf(std::string_view key);
+std::string industryKey(int mult);
 // Группы реликвий (RelicGroup::key).
 constexpr const char* kRelicArchFinds = "archFinds";   // «Археологические находки»: героям напрямую не назначаются
 
@@ -388,5 +435,33 @@ constexpr double kSameReligionRelation = 10;      // одна религия у 
 constexpr float kMinSymbolScale = 0.2f, kMaxSymbolScale = 8.f;
 constexpr float kMinShapeWidth = 0.25f, kMaxShapeWidth = 100.f;
 constexpr float kWallWidth = 2.f, kRiverWidth = 4.f;
+
+// Торговая ценность провинции: +1 за каждые 100 жителей.
+constexpr double kTradePerPerson = 0.01;
+
+// Заговоры (ТЗ «Доработки №2»).
+constexpr double kPlotSponsorShare = 0.20;        // «Спонсировать заговор»: 20 % текущей ценности провинции, золото
+constexpr double kPlotSponsorStep = 10;           // … и +10 % приверженности (раз в ход)
+constexpr double kPlotRiseShare = 0.002;          // восстание: 1 % приверженности = 0,2 % населения
+constexpr double kPlotPerUnit = 5;                // снабжение: 5 ед. ресурсов — один воин заговорщиков
+constexpr double kPlotPerBallista = 50;           // механические детали: 50 — одна баллиста
+constexpr double kPlotPerGolem = 5;               // запчасти механизмов: 5 — один голем
+constexpr double kHitMin = 100, kHitMax = 5000, kHitPerPct = 100;           // заказное убийство: золото, 1 % за 100
+constexpr double kHitMinVip = 500, kHitMaxVip = 25000, kHitPerPctVip = 500; // советник или значимый герой: 1 % за 500
+constexpr double kDetectPerLevel = 10;            // контрразведка: шанс обнаружить и раскрыть — 10 % за уровень штаба
+constexpr double kArrestShare = 0.02;             // арест на этапе 1: 20 % от 10 % населения
+constexpr double kArrestCommitCut = 20;           // … и −20 % приверженности
+constexpr int kPlotModTurns = 5;                  // «Аресты заговорщиков», «Раскрытый заговор» — 5 ходов
+constexpr int kPlotStages = 5;                    // этапы раскрытия: провинции, приверженность, герои, значимые, лидер
+// Снабжение вооружением: ресурсы по названиям (группы правил отрядов заговорщиков, в порядке приоритета).
+// Огнестрельное — «Заговорщики-Мушкетеры», сталь — «Заговорщики-Латники», лунное серебро — «Заговорщики-Стрелки
+// Лунного Серебра», железо и обсидиан — «Заговорщики-Пехотинцы»; механические детали — баллисты, запчасти
+// механизмов (встроенный ресурс) — големы.
+enum class PlotArms : u8 { Firearms = 0, Steel = 1, MoonSilver = 2, Iron = 3, MechParts = 4, SpareParts = 5, Count };
+struct PlotArmsInfo {
+  PlotArms arms;
+  std::vector<const char*> resources;   // названия ресурсов (SpareParts — встроенный kResMechParts)
+};
+const std::vector<PlotArmsInfo>& plotArms();
 
 }  // namespace rg::schema

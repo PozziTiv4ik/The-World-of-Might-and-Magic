@@ -146,6 +146,61 @@ Building archGuildFor(Id state, Vec2 pos) {
   return b;
 }
 
+Id builtinModifierRecord(Tx& tx, const std::string& key) {
+  if (Id id = tx.w().modifiers.firstId([&](const Modifier& m) { return m.key == key; })) return id;
+  const Modifier* t = schema::builtinModifier(key);
+  if (!t) return 0;
+  Modifier m = *t;
+  m.id = 0;
+  return tx.add(std::move(m)).id;
+}
+
+void addIntelBuildings(Tx& tx, Id state) {
+  const Faction* f = tx.w().faction(state);
+  if (!f || !f->isState()) return;
+  auto find = [&](const char* key) { return tx.w().buildings.firstId([&](const Building& b) { return b.owner == state && b.key == key; }); };
+  auto costs = [&](Building& b, int levels, const char* modPrefix) {
+    b.levels.clear();
+    for (int i = 1; i <= levels; i++) {
+      BuildingLevel l;
+      for (auto& [n, v] : std::vector<std::pair<const char*, double>>{{"Древесина", 100}, {"Камень", 500}, {"Кожа", 500}}) {
+        const std::string k = utf8::searchKey(n);
+        for (const CatalogItem& c : tx.w().catalogs->resources)
+          if (utf8::searchKey(c.name) == k) l.cost[c.id] = v;
+      }
+      l.cost[kGold] = 50;
+      if (Id m = builtinModifierRecord(tx, schema::levelModKey(modPrefix, i))) l.modifiers.push_back(m);
+      b.levels.push_back(std::move(l));
+    }
+  };
+  Id intel = find(schema::bld::IntelHq);
+  if (!intel) {
+    Building b;
+    b.owner = state;
+    b.name = "Штаб Разведки";
+    b.icon = "eye";
+    b.cat = BuildingCat::Cult;
+    b.key = schema::bld::IntelHq;
+    b.desc = "Успех заказных убийств заговоров против других государств: +10 % за уровень.";
+    b.pos = schema::nextTreePos(tx.w().buildings, [&](const Building& x) { return x.owner == state; });
+    costs(b, 5, schema::mod::IntelLevel);
+    intel = tx.add(std::move(b)).id;
+  }
+  if (!find(schema::bld::CounterIntelHq)) {
+    Building b;
+    b.owner = state;
+    b.name = "Штаб Контрразведки";
+    b.icon = "shield";
+    b.cat = BuildingCat::Cult;
+    b.key = schema::bld::CounterIntelHq;
+    b.desc = "Контрразведка: обнаружение и раскрытие заговоров (10 % за уровень), защита героев от заказных убийств.";
+    b.pos = schema::nextTreePos(tx.w().buildings, [&](const Building& x) { return x.owner == state; });
+    costs(b, 3, schema::mod::CounterIntelLevel);
+    b.requires_.push_back(BuildingReq{intel, 4});
+    tx.add(std::move(b));
+  }
+}
+
 std::vector<std::string> seed(Tx& tx) {
   const int from = tx.w().meta->content;
   if (from >= kVersion) return {};
@@ -153,6 +208,7 @@ std::vector<std::string> seed(Tx& tx) {
   if (from < 1) s.v1();
   if (from < 2) s.v2();
   if (from < 3) s.v3();
+  if (from < 4) s.v4();
   tx.meta().content = kVersion;
   std::vector<std::string> parts;
   if (s.positions) parts.push_back(count(s.positions, "должности"));

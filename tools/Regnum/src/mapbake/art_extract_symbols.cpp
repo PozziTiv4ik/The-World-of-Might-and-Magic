@@ -275,6 +275,29 @@ void SymbolSearch::mark(const Stamp& s, int x0, int y0) {
     }
 }
 
+bool SymbolSearch::stampRemnant(const std::vector<u32>& comp, int bx0, int by0, int bx1, int by1) const {
+  std::vector<const Placed*> near;
+  for (const Placed& p : placed)
+    if ((p.st->kind == Sym::Castle || p.st->kind == Sym::Tower) && p.x <= bx1 + 1 && p.x + p.st->w >= bx0 - 1 && p.y <= by1 + 1 && p.y + p.st->h >= by0 - 1)
+      near.push_back(&p);
+  if (near.empty()) return false;
+  size_t on = 0;
+  for (u32 i : comp) {
+    const int x = int(i % u32(w)), y = int(i / u32(w));
+    bool hit = false;
+    for (size_t k = 0; k < near.size() && !hit; k++) {
+      const Stamp& s = *near[k]->st;
+      for (int dy = -1; dy <= 1 && !hit; dy++)
+        for (int dx = -1; dx <= 1 && !hit; dx++) {
+          const int u = x + dx - near[k]->x, v = y + dy - near[k]->y;
+          hit = u >= 0 && v >= 0 && u < s.w && v < s.h && s.ink[size_t(v) * size_t(s.w) + size_t(u)] >= 100;
+        }
+    }
+    on += hit;
+  }
+  return on * 10 >= comp.size() * 9;
+}
+
 void placeStamps(SymbolSearch& ctx, MapArt& art, ExtractReport& rep) {
   const int w = ctx.w, h = ctx.h;
   const StampFinder& F = ctx.F;
@@ -341,8 +364,56 @@ void placeStamps(SymbolSearch& ctx, MapArt& art, ExtractReport& rep) {
   for (const Found& f : found) ctx.mark(ctx.stampOf(f), f.x, f.y);
 }
 
+namespace {
+
+// Бледный или сглаженный замок или башня в области comp (габарит bx0..bx1 × by0..by1): линии серые, рисунок бывает
+// уменьшен с размытием, и сравнение краски с допуском его не узнаёт. Масштаб — по габариту области, положение — сдвиги
+// на долю пикселя около её угла, сходство — корреляция формы образца с краской (не зависит от яркости линий).
+bool placeFadedStamp(SymbolSearch& ctx, const std::vector<u32>& comp, int bx0, int by0, int bx1, int by1, MapArt& art, ExtractReport& rep) {
+  constexpr double kMinCorrelation = 0.9;
+  const int bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+  const Stamp* bestT = nullptr;
+  double best = kMinCorrelation;
+  int bestK = 0, bestS = 0, bestX = 0, bestY = 0;
+  for (const Stamp* T : {&ctx.castle, &ctx.tower})
+    for (int k = 85; k <= 115; k++) {   // масштаб k / 100
+      const double sc = k / 100.0;
+      if (std::fabs(T->w * sc - bw) > 2 || std::fabs(T->h * sc - bh) > 2) continue;
+      for (int s = 0; s < 16; s++) {
+        const Stamp S = resampleStamp(*T, sc, (s % 4) * 0.25, (s / 4) * 0.25);
+        for (int y = by0 - 2; y <= by0 + 1; y++)
+          for (int x = bx0 - 2; x <= bx0 + 1; x++) {
+            const double c = ctx.F.correlation(S, x, y);
+            if (c > best) {
+              best = c;
+              bestT = T;
+              bestK = k;
+              bestS = s;
+              bestX = x;
+              bestY = y;
+            }
+          }
+      }
+    }
+  if (!bestT) return false;
+  const double sc = bestK / 100.0, fx = (bestS % 4) * 0.25, fy = (bestS / 4) * 0.25;
+  const double ax = bestX + fx + bestT->ax * sc, ay = bestY + fy + bestT->ay * sc;
+  for (const Symbol& q : art.symbols)   // не второй знак на месте уже найденного
+    if (q.kind == bestT->kind && std::fabs(q.x - ax) < 0.4 * bestT->w * sc && std::fabs(q.y - ay) < 0.4 * bestT->h * sc) return false;
+  art.symbols.push_back(Symbol{bestT->kind, float(ax), float(ay), float(sc), 0});
+  rep.symbols[size_t(bestT->kind)]++;
+  rep.subpixel++;
+  ctx.faded.push_back(resampleStamp(*bestT, sc, fx, fy));
+  ctx.placed.push_back({&ctx.faded.back(), bestX, bestY});
+  ctx.mark(ctx.faded.back(), bestX, bestY);
+  for (u32 i : comp) ctx.explained[i] = 1;
+  return true;
+}
+
+}  // namespace
+
 // Поиск идёт в необъяснённых областях краски; из подходящих вариантов берётся объясняющий больше краски (крупная
-// гора, а не три мелких).
+// гора, а не три мелких). Где ни один вариант не подошёл — бледный или сглаженный замок или башня.
 void placeShiftedStamps(SymbolSearch& ctx, MapArt& art, ExtractReport& rep) {
   using Base = SymbolSearch::Base;
   const int w = ctx.w, h = ctx.h;
@@ -401,6 +472,7 @@ void placeShiftedStamps(SymbolSearch& ctx, MapArt& art, ExtractReport& rep) {
       by0 = std::min(by0, int(i / u32(w)));
       by1 = std::max(by1, int(i / u32(w)));
     }
+    const size_t before = art.symbols.size();
     for (int round = 0; round < 16; round++) {
       int bestHit = 0, bestB = -1, bestS = 0, bestX = 0, bestY = 0;
       for (size_t b = 0; b < bases.size(); b++) {
@@ -488,6 +560,7 @@ void placeShiftedStamps(SymbolSearch& ctx, MapArt& art, ExtractReport& rep) {
           for (int x = std::max(0, bestX - 3); x < std::min(w, bestX + S.w + 3); x++) explained[size_t(y) * size_t(w) + size_t(x)] = 1;
       }
     }
+    if (art.symbols.size() == before) placeFadedStamp(ctx, comp, bx0, by0, bx1, by1, art, rep);
   }
 }
 

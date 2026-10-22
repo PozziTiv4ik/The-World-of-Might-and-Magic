@@ -51,6 +51,9 @@ enum class StateKind : u8 { Living = 0, Undead = 1, Demonic = 2, Count };
 enum class ModKind : u8 { Any = 0, Province = 1, Faction = 2, Army = 3, Hero = 4, ArchGroup = 5, Count };
 // Позиция сделки: ресурс, провинция (переходит к другой стороне), пленный герой.
 enum class DealItemKind : u8 { Resource = 0, Province = 1, Hero = 2, Count };
+// Вид заговора: против другого государства (заказчик — государство, видит и игрок) или внутренний (только
+// администратор редактора).
+enum class PlotKind : u8 { External = 0, Internal = 1, Count };
 // Тип глобальной константы: число, список ресурсов с количествами, список значений.
 enum class ConstType : u8 { Number = 0, Resources = 1, Values = 2, Count };
 // Поле сундука сокровищ: археологическая награда, золото, ресурс, артефакт, эссенция, вложенный сундук.
@@ -66,6 +69,10 @@ enum class Fx : u8 {
   // Глобальные (ветка технологий «Археология»): сокровища от всех действий групп, шанс обнаружения места,
   // начальный уровень новых групп.
   ArchTreasurePct, ArchDiscoveryPct, ArchStartLevel,
+  // Заговоры: успех заказного убийства героя (модификатор героя: «Бдительный», «Параноик»…), успех заказных убийств
+  // заговоров государства против других государств (глобальный: «Штаб Разведки»), успех заказных убийств против
+  // героев государства (глобальный: «Штаб Контрразведки» — отрицательный).
+  AssassinPct, PlotAssassinPct, AssassinGuardPct,
   Count
 };
 constexpr int kFxCount = int(Fx::Count);
@@ -74,7 +81,7 @@ constexpr int kFxCount = int(Fx::Count);
 enum class Seq : u8 {
   Province, Faction, Character, Modifier, Building, Tech, Army, Route, Deal, Log, Row, Council,
   Node, Edge, Resource, Race, Culture, Religion, Government, Position, Symbol, Shape,
-  Essence, Relic, Special, ResGroup, HeroClass, Talent, RelicGroup, ArchSite, Chest, ArchGroup, SubClass, Count
+  Essence, Relic, Special, ResGroup, HeroClass, Talent, RelicGroup, ArchSite, Chest, ArchGroup, SubClass, Plot, Count
 };
 constexpr int kSeqCount = int(Seq::Count);
 

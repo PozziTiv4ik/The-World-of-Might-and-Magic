@@ -176,6 +176,28 @@ void Norm::factions() {
     }
     // Инвентарь государства: стопки реликвий (уникальная — в одном месте мира).
     ch |= fixStacks(f.relics, F_FACTIONS, where, "relics");
+    // Отметка готовности и ход контрразведки — номера ходов; тюрьма — расы справочника, люди ≥ 0, без повторов.
+    ch |= fixNum(f.readyTurn, 0, kMaxTurn, 0, F_FACTIONS, where, "readyTurn");
+    ch |= fixNum(f.detectTurn, 0, kMaxTurn, 0, F_FACTIONS, where, "detectTurn");
+    if (!f.isState() && (!f.prison.empty() || f.readyTurn || f.conspiracy)) {
+      warn(F_FACTIONS, where, "тюрьма, готовность к ходу и заговор бывают только у государства — сняты");
+      f.prison.clear();
+      f.readyTurn = 0;
+      f.conspiracy = false;
+      ch = true;
+    }
+    ch |= fixKeyed(
+        f.prison, F_FACTIONS, where, "prison", [](const RacePop& x) { return x.race; },
+        [&](RacePop& x, const std::string& at, bool& c) {
+          if (!hasCat(Seq::Race, x.race)) {
+            warn(F_FACTIONS, at, "нет расы " + ref(Seq::Race, x.race) + " — запись удалена");
+            return false;
+          }
+          c |= fixNum(x.pop, i64(0), kMaxCount, i64(0), F_FACTIONS, at, "pop");
+          return x.pop > 0;
+        },
+        [](const RacePop& x) { return "повтор расы " + refStr(Seq::Race, x.race) + " — заключённые сложены"; },
+        [](RacePop& a, const RacePop& b) { a.pop = std::min(kMaxCount, a.pop + b.pop); });
 
     for (size_t i = 0; i < f.council.size(); i++) {
       auto& s = f.council[i];
@@ -342,6 +364,12 @@ void Norm::characters() {
       ch = true;
     }
     ch |= fixRef(c.burial, Seq::Province, F_CHARACTERS, where, "burial");
+    if (c.jailer && !isState(c.jailer)) {
+      warn(F_CHARACTERS, where + ".jailer", exists(Seq::Faction, c.jailer) ? refStr(Seq::Faction, c.jailer) + " — не государство: ссылка удалена"
+                                                                           : "нет фракции " + refStr(Seq::Faction, c.jailer) + " — ссылка удалена");
+      c.jailer = 0;
+      ch = true;
+    }
     // Инвентарь: стопки реликвий справочника; уникальная — только у одного персонажа (первого по ID).
     ch |= fixStacks(c.inventory, F_CHARACTERS, where, "inventory");
     // Уровень 1…60, класс справочника, подкласс — своего класса (у прежнего мира герой класса с единственным

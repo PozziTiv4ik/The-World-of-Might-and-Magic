@@ -346,3 +346,20 @@ TEST(rules_turn_preview_and_determinism) {
   CHECK_EQ(World::diff(start, f.w()), 0u);
   CHECK_EQ(f.w().turn(), 1);
 }
+
+// Игрок отмечает готовность завершить ход; отметка действует до конца хода.
+TEST(rules_turn_ready_mark) {
+  Fix f;
+  CHECK(!turnReady(f.w(), f.A));
+  f.tx([&](Tx& tx) { setTurnReady(tx, f.A, true); });
+  CHECK(turnReady(f.w(), f.A));
+  CHECK(!turnReady(f.w(), f.B));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setTurnReady(tx, f.G, true); }); }), "гильдия"));
+  f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK(!turnReady(f.w(), f.A));
+  f.tx([&](Tx& tx) {
+    setTurnReady(tx, f.A, true);
+    setTurnReady(tx, f.A, false);
+  });
+  CHECK(!turnReady(f.w(), f.A));
+}

@@ -88,6 +88,7 @@ std::vector<BN> snapshot(const World& w, Id owner, const Ed& ed) {
     n.extract = b.extract;
     n.extractGroups = b.extractGroups;
     n.extractExclude = b.extractExclude;
+    n.extractOptional = b.extractOptional;
     n.stateKinds = b.stateKinds;
     n.recipes = b.recipes;
     n.specials = b.specials;
@@ -686,7 +687,10 @@ void View::hoverCard() {
                                th.info});
         if (b->recipes.empty()) tip.lines.push_back({"convert", "Преобразование: рецептов нет", th.warning});
       }
-      if (const Building* rb = w.building(b->id); rb && b->extract) tip.lines.push_back({"pickaxe", "Добыча: " + bld::extractText(w, *rb), Color::hex(kExtractInk), true});
+      if (const Building* rb = w.building(b->id); rb && b->extract) {
+        tip.lines.push_back({"pickaxe", "Добыча: " + bld::extractText(w, *rb), Color::hex(kExtractInk), true});
+        if (b->extractOptional) tip.lines.push_back({"pickaxe", "Добыча не обязательна: ставится при любом ресурсе провинции", Color::hex(kExtractInk), true});
+      }
       if (b->market) tip.lines.push_back({"scales", "Рынок: «Продать реликвии»", th.accent});
       if (b->specialAccess && !b->specials.empty())
         tip.lines.push_back({"special-unit", "Особые отряды: " + bld::specialsText(w, b->specials), th.accent, true});

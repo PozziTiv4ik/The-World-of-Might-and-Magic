@@ -32,6 +32,19 @@ std::vector<Ext> extsOf(const World& w, const std::vector<TN>& ts, const TN& t, 
 
 namespace {
 
+// Название в ширину w: не помещается — многоточие; номер в конце («Стимуляция промышленности 10», «… IV») остаётся
+// виден — многоточие перед ним, иначе карточки ветки не различить.
+std::string fitName(const std::string& name, const gfx::TextStyle& st, float w) {
+  if (gfx::measureText(name, st) <= w) return name;
+  const size_t sp = name.find_last_of(' ');
+  if (sp == std::string::npos || sp + 1 >= name.size() || sp == 0) return name;
+  const std::string tail = name.substr(sp);
+  if (tail.find_first_not_of(" 0123456789IVXLC") != std::string::npos) return name;
+  const float tw = gfx::measureText(tail, st);
+  if (tw >= w * 0.5f) return name;
+  return gfx::ellipsize(std::string_view(name).substr(0, sp), st, w - tw) + tail;
+}
+
 void drawArc(gfx::Canvas& c, float cx, float cy, float r, float frac, float width, Color col) {
   if (frac <= 0) return;
   gfx::Path p;
@@ -90,7 +103,11 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
 
   // Название, срок, модификаторы
   Color nameCol = t.st == St::Locked ? k.textDim : k.text;
-  text(c, t.name.empty() ? "Без названия" : t.name, textStyle(14, gfx::FontWeight::Semibold), RectF{r.x + 54, r.y + 11, kW - 54 - 40, 20}, nameCol);
+  {
+    const gfx::TextStyle ns = textStyle(14, gfx::FontWeight::Semibold);
+    const float nw = kW - 54 - 40;
+    text(c, t.name.empty() ? std::string("Без названия") : fitName(t.name, ns, nw), ns, RectF{r.x + 54, r.y + 11, nw, 20}, nameCol);
+  }
   {
     float x = r.x + 54, y = r.y + 33;
     icon(c, "hourglass", RectF{x, y + 1, 13, 13}, k.textMuted);
@@ -143,10 +160,11 @@ void drawCard(gfx::Canvas& c, const Scene& s, const Card& cd) {
   } else {
     text(c, "Без бонуса", small, RectF{r.x + 14, r.y + 56, kW - 28, 16}, k.textMuted);
   }
-  // Гнёзда связей
+  // Гнёзда новой связи (вход слева, выход справа) — у наведённой и выбранной; концы существующих связей рисует сцена
+  // там, где связь касается карточки.
   Vec2 in{r.x, r.y + kH * 0.5}, out{r.right(), r.y + kH * 0.5};
-  if (cd.hasIn || cd.inHot || cd.hover || cd.sel) drawPort(c, in, cd.inHot ? k.accent : Color::mix(k.borderStrong, tone, 0.5f), k.bg, cd.hasIn, cd.inHot, z);
-  if (cd.hasOut || cd.outHot || cd.hover || cd.sel) drawPort(c, out, cd.outHot ? k.accent : Color::mix(k.borderStrong, tone, 0.5f), k.bg, cd.hasOut, cd.outHot, z);
+  if (cd.inHot || cd.hover || cd.sel) drawPort(c, in, cd.inHot ? k.accent : Color::mix(k.borderStrong, tone, 0.5f), k.bg, false, cd.inHot, z);
+  if (cd.outHot || cd.hover || cd.sel) drawPort(c, out, cd.outHot ? k.accent : Color::mix(k.borderStrong, tone, 0.5f), k.bg, false, cd.outHot, z);
   c.restore();
 }
 
@@ -173,6 +191,11 @@ void renderScene(const Scene& s, gfx::Canvas& c, RectF dev, float scale) {
     text(c, e.label, textStyle(11.5f), RectF{e.pill.x + 26, e.pill.y, e.pill.w - 34, e.pill.h}, e.hot ? s.k.text : s.k.textDim);
   }
   for (const Card& cd : s.cards) drawCard(c, s, cd);
+  // Концы связей — гнёзда на краю карточек (условие — откуда выходит, технология — куда входит).
+  for (const EdgeD& e : s.edges) {
+    drawPort(c, e.k.p0, e.from, s.k.bg, true, false, z);
+    drawPort(c, e.k.p1, e.to, s.k.bg, true, false, z);
+  }
   if (s.pending) drawCurve(c, s.pend, s.pendCol, 2.2f, z, true, true);
   c.restore();
 }

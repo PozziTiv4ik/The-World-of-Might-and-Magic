@@ -414,6 +414,92 @@ TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
   return d;
 }
 
+// ================================================================ готовность игроков
+std::vector<ReadyRow> readiness(const World& w) {
+  std::vector<ReadyRow> out;
+  w.factions.each([&](const Faction& f) {
+    if (!f.isState()) return;
+    const bool ready = rules::turnReady(w, f.id);
+    if (ready || f.mainState) out.push_back(ReadyRow{f.id, ready, f.mainState});
+  });
+  std::stable_sort(out.begin(), out.end(), [&](const ReadyRow& x, const ReadyRow& y) {
+    if (x.ready != y.ready) return x.ready;
+    if (x.main != y.main) return x.main;
+    const int c = compareRu(w.factionName(x.state), w.factionName(y.state));
+    return c != 0 ? c < 0 : x.state < y.state;
+  });
+  return out;
+}
+
+int readyCount(const World& w) {
+  int n = 0;
+  w.factions.each([&](const Faction& f) {
+    if (rules::turnReady(w, f.id)) n++;
+  });
+  return n;
+}
+
+void readinessTable(App& a, const World& w, std::string_view id, float height, std::string_view mark) {
+  const std::vector<ReadyRow> rows = readiness(w);
+  ui::Column cols[] = {{"Государство", nullptr, ui::fr(1.6f)}, {"Готовность", nullptr, ui::fr(1), ui::Align::Right}};
+  ui::Table t(id, cols, int(rows.size()),
+              {.rowHeight = 40, .height = height, .selectable = false, .emptyIcon = "check-circle", .emptyText = "Отметок готовности нет"});
+  for (int i : t) {
+    const ReadyRow& r = rows[size_t(i)];
+    a.markUi(std::string(mark) + "." + std::to_string(r.state), t.rowRect());
+    ui::Disabled dim(!r.ready);   // основное государство без отметки — приглушённо
+    t.cell();
+    factionLabel(w, r.state);
+    t.cell();
+    ui::HStack hs(24, ui::Align::Right, 6);
+    if (r.ready) ui::tag("Готов", ui::Tone::Success, "check");
+    else ui::label("Не готов", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "hourglass"});
+  }
+}
+
+namespace {
+// Размеры отметки-кнопки: шрифт, высота, значок, поле.
+struct PillMetrics {
+  ui::Font font;
+  float h, icon, pad;
+};
+PillMetrics pillMetrics(ui::Size size) {
+  const bool small = size == ui::Size::Small;
+  return {small ? ui::Font::Small : ui::Font::Strong, small ? ui::theme().controlHSmall : ui::theme().controlH, small ? 14.f : 16.f,
+          small ? 9.f : 11.f};
+}
+}  // namespace
+
+float statePillWidth(std::string_view label, ui::Size size) {
+  const PillMetrics m = pillMetrics(size);
+  return m.pad + m.icon + 6 + std::ceil(ui::measure(label, m.font)) + 1 + m.pad;
+}
+
+bool statePill(std::string_view key, std::string_view label, const char* icon, std::string_view tip, ui::Shortcut s, ui::Size size) {
+  const ui::Theme& th = ui::theme();
+  const PillMetrics m = pillMetrics(size);
+  RectF r = ui::next(statePillWidth(label, size), m.h);
+  if (r.h > m.h) r = RectF{r.x, std::round(r.cy() - m.h * 0.5f), r.w, m.h};
+  ui::draw::rect(r, th.success.alpha(0.14f), th.radiusField);
+  ui::draw::rectStroke(r, th.success.alpha(0.55f), th.radiusField, 1);
+  ui::at(r);
+  const bool clicked = ui::button("##" + std::string(key), {.variant = ui::Variant::Ghost, .fill = true});
+  ui::tooltip(tip, s);
+  const float tx = r.x + m.pad + m.icon + 6;
+  ui::draw::icon(icon, RectF{r.x + m.pad, std::round(r.cy() - m.icon * 0.5f), m.icon, m.icon}, th.success);
+  ui::draw::text(label, RectF{tx, r.y, std::max(0.f, r.right() - m.pad - tx + 1), r.h}, m.font, th.text);
+  return clicked;
+}
+
+void toggleReady(App& a) {
+  const Id st = a.ui.playerState;
+  if (!a.player() || !a.store.world().faction(st)) return;
+  const bool ready = !rules::turnReady(a.store.world(), st);
+  if (!a.play(ready ? "Готов завершить ход" : "Отменить готовность", [&](Tx& tx) { rules::setTurnReady(tx, st, ready); })) return;
+  if (ready) a.toast("Готов завершить ход", ToastKind::Success, "check");
+  else a.toast("Готовность снята", ToastKind::Info, "hourglass");
+}
+
 // ================================================================ прокрутка по содержимому
 FitScroll::FitScroll(std::string_view id, float maxH, float minH) {
   h_ = &ui::state<float>(ui::id(std::string(id) + "##fit"));

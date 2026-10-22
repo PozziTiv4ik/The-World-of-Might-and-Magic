@@ -121,7 +121,8 @@ void Norm::buildings() {
               in.push_back(y);
             }
             if (in.size() > 3) {
-              warn(F_BUILDINGS, rw + "." + field, "на входе больше трёх позиций — лишние удалены");
+              warn(F_BUILDINGS, rw + "." + field, std::string(field) == "out" ? "на выходе больше трёх позиций — лишние удалены"
+                                                                               : "на входе больше трёх позиций — лишние удалены");
               in.resize(3);
               ch = true;
             }
@@ -132,8 +133,7 @@ void Norm::buildings() {
           };
           fixIn(rc.in, Seq::Resource, "in", "ресурса");
           fixIn(rc.essIn, Seq::Essence, "essIn", "эссенции");
-          ch |= fixRef(rc.out.res, Seq::Resource, F_BUILDINGS, rw, "out");
-          ch |= fixNum(rc.out.amount, 0.0, 1e12, 0.0, F_BUILDINGS, rw + ".out", "amount");
+          fixIn(rc.out, Seq::Resource, "out", "ресурса");
           ch |= fixNum(rc.turns, 1, kMaxTurns, 1, F_BUILDINGS, rw, "turns");
         }
       }
@@ -160,9 +160,10 @@ void Norm::buildings() {
         }
         ch |= fixNum(l.extractPct, 0.0, 10000.0, 0.0, F_BUILDINGS, at, "extractPct");
       }
-      if (!b.extract && (!b.extractGroups.empty() || !b.extractExclude.empty())) {
+      if (!b.extract && (!b.extractGroups.empty() || !b.extractExclude.empty() || b.extractOptional)) {
         b.extractGroups.clear();
         b.extractExclude.clear();
+        b.extractOptional = false;
         ch = true;
       }
       ch |= fixRefList(b.extractGroups, Seq::ResGroup, F_BUILDINGS, where, "extractGroups");

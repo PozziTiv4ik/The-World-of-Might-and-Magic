@@ -612,11 +612,11 @@ TEST(rules_military_capture_plunder_raze_devastate) {
   });
   CaptureOptions o = captureOptions(f.w(), a0, f.p[0]);
   CHECK(o.can[int(Capture::Plunder)]);
-  CHECK_NEAR(o.plunderGold, 100, 1e-9);   // V × N / 10 000
-  CHECK_NEAR(o.razeGold, 200, 1e-9);
+  CHECK_NEAR(o.plunderGold, 200, 1e-9);   // V × N / 10 000; V = 100 + 10 000 жителей / 100
+  CHECK_NEAR(o.razeGold, 400, 1e-9);
   f.tx([&](Tx& tx) { capture(tx, a0, f.p[0], Capture::Plunder); });
   CHECK(f.w().province(f.p[0])->occupied && f.w().province(f.p[0])->occupier == f.A);
-  CHECK_NEAR(f.w().faction(f.A)->treasury(), 100, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->treasury(), 200, 1e-9);
   CHECK(provinceHas(f.w(), f.p[0], schema::mod::Plundered));
   CHECK_NEAR(f.w().relation(f.A, f.B).v, -30, 1e-9);
   CHECK(!captureOptions(f.w(), a0, f.p[0]).can[int(Capture::Plunder)]);
@@ -624,7 +624,7 @@ TEST(rules_military_capture_plunder_raze_devastate) {
   f.tx([&](Tx& tx) { capture(tx, a1, f.p[1], Capture::Raze); });
   CHECK(!f.w().province(f.p[1])->occupied);
   CHECK(provinceHas(f.w(), f.p[1], schema::mod::Ravaged));
-  CHECK_NEAR(f.w().faction(f.A)->treasury(), 300, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->treasury(), 600, 1e-9);
   CHECK_EQ(provinceOf(f.w(), a1), f.p[0]);   // отступило в оккупированную П0
   CHECK_NEAR(f.w().relation(f.A, f.B).v, -40, 1e-9);
   // Опустошить 10 %: рабы, гибель, без владельца, «Неправедное деяние» и «Мучения совести».

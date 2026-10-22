@@ -1,7 +1,8 @@
 // Regnum — дерево построек: особые возможности постройки в панели свойств. Значки-переключатели всех возможностей
 // (rules::setBuildingRole, rules::setBuildingFlag; выключение снимает их данные — Ctrl+Z возвращает), виды государства,
 // которым доступна постройка, и правка включённых возможностей: рецепты преобразования (несколько: название, до трёх
-// ресурсов и трёх эссенций на входе, ресурс на выходе, срок цикла), особые отряды, группы добычи и исключения.
+// ресурсов и трёх эссенций на входе, до трёх ресурсов на выходе, срок цикла), особые отряды, группы добычи и исключения,
+// «Добыча не обязательна» (ферма).
 // Числа по уровням (иссушение, снижение содержания, добыча) — в карточках уровней (buildings_levels.cpp).
 #include "app/editors/buildings_internal.h"
 
@@ -24,12 +25,13 @@ using F = rules::BuildingFlag;
 
 const Feature kFeatures[] = {
     {true, int(R::Convert), "convert", "Преобразование ресурсов",
-     "Рецепты: до трёх ресурсов и трёх эссенций на входе — один ресурс на выходе за цикл; в провинции выбирается рецепт", "bt.role.convert"},
+     "Рецепты: до трёх ресурсов и трёх эссенций на входе — до трёх ресурсов на выходе за цикл; в провинции выбирается рецепт и множитель",
+     "bt.role.convert"},
     {true, int(R::Essence), "essence", "Генерация эссенции", "Эссенция за ход — у каждого уровня", "bt.role.essence"},
     {true, int(R::Drain), "population", "Иссушение населения", "Жители выбранной расы провинции каждый ход превращаются в эссенцию — по уровням",
      "bt.role.drain"},
     {true, int(R::Extract), "pickaxe", "Добыча ресурса провинции",
-     "Строится при ресурсе провинции из выбранных групп; уровни увеличивают его добычу", "bt.role.extract"},
+     "Строится при ресурсе провинции из выбранных групп (необязательная добыча — при любом); уровни увеличивают его добычу", "bt.role.extract"},
     {true, int(R::UpkeepCut), "army", "Снижение содержания армии",
      "Содержание войск государства меньше на % уровня; сумма по государству — не больше 50 %", "bt.role.upkeep"},
     {false, int(F::Market), "scales", "Рынок", "«Продать реликвии» из хранилищ реликвий государства за золото", "bt.flag.market"},
@@ -99,12 +101,18 @@ struct RecipeUi {
   size_t count = 0;
 };
 
+bool listed(const std::vector<ResAmount>& v, Id res) {
+  return std::any_of(v.begin(), v.end(), [&](const ResAmount& x) { return x.res == res; });
+}
 // Следующий ресурс справочника, которого ещё нет на входе и выходе (не золото).
 Id nextInput(const World& w, const Recipe& rc) {
-  for (const CatalogItem& c : w.catalogs->resources) {
-    if (c.id == kGold || c.id == rc.out.res) continue;
-    if (std::none_of(rc.in.begin(), rc.in.end(), [&](const ResAmount& x) { return x.res == c.id; })) return c.id;
-  }
+  for (const CatalogItem& c : w.catalogs->resources)
+    if (c.id != kGold && !listed(rc.out, c.id) && !listed(rc.in, c.id)) return c.id;
+  return 0;
+}
+Id nextOutput(const World& w, const Recipe& rc) {
+  for (const CatalogItem& c : w.catalogs->resources)
+    if (c.id != kGold && !listed(rc.out, c.id) && !listed(rc.in, c.id)) return c.id;
   return 0;
 }
 Id nextEssence(const World& w, const Recipe& rc) {
@@ -127,7 +135,7 @@ void recipeEdit(App& a, const BN& b, int ri, bool ro, RecipeUi& st) {
   {
     ui::Row row({ui::fr(1), ui::px(30), ui::px(30)}, 30, 6);
     std::string name = rc.name;
-    const std::string auto_ = rules::recipeTitle(w, Recipe{{}, {}, {}, rc.out, 1});
+    const std::string auto_ = rules::recipeTitle(w, Recipe{{}, {}, {}, rc.out, 1});   // по первому ресурсу на выходе
     if (ui::textField("name", name, {.placeholder = auto_.empty() ? std::string_view("Название рецепта") : std::string_view(auto_), .maxLength = 60,
                                      .disabled = ro}) &&
         trim(name) != rc.name) {
@@ -196,7 +204,7 @@ void recipeEdit(App& a, const BN& b, int ri, bool ro, RecipeUi& st) {
     ui::HStack hs(28, ui::Align::Left, 6);
     if (rc.in.size() < 3) {
       const Id next = nextInput(w, rc);
-      if (ui::button("Ресурс", {.variant = ui::Variant::Ghost, .icon = "plus", .size = ui::Size::Small, .disabled = !next,
+      if (ui::button("Ресурс##in", {.variant = ui::Variant::Ghost, .icon = "plus", .size = ui::Size::Small, .disabled = !next,
                                 .tooltip = "До трёх разных ресурсов на входе"})) {
         Recipe nr = rc;
         nr.in.push_back(ResAmount{next, 1});
@@ -215,25 +223,56 @@ void recipeEdit(App& a, const BN& b, int ri, bool ro, RecipeUi& st) {
       a.markUi(m + ".addess");
     }
   }
+  // На выходе — до трёх разных ресурсов (первый — отметки «.out» и «.outamount», следующие — с номером). Без выхода —
+  // сразу выбор первого ресурса.
   ui::caption("На выходе");
-  {
-    ui::IdScope os("out");
-    Id res = rc.out.res;
-    if (w::resourceByGroup("res", res, ro) && res && res != rc.out.res) {
+  if (rc.out.empty()) {
+    ui::IdScope os("out-empty");
+    Id res = 0;
+    if (w::resourceByGroup("res", res, ro) && res) {
       Recipe nr = rc;
-      nr.out.res = res;
-      if (!(nr.out.amount > 0)) nr.out.amount = 1;
+      nr.out = {ResAmount{res, 1}};
       set("Ресурс на выходе", nr);
     }
     a.markUi(m + ".out");
-    double v = rc.out.amount;
-    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .label = "×", .disabled = ro || !rc.out.res,
+  }
+  for (size_t i = 0; i < rc.out.size(); i++) {
+    ui::IdScope os{i64(rc.out[i].res) * 4 + i64(i) + 2000003};
+    const std::string k = i == 0 ? std::string() : "." + std::to_string(i);
+    Id res = rc.out[i].res;
+    if (w::resourceByGroup("res", res, ro) && res && res != rc.out[i].res) {
+      Recipe nr = rc;
+      nr.out[i].res = res;
+      if (!(nr.out[i].amount > 0)) nr.out[i].amount = 1;
+      set("Ресурс на выходе", nr);
+    }
+    a.markUi(m + ".out" + k);
+    ui::Row row({ui::fr(1), ui::px(30)}, 30, 6);
+    double v = rc.out[i].amount;
+    if (ui::numberField("amount", v, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .label = "×", .disabled = ro || !rc.out[i].res,
                                       .tooltip = "Количество на выходе за цикл"})) {
       Recipe nr = rc;
-      nr.out.amount = v;
-      set("Количество на выходе", nr, "bt-rout:" + co);
+      nr.out[i].amount = v;
+      set("Количество на выходе", nr, "bt-rout:" + co + ":" + std::to_string(i));
     }
-    a.markUi(m + ".outamount");
+    a.markUi(m + ".outamount" + k);
+    if (ui::iconButton("close", "Убрать ресурс на выходе", {.disabled = ro})) {
+      Recipe nr = rc;
+      nr.out.erase(nr.out.begin() + long(i));
+      set("Убрать ресурс на выходе", nr);
+    }
+    a.markUi(m + ".outremove" + k);
+  }
+  if (!ro && !rc.out.empty() && rc.out.size() < 3) {
+    ui::HStack hs(28, ui::Align::Left, 6);
+    const Id next = nextOutput(w, rc);
+    if (ui::button("Ресурс##out", {.variant = ui::Variant::Ghost, .icon = "plus", .size = ui::Size::Small, .disabled = !next,
+                              .tooltip = "До трёх разных ресурсов на выходе"})) {
+      Recipe nr = rc;
+      nr.out.push_back(ResAmount{next, 1});
+      set("Ресурс на выходе", nr);
+    }
+    a.markUi(m + ".addout");
   }
   ui::prop("Цикл", "hourglass", 0.4f);
   int turns = std::max(1, rc.turns);
@@ -335,6 +374,14 @@ void extractEditor(App& a, const BN& b, bool ro) {
   auto set = [&](std::string_view label, const std::vector<Id>& g, const std::vector<Id>& x) {
     a.act(label, [&](Tx& tx) { rules::setExtractGroups(tx, bid, g, x); });
   };
+  // Необязательная добыча (ферма): ставится при любом ресурсе провинции; ресурс из групп добывается больше.
+  {
+    bool opt = b.extractOptional;
+    if (ui::toggle("Добыча не обязательна", opt, ro))
+      a.act(opt ? "Добыча не обязательна" : "Добыча обязательна", [&](Tx& tx) { rules::setExtractOptional(tx, bid, opt); });
+    ui::tooltip("Постройку можно ставить при любом ресурсе провинции; ресурс провинции из групп добычи добывается больше");
+    a.markUi("bt.role.extractOptional");
+  }
   ui::caption("Группы ресурсов");
   {
     ui::IdScope gs("groups");
@@ -356,7 +403,8 @@ void extractEditor(App& a, const BN& b, bool ro) {
         }
       }
     } else {
-      ui::label("Группы не заданы: постройку нигде не построить", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
+      ui::label(b.extractOptional ? "Группы не заданы: добыча не растёт" : "Группы не заданы: постройку нигде не построить",
+                {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
     }
     if (!ro) {
       w::IdOptions opts;

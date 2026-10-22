@@ -26,7 +26,7 @@ void stats(const World& w, const Faction& f) {
   auto calc = rules::calc(w);
   const rules::FactionCalc* fc = calc->faction(f.id);
   ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 8);
-  ui::stat(fmtNum(tr ? f.stock(tr) : 0, 3), "Сокровища", {.icon = "coins", .tone = ui::Tone::Accent, .tooltip = "Археологические сокровища"});
+  ui::stat(fmtNum(tr ? f.stock(tr) : 0, 3), "Сокровища", {.icon = "amphora", .tone = ui::Tone::Accent, .tooltip = "Археологические сокровища"});
   ui::stat(fmtNum(sc ? f.stock(sc) : 0, 3), "Свитки", {.icon = "scroll", .tone = ui::Tone::Info, .tooltip = "Древние свитки Шантири"});
   ui::stat(goldText(fc ? fc->expArch : 0), "Расход", {.icon = "expense", .tone = ui::Tone::Warning, .tooltip = "Содержание археологических групп за ход"});
 }

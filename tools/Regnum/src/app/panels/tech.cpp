@@ -1,7 +1,8 @@
 // Regnum — вкладка фракции «Технологии» (ТЗ 1.b.v): сводка дерева (изучено, исследуется), ход исследований,
 // доступные технологии и кнопка «Открыть дерево технологий» (у каждого государства и гильдии — своё дерево).
 // «Общие технологии» (ТЗ «Доработки», п.6): общее дерево фракция изучает сама — состояние для неё, исследование,
-// отметка изученности, переход в общее дерево. Сроки — с модификатором «Время исследования технологий» государства
+// отметка изученности, переход в общее дерево; далёкие закрытые (условие — тоже закрытая технология) свёрнуты в ссылку
+// «Ещё закрыто: N». Сроки — с модификатором «Время исследования технологий» государства
 // (rules::researchTurns). Роли (ТЗ «Доработки №4», п.5): начать и остановить исследование — игровое действие фракции
 // (App::play); отметка изученности — правка мира (администратор).
 #include "app/editors/buildings.h"
@@ -61,7 +62,8 @@ std::string names(const World& w, const std::vector<Id>& ids) {
   return join(n, ", ");
 }
 
-// Общие технологии: исследуемые и доступные — выше, изученные — ниже.
+// Общие технологии: исследуемые и доступные — выше, изученные — ниже. Далёкие закрытые (их условие — тоже закрытая
+// технология: ветка «Стимуляция промышленности» на 99 шагов) свёрнуты в ссылку «Ещё закрыто: N».
 void commonSection(App& a, Id fid) {
   const World& w = a.world();
   const bool ro = !a.canPlay(fid), admin = a.admin(), edit = a.canEdit();
@@ -73,9 +75,21 @@ void commonSection(App& a, Id fid) {
   ui::Section s("Общие технологии", "globe", {.defaultOpen = true, .badge = std::to_string(studied) + " / " + std::to_string(ts.size())});
   a.markUi("faction.ctech");
   if (!s) return;
+  std::unordered_map<Id, const T*> byId;
+  for (const T& t : ts) byId[t.id] = &t;
+  auto far = [&](const T& t) {
+    if (t.studied || t.research || t.available) return false;
+    for (Id m : t.missing)
+      if (auto it = byId.find(m); it != byId.end() && !it->second->research && !it->second->available) return true;
+    return false;
+  };
+  int farN = 0;
+  for (const T& t : ts) farN += far(t);
+  bool& showFar = ui::state<bool>(ui::id("ctech.far"));
   // Кнопки: исследование и (у администратора) отметка изученности.
   const ui::Len cols[] = {ui::px(18), ui::fr(1), ui::px(30), ui::px(30)};
   for (const T& t : ts) {
+    if (!showFar && far(t)) continue;
     ui::IdScope sc{i64(t.id)};
     const std::string id = std::to_string(t.id);
     const char* icon = t.studied ? "check" : t.research ? "hourglass" : t.available ? "research" : "lock";
@@ -143,6 +157,10 @@ void commonSection(App& a, Id fid) {
         ui::next(28);
       }
     }
+  }
+  if (farN > 0) {
+    if (ui::link(showFar ? std::string("Скрыть далёкие закрытые") : "Ещё закрыто: " + std::to_string(farN), showFar ? "eye-off" : "lock")) showFar = !showFar;
+    a.markUi("faction.ctech.more");
   }
   if (ts.empty()) ui::label("Общее дерево пусто", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "globe"});
   if (ui::link("Общее дерево технологий", "globe")) openTechTree(a, 0, 0, fid);

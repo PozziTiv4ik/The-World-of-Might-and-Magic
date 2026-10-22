@@ -84,3 +84,39 @@ TEST(app_trees_perf_frames) {
   CHECK(bh < rg::test::perf(120));
   CHECK(bz < rg::test::perf(160));
 }
+
+// Общее дерево базовых записей (с веткой «Стимуляция промышленности» — 99 технологий змейкой): всё дерево на холсте,
+// наведение, масштаб и панорама вблизи (карточки и связи за краем холста не строятся).
+TEST(app_trees_perf_common_tree) {
+  Harness h("trees_perf_common", 1600, 1000);
+  h.demo();
+  int n = 0;
+  h->world().techs.each([&](const Tech& t) { n += t.faction == 0; });
+  CHECK(n >= 99);
+  app::openTechTree(h.a(), 0);
+  h.settle();
+  h.key(Key::F);
+  h.settle();
+  for (int i = 0; i < 30 && ui::needsRedraw(); i++) h.frame();
+  CHECK(!ui::needsRedraw());
+  const RectF* cv = h->uiRect("tt.canvas");
+  CHECK(cv != nullptr);
+  const RectF c = *cv;
+  const double all = frameMs(20, [&](int i) { hl::mouseMove(c.x + 80 + float(i) * 31, c.cy() + float(i % 5) * 9); });
+  const double zoom = frameMs(20, [&](int i) { hl::wheel(c.cx(), c.cy(), i % 2 ? 1.f : -1.f); });
+  // Вблизи (100 %): панорама перетаскиванием фона.
+  for (int i = 0; i < 12; i++) {
+    hl::wheel(c.cx(), c.cy(), 1);
+    h.frame();
+  }
+  h.settle();
+  hl::mouseDown(c.cx(), c.cy(), platform::MouseLeft, 0);
+  h.frame();
+  const double pan = frameMs(20, [&](int i) { hl::mouseMove(c.cx() - float(i) * 17, c.cy() - float(i) * 9); });
+  hl::mouseUp(c.cx() - 340, c.cy() - 180, platform::MouseLeft, 0);
+  h.settle();
+  std::printf("  общее дерево (%d технологий): наведение %.2f мс, масштаб %.2f мс, панорама вблизи %.2f мс\n", n, all, zoom, pan);
+  CHECK(all < rg::test::perf(120));
+  CHECK(zoom < rg::test::perf(160));
+  CHECK(pan < rg::test::perf(120));
+}

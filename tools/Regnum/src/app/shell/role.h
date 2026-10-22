@@ -26,8 +26,8 @@ void worldClosed(App& a);
 void validate(App& a);
 
 // ---- ограничения игрока (администратору всё разрешено)
-bool sectionAllowed(const App& a, std::string_view section);   // раздел правой ленты («Справочники» — нет)
-bool editorAllowed(const App& a, std::string_view editor);     // редакторы справочников, модификаторов, констант — нет
+bool sectionAllowed(const App& a, std::string_view section);   // раздел правой ленты (SectionDef::adminOnly — нет)
+bool editorAllowed(const App& a, std::string_view editor);     // редакторы таких разделов (справочники, модификаторы…) — нет
 bool toolAllowed(const App& a, ToolId t);                       // на ленте и сочетанием: выбор и панорама
 bool commandAllowed(const App& a, std::string_view command);    // палитра, сочетания, меню
 // Инструмент карты для игрока при выборе (кнопки панелей): выбор, панорама, высадка, постановка своего войска и

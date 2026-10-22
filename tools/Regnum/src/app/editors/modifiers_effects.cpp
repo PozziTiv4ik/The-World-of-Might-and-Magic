@@ -10,13 +10,20 @@ u32 archMask() {
     if (schema::kEffects[f].arch) m |= 1u << f;
   return m;
 }
+u32 heroMask() {
+  u32 m = 0;
+  for (int f = 0; f < kFxCount; f++)
+    if (schema::kEffects[f].hero) m |= 1u << f;
+  return m;
+}
 
 namespace {
 
-// Arch — эффекты археологических групп (у модификатора группы — эта группа, у глобального — все группы государства).
+// Arch — эффекты археологических групп (у модификатора группы — эта группа, у глобального — все группы государства);
+// Hero — эффекты самого героя (модификатор героя и таланты).
 FxGroup groupOf(int f) {
   const auto& e = schema::kEffects[f];
-  return e.arch ? FxGroup::Arch : e.army ? FxGroup::Army : e.local ? FxGroup::Local : FxGroup::Global;
+  return e.arch ? FxGroup::Arch : e.hero ? FxGroup::Hero : e.army ? FxGroup::Army : e.local ? FxGroup::Local : FxGroup::Global;
 }
 
 const char* fxUnit(Fx f) {
@@ -181,12 +188,18 @@ void effectGroup(App& a, const Modifier& m, FxGroup group, bool ro) {
   const char* title = group == FxGroup::Local    ? "Локальные (провинция)"
                       : group == FxGroup::Global ? "Глобальные (государство)"
                       : group == FxGroup::Arch   ? "Археологические группы"
+                      : group == FxGroup::Hero   ? "Герой"
                                                  : "Войско";
-  const char* icon = group == FxGroup::Local ? "province" : group == FxGroup::Global ? "crown" : group == FxGroup::Arch ? "pickaxe" : "army";
+  const char* icon = group == FxGroup::Local    ? "province"
+                     : group == FxGroup::Global ? "crown"
+                     : group == FxGroup::Arch   ? "pickaxe"
+                     : group == FxGroup::Hero   ? "hero"
+                                                : "army";
   ui::Section sec(title, icon, {.badge = badge});
   a.markUi(group == FxGroup::Local    ? "modifiers.local"
            : group == FxGroup::Global ? "modifiers.global"
            : group == FxGroup::Arch   ? "modifiers.arch"
+           : group == FxGroup::Hero   ? "modifiers.hero"
                                       : "modifiers.army");
   if (!sec) return;
   ui::gap(2);

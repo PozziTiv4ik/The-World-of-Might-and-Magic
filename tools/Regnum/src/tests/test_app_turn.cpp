@@ -60,7 +60,7 @@ Setup prepare(Harness& h) {
     rules::setBuildingRole(tx, b, rules::BuildingRole::Convert, true);
     Recipe r;
     r.in = {ResAmount{wood, 40}};
-    r.out = ResAmount{s.fuel, 10};
+    r.out = {ResAmount{s.fuel, 10}};
     r.turns = 1;
     rules::setRecipe(tx, b, 0, r);
   }));

@@ -835,6 +835,7 @@ void decProvince(Rec& r, Province& p) {
     b.idle = e.flag("idle", false);
     b.cycle = e.intv("cycle", 0);
     b.recipe = e.intv("recipe", 0);
+    b.mult = e.intv("mult", 1);
     b.race = e.ref("race", Seq::Race);
     b.relics = e.relicStacks("relics");
     p.buildings.push_back(b);
@@ -995,6 +996,15 @@ void decFaction(Rec& r, Faction& f) {
     f.archGroups.push_back(std::move(g));
   });
   f.relics = r.relicStacks("relics");
+  f.readyTurn = r.intv("readyTurn", 0);
+  f.detectTurn = r.intv("detectTurn", 0);
+  r.list("prison", [&](Rec& e) {
+    RacePop x;
+    x.race = e.ref("race", Seq::Race);
+    x.pop = countOf(e, "pop");
+    f.prison.push_back(x);
+  });
+  f.conspiracy = r.flag("conspiracy", false);
   f.notes = r.str("notes");
   f.entity = r.str("entity");
 }
@@ -1015,6 +1025,7 @@ void decCharacter(Rec& r, Character& c) {
   c.heroClass = r.ref("heroClass", Seq::HeroClass);
   c.subclass = r.ref("subclass", Seq::SubClass);
   c.talents = r.refs("talents", Seq::Talent);
+  c.jailer = r.ref("jailer", Seq::Faction);
   c.notes = r.str("notes");
   c.entity = r.str("entity");
 }
@@ -1092,10 +1103,15 @@ void decBuilding(Rec& r, Building& b) {
       x.amount = e.num("amount", 0);
       rc.essIn.push_back(x);
     });
-    q.sub("out", [&](Rec& e) {
-      rc.out.res = e.ref("res", Seq::Resource);
-      rc.out.amount = e.num("amount", 0);
-    });
+    // На выходе — массив до трёх ресурсов; прежний формат — один объект.
+    auto outOf = [&](Rec& e) {
+      ResAmount x;
+      x.res = e.ref("res", Seq::Resource);
+      x.amount = e.num("amount", 0);
+      rc.out.push_back(x);
+    };
+    if (const Value* ov = q.get("out"); ov && ov->isObj()) q.sub("out", outOf);
+    else q.list("out", outOf);
     rc.turns = q.intv("turns", 1);
     b.recipes.push_back(std::move(rc));
   };
@@ -1116,6 +1132,7 @@ void decBuilding(Rec& r, Building& b) {
   b.extract = r.flag("extract", false);
   b.extractGroups = r.refs("extractGroups", Seq::ResGroup);
   b.extractExclude = r.refs("extractExclude", Seq::Resource);
+  b.extractOptional = r.flag("extractOptional", false);
   b.stateKinds = r.mask("stateKinds", en(schema::kStateKinds));
   r.list("stateReqs", [&](Rec& e) {
     StateReq q;
@@ -1204,6 +1221,38 @@ void decLog(Rec& r, LogEntry& l) {
   l.army = r.ref("army", Seq::Army);
   l.factions = r.refs("factions", Seq::Faction);
   l.at = r.str("at");
+}
+
+void decPlot(Rec& r, Plot& p) {
+  p.kind = PlotKind(r.enumv("kind", en(schema::kPlotKinds), 0));
+  p.owner = r.ref("owner", Seq::Faction);
+  p.target = r.ref("target", Seq::Faction);
+  p.name = r.str("name");
+  r.list("provinces", [&](Rec& e) {
+    PlotProvince x;
+    x.province = e.ref("province", Seq::Province);
+    x.commitment = e.num("commitment", 0);
+    x.sponsored = e.intv("sponsored", 0);
+    x.supplies = e.resMap("supplies");
+    p.provinces.push_back(std::move(x));
+  });
+  p.heroes = r.refs("heroes", Seq::Character);
+  p.invited = r.refs("invited", Seq::Character);
+  p.threats = r.refs("threats", Seq::Character);
+  p.leader = r.ref("leader", Seq::Character);
+  r.list("hits", [&](Rec& e) {
+    PlotHit h;
+    h.character = e.ref("character", Seq::Character);
+    h.gold = e.num("gold", 0);
+    h.turn = e.intv("turn", 0);
+    h.guarded = e.flag("guarded", false);
+    p.hits.push_back(h);
+  });
+  p.created = r.intv("created", 1);
+  p.found = r.flag("found", false);
+  p.stage = r.intv("stage", 0);
+  p.revealTurn = r.intv("revealTurn", 0);
+  p.alarm = r.flag("alarm", false);
 }
 
 // Массив записей таблицы: {"<key>": [...]} (или сразу массив — с предупреждением).
@@ -1364,6 +1413,7 @@ void decode(const Value& v, FileId f, Parts& p, Warnings& warns) {
     case F_ROUTES: decTable(v, f, c, p.routes, Seq::Route, decRoute); return;
     case F_DEALS: decTable(v, f, c, p.deals, Seq::Deal, decDeal); return;
     case F_LOG: decTable(v, f, c, p.log, Seq::Log, decLog); return;
+    case F_PLOTS: decTable(v, f, c, p.plots, Seq::Plot, decPlot); return;
     case F_CONSTANTS: {
       if (!v.isObj()) {
         c.warn("", "ожидался объект {\"constants\": [...]} — констант нет");

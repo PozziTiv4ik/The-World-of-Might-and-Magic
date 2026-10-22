@@ -126,10 +126,42 @@ const EffectInfo kEffects[kFxCount] = {
   {Fx::ArchVitalityPct, "archVitalityPct", "Живучесть археологических групп", "%", 1, 10, false, false, false, false, "heart", false, true},
   {Fx::ArchExpPct, "archExpPct", "Опыт археологических групп", "%", 1, 20, false, false, false, false, "trend-up", false, true},
   {Fx::ArchUpkeepPct, "archUpkeepPct", "Содержание археологических групп", "%", -50, 50, false, false, false, false, "expense", false, true},
-  {Fx::ArchTreasurePct, "archTreasurePct", "Археологические сокровища от действий групп", "%", 1, 100, false, false, false, false, "coins"},
+  {Fx::ArchTreasurePct, "archTreasurePct", "Археологические сокровища от действий групп", "%", 1, 100, false, false, false, false, "amphora"},
   {Fx::ArchDiscoveryPct, "archDiscoveryPct", "Шанс обнаружения археологического места", "%", 1, 50, false, false, false, false, "search"},
   {Fx::ArchStartLevel, "archStartLevel", "Начальный уровень археологических групп", "", 1, 4, false, false, false, false, "star"},
+  {Fx::AssassinPct, "assassinPct", "Успех заказного убийства героя", "%", -100, 100, false, false, false, false, "crosshair", false, false, true},
+  {Fx::PlotAssassinPct, "plotAssassinPct", "Успех заказных убийств заговоров против других государств", "%", -100, 100, false, false, false, false,
+   "crosshair"},
+  {Fx::AssassinGuardPct, "assassinGuardPct", "Успех заказных убийств против героев государства", "%", -100, 100, false, false, false, false,
+   "shield"},
 };
+
+int industryMultOf(std::string_view key) {
+  const std::string_view p = tech::IndustryPrefix;
+  if (key.size() <= p.size() || key.substr(0, p.size()) != p) return 0;
+  int n = 0;
+  for (char ch : key.substr(p.size())) {
+    if (ch < '0' || ch > '9' || n > kMaxProductionMult) return 0;
+    n = n * 10 + (ch - '0');
+  }
+  return n >= 2 && n <= kMaxProductionMult ? n : 0;
+}
+
+std::string industryKey(int mult) { return std::string(tech::IndustryPrefix) + std::to_string(mult); }
+
+const std::vector<PlotArmsInfo>& plotArms() {
+  static const std::vector<PlotArmsInfo> v = {
+      {PlotArms::Firearms, {"Порох", "Магический порох"}},
+      {PlotArms::Steel, {"Багряная сталь", "Дамасская сталь", "Мифриловый сплав", "Обсидиановая сталь", "Освященная сталь", "Оскверненная сталь",
+                         "Проклятая обсидиановая сталь", "Сталь", "Сталь обсидиана бездны"}},
+      {PlotArms::MoonSilver, {"Лунное серебро"}},
+      {PlotArms::Iron, {"Бронза", "Алое железо", "Железо", "Освященное железо", "Оскверненное железо", "Черное железо", "Зараженный бездной обсидиан",
+                        "Обсидиан", "Проклятый обсидиан", "Темный обсидиан"}},
+      {PlotArms::MechParts, {"Механические детали"}},
+      {PlotArms::SpareParts, {"Запчасти механизмов"}},
+  };
+  return v;
+}
 
 const EnumInfo kStateKinds[int(StateKind::Count)] = {
   {"living", "Государство живых", "heart"},
@@ -146,6 +178,11 @@ const EnumInfo kModKinds[int(ModKind::Count)] = {
   {"arch", "Для археологических групп", "pickaxe"},
 };
 
+const EnumInfo kPlotKinds[int(PlotKind::Count)] = {
+  {"external", "Против другого государства", "target"},
+  {"internal", "Внутренний заговор", "eye-off"},
+};
+
 const EnumInfo kDealItemKinds[int(DealItemKind::Count)] = {
   {"res", "Ресурс", "coins"},
   {"province", "Провинция", "province"},
@@ -159,7 +196,7 @@ const EnumInfo kConstTypes[int(ConstType::Count)] = {
 };
 
 const EnumInfo kChestItemKinds[int(ChestItemKind::Count)] = {
-  {"treasure", "Археологическая награда", "coins"},
+  {"treasure", "Археологическая награда", "amphora"},
   {"gold", "Золото", "treasury"},
   {"res", "Ресурс", "resource"},
   {"relic", "Артефакт", "relic"},
@@ -172,7 +209,7 @@ const BuiltinResource kBuiltinResources[6] = {
   {kResCorpses, "Трупы", 0x8e8a7e, "skull", grp::Currencies},
   {kResEnergy, "Демоническая энергия", 0xc0392b, "flame", grp::Currencies},
   {kResMechParts, "Запчасти механизмов", 0x8d97a5, "hammer", grp::MatIndustrial},
-  {kResArchTreasure, "Археологические сокровища", 0xd4a64a, "coins", grp::Currencies},
+  {kResArchTreasure, "Археологические сокровища", 0xc4673d, "amphora", grp::Currencies},
   {kResShantiriScrolls, "Древние свитки Шантири", 0x5fd0c0, "scroll", grp::Currencies},
 };
 
@@ -346,8 +383,50 @@ const std::vector<Modifier>& builtinModifiers() {
                    "Группу нельзя отправлять на исследования."));
     v.push_back(mk(mod::ArchPlague, "Заражение чумой", ModKind::ArchGroup, kPlagueTurns, "plague", 0x7f8f2a,
                    "Группа заражает чумой провинцию, на которую её назначают."));
-    v.push_back(mk(mod::ArchValues, "Ценности археологии", ModKind::Province, 0, "coins", 0xd4a64a,
+    v.push_back(mk(mod::ArchValues, "Ценности археологии", ModKind::Province, 0, "amphora", 0xc4673d,
                    "Гильдия археологов: археологические сокровища каждый ход."));
+    v.push_back(mk(mod::Vigilant, "Бдительный", ModKind::Hero, 0, "eye", 0x3f7fbf, "", {{F::AssassinPct, -25}}));
+    v.push_back(mk(mod::Paranoid, "Параноик", ModKind::Hero, 0, "eye-off", 0x5b4a7a, "", {{F::AssassinPct, -50}}));
+    v.push_back(mk(mod::Immortal, "Бессмертный", ModKind::Hero, 0, "heart", 0xd9a441, "", {{F::AssassinPct, -100}}));
+    v.push_back(mk(mod::Careless, "Неосмотрительный", ModKind::Hero, 0, "dice", 0xc08a3a, "", {{F::AssassinPct, 5}}));
+    v.push_back(mk(mod::Overconfident, "Чрезмерно самоуверенный", ModKind::Hero, 0, "crown", 0xb5523b, "", {{F::AssassinPct, 15}}));
+    v.push_back(mk(mod::Arrested, "Под арестом", ModKind::Hero, 0, "shackles", 0x8a6d3b,
+                   "В тюрьме государства: снят со всех назначений и недоступен для них, пока его не освободят."));
+    v.push_back(mk(mod::PlotArrests, "Аресты заговорщиков", ModKind::Province, kPlotModTurns, "shackles", 0x9b4a3a,
+                   "Приверженность заговору в провинции не растёт."));
+    v.push_back(mk(mod::PlotExposed, "Раскрытый заговор", ModKind::Province, kPlotModTurns, "eye", 0xa8432c,
+                   "Провинцию нельзя взять в заговор."));
+    // Модификаторы уровней построек: «Жилой квартал», «Гильдия строителей», штабы разведки и контрразведки.
+    static const char* const kRoman[] = {"I", "II", "III", "IV", "V"};
+    static std::vector<std::string> keys, names;   // строки живут, пока живёт список (ключ и название — const char*)
+    if (keys.empty()) {
+      for (int i = 1; i <= 5; i++) {
+        keys.push_back(levelModKey(mod::HousingLevel, i));
+        names.push_back(std::string("Жилой квартал ") + kRoman[i - 1]);
+        keys.push_back(levelModKey(mod::BuildersLevel, i));
+        names.push_back(std::string("Гильдия строителей ") + kRoman[i - 1]);
+        keys.push_back(levelModKey(mod::IntelLevel, i));
+        names.push_back(std::string("Штаб Разведки ") + kRoman[i - 1]);
+        if (i <= 3) {
+          keys.push_back(levelModKey(mod::CounterIntelLevel, i));
+          names.push_back(std::string("Штаб Контрразведки ") + kRoman[i - 1]);
+        }
+      }
+    }
+    for (size_t k = 0, i = 1; k < keys.size(); i++) {
+      v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Province, 0, "b-residential", 0x5f9d6a, "", {{F::PopGrowthPct, double(i)}}));
+      k++;
+      v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Province, 0, "slots", 0xc08a3a, "", {{F::Slots, double(i)}}));
+      k++;
+      v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Faction, 0, "crosshair", 0x5b4a7a,
+                     "Успех заказных убийств заговоров против других государств.", {{F::PlotAssassinPct, 10.0 * double(i)}}));
+      k++;
+      if (i <= 3) {
+        v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Faction, 0, "shield", 0x3f7fbf, "Защита героев государства от заказных убийств.",
+                       {{F::AssassinGuardPct, -10.0 * double(i)}}));
+        k++;
+      }
+    }
     return v;
   }();
   return list;
@@ -358,6 +437,8 @@ const Modifier* builtinModifier(std::string_view key) {
     if (m.key == key) return &m;
   return nullptr;
 }
+
+std::string levelModKey(const char* prefix, int level) { return std::string(prefix) + std::to_string(level); }
 
 bool isNatureKey(std::string_view key) { return key == mod::Living || key == mod::Undead || key == mod::Demon || key == mod::Mechanism; }
 
@@ -495,6 +576,7 @@ const SeqInfo kSeqs[kSeqCount] = {
   {"chest", "ch", "сундука сокровищ"},
   {"archGroup", "ag", "археологической группы"},
   {"subClass", "sc", "подкласса героя"},
+  {"plot", "pt", "заговора"},
 };
 
 const SeqInfo& seqInfo(Seq s) {

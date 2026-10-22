@@ -64,7 +64,7 @@ Refs makeRefs() {
     bl.levels[0].essCost = {{ess, 2}};
     Recipe rc;
     rc.in = {{ride, 1}, {sea, 1}};
-    rc.out = {ride, 1};
+    rc.out = {{ride, 1}};
     bl.recipes = {rc};
     r.building = tx.add(bl).id;
 
@@ -223,7 +223,7 @@ std::vector<std::string> resourceUses(const World& w, Id res) {
   w.buildings.each([&](const Building& b) {
     for (const BuildingLevel& l : b.levels) note(hasKey(l.cost, res) || hasKey(l.produce, res), "building.levels");
     for (const Recipe& rc : b.recipes) {
-      note(rc.out.res == res, "building.recipe.out");
+      for (const ResAmount& x : rc.out) note(x.res == res, "building.recipe.out");
       for (const ResAmount& x : rc.in) note(x.res == res, "building.recipe.in");
     }
   });
@@ -303,7 +303,7 @@ TEST(rules_catalog_cleanup_resource) {
   CHECK(w.deal(r.dealOnly)->items.empty());
   CHECK(w.deal(r.dealOnly)->status == DealStatus::Cancelled);
   CHECK(w.building(r.building)->recipes.at(0).in.empty());
-  CHECK_EQ(w.building(r.building)->recipes.at(0).out.res, Id(0));
+  CHECK(w.building(r.building)->recipes.at(0).out.empty());
   // Эссенция не задета.
   CHECK(!essenceUses(w, r.ess).empty());
 }

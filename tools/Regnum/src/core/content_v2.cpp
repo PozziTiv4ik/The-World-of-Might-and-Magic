@@ -458,7 +458,7 @@ void Seeder::buildingsV2() {
       Recipe rc;
       for (auto& [n, v] : d.in)
         if (Id r = resId(n)) rc.in.push_back(ResAmount{r, v});
-      rc.out = ResAmount{resId(d.out.first), d.out.second};
+      rc.out = {ResAmount{resId(d.out.first), d.out.second}};
       rc.turns = 1;
       b.recipes.push_back(std::move(rc));
       if (auto it = techOf.find(d.tech); it != techOf.end()) b.techs.push_back(it->second);

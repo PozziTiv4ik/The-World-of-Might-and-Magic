@@ -284,6 +284,7 @@ void setLast(WidgetId id, RectF r, const Interaction& it) {
   c.last.id = id;
   c.last.rect = r;
   c.last.hovered = it.hovered;
+  c.last.tipHover = it.hovered || it.hoveredDisabled;
   c.last.active = c.active == id;
   c.last.focused = c.focus == id && id != 0;
   c.last.clicked = it.clicked;
@@ -556,6 +557,8 @@ Interaction interact(WidgetId wid, RectF r, u32 flags) {
   if (canHover) {
     it.hovered = true;
     c.hot = wid;
+  } else if (inside && disabled && c.active == 0 && !c.drag.active) {
+    it.hoveredDisabled = true;   // недоступный элемент не горячий, но подсказка с причиной показывается
   }
   // Нажатие
   if (it.hovered && !c.pressClaimed && c.active == 0) {

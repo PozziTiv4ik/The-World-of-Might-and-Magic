@@ -88,6 +88,9 @@ struct ProvBuilding {
   bool idle = false;
   int cycle = 0;
   int recipe = 0;                     // постройка преобразования: выбранный рецепт (индекс Building::recipes)
+  // Постройка преобразования: множитель производства ×1…×100 — цикл берёт и даёт по рецепту mult раз (больше ×1 —
+  // технологии «Стимуляция промышленности»).
+  int mult = 1;
   Id race = 0;                        // постройка иссушения: раса провинции, у которой отнимается население
   std::map<Id, double> paidEss;       // эссенции, уплаченные за строящийся уровень (возврат при отмене — тому же плательщику)
   std::vector<RelicStack> relics;     // хранилище реликвий: реликвии в инвентаре постройки
@@ -220,6 +223,10 @@ struct Faction {
   std::map<Id, TechProgress> techs;   // общие технологии (дерево без фракции): изучение этой фракцией
   std::vector<ArchGroup> archGroups;  // археологические группы
   std::vector<RelicStack> relics;     // инвентарь государства: полученные реликвии (находки, раскопки), вне героев и построек
+  int readyTurn = 0;             // игрок отметил готовность завершить этот ход (готов, пока readyTurn == номер хода)
+  int detectTurn = 0;            // контрразведка: ход последнего «Обнаружить заговоры» (игрок — раз в ход)
+  std::vector<RacePop> prison;   // «Тюрьмы государства»: арестованное население по расам
+  bool conspiracy = false;       // государство заговора («Заговор …»): образовано осуществлённым заговором
   std::string notes;
   std::string entity;
 
@@ -252,6 +259,7 @@ struct Character {
   // Изученные ранги талантов дерева подкласса в порядке изучения: талант повторяется столько раз, сколько у него
   // изучено рангов (у каждого героя — своё).
   std::vector<Id> talents;
+  Id jailer = 0;                 // «Под арестом»: государство, в чьей тюрьме герой
   std::string notes, entity;
 };
 
@@ -306,13 +314,13 @@ struct ResAmount {
   double amount = 0;
   bool operator==(const ResAmount&) const = default;
 };
-// Рецепт постройки преобразования: до трёх разных ресурсов и до трёх эссенций на входе → один ресурс на выходе за
-// turns ходов (один цикл); name — название рецепта («Сталь»), пусто — по ресурсу на выходе.
+// Рецепт постройки преобразования: до трёх разных ресурсов и до трёх эссенций на входе → до трёх разных ресурсов на
+// выходе за turns ходов (один цикл); name — название рецепта («Сталь»), пусто — по первому ресурсу на выходе.
 struct Recipe {
   std::string name;
   std::vector<ResAmount> in;
   std::vector<ResAmount> essIn;       // эссенции на входе (res — ID эссенции)
-  ResAmount out;
+  std::vector<ResAmount> out;         // ресурсы на выходе (до трёх)
   int turns = 1;
   bool operator==(const Recipe&) const = default;
 };
@@ -346,6 +354,9 @@ struct Building {
   // уровни увеличивают его добычу (BuildingLevel::extractPct).
   bool extract = false;
   std::vector<Id> extractGroups, extractExclude;
+  // Добыча не обязательна (ферма): постройку можно ставить при любом ресурсе провинции, а уровни увеличивают добычу,
+  // только если ресурс провинции подходит.
+  bool extractOptional = false;
   u32 stateKinds = 0;                 // только для видов государства (бит = StateKind); 0 — для всех
   std::vector<StateReq> stateReqs;    // требования «на государство»
   std::string key;                    // встроенная постройка (schema::bld): правила узнают её по ключу
@@ -455,6 +466,55 @@ struct LogEntry {
   std::string at;                     // реальное время записи (ISO)
 };
 
+// Заговор (ТЗ «Доработки №2»): против государства target — провинции с приверженностью заговору и снабжением,
+// герои-участники, лидер, приглашённые игроком герои (ждут решения администратора), угрозы (отказавшиеся) и заказные
+// убийства угроз. Сведения контрразведки цели: обнаружен (found), раскрыто этапов (stage: 1 — провинции,
+// 2 — приверженность, 3 — герои без «Значимого героя», 4 — значимые герои, 5 — лидер), ход последней попытки
+// раскрытия, «частично раскрыт» (alarm — неудача раскрытия этапа 3 и дальше; заговорщики видят расследование).
+struct PlotProvince {
+  Id province = 0;
+  double commitment = 0;              // «Приверженность заговору», 0…100 %
+  int sponsored = 0;                  // ход последнего «Спонсировать заговор» (раз в ход)
+  std::map<Id, double> supplies;      // «Снабдить вооружением»: ресурсы, отданные заговорщикам провинции
+  bool operator==(const PlotProvince&) const = default;
+};
+struct PlotHit {                      // заказное убийство (исполняется в конце хода turn)
+  Id character = 0;
+  double gold = 0;                    // отдано на операцию (золото)
+  int turn = 0;
+  bool guarded = false;               // «Защитить от убийства» (администратор): вероятность 0 %
+  bool operator==(const PlotHit&) const = default;
+};
+struct Plot {
+  Id id = 0;
+  PlotKind kind = PlotKind::External;
+  Id owner = 0;                       // заказчик — государство (внутренний заговор: 0)
+  Id target = 0;                      // государство, против которого заговор
+  std::string name;                   // пусто — «Заговор против …»
+  std::vector<PlotProvince> provinces;
+  std::vector<Id> heroes;             // участники (герои государства target)
+  std::vector<Id> invited;            // приглашены игроком — ждут решения администратора
+  std::vector<Id> threats;            // отказались — «Угрозы заговору»
+  Id leader = 0;                      // лидер заговора (один из участников)
+  std::vector<PlotHit> hits;          // заказные убийства угроз
+  int created = 1;                    // ход создания
+  bool found = false;
+  int stage = 0;
+  int revealTurn = 0;
+  bool alarm = false;
+  bool external() const { return kind == PlotKind::External; }
+  const PlotProvince* province(Id p) const {
+    for (const PlotProvince& x : provinces)
+      if (x.province == p) return &x;
+    return nullptr;
+  }
+  const PlotHit* hit(Id ch) const {
+    for (const PlotHit& x : hits)
+      if (x.character == ch) return &x;
+    return nullptr;
+  }
+};
+
 struct Relation {
   double v = 0;                       // -100..100
   RelStatus s = RelStatus::Unknown;
@@ -512,15 +572,16 @@ struct Meta {
   X(Deal, deals, deal, Deal, TB_DEALS, Seq::Deal, "Сделка")                                 \
   X(LogEntry, log, logEntry, Log, TB_LOG, Seq::Log, "Запись хроники")                       \
   X(MapSymbol, symbols, symbol, Symbol, TB_SYMBOLS, Seq::Symbol, "Знак карты")              \
-  X(MapShape, shapes, shape, Shape, TB_SHAPES, Seq::Shape, "Фигура карты")
+  X(MapShape, shapes, shape, Shape, TB_SHAPES, Seq::Shape, "Фигура карты")                \
+  X(Plot, plots, plot, Plot, TB_PLOTS, Seq::Plot, "Заговор")
 
 enum TableBit : u32 {
   TB_META = 1u << 0, TB_SETTINGS = 1u << 1, TB_CATALOGS = 1u << 2, TB_NODES = 1u << 3, TB_EDGES = 1u << 4,
   TB_PROVINCES = 1u << 5, TB_FACTIONS = 1u << 6, TB_CHARACTERS = 1u << 7, TB_RELATIONS = 1u << 8,
   TB_MODIFIERS = 1u << 9, TB_BUILDINGS = 1u << 10, TB_TECHS = 1u << 11, TB_ARMIES = 1u << 12,
   TB_ROUTES = 1u << 13, TB_DEALS = 1u << 14, TB_LOG = 1u << 15, TB_SYMBOLS = 1u << 16, TB_SHAPES = 1u << 17,
-  TB_CONSTANTS = 1u << 18,
-  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0x7FFFFu
+  TB_CONSTANTS = 1u << 18, TB_PLOTS = 1u << 19,
+  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0xFFFFFu
 };
 
 struct World {

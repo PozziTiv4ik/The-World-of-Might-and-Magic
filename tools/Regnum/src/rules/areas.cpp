@@ -157,6 +157,7 @@ void setProvinceOwner(Tx& tx, Id province, Id faction) {
   if (old) refs.factions.push_back(old);
   if (faction) refs.factions.push_back(faction);
   addLog(tx, LogKind::Province, text, refs);
+  fitPlots(tx);   // провинция другого владельца выходит из заговоров против прежнего
 }
 
 void setOccupied(Tx& tx, Id province, Id occupier) {

@@ -167,7 +167,7 @@ TEST(app_trees_place_converter) {
     rules::setBuildingRole(tx, conv, rules::BuildingRole::Convert, true);
     Recipe r;
     r.in = {ResAmount{silk, 10}, ResAmount{mercury, 5}};
-    r.out = ResAmount{powder, 3};
+    r.out = {ResAmount{powder, 3}};
     r.turns = 2;
     rules::setRecipe(tx, conv, 0, r);
     gen = rules::createBuilding(tx, 0, "Источник пламени");

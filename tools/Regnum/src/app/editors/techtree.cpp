@@ -4,7 +4,9 @@
 // карточек, создание и удаление, авторасстановка, копирование дерева другой фракции, панель свойств выбранной
 // технологии. Общее дерево каждое государство изучает отдельно: «Изучение за» — чьё состояние показано и правится.
 // В дереве фракции условия-общие технологии — плашки-ссылки слева от карточки (состояние для этой фракции).
-// «Открывает постройки» — постройки, которым технология нужна (rules::techUnlocks).
+// «Открывает постройки» — постройки, которым технология нужна (rules::techUnlocks). Связи идут по взаимному положению
+// карточек (tree::linkCurve: ветка «Стимуляция промышленности» — змейкой); карточки и связи за краем холста не
+// строятся; поиск — число найденных и переход к следующей.
 #include "app/editors/techtree_internal.h"
 
 namespace rg::app {
@@ -174,6 +176,24 @@ void View::toolbar() {
           }
       }
       a.markUi("tt.search");
+    }
+    // Совпадения поиска: число и переход к следующему (по рядам схемы — сверху вниз, слева направо).
+    if (!ed.query.empty()) {
+      std::vector<const TN*> hits;
+      for (const TN& t : ts)
+        if (t.match) hits.push_back(&t);
+      std::stable_sort(hits.begin(), hits.end(), [](const TN* x, const TN* y) { return x->pos.y != y->pos.y ? x->pos.y < y->pos.y : x->pos.x < y->pos.x; });
+      size_t at = hits.size();
+      for (size_t i = 0; i < hits.size(); i++)
+        if (hits[i]->id == ed.sel) at = i;
+      ui::label(hits.empty() ? std::string("0") : (at < hits.size() ? std::to_string(at + 1) + "/" : std::string()) + std::to_string(hits.size()),
+                {.font = ui::Font::Small, .ink = hits.empty() ? ui::Ink::Warning : ui::Ink::Muted, .tooltip = "Найдено технологий"});
+      if (ui::iconButton("chevron-down", "Следующая найденная", {.disabled = hits.size() < 2})) {
+        ed.sel = hits[at < hits.size() ? (at + 1) % hits.size() : 0]->id;
+        ed.link = {};
+        ed.revealSel = true;
+      }
+      a.markUi("tt.searchNext");
     }
     ui::separatorV();
     ui::Disabled d(ro);
@@ -365,7 +385,9 @@ void View::backgroundInput() {
       for (Id p : t.prereqs) {
         const TN* pt = find(ts, p);
         if (!pt) continue;
-        double d = curveDistance(curve({pt->pos.x + kW, pt->pos.y + kH * 0.5}, {t.pos.x, t.pos.y + kH * 0.5}), mw);
+        const Curve k = techLink(*pt, t);
+        if (!curveBox(k).inflated(best).contains(mw)) continue;   // далеко — без точного расстояния
+        double d = curveDistance(k, mw);
         if (d < best) {
           best = d;
           hoverLink = {p, t.id};
@@ -474,24 +496,35 @@ void View::scene() {
   sc->k = ink();
   sc->readOnly = ro;
   sc->exts = exts;
+  // Видимая часть схемы (с запасом на тени): карточки и связи за её краем не строятся и не рисуются — большое дерево
+  // (общее с веткой «Стимуляция промышленности») при приближении стоит столько же, сколько его видимая часть.
+  const Vec2 v0 = toWorld(ed.cam, canvas, canvas.x, canvas.y), v1 = toWorld(ed.cam, canvas, canvas.right(), canvas.bottom());
+  const Box2 view = Box2{v0.x, v0.y, v1.x, v1.y}.inflated(48 / ed.cam.z);
+  std::unordered_set<Id> pres;   // технологии, которые кому-то нужны (гнездо выхода)
   for (const TN& t : ts)
     for (Id p : t.prereqs) {
+      pres.insert(p);
       const TN* pt = find(ts, p);
       if (!pt) continue;
       EdgeD e;
-      e.k = curve({pt->pos.x + kW, pt->pos.y + kH * 0.5}, {t.pos.x, t.pos.y + kH * 0.5});
+      e.k = techLink(*pt, t);
+      if (!curveBox(e.k).intersects(view)) continue;
       LinkSel ls{p, t.id};
       e.sel = ed.link == ls;
       e.hot = hoverLink == ls;
       Color base = pt->studied ? (t.studied ? sc->k.success.alpha(0.75f) : t.st == St::Research ? sc->k.info.alpha(0.9f) : sc->k.accent.alpha(0.85f))
                                : sc->k.textMuted.alpha(0.55f);
-      if (!t.match || !pt->match) base = base.alpha(0.3f);
+      const float a = t.match && pt->match ? 1.f : 0.3f;
+      if (a < 1) base = base.alpha(0.3f);
       e.col = e.sel ? sc->k.accent : e.hot ? base.lighten(0.25f).alpha(1.f) : base;
       e.width = e.sel || e.hot ? 3.f : 2.f;
+      e.from = Color::mix(sc->k.borderStrong, stColor(sc->k, pt->st), 0.5f).alpha(a);
+      e.to = Color::mix(sc->k.borderStrong, stColor(sc->k, t.st), 0.5f).alpha(a);
       sc->edges.push_back(e);
     }
   for (size_t oi : order) {
     const TN& t = ts[oi];
+    if (!cardBox(t).intersects(view) && t.id != ed.sel) continue;
     Card cd;
     cd.t = t;
     cd.bonus = bonusText(w, t);
@@ -507,8 +540,7 @@ void View::scene() {
     cd.outHot = hoverOut == t.id || (ed.conn == t.id && ed.connOut);
     cd.inHot = hoverIn == t.id || (ed.conn == t.id && !ed.connOut);
     cd.hasIn = !t.prereqs.empty();
-    for (const TN& o : ts)
-      if (std::find(o.prereqs.begin(), o.prereqs.end(), t.id) != o.prereqs.end()) cd.hasOut = true;
+    cd.hasOut = pres.count(t.id) > 0;
     sc->cards.push_back(std::move(cd));
   }
   if (ed.conn) {
@@ -548,7 +580,7 @@ void View::overlay() {
     const TN* pt = find(ts, ed.link.pre);
     const TN* tt = find(ts, ed.link.tech);
     if (pt && tt) {
-      Vec2 mid = curveAt(curve({pt->pos.x + kW, pt->pos.y + kH * 0.5}, {tt->pos.x, tt->pos.y + kH * 0.5}), 0.5);
+      Vec2 mid = curveAt(techLink(*pt, *tt), 0.5);
       gfx::Pt sp = toScreen(ed.cam, canvas, mid);
       if (canvas.inset(14).contains(sp.x, sp.y)) {
         RectF br{std::round(sp.x - 15), std::round(sp.y - 15), 30, 30};

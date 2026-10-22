@@ -468,6 +468,7 @@ void drawDetail(App& a, EdState& st, const Modifier& m, Id next, const std::map<
       effectGroup(a, m, FxGroup::Global, ro);
     }
     effectGroup(a, m, FxGroup::Army, ro);
+    if (m.kind == ModKind::Any || m.kind == ModKind::Hero || (m.fxMask & heroMask())) effectGroup(a, m, FxGroup::Hero, ro);
     if (m.kind == ModKind::Any || m.kind == ModKind::Faction || (m.fxMask & archMask())) effectGroup(a, m, FxGroup::Arch, ro);
   }
   if (genKind(m.kind)) genSection(a, m, ro);

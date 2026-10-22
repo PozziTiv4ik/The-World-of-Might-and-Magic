@@ -10,8 +10,8 @@ using namespace rg::econtest;
 namespace {
 
 // Независимый пересчёт экономики фракции по формулам docs/RULES.md §2–3 и ТЗ «Общие доработки» (п.9, 11), «Механика
-// войн» (п.1), «Механика мятежа» (п.5), «Виды государств» (п.5, 9): эффекты берутся из мира, провинции маршрутов —
-// по их линиям.
+// войн» (п.1), «Механика мятежа» (п.5), «Виды государств» (п.5, 9), «Доработки №1» (п.19: ценность от населения):
+// эффекты берутся из мира, провинции маршрутов — по их линиям.
 struct Econ {
   double provTax = 0, guildTax = 0, hqNet = 0, trade = 0, tribute = 0, slaves = 0, tradeFleet = 0, routes = 0;
   double army = 0, fleet = 0, spec = 0, tradeOut = 0, tributeOut = 0, slaveUpkeep = 0;
@@ -41,7 +41,11 @@ std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
     const Faction* o = w.faction(p.owner);
     if (o && !o->isState()) o = nullptr;
     rules::Effects fx = rules::provinceEffects(w, p.id);
-    double V = std::max(0.0, std::max(0.0, p.baseTrade) * (1 + fx[Fx::TradePct] / 100 + routeBonus[p.id]) + fx[Fx::TradeFlat]);
+    // Население: +1 к ценности за каждые 100 жителей.
+    i64 people = 0;
+    for (const RacePop& r : p.races) people += std::max<i64>(0, r.pop);
+    double V = std::max(0.0, std::max(0.0, p.baseTrade) * (1 + fx[Fx::TradePct] / 100 + routeBonus[p.id]) + fx[Fx::TradeFlat] +
+                                 double(people) * schema::kTradePerPerson);
     value[p.id] = V;
     double t = std::clamp((o ? std::max(0.0, o->tax) : 0.0) + p.localTax, 1.0, 100.0);
     Id rec = o ? o->id : 0;

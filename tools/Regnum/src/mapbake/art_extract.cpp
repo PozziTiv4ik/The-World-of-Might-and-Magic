@@ -480,7 +480,9 @@ void placeRest(SymbolSearch& ctx, const bake::Layers& L, MapArt& art, ExtractRep
       continue;
     }
     if (dark * 3 < int(comp.size()) || std::max(bw, bh) < 12) continue;
-    for (Line& l : wallLines(flat, comp, bx0, by0, bw, bh)) art.lines.push_back(std::move(l));
+    // Бледные края найденного замка или башни — часть знака, а не стена.
+    if (!ctx.stampRemnant(comp, bx0, by0, bx1, by1))
+      for (Line& l : wallLines(flat, comp, bx0, by0, bw, bh)) art.lines.push_back(std::move(l));
     for (u32 i : comp) explained[i] = 1;
     rep.walls = int(art.lines.size());
   }
@@ -645,9 +647,11 @@ MapArt extract(const codec::RgbaImage& flat, ExtractReport* report, const std::s
 
   // 5. Второй проход: штампы со сдвигом на долю пикселя, другого размера и частично перекрытые — в необъяснённых
   //    областях краски. Из подходящих вариантов берётся объясняющий больше краски (крупная гора, а не три мелких).
+  //    Где ни один не подошёл — бледный или сглаженный замок или башня (корреляция формы, масштаб по габариту).
   placeShiftedStamps(ctx, art, rep);
 
-  // 6. Остаток: крупные горы — знак «вершина» (масштаб по высоте тела), вытянутые тёмные области — стены.
+  // 6. Остаток: крупные горы — знак «вершина» (масштаб по высоте тела), вытянутые тёмные области — стены (кроме
+  //    бледных краёв найденных замков и башен).
   placeRest(ctx, L, art, rep);
   tuckWallEnds(art);
   countInk(ctx, rep);

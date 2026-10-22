@@ -270,7 +270,7 @@ void overlaysEndFrame() {
 // ================================================================ подсказки
 static bool tipReady(Ctx& c) {
   const Item& L = c.last;
-  if (!L.hovered || L.id == 0) return false;
+  if (!(L.hovered || L.tipHover) || L.id == 0) return false;
   if (c.drag.active || (c.active && c.active != L.id)) return false;
   c.tipTouched = true;
   if (c.tipItem != L.id) {

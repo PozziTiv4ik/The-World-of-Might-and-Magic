@@ -34,6 +34,8 @@ TurnReport endTurn(Tx& tx) {
   rep.turnTo = turn + 1;
   auto log = [&](LogKind kind, const std::string& text, LogRefs refs) { rep.logIds.push_back(addLog(tx, kind, text, refs)); };
 
+  // Ссылки заговоров приводятся в порядок до расчёта (провинции и герои, сменившие государство).
+  fitPlots(tx);
   // Расчёт по состоянию на начало процедуры.
   const World start = tx.w();
   const std::shared_ptr<const Calc> c = calc(tx);
@@ -93,10 +95,12 @@ TurnReport endTurn(Tx& tx) {
     for (const ConvertStep& s : fc->conversions) {
       Faction& f = tx.faction(id);
       for (auto& [r, v] : s.in) addStock(f, r, -v);
-      if (s.finish && s.out.res && s.out.amount > 0 && tx.w().resource(s.out.res)) {
-        addStock(tx.faction(id), s.out.res, s.out.amount);
-        gained[s.out.res] += s.out.amount;
-      }
+      if (s.finish)
+        for (const ResAmount& x : s.out)
+          if (x.amount > 0 && tx.w().resource(x.res)) {
+            addStock(tx.faction(id), x.res, x.amount);
+            gained[x.res] += x.amount;
+          }
       for (ProvBuilding& pb : tx.province(s.province).buildings)
         if (pb.building == s.building) pb.cycle = s.cycle;
     }
@@ -429,6 +433,9 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
+  // 11а. Заказные убийства заговоров: бросок с зерном «ход + заговор + герой»; убитый — «Мертв».
+  rep.hits = resolveHits(tx);
+
   // 12. Пираты: бросок по вероятности, сгенерированной в конце прошлого хода;
   // затем новая вероятность по кораблям в торговле.
   for (Id id : factionIds) {
@@ -633,6 +640,17 @@ TurnReport endTurn(Tx& tx) {
       LogRefs{});
   tx.meta().turn = turn + 1;
   return rep;
+}
+
+bool turnReady(const World& w, Id state) {
+  const Faction* f = w.faction(state);
+  return f && f->isState() && f->readyTurn == w.turn();
+}
+
+void setTurnReady(Tx& tx, Id state, bool ready) {
+  needState(tx.w(), state);
+  const int v = ready ? tx.w().turn() : 0;
+  if (tx.w().faction(state)->readyTurn != v) tx.faction(state).readyTurn = v;
 }
 
 TurnReport previewTurn(const World& w) {

@@ -99,7 +99,8 @@ void addSlaveRebels(Tx& tx, Id rebelState, Id province, ArmyGroup& g) {
 Id rebelStateFor(Tx& tx, Id origin) {
   const Faction& o = needState(tx.w(), origin);
   if (o.rebelOf) fail(facName(tx.w(), origin) + " — само мятежное государство");
-  Id found = tx.w().factions.firstId([&](const Faction& f) { return f.isState() && f.rebelOf == origin; });
+  // Государство заговора (тоже мятежное) — отдельно: мятеж войск образует своё «Мятеж (…)».
+  Id found = tx.w().factions.firstId([&](const Faction& f) { return f.isState() && f.rebelOf == origin && !f.conspiracy; });
   if (!found) {
     const std::string name = "Мятеж (" + nameOr(o.name) + ")";
     const StateKind kind = o.stateKind;
@@ -295,6 +296,7 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id 
          "Мятеж в " + std::string(fleet ? "флоте " : "войсках ") + facName(tx.w(), origin) + ": к " + facName(tx.w(), R) + " перешло " + fmtInt(moved) +
              (res.full ? ". Войско восстало целиком" : ""),
          LogRefs{province, res.rebelArmy, {origin, R}});
+  fitPlots(tx);   // герои, ушедшие к мятежникам, выходят из заговоров против прежнего государства
   return res;
 }
 

@@ -431,6 +431,7 @@ Value encProvince(const Province& p) {
     if (e.idle) x.set("idle", true);      // постройка преобразования: простаивает
     if (e.cycle) x.set("cycle", e.cycle);  // ходов до конца цикла преобразования
     if (e.recipe) x.set("recipe", e.recipe);   // выбранный рецепт преобразования
+    if (e.mult != 1) x.set("mult", e.mult);    // множитель производства преобразования
     if (e.race) x.set("race", ref(Seq::Race, e.race));   // раса постройки иссушения
     if (!e.relics.empty()) x.set("relics", stacksV(e.relics));   // хранилище реликвий
     return x;
@@ -573,6 +574,16 @@ Value encFaction(const Faction& f) {
     return x;
   }));
   o.set("relics", stacksV(f.relics));
+  if (f.readyTurn) o.set("readyTurn", f.readyTurn);
+  if (f.detectTurn) o.set("detectTurn", f.detectTurn);
+  if (!f.prison.empty())
+    o.set("prison", arrayOf(f.prison, [&](const auto& e) {
+      Value x = Value::object();
+      x.set("race", ref(Seq::Race, e.race));
+      x.set("pop", e.pop);
+      return x;
+    }));
+  if (f.conspiracy) o.set("conspiracy", true);
   o.set("notes", f.notes);
   o.set("entity", f.entity);
   return o;
@@ -596,6 +607,7 @@ Value encCharacter(const Character& c) {
   o.set("heroClass", ref(Seq::HeroClass, c.heroClass));
   o.set("subclass", ref(Seq::SubClass, c.subclass));
   o.set("talents", refs(Seq::Talent, c.talents));
+  if (c.jailer) o.set("jailer", ref(Seq::Faction, c.jailer));
   o.set("notes", c.notes);
   o.set("entity", c.entity);
   return o;
@@ -663,10 +675,7 @@ Value encBuilding(const Building& b) {
       rc.set("name", r.name);
       rc.set("in", resAmountsV(r.in, Seq::Resource));
       if (!r.essIn.empty()) rc.set("essIn", resAmountsV(r.essIn, Seq::Essence));
-      Value out = Value::object();
-      out.set("res", ref(Seq::Resource, r.out.res));
-      out.set("amount", fin(r.out.amount));
-      rc.set("out", std::move(out));
+      rc.set("out", resAmountsV(r.out, Seq::Resource));
       rc.set("turns", r.turns);
       return rc;
     }));
@@ -686,6 +695,7 @@ Value encBuilding(const Building& b) {
   if (b.extract) {
     o.set("extractGroups", refs(Seq::ResGroup, b.extractGroups));
     o.set("extractExclude", refs(Seq::Resource, b.extractExclude));
+    if (b.extractOptional) o.set("extractOptional", true);
   }
   if (b.stateKinds) o.set("stateKinds", maskV(en(schema::kStateKinds), b.stateKinds));
   o.set("stateReqs", arrayOf(b.stateReqs, [&](const auto& q) {
@@ -793,6 +803,41 @@ Value encLog(const LogEntry& l) {
   return o;
 }
 
+Value encPlot(const Plot& p) {
+  Value o = Value::object();
+  o.set("id", ref(Seq::Plot, p.id));
+  o.set("kind", enumV(en(schema::kPlotKinds), int(p.kind)));
+  o.set("owner", ref(Seq::Faction, p.owner));
+  o.set("target", ref(Seq::Faction, p.target));
+  o.set("name", p.name);
+  o.set("provinces", arrayOf(p.provinces, [&](const PlotProvince& x) {
+    Value v = Value::object();
+    v.set("province", ref(Seq::Province, x.province));
+    v.set("commitment", fin(x.commitment));
+    if (x.sponsored) v.set("sponsored", x.sponsored);
+    v.set("supplies", resV(x.supplies));
+    return v;
+  }));
+  o.set("heroes", refs(Seq::Character, p.heroes));
+  o.set("invited", refs(Seq::Character, p.invited));
+  o.set("threats", refs(Seq::Character, p.threats));
+  o.set("leader", ref(Seq::Character, p.leader));
+  o.set("hits", arrayOf(p.hits, [&](const PlotHit& h) {
+    Value v = Value::object();
+    v.set("character", ref(Seq::Character, h.character));
+    v.set("gold", fin(h.gold));
+    v.set("turn", h.turn);
+    if (h.guarded) v.set("guarded", true);
+    return v;
+  }));
+  o.set("created", p.created);
+  o.set("found", p.found);
+  o.set("stage", p.stage);
+  if (p.revealTurn) o.set("revealTurn", p.revealTurn);
+  if (p.alarm) o.set("alarm", true);
+  return o;
+}
+
 template <class T, class F>
 Value encTable(const Table<T>& t, const char* key, F&& enc) {
   json::Array a;
@@ -842,6 +887,7 @@ Value encode(const World& w, FileId f) {
     case F_DEALS: return encTable(w.deals, "deals", encDeal);
     case F_LOG: return encTable(w.log, "log", encLog);
     case F_CONSTANTS: return encConstants(*w.constants);
+    case F_PLOTS: return encTable(w.plots, "plots", encPlot);
     default: return Value::object();
   }
 }

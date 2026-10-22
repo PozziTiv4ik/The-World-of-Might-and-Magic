@@ -3,6 +3,8 @@
 // элементов, недостача провизии (голод), стройки и исследования, которые завершатся, истекающие сделки и выплаты,
 // преобразование ресурсов, предупреждения (долги, голод, нехватка эссенций на содержание элементалей, недостачи,
 // восстания). Две страницы (ТЗ «Фиксы», п.16): основные игровые государства (Faction::mainState) и все остальные.
+// Вкладка «Готовность» (ТЗ «Доработки №1», п.1): государства, игроки которых отметили готовность завершить ход, и —
+// приглушённо — основные государства без отметки; ход завершается для всех, отметки сбрасываются сами.
 #include "app/app_internal.h"
 #include "app/turn/turn_ui.h"
 #include "app/widgets.h"
@@ -24,7 +26,10 @@ struct Preview {
   World before, after;                       // мир до и после пробного хода (записи хроники — в after)
   std::shared_ptr<const rules::Calc> calc;   // расчёт на начало хода (разбор доходов)
   Page pages[2];                             // kPageMain, kPageOther
+  int ready = 0;                             // государств, отметивших готовность завершить ход
 };
+
+constexpr int kReadyTab = 4;   // вкладка «Готовность»: отметки игроков (ход завершается для всех)
 
 std::unique_ptr<Preview> makePreview(const World& w) {
   auto p = std::make_unique<Preview>();
@@ -35,6 +40,7 @@ std::unique_ptr<Preview> makePreview(const World& w) {
     p->after = std::move(tx).finish();
   }
   p->calc = rules::calc(w);
+  p->ready = readyCount(w);
   for (int k = 0; k < 2; k++) {
     Page& pg = p->pages[k];
     pg.lines = sortedLines(w, p->rep, k);
@@ -232,13 +238,15 @@ struct ConfirmDlg : Dialog {
              {{"treasury", "Казна"},
               {"resource", "Ресурсы", {}, pg.resRows},
               {"check-circle", "События", {}, d.events()},
-              {"warning", "Внимание", {}, d.warnings(), ui::Tone::Danger}},
+              {"warning", "Внимание", {}, d.warnings(), ui::Tone::Danger},
+              {"check", "Готовность", "Готовность игроков завершить ход", p->ready, ui::Tone::Success}},
              {.style = ui::TabStyle::Pill, .fill = true});
     a.markUi("turn.confirm.tabs");
     switch (tab) {
       case 1: resourcesTab(a); break;
       case 2: eventsTab(a); break;
       case 3: warningsTab(a); break;
+      case kReadyTab: readinessTable(a, p->before, "ready", bodyH(), "turn.confirm.ready"); break;
       default: treasuryTab(a); break;
     }
     if (a.store.world().settings->rebellionRoll)

@@ -295,6 +295,7 @@ void setHero(Tx& tx, Id army, Id character, bool on) {
   if (here) return;
   if (characterHas(tx.w(), character, schema::mod::Dead)) fail(q(tx.w().characterName(character)) + " мёртв");
   if (characterHas(tx.w(), character, schema::mod::Captive)) fail(q(tx.w().characterName(character)) + " в плену");
+  if (characterHas(tx.w(), character, schema::mod::Arrested)) fail(q(tx.w().characterName(character)) + " под арестом");
   if (Id other = heroArmy(tx.w(), character, army))
     fail(q(tx.w().characterName(character)) + " уже сопровождает " + armyName(tx.w(), other));
   if (Id prov = heroGarrison(tx.w(), character))
@@ -365,6 +366,7 @@ void setGarrisonHero(Tx& tx, Id province, Id character, bool on) {
          ": в гарнизон назначаются только герои " + facName(tx.w(), p.owner));
   if (characterHas(tx.w(), character, schema::mod::Dead)) fail(q(tx.w().characterName(character)) + " мёртв");
   if (characterHas(tx.w(), character, schema::mod::Captive)) fail(q(tx.w().characterName(character)) + " в плену");
+  if (characterHas(tx.w(), character, schema::mod::Arrested)) fail(q(tx.w().characterName(character)) + " под арестом");
   if (Id a = heroArmy(tx.w(), character)) fail(q(tx.w().characterName(character)) + " сопровождает " + armyName(tx.w(), a) + " — сначала уберите его оттуда");
   if (Id other = heroGarrison(tx.w(), character))
     fail(q(tx.w().characterName(character)) + " уже в гарнизоне провинции " + provName(tx.w(), other));

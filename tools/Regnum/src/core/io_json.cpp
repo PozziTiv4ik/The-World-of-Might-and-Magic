@@ -25,6 +25,7 @@ const FileDef kFiles[F_COUNT] = {
   {"data/deals.json", "deals", TB_DEALS},
   {"data/log.json", "log", TB_LOG},
   {"data/constants.json", "constants", TB_CONSTANTS, true},
+  {"data/plots.json", "plots", TB_PLOTS, true},
   {"world.json", "", TB_META | TB_SETTINGS},
 };
 

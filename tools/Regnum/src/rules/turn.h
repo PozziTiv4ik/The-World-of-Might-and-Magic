@@ -4,6 +4,7 @@
 #include <map>
 
 #include "core/world.h"
+#include "rules/plots.h"
 
 namespace rg::rules {
 
@@ -33,7 +34,12 @@ struct TurnReport {
   std::vector<Id> logIds;            // записи хроники, созданные при завершении хода
   std::vector<Id> rebellions;        // провинции, где вспыхнуло восстание
   std::vector<TurnEvent> events;
+  std::vector<HitOutcome> hits;      // исходы заказных убийств заговоров
 };
+// Игрок отметил готовность завершить ход за государство (ход завершает администратор; отметка действует до конца
+// текущего хода — Faction::readyTurn).
+bool turnReady(const World& w, Id state);
+void setTurnReady(Tx& tx, Id state, bool ready);
 // Шаг 1 (снимок мира в истории ходов) выполняет вызывающий: снимок — store.world() до транзакции (core/io).
 TurnReport endTurn(Tx& tx);
 TurnReport previewTurn(const World& w);   // без изменения мира; logIds указывают на записи пробного хода

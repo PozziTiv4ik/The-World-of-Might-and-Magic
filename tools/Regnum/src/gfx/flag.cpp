@@ -203,7 +203,7 @@ EmblemPlace paintPattern(Canvas& c, const Flag& f, RectF r, const Snap& s) {
   return e;
 }
 
-// Эмблема с лёгкой тенью; при слабом контрасте с полем — обводка цветом узора.
+// Эмблема с мягкой тенью и тонкой тёмной кромкой; при слабом контрасте с полем — обводка цветом узора.
 void paintEmblem(Canvas& c, const Flag& f, const EmblemPlace& e) {
   if (f.emblem.empty() || !(e.size > 0) || !hasEmblem(f.emblem)) return;
   const Color col = f.emblemColor.withA(255);
@@ -222,7 +222,15 @@ void paintEmblem(Canvas& c, const Flag& f, const EmblemPlace& e) {
       drawEmblem(c, f.emblem, {box.x + d * std::cos(a), box.y + d * std::sin(a), box.w, box.h}, halo);
     }
   } else {
-    drawEmblem(c, f.emblem, {box.x, box.y + e.size * 0.025f, box.w, box.h}, Color(0, 0, 0, 56));
+    // Глубина на ткани: мягкая тень в два оттиска; у светлой эмблемы крупнее 18 пикселей — ещё тонкая тёмная
+    // кромка в пиксель устройства, как у нашитой аппликации (заодно темнеют вырезы-гравировка).
+    const float px = 1.f / std::max(1e-3f, c.transform().scaleFactor());
+    drawEmblem(c, f.emblem, {box.x, box.y + std::max(e.size * 0.036f, 1.5f * px), box.w, box.h}, Color(0, 0, 0, 30));
+    drawEmblem(c, f.emblem, {box.x, box.y + std::max(e.size * 0.018f, px), box.w, box.h}, Color(0, 0, 0, 44));
+    if (col.luminance() > 0.3f && e.size >= 18 * px) {
+      const Color edge(10, 12, 18, 58);
+      for (const Pt d : {Pt{px, 0}, Pt{-px, 0}, Pt{0, px}, Pt{0, -px}}) drawEmblem(c, f.emblem, {box.x + d.x, box.y + d.y, box.w, box.h}, edge);
+    }
   }
   drawEmblem(c, f.emblem, box, col);
 }

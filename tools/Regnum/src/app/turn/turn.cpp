@@ -1,5 +1,6 @@
 // Regnum — ход: подтверждение с предварительным итогом, снимки мира (конец хода перед расчётом и начало
-// следующего), расчёт (rules::endTurn), уведомление с отчётом, просмотр прошлых ходов и возврат к ним.
+// следующего), расчёт (rules::endTurn), уведомление с отчётом, просмотр прошлых ходов и возврат к ним. Игрок ход не
+// завершает — отмечает готовность своего государства (turnui::toggleReady), ход для всех завершает администратор.
 // История с ветвями: снимки уникальны (ход + вид + номер), ветвь текущего мира — цепочка parent от snapHead;
 // новые снимки живут в памяти до сохранения мира. Окна — confirm_dialog.cpp, report_dialog.cpp, history_dialog.cpp.
 #include <unordered_map>
@@ -178,6 +179,12 @@ void App::endTurn() {
     toast("Открыт прошлый ход — вернитесь к текущему, чтобы завершить ход", ToastKind::Warning, "lock", "К текущему ходу", [](App& a) { a.backToCurrent(); });
     return;
   }
+  // Игрок не завершает ход: «Завершить ход» (кнопка, Ctrl+Enter, палитра) ставит или снимает отметку готовности его
+  // государства (в мире — администратор видит её в окне завершения хода и в разделе «Решения»).
+  if (player()) {
+    turnui::toggleReady(*this);
+    return;
+  }
   if (hasDialog("turn.confirm")) return;
   std::unique_ptr<Dialog> dlg;
   try {
@@ -214,6 +221,7 @@ bool App::endTurnNow() {
   std::string text = "Начался ход " + std::to_string(rep.turnTo);
   if (!rep.rebellions.empty()) text += " · восстаний: " + std::to_string(rep.rebellions.size());
   if (debts) text += " · в долгу: " + std::to_string(debts);
+  if (!rep.hits.empty() && admin()) text += " · покушений: " + std::to_string(rep.hits.size());   // исходы — в отчёте хода
   bool warn = !rep.rebellions.empty() || debts > 0;
   toast(text, warn ? ToastKind::Warning : ToastKind::Success, "next-turn", "Отчёт", [](App& a) { a.openDialog("turn.report"); });
   // Восстания и мятежи хода — окна по очереди (битва, штурм или захват, судьба героев).

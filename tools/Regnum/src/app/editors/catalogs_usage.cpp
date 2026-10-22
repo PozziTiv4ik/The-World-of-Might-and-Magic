@@ -81,7 +81,8 @@ void buildResources(const World& w, UseMap& m) {
     for (const Recipe& rc : b.recipes) {
       for (const ResAmount& x : rc.in)
         if (x.res && !has(rec, x.res)) rec.push_back(x.res);
-      if (rc.out.res && !has(rec, rc.out.res)) rec.push_back(rc.out.res);
+      for (const ResAmount& x : rc.out)
+        if (x.res && !has(rec, x.res)) rec.push_back(x.res);
     }
     for (Id r : rec) m[r].recipes.push_back(b.id);
   });

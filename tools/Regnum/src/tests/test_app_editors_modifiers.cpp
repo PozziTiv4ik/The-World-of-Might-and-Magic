@@ -24,8 +24,9 @@ TEST(app_editors_modifiers_builtin) {
   h.dropToasts();
   h->openEditor("modifiers", 0);
   quick(h);
-  // Все встроенные (ТЗ 1.1–1.26 и 7 модификаторов доработок 2026-10-10) — в списке, даже без записей мира.
-  CHECK_EQ(schema::builtinModifiers().size(), size_t(33));
+  // Все встроенные (ТЗ 1.1–1.26, 7 модификаторов доработок 2026-10-10, 8 модификаторов заговоров и 18 модификаторов
+  // уровней построек 2026-10-22) — в списке, даже без записей мира.
+  CHECK_EQ(schema::builtinModifiers().size(), size_t(59));
   for (const Modifier& m : schema::builtinModifiers()) CHECK_MSG(h->uiRect("modifiers.builtin." + m.key) != nullptr, m.key);
   // Список сгруппирован по виду: для провинций, глобальные, для армий, для героев, для археологических групп, везде
   // (сверху вниз).

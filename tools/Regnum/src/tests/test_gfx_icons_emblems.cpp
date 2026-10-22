@@ -231,11 +231,23 @@ TEST(gfx_icons_emblems_sheet) {
     int h = 0;
   };
   std::vector<Page> pages(1);
-  // REGNUM_EMBLEM_FOCUS — только группы, в названии которых есть подстрока (листы gfx_emblems_focus*).
+  // REGNUM_EMBLEM_FOCUS — только группы, в названии которых есть подстрока или чьи эмблемы начинаются с неё латиницей
+  // («dragon-», «race-orc»; листы gfx_emblems_focus*). Несколько подстрок — через запятую.
   const std::string focus = fs::env("REGNUM_EMBLEM_FOCUS");
+  std::vector<std::string> focusParts;
+  for (std::string_view part : split(focus, ','))
+    if (!trim(part).empty()) focusParts.push_back(trim(part));
+  auto focused = [&](const EmblemGroup& g) {
+    for (const std::string& f : focusParts) {
+      if (std::string(g.title).find(f) != std::string::npos) return true;
+      for (const std::string& nm : g.names)
+        if (nm.rfind(f, 0) == 0) return true;
+    }
+    return false;
+  };
   size_t expected = 0;
   for (const EmblemGroup& g : emblemGroups()) {
-    if (!focus.empty() && std::string(g.title).find(focus) == std::string::npos) continue;
+    if (!focus.empty() && !focused(g)) continue;
     expected += g.names.size();
     const int gh = head + int((g.names.size() + cols - 1) / cols) * cell;
     if (!pages.back().groups.empty() && pages.back().h + gh > maxH) pages.emplace_back();

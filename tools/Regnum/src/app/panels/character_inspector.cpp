@@ -76,6 +76,17 @@ void drawHeader(App& a, Id cid) {
         a.select(SelType::Faction, cf->id);
       a.markUi("character.captive");
     }
+    if (!dead && rules::characterHas(w, cid, schema::mod::Arrested)) {
+      const Faction* jf = w.faction(c->jailer);
+      ui::ChipOpt co;
+      co.icon = "shackles";
+      co.tone = ui::Tone::Warning;
+      co.clickable = jf != nullptr;
+      co.tooltip = jf ? "Под арестом — открыть государство (тюрьма — во вкладке «Заговоры»)" : "Под арестом";
+      if (ui::flowChip(jf ? "Под арестом · " + orName(jf->name, "Без названия") : std::string("Под арестом"), co) == ui::ChipAction::Click && jf)
+        a.select(SelType::Faction, jf->id);
+      a.markUi("character.arrested");
+    }
   }
 }
 

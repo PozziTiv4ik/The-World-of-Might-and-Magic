@@ -137,7 +137,7 @@ void effectLines(const World& wd, const rules::Effects& fx, Fx f, bool percent, 
 // Прибавка маршрутов к торговой ценности: +10 % базы за маршрут и ещё +2,5 % за каждое государство на его пути.
 double routeAdd(const rules::ProvinceCalc& pc) {
   if (pc.routes <= 0) return 0;
-  double rest = std::max(0.0, pc.tradeBase * (1.0 + pc.fx[Fx::TradePct] / 100.0) + pc.fx[Fx::TradeFlat]);
+  double rest = std::max(0.0, pc.tradeBase * (1.0 + pc.fx[Fx::TradePct] / 100.0) + pc.fx[Fx::TradeFlat] + pc.tradePop);
   return std::max(0.0, pc.tradeValue - rest);
 }
 
@@ -162,6 +162,8 @@ std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules:
   effectLines(wd, pc.fx, Fx::TradePct, true, L, pc.tradeBase);
   if (pc.routes > 0) L.push_back({"Маршруты: " + fmtNum(pc.routes) + " · " + pct(routePct(pc), true), signedNum(routeAdd(pc)), ui::Tone::Success});
   effectLines(wd, pc.fx, Fx::TradeFlat, false, L);
+  // Население: +1 за каждые 100 жителей (ProvinceCalc::tradePop).
+  if (pc.tradePop > 0) L.push_back({"Население: " + fmtNum(double(pc.population)), signedNum(pc.tradePop), ui::Tone::Success});
   L.push_back({"Текущая ценность", num(pc.tradeValue), ui::Tone::Neutral, true});
   (void)p;
   return L;
