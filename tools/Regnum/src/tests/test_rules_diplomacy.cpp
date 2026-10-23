@@ -83,6 +83,33 @@ TEST(rules_diplomacy_truce_and_war_lock) {
   CHECK_NEAR(f.fc(f.A).incTribute, 10, 1e-9);
 }
 
+// Вассалитет по перемирию без цикла: сюзерен, который сам вассал будущего вассала, не принимается; смена прежнего
+// сюзерена записана в перемирии.
+TEST(rules_diplomacy_truce_vassal_chain) {
+  Fix f;
+  f.tx([&](Tx& tx) {
+    setSuzerain(tx, f.B, f.A);   // B — вассал A
+    declareWar(tx, f.A, f.B);
+  });
+  Truce t;
+  t.a = f.A;
+  t.b = f.B;
+  t.fromA.vassal = true;       // A стал бы вассалом своего вассала B
+  CHECK(has(join(truceProblems(f.w(), t), "; "), "вассал"));
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { concludeTruce(tx, t); }); }), "вассал"));
+  CHECK_EQ(f.w().faction(f.A)->suzerain, Id(0));
+  // B становится вассалом C по перемирию с C: прежний сюзерен A теряет вассала.
+  f.tx([&](Tx& tx) { declareWar(tx, f.C, f.B); });
+  Truce c;
+  c.a = f.B;
+  c.b = f.C;
+  c.fromA.vassal = true;
+  CHECK(truceProblems(f.w(), c).empty());
+  f.tx([&](Tx& tx) { concludeTruce(tx, c); });
+  CHECK_EQ(f.w().faction(f.B)->suzerain, f.C);
+  CHECK(!lastLog(f.w(), "выходит из вассалитета").empty());
+}
+
 // Все земли побеждённого — победителю вместе с запасами; валюты — только если у побеждённого нет войск и флота.
 TEST(rules_diplomacy_truce_conquest_loot) {
   Fix f;

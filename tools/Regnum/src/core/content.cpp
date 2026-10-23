@@ -209,6 +209,7 @@ std::vector<std::string> seed(Tx& tx) {
   if (from < 2) s.v2();
   if (from < 3) s.v3();
   if (from < 4) s.v4();
+  if (from < 5) s.v5();
   tx.meta().content = kVersion;
   std::vector<std::string> parts;
   if (s.positions) parts.push_back(count(s.positions, "должности"));

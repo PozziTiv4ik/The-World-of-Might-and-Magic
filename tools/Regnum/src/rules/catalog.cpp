@@ -455,7 +455,8 @@ std::vector<RelicAt> sellableRelics(const World& w, Id state) {
       const Building* b = w.building(pb.building);
       if (!b || !b->relicStore || pb.builtLevel() < 1) continue;
       for (const RelicStack& s : pb.relics)
-        if (w.relic(s.relic) && s.count > 0) out.push_back(RelicAt{RelicPlace{RelicPlace::Building, p.id, pb.building, state}, s.count, s.relic});
+        if (const Relic* r = w.relic(s.relic); r && s.count > 0 && !isPhylactery(*r))
+          out.push_back(RelicAt{RelicPlace{RelicPlace::Building, p.id, pb.building, state}, s.count, s.relic});
     }
   });
   return out;
@@ -475,6 +476,7 @@ double sellRelics(Tx& tx, Id state, const RelicPlace& at, Id relic, i64 count) {
   const Faction& f = needState(tx.w(), state);
   const Relic* r = tx.w().relic(relic);
   if (!r) fail("Реликвия не найдена");
+  if (isPhylactery(*r)) fail(q(r->name) + " — филактерия лича: на рынке не продаётся");
   if (!hasMarket(tx.w(), state)) fail("У государства " + facName(tx.w(), state) + " нет достроенного рынка");
   if (at.kind != RelicPlace::Building || at.owner != state) fail("Продаются реликвии из хранилищ реликвий государства");
   const Province& p = needProvince(tx.w(), at.id);

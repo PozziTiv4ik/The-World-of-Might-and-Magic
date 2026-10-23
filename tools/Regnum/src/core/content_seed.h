@@ -112,6 +112,8 @@ struct Seeder {
   void techsV4(Id& powderTech);
   void buildingsV4(Id powderTech);
   void intelV4();
+  // ---- версия 5 (content_v5.cpp)
+  void v5();
   // ensureBuilding с adopt: одноимённая своя постройка мира становится базовой записью версии 3.
   template <class Fill>
   Id adoptBuilding(const char* bkey, const char* name, BuildingCat catg, const char* icon, Fill&& fill) {

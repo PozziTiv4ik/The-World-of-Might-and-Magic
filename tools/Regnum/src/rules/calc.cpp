@@ -510,11 +510,12 @@ std::shared_ptr<const Calc> compute(const World& w, const geo::FaceSet* fs) {
       fc.fleetTotal += rc.total;
       fc.fleetField += rc.field;
       fc.fleet.push_back(rc);
-      // Флот в торговле: торговые галеоны приносят своё содержание × 2.
+      // Флот в торговле: торговые галеоны приносят базовое содержание строки × 2 (модификатор содержания флота
+      // меняет только расход: штраф к содержанию не увеличивает прибыль торговли).
       if (rc.trade > 0) {
         if (r.type == ShipType::Galleon) {
           galleons += rc.trade;
-          fc.incTradeFleet += double(rc.trade) * std::max(0.0, r.upkeep) * fleetK * schema::kFleetTradeIncome;
+          fc.incTradeFleet += double(rc.trade) * std::max(0.0, r.upkeep) * schema::kFleetTradeIncome;
         } else if (r.type == ShipType::Frigate) {
           frigates += rc.trade;
         } else if (r.type == ShipType::ShipOfLine) {

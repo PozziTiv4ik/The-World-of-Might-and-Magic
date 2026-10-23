@@ -561,6 +561,7 @@ Id returnGroup(Tx& tx, Id army, Id faction) {
   n.pos = *spot;
   n.groups.push_back(std::move(g));
   n.loyalty = a.loyalty;
+  n.acted = a.acted;   // отделившийся объект не получает нового хода
   n.commander = cmdMoves ? a.commander : 0;
   if (!n.commander && !n.groups[0].heroes.empty()) n.commander = n.groups[0].heroes.front();
   const Id nid = tx.add(std::move(n)).id;

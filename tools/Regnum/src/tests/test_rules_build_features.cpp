@@ -400,7 +400,13 @@ TEST(rules_build_features_content_v3) {
   CHECK(bld(schema::bld::CorpseMill) && bld(schema::bld::CorpseMill)->stateKinds == (1u << int(StateKind::Undead)));
   CHECK(bld(schema::bld::Drainer) && bld(schema::bld::Drainer)->drain && bld(schema::bld::Drainer)->levels[0].drainPop == 100);
   CHECK(bld(schema::bld::Sprinkler) && bld(schema::bld::Sprinkler)->recipes.size() == 1 && bld(schema::bld::Sprinkler)->recipes[0].essIn.size() == 1);
-  CHECK(bld(schema::bld::Steelworks) && bld(schema::bld::Steelworks)->recipes.size() == 9);
+  // 9 рецептов версии 3 и «Обсидиановая сталь» версии 5 (обсидиан и уголь).
+  CHECK(bld(schema::bld::Steelworks) && bld(schema::bld::Steelworks)->recipes.size() == 10);
+  if (const Building* sw = bld(schema::bld::Steelworks); sw && sw->recipes.size() == 10) {
+    const Recipe& ob = sw->recipes.back();
+    CHECK_EQ(ob.name, std::string("Обсидиановая сталь"));
+    CHECK(ob.in.size() == 2 && ob.out.size() == 1 && w.resource(ob.out[0].res) && w.resource(ob.out[0].res)->name == "Обсидиановая сталь");
+  }
   const Building* conv = bld(schema::bld::AlchemyConverter);
   CHECK(conv && conv->techs.size() == 1 && w.tech(conv->techs[0]) && w.tech(conv->techs[0])->key == schema::tech::MagicPowder);
   // «Цитадель Бездны»: цена — сталь обсидиана бездны и эссенция бездны, без генерации эссенции.

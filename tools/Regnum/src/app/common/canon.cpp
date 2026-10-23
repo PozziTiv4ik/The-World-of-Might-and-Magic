@@ -399,7 +399,7 @@ void link(App& a, SelType type, Id id, const Card& card) {
 void section(App& a, SelType type, Id id) {
   const World& w = a.world();
   const std::string ent = entityOf(w, type, id);
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // связь с каноном — правка мира (администратор)
   {
     ui::Row r({ui::fr(1), ui::px(30), ui::px(30), ui::px(30)}, 30, 6);
     std::string e = ent;
@@ -431,13 +431,13 @@ void notesField(App& a, SelType type, Id id, float height) {
   const World& w = a.world();
   const bool linked = !entityOf(w, type, id).empty();
   std::string notes = notesOf(w, type, id);
-  const bool ro = a.readOnly() || linked;
+  const bool ro = !a.canEdit() || linked;
   if (ui::textArea("notes", notes, height, {.placeholder = linked ? "" : "Заметки", .readOnly = ro,
                                             .tooltip = linked ? "Заметки из канона — правятся в карточке" : ""}) &&
       !ro && notes != notesOf(w, type, id))
     a.act("Заметки", [&](Tx& tx) { setNotes(tx, type, id, notes); });
   a.markUi("canon.notes");
-  if (linked && !a.readOnly()) {
+  if (linked && a.canEdit()) {
     ui::HStack hs(24, ui::Align::Right, 4);
     if (ui::iconButton("refresh", "Обновить заметки из канона", {.size = ui::Size::Small})) {
       const std::string ent = entityOf(w, type, id);
@@ -480,7 +480,7 @@ void relicSection(App& a, Id relic) {
   const Relic* r = w.relic(relic);
   if (!r) return;
   const std::string ent = r->entity;
-  const bool ro = a.readOnly();
+  const bool ro = !a.canEdit();   // связь с каноном — правка мира (администратор)
   {
     ui::Row row({ui::fr(1), ui::px(30), ui::px(30), ui::px(30)}, 30, 6);
     std::string e = ent;
@@ -513,14 +513,14 @@ void relicDescField(App& a, Id relic, float height) {
   const Relic* r = w.relic(relic);
   if (!r) return;
   const bool linked = !r->entity.empty();
-  const bool ro = a.readOnly() || linked;
+  const bool ro = !a.canEdit() || linked;
   std::string desc = r->desc;
   if (ui::textArea("desc", desc, height, {.placeholder = linked ? "" : "Описание", .readOnly = ro,
                                           .tooltip = linked ? "Описание из канона — правится в карточке" : ""}) &&
       !ro && desc != r->desc)
     a.act("Описание реликвии", [&](Tx& tx) { setRelicDesc(tx, relic, desc); });
   a.markUi("catalogs.relicCard.desc");
-  if (linked && !a.readOnly()) {
+  if (linked && a.canEdit()) {
     ui::HStack hs(24, ui::Align::Right, 4);
     if (ui::iconButton("refresh", "Обновить описание и изображение из канона", {.size = ui::Size::Small})) {
       const std::string ent = r->entity;

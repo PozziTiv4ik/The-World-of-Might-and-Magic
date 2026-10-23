@@ -507,6 +507,35 @@ TEST(rules_entities_delete_province) {
   CHECK(has(lastLog(w), "удалена"));
 }
 
+// Удаление провинции: реликвии хранилища — владельцу, тайник — спрятавшему государству; объединение переносит тайник.
+TEST(rules_entities_province_removal_keeps_relics) {
+  Fix f;
+  Id store = 0, crown = 0, cup = 0, ring = 0;
+  f.tx([&](Tx& tx) {
+    for (Id p : {f.p[0], f.p[1], f.p[2]}) tx.province(p).owner = f.A;
+    store = simpleBuilding(tx, "Хранилище", f.p[0], BuildingFlag::RelicStore, true);
+    crown = addRelic(tx, "Корона", Rarity::Legendary);
+    cup = addRelic(tx, "Чаша", Rarity::Legendary);
+    ring = addRelic(tx, "Кольцо", Rarity::Legendary);
+    storeRelic(tx, f.p[0], store, crown, RelicPlace{});
+    tx.province(f.p[0]).hiddenRelic = cup;
+    tx.province(f.p[0]).hiddenBy = f.B;
+    tx.province(f.p[1]).hiddenRelic = ring;
+    tx.province(f.p[1]).hiddenBy = f.A;
+  });
+  f.tx([&](Tx& tx) { deleteProvince(tx, f.p[0]); });
+  auto placeOf = [&](Id relic) {
+    const std::vector<RelicAt> at = relicPlaces(f.w(), relic);
+    return at.empty() ? RelicPlace{} : at.front().place;
+  };
+  CHECK(placeOf(crown).kind == RelicPlace::State && placeOf(crown).id == f.A);
+  CHECK(placeOf(cup).kind == RelicPlace::State && placeOf(cup).id == f.B);   // спрятало B
+  // Объединение: тайник источника переходит в цель без своего тайника.
+  f.tx([&](Tx& tx) { mergeProvinces(tx, f.p[2], f.p[1]); });
+  CHECK_EQ(f.w().province(f.p[2])->hiddenRelic, ring);
+  CHECK_EQ(f.w().province(f.p[2])->hiddenBy, f.A);
+}
+
 TEST(rules_entities_merge_provinces) {
   Fix f;
   Id human = 0, elf = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, r1 = 0;

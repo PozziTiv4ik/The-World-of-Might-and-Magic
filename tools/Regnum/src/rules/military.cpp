@@ -14,6 +14,48 @@ constexpr double kSearchRadius = 1600;     // дальше не ищем
 
 const char* objNoun(ArmyKind k) { return k == ArmyKind::Fleet ? "Флот" : "Войско"; }
 
+// Выделенный объект наследует состояние исходного: очко действий (правила игрока), верность и модификаторы со сроками —
+// разделение и роспуск союза не дают сходившему войску нового хода и не снимают низкую верность и штрафы.
+void inheritState(Army& n, const Army& from) {
+  n.acted = from.acted;
+  n.loyalty = from.loyalty;
+  n.modifiers = from.modifiers;
+  n.modTurns = from.modTurns;
+}
+
+// Модификаторы вида государства («Армия нежити», «Армия демонов») у объекта одной фракции — по виду её государства.
+void fitKindMods(Tx& tx, Id army) {
+  const Army& a = *tx.w().army(army);
+  if (a.isFleet() || a.allied()) return;
+  const Faction* f = tx.w().faction(a.leader());
+  const StateKind k = f && f->isState() ? f->stateKind : StateKind::Living;
+  const std::pair<const char*, StateKind> kinds[] = {{schema::mod::UndeadArmy, StateKind::Undead}, {schema::mod::DemonArmy, StateKind::Demonic}};
+  for (auto [key, kind] : kinds) {
+    Id m = 0;
+    for (Id id : tx.w().army(army)->modifiers)
+      if (const Modifier* x = tx.w().modifier(id); x && x->key == key) m = id;
+    if (m && k != kind) dropModifier(tx, ModTarget::Army, army, m);
+    else if (!m && k == kind) addModifier(tx, ModTarget::Army, army, ensureBuiltinMod(tx, key), 0);
+  }
+}
+
+// Слияние: худшая верность и позднее очко действий; модификаторы источника добавляются (срок — больший, бессрочный
+// побеждает срочный).
+void absorbState(Army& m, const Army& s) {
+  m.acted = std::max(m.acted, s.acted);
+  m.loyalty = std::min(m.loyalty, s.loyalty);
+  for (Id mod : s.modifiers) {
+    const auto st = s.modTurns.find(mod);
+    if (!contains(m.modifiers, mod)) {
+      m.modifiers.push_back(mod);
+      if (st != s.modTurns.end()) m.modTurns[mod] = st->second;
+    } else if (auto mt = m.modTurns.find(mod); mt != m.modTurns.end()) {
+      if (st == s.modTurns.end()) m.modTurns.erase(mt);
+      else mt->second = std::max(mt->second, st->second);
+    }
+  }
+}
+
 }  // namespace
 
 // Название нового объекта: «Войско №N» — следующий свободный номер среди объектов фракции этого вида.
@@ -328,6 +370,9 @@ void setGarrison(Tx& tx, Id province, Id row, i64 count) {
   i64 cur = 0;
   for (const GarrisonEntry& g : p.garrison)
     if (g.row == row) cur += g.count;
+  // В оккупированную провинцию гарнизон владельца не вводится (вывести можно).
+  if (count > cur && p.occupied && p.occupier && p.occupier != p.owner)
+    fail("Провинция " + provName(tx.w(), province) + " оккупирована " + facName(tx.w(), p.occupier) + " — гарнизон не назначить");
   if (count > cur) {
     Deployed d = deployed(tx.w(), p.owner);
     i64 reserve = r->total - d.armyField(row);
@@ -364,6 +409,8 @@ void setGarrisonHero(Tx& tx, Id province, Id character, bool on) {
   if (c.faction != p.owner)
     fail(q(tx.w().characterName(character)) + (c.faction ? " — герой " + facName(tx.w(), c.faction) : std::string(" не состоит ни в одной фракции")) +
          ": в гарнизон назначаются только герои " + facName(tx.w(), p.owner));
+  if (p.occupied && p.occupier && p.occupier != p.owner)
+    fail("Провинция " + provName(tx.w(), province) + " оккупирована " + facName(tx.w(), p.occupier) + " — гарнизон не назначить");
   if (characterHas(tx.w(), character, schema::mod::Dead)) fail(q(tx.w().characterName(character)) + " мёртв");
   if (characterHas(tx.w(), character, schema::mod::Captive)) fail(q(tx.w().characterName(character)) + " в плену");
   if (characterHas(tx.w(), character, schema::mod::Arrested)) fail(q(tx.w().characterName(character)) + " под арестом");
@@ -537,6 +584,7 @@ void mergeArmies(Tx& tx, Id target, Id source) {
   Army& m = tx.army(target);
   for (const ArmyGroup& g : s.groups) addGroup(m, g);
   if (!m.commander) m.commander = s.commander;
+  absorbState(m, s);
   addLog(tx, s.isFleet() ? LogKind::Fleet : LogKind::Army, "Объединены " + tn + " и " + sn, LogRefs{0, target, factionsOf(m)});
 }
 
@@ -555,6 +603,9 @@ void formAllied(Tx& tx, Id target, Id source) {
   tx.eraseArmy(source);
   Army& m = tx.army(target);
   for (const ArmyGroup& g : s.groups) addGroup(m, g);
+  // Сходивший союзник не даёт объекту нового хода, худшая верность сохраняется (модификаторы — у каждой стороны свои).
+  m.acted = std::max(m.acted, s.acted);
+  m.loyalty = std::min(m.loyalty, s.loyalty);
   // Управление союзным объектом — у фракции цели: её группа первая, главный полководец —
   // её герой (свой не назначен — первый герой её группы).
   if (!m.commander && !m.groups[0].heroes.empty()) m.commander = m.groups[0].heroes.front();
@@ -579,6 +630,7 @@ std::vector<Id> dissolveAllied(Tx& tx, Id army) {
     auto spot = pl.freeSpot(a.kind, a.pos, 0);
     if (!spot) fail("Рядом нет свободного места, чтобы распустить союз");
     Army n;
+    inheritState(n, a);
     n.kind = a.kind;
     n.name = defaultArmyName(tx.w(), a.kind, a.groups[i].faction);
     n.pos = *spot;
@@ -587,6 +639,7 @@ std::vector<Id> dissolveAllied(Tx& tx, Id army) {
     Id nid = tx.add(std::move(n)).id;
     pl.set(nid, *spot);
     out.push_back(nid);
+    fitKindMods(tx, nid);
     // Войско на борту союзного флота уходит с кораблями фракции, которой оно принадлежит.
     if (a.isFleet())
       if (const Id c = cargoOf(tx.w(), army); c && tx.w().army(c)->leader() == a.groups[i].faction) {
@@ -596,6 +649,7 @@ std::vector<Id> dissolveAllied(Tx& tx, Id army) {
         syncCargo(tx, nid);
       }
   }
+  fitKindMods(tx, army);
   addLog(tx, a.isFleet() ? LogKind::Fleet : LogKind::Army,
          std::string(a.isFleet() ? "Союзный флот " : "Союзное войско ") + q(a.name.empty() ? "—" : a.name) + " распущен" + (a.isFleet() ? "" : "о"),
          LogRefs{0, army, factionsOf(a)});
@@ -666,6 +720,7 @@ Id splitArmy(Tx& tx, Id army, const SplitSpec& spec) {
   src.groups.erase(std::remove_if(src.groups.begin(), src.groups.end(), [](const ArmyGroup& g) { return g.units.empty() && g.heroes.empty(); }),
                    src.groups.end());
   Army n;
+  inheritState(n, a);
   n.kind = a.kind;
   n.name = defaultArmyName(tx.w(), a.kind, moved[0].faction);
   n.pos = *spot;
@@ -674,6 +729,7 @@ Id splitArmy(Tx& tx, Id army, const SplitSpec& spec) {
     if (a.commander && contains(g.heroes, a.commander)) n.commander = a.commander;
   if (n.commander) src.commander = 0;
   Id nid = tx.add(std::move(n)).id;
+  fitKindMods(tx, nid);
   if (a.isFleet()) needCapacity(tx.w(), army, capBefore);   // войско на борту остаётся на исходном флоте
   addLog(tx, a.isFleet() ? LogKind::Fleet : LogKind::Army,
          std::string(a.isFleet() ? "Флот " : "Войско ") + q(a.name.empty() ? "—" : a.name) +

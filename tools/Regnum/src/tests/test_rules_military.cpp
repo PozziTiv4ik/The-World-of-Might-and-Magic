@@ -437,6 +437,65 @@ TEST(rules_military_split_army) {
   CHECK(has(lastLog(w), "разделено"));
 }
 
+// Разделение и слияние не «отмывают» войско: выделенная часть наследует очко действий, верность и модификаторы со
+// сроком; слияние берёт худшую верность, позднее очко действий и модификаторы источника.
+TEST(rules_military_split_merge_keep_state) {
+  Fix f;
+  Id r1 = 0, a = 0, b = 0, mod = 0;
+  f.tx([&](Tx& tx) {
+    r1 = addArmyRow(tx, f.A, UnitType::LightInf, "", 100, 1);
+    a = createArmy(tx, ArmyKind::Army, f.A, center(5));
+    b = createArmy(tx, ArmyKind::Army, f.A, center(2));
+    setUnits(tx, a, f.A, r1, 30);
+    setUnits(tx, b, f.A, r1, 10);
+    mod = createModifier(tx, "Штраф войска");
+    addModifier(tx, ModTarget::Army, a, mod, 3);
+    tx.army(a).loyalty = -40;
+    tx.army(a).acted = tx.w().turn();
+  });
+  SplitSpec s;
+  s.units[{f.A, r1}] = 10;
+  Id n = 0;
+  f.tx([&](Tx& tx) { n = splitArmy(tx, a, s); });
+  {
+    const Army& na = *f.w().army(n);
+    CHECK_EQ(na.acted, f.w().turn());
+    CHECK_NEAR(na.loyalty, -40, 1e-9);
+    CHECK(has(na.modifiers, mod));
+    CHECK_EQ(na.modTurns.at(mod), 3);
+  }
+  f.tx([&](Tx& tx) { mergeArmies(tx, b, n); });
+  const Army& m = *f.w().army(b);
+  CHECK_NEAR(m.loyalty, -40, 1e-9);
+  CHECK_EQ(m.acted, f.w().turn());
+  CHECK(has(m.modifiers, mod));
+  CHECK_EQ(m.modTurns.at(mod), 3);
+}
+
+// Гарнизон владельца не вводится в оккупированную провинцию (вывести можно); гильдия провинции не штурмует.
+TEST(rules_military_occupied_garrison_and_guild_siege) {
+  Fix f;
+  Id race = 0, rB = 0, rG = 0, gA = 0;
+  f.tx([&](Tx& tx) {
+    race = addRace(tx);
+    own(tx, f.p[0], f.B, race, 1000);
+    rB = addArmyRow(tx, f.B, UnitType::LightInf, "", 100, 1);
+    setGarrison(tx, f.p[0], rB, 10);
+    declareWar(tx, f.A, f.B);
+    setOccupied(tx, f.p[0], f.A);
+    rG = addArmyRow(tx, f.G, UnitType::LightInf, "", 100, 1);
+    gA = createArmy(tx, ArmyKind::Army, f.G, center(0));
+    setUnits(tx, gA, f.G, rG, 10);
+    declareWar(tx, f.G, f.B);
+  });
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setGarrison(tx, f.p[0], rB, 20); }); }), "оккупирована"));
+  f.tx([&](Tx& tx) { setGarrison(tx, f.p[0], rB, 5); });
+  CHECK_EQ(f.w().province(f.p[0])->garrison.at(0).count, 5);
+  std::string why;
+  CHECK(!canSiege(f.w(), gA, f.p[0], &why));
+  CHECK(has(why, "государств"));
+}
+
 namespace {
 
 struct BattleSetup {

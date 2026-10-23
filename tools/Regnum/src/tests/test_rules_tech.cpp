@@ -167,6 +167,42 @@ TEST(rules_tech_cost_and_buildings) {
   CHECK_NEAR(factionEffects(f.w(), f.A)[Fx::ArchTreasurePct], 1, 1e-9);
 }
 
+// Остановка исследования в конце хода (нет нужной постройки или снята предшествующая) и удаление исследуемой
+// технологии возвращают уплаченное.
+TEST(rules_tech_stop_refunds) {
+  Fix f;
+  const Id treasure = test::idByName(f.w().catalogs->resources, "Археологические сокровища");
+  Id basics = 0, guildB = 0, own = 0;
+  f.w().techs.each([&](const Tech& t) {
+    if (t.faction == 0 && t.prereqs.empty() && !t.needKeys.empty()) basics = t.id;
+  });
+  f.tx([&](Tx& tx) {
+    tx.faction(f.A).res[treasure] = 150;
+    tx.province(f.p[0]).owner = f.A;
+    guildB = tx.add(content::archGuildFor(f.A, {})).id;
+    placeBuilding(tx, f.p[0], guildB, 1);
+    startResearch(tx, basics, f.A);
+  });
+  CHECK_NEAR(f.w().faction(f.A)->stock(treasure), 50, 1e-9);
+  // Провинция с «Гильдией Археологов» ушла — в конце хода исследование остановлено, сокровища возвращены.
+  f.tx([&](Tx& tx) { tx.province(f.p[0]).owner = f.B; });
+  f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK(!techState(f.w(), basics, f.A).research);
+  CHECK(!techStudied(f.w(), basics, f.A));
+  CHECK_NEAR(f.w().faction(f.A)->stock(treasure), 150, 1e-9);
+  CHECK(has(lastLog(f.w(), "остановлено"), "нужна достроенная постройка"));
+  // Удаление исследуемой технологии своего дерева — возврат.
+  f.tx([&](Tx& tx) {
+    own = createTech(tx, f.A, "Свод");
+    tx.tech(own).cost[treasure] = 40;
+    tx.tech(own).turns = 3;
+    startResearch(tx, own);
+  });
+  CHECK_NEAR(f.w().faction(f.A)->stock(treasure), 110, 1e-9);
+  f.tx([&](Tx& tx) { removeTech(tx, own); });
+  CHECK_NEAR(f.w().faction(f.A)->stock(treasure), 150, 1e-9);
+}
+
 TEST(rules_tech_research_time_factor) {
   Fix f;
   Id t = 0;

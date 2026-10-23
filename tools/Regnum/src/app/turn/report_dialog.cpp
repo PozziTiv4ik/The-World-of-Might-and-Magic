@@ -1,9 +1,9 @@
 // Regnum — отчёт о завершённом ходе (DialogReg «turn.report»): ход N → N+1, карточки фракций с изменением
 // казны, доходом и расходом, изменения запасов ресурсов и эссенций элементов, голод (недостача провизии); записи
 // хроники хода по видам (щелчок — показать на карте); предупреждения: долги, голод, нехватка эссенций на содержание
-// элементалей, недостачи по сделкам, восстания; исходы заказных убийств заговоров (администратору: вероятность, погиб
-// или выжил). Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16): основные игровые государства и остальные
-// фракции.
+// элементалей, недостачи по сделкам, восстания, снос построек сверх слотов, чума; исходы заказных убийств заговоров
+// (администратору: вероятность, погиб или выжил). Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16): основные
+// игровые государства и остальные фракции.
 #include "app/app_internal.h"
 #include "app/turn/turn_ui.h"
 #include "app/widgets.h"
@@ -14,7 +14,8 @@ namespace {
 
 // Порядок видов в отчёте: сначала тревожное, затем экономика и события.
 constexpr LogKind kOrder[] = {LogKind::Province, LogKind::Economy, LogKind::Trade, LogKind::Diplomacy, LogKind::Build, LogKind::Tech,
-                              LogKind::War, LogKind::Battle, LogKind::Army, LogKind::Fleet, LogKind::Guild, LogKind::Population, LogKind::Note};
+                              LogKind::War, LogKind::Battle, LogKind::Army, LogKind::Fleet, LogKind::Guild, LogKind::Population, LogKind::Archaeology,
+                              LogKind::Note};
 
 void kindHeader(LogKind k, size_t n) {
   ui::HStack hs(26, ui::Align::Left, 8);
@@ -153,7 +154,8 @@ struct ReportDlg : Dialog {
       std::vector<const rules::TurnFactionLine*> debtors;
       for (auto* l : lines)
         if (l->treasuryAfter < 0) debtors.push_back(l);
-      if (!debtors.empty() || !d.famine.empty() || !d.essences.empty() || !d.shortfalls.empty() || !d.rebellions.empty()) {
+      if (!debtors.empty() || !d.famine.empty() || !d.essences.empty() || !d.shortfalls.empty() || !d.rebellions.empty() || !d.plague.empty() ||
+          !d.demolished.empty()) {
         {
           ui::Card c({.pad = 12, .icon = "warning", .title = "Требует внимания", .tone = ui::Tone::Danger});
           if (!debtors.empty()) {
@@ -170,6 +172,10 @@ struct ReportDlg : Dialog {
             }
           }
           for (const LogEntry* e : d.rebellions)
+            if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+          for (const LogEntry* e : d.demolished)
+            if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
+          for (const LogEntry* e : d.plague)
             if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;
           for (const LogEntry* e : d.famine)
             if (logRow(w, *e, {.showTime = false, .maxLines = 3})) pickEntry = e;

@@ -49,7 +49,14 @@ void payCost(Tx& tx, Id faction, const Tech& t, std::map<Id, double>& paid) {
   Faction& f = tx.faction(faction);
   for (auto& [res, v] : copy) addStock(f, res, -v);
 }
-void refundCost(Tx& tx, Id faction, std::map<Id, double>& paid) {
+void dropEmpty(Tx& tx, Id faction, Id tech) {
+  auto& m = tx.faction(faction).techs;
+  auto it = m.find(tech);
+  if (it != m.end() && it->second == TechProgress{}) m.erase(it);
+}
+}  // namespace
+
+void detail::refundCost(Tx& tx, Id faction, std::map<Id, double>& paid) {
   if (paid.empty()) return;
   const std::map<Id, double> copy = paid;
   paid.clear();
@@ -58,12 +65,6 @@ void refundCost(Tx& tx, Id faction, std::map<Id, double>& paid) {
   for (auto& [res, v] : copy)
     if (tx.w().resource(res)) addStock(f, res, v);
 }
-void dropEmpty(Tx& tx, Id faction, Id tech) {
-  auto& m = tx.faction(faction).techs;
-  auto it = m.find(tech);
-  if (it != m.end() && it->second == TechProgress{}) m.erase(it);
-}
-}  // namespace
 
 ResearchCheck canResearch(const World& w, Id tech, Id faction) {
   ResearchCheck r;

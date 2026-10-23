@@ -273,22 +273,15 @@ void drawInfo(App& a, Id cid) {
     a.markUi("character.title");
     ui::prop("Фракция", "flag");
     Id fac = c.faction;
-    if (w::factionPicker("faction", fac, w::FactionFilter::Any, "Без фракции", 0, ro)) {
+    if (w::factionPicker("faction", fac, w::FactionFilter::Any, "Без фракции", 0, ro) && fac != c.faction) {
       int left = 0;
       a.act("Фракция персонажа", [&](Tx& tx) {
-        // Герой сопровождает только отряды своей фракции: из чужих войск он уходит (rules::setHero).
-        for (Id army : roles.armies) {
-          const Army* ar = tx.w().army(army);
-          if (!ar) continue;
-          bool inOther = false;
-          for (const ArmyGroup& g : ar->groups)
-            if (g.faction != fac && std::find(g.heroes.begin(), g.heroes.end(), cid) != g.heroes.end()) inOther = true;
-          if (inOther) {
-            rules::setHero(tx, army, cid, false);
-            left++;
-          }
-        }
+        // Персонаж другой фракции снимается со всех назначений прежней: войска, гарнизон, совет, правитель, лорд.
+        for (Id army : roles.armies)
+          if (tx.w().army(army)) left++;
+        rules::clearAssignments(tx, cid);
         tx.character(cid).faction = fac;
+        rules::fitPlots(tx);
       });
       if (left) a.toast("«" + orName(c.name, "Персонаж") + "» покинул войска прежней фракции: " + std::to_string(left), ToastKind::Info, "army");
     }
@@ -353,7 +346,11 @@ void drawRoles(App& a, Id cid) {
   std::string who = "«" + orName(c.name, "Персонаж") + "»";
   // Мёртвого и пленного назначать нельзя (ТЗ «Модификаторы», 1.6 и 1.12).
   const bool avail = rules::heroAvailable(w, cid);
-  if (!avail) ui::label(w::heroState(w, c) + " — недоступен для назначений", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "lock", .wrap = true});
+  if (!avail) {
+    const std::string st = w::heroState(w, c);
+    ui::label(st.empty() ? std::string("Недоступен для назначений") : st + " — недоступен для назначений",
+              {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "lock", .wrap = true});
+  }
 
   // Правитель (ТЗ 1.b.iv).
   {
@@ -556,7 +553,7 @@ void drawRoles(App& a, Id cid) {
         }
         a.markUi("character.addArmy");
       } else if (r.armies.empty()) {
-        ui::label("Героями войск бывают персонажи фракции.", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+        ui::label(c.faction ? "Нет войск" : "Без фракции", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
       }
     }
   }

@@ -340,7 +340,7 @@ void sideTech(App& a, Ed& ed, Id faction, Id who, const std::vector<TN>& ts, con
       }
     }
     if (t.studied) {
-      ui::label("Технология изучена — её бонусы действуют.", {.ink = ui::Ink::Success, .icon = "check-circle", .wrap = true});
+      ui::label("Изучена", {.ink = ui::Ink::Success, .icon = "check-circle", .wrap = true});
     } else if (t.research) {
       ui::Row r({ui::fr(1), ui::px(60)}, 22, 8);
       ui::label("Исследуется · ещё " + nTurns(turnsLeft(t.need, t.progress)), {.font = ui::Font::Strong, .ink = ui::Ink::Info});

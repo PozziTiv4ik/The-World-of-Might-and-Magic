@@ -160,7 +160,7 @@ constexpr int kDevastateMaxSlavesPct = 75;    // опустошение: в ра
 constexpr int kConscienceBelowPct = 25;       // в рабы меньше 25 % — «Мучения совести»
 
 // Флот в торговле.
-constexpr double kFleetTradeIncome = 2;       // прибыль торговых галеонов = их содержание × 2
+constexpr double kFleetTradeIncome = 2;       // прибыль торговых галеонов = их базовое содержание × 2
 constexpr int kPirateGalleons = 10;           // каждые 10 галеонов — 1 % вероятности нападения пиратов
 constexpr int kPirateFrigates = 5, kPirateLines = 1;   // охрана 10 галеонов: 5 фрегатов или 1 линкор
 constexpr double kPirateLossPct = 5;          // пираты уничтожают 5 % галеонов в торговле (вверх до целого)

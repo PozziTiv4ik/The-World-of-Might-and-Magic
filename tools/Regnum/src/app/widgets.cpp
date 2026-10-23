@@ -168,9 +168,10 @@ bool characterPicker(std::string_view id, Id& value, Id faction, std::string_vie
   o.reserve(list.size() + 2);
   // Уже назначенный, но недоступный (чужой, мёртвый, пленный) — виден в поле, выбрать его снова нельзя.
   if (const Character* cur = w.character(value); faction && cur && std::find(list.begin(), list.end(), cur) == list.end()) {
-    std::string hint = rules::characterHas(w, cur->id, schema::mod::Dead)      ? std::string("мёртв")
-                       : rules::characterHas(w, cur->id, schema::mod::Captive) ? std::string("в плену")
-                                                                               : w.factionName(cur->faction);
+    std::string hint = rules::characterHas(w, cur->id, schema::mod::Dead)       ? std::string("мёртв")
+                       : rules::characterHas(w, cur->id, schema::mod::Captive)  ? std::string("в плену")
+                       : rules::characterHas(w, cur->id, schema::mod::Arrested) ? std::string("под арестом")
+                                                                                : w.factionName(cur->faction);
     o.add(cur->id, orName(cur->name, "Без имени"), "character", cur->faction ? factionColor(w, cur->faction) : Color(0, 0, 0, 0), hint, true);
   }
   for (const Character* c : list) {
@@ -438,6 +439,7 @@ bool checkPlay(App& a, Id faction) {
 std::string heroState(const World& w, const Character& c) {
   if (rules::hasModKey(w, c.modifiers, schema::mod::Dead)) return c.burial ? "Мертв · " + w.provinceName(c.burial) : std::string("Мертв");
   if (rules::hasModKey(w, c.modifiers, schema::mod::Captive)) return c.captor ? "В плену · " + w.factionName(c.captor) : std::string("В плену");
+  if (rules::hasModKey(w, c.modifiers, schema::mod::Arrested)) return c.jailer ? "Под арестом · " + w.factionName(c.jailer) : std::string("Под арестом");
   return {};
 }
 

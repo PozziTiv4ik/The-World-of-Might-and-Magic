@@ -121,7 +121,7 @@ void openRec(Tx& tx, Id state, Id chest, Rng& rng, double pct, int depth, std::v
       case ChestItemKind::Relic: {
         std::vector<Id> pool;
         for (const Relic& r : tx.w().catalogs->relics) {
-          if (!relicFree(tx.w(), r.id)) continue;
+          if (!relicFree(tx.w(), r.id) || isPhylactery(r)) continue;   // филактерия лича — не находка
           if (it.relicGroup && !tx.w().catalogs->inRelicGroup(r.group, it.relicGroup)) continue;
           if (it.rarities && !((it.rarities >> unsigned(r.rarity)) & 1u)) continue;
           pool.push_back(r.id);
@@ -539,7 +539,7 @@ ArchReport excavate(Tx& tx, Id state, Id group, Id province) {
       // Случайная свободная находка случайной редкости (из редкостей, у которых есть свободные находки).
       std::map<int, std::vector<Id>> byRarity;
       for (const Relic& x : tx.w().catalogs->relics)
-        if (relicFree(tx.w(), x.id) && isArchFind(tx.w(), x.id)) byRarity[int(x.rarity)].push_back(x.id);
+        if (relicFree(tx.w(), x.id) && isArchFind(tx.w(), x.id) && !isPhylactery(x)) byRarity[int(x.rarity)].push_back(x.id);
       if (byRarity.empty()) {
         r.gains.push_back(ArchGain{ArchGain::NoRelic, 0, 0, 0});
         break;

@@ -177,7 +177,7 @@ struct ConfirmDlg : Dialog {
     if (d.warnings() == 0) {
       RectF r = ui::next(bodyH());
       ui::Area ar(RectF{r.x, r.y + r.h * 0.5f - 70, r.w, 140}, 0);
-      ui::emptyState("check-circle", "Всё спокойно: долгов, голода, нехватки эссенций, недостач и восстаний не будет.");
+      ui::emptyState("check-circle", "Всё спокойно: долгов, голода, нехватки эссенций, недостач, восстаний, чумы и сноса построек не будет.");
       return;
     }
     ui::Scroll sc("warnings", bodyH());
@@ -190,6 +190,8 @@ struct ConfirmDlg : Dialog {
       ui::spacer(4);
     };
     group("rebellion", ui::Tone::Danger, "Восстания", d.rebellions, "turn.confirm.warn.rebellions");
+    group("build", ui::Tone::Danger, "Снос построек", d.demolished, "turn.confirm.warn.demolished");
+    group("plague", ui::Tone::Warning, "Чума", d.plague, "turn.confirm.warn.plague");
     group("treasury", ui::Tone::Danger, "Долги казны", d.debts, "turn.confirm.warn.debts");
     group("grain", ui::Tone::Danger, "Голод", d.famine, "turn.confirm.warn.famine");
     group("essence", ui::Tone::Danger, "Эссенции на содержание элементалей", d.essences, "turn.confirm.warn.essences");
@@ -224,6 +226,8 @@ struct ConfirmDlg : Dialog {
       if (!d.essences.empty()) parts.push_back("эссенции: " + std::to_string(d.essences.size()));
       if (!d.shortfalls.empty()) parts.push_back("недостачи: " + std::to_string(d.shortfalls.size()));
       if (!d.rebellions.empty()) parts.push_back("восстания: " + std::to_string(d.rebellions.size()));
+      if (!d.demolished.empty()) parts.push_back("снос построек: " + std::to_string(d.demolished.size()));
+      if (!d.plague.empty()) parts.push_back("чума: " + std::to_string(d.plague.size()));
       const ui::Theme& th = ui::theme();
       RectF r = ui::next(40);
       ui::draw::rect(r, th.warning.alpha(0.10f), th.radiusCard);

@@ -201,6 +201,7 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id 
         m2.commander = 0;
         if (!rebelCommander) rebelCommander = h;
       }
+      clearAssignments(tx, h);   // совет, правитель, лорд прежнего государства
       tx.character(h).faction = R;
       rebels.heroes.push_back(h);
     }
@@ -237,6 +238,7 @@ MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id 
         if (characterHas(tx.w(), h, schema::mod::Discontent)) gone.push_back(h);
       for (Id h : gone) {
         eraseValue(tx.province(garrison).garrisonHeroes, h);
+        clearAssignments(tx, h);
         tx.character(h).faction = R;
         rebels.heroes.push_back(h);
         if (!rebelCommander) rebelCommander = h;

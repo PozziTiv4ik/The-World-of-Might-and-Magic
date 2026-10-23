@@ -339,3 +339,63 @@ TEST(rules_catalog_cleanup_untouched_tables) {
   s.transact("remove", [&](Tx& tx) { rules::removeCatalogItem(tx, CatalogList::Essences, unused); });
   CHECK_EQ(World::diff(before, s.world()), u32(TB_CATALOGS));
 }
+
+// Раса — тюрьмы государств и раса иссушения построек; ресурс — снабжение заговорщиков; упразднённое государство —
+// тайник и лорд его провинции: после удаления нормализация ничего не исправляет.
+TEST(rules_catalog_cleanup_race_supplies_faction) {
+  World w0 = base().w;
+  io::Warnings pre;
+  io::normalize(w0, pre);
+  Store s;
+  s.replace(w0, "test");
+  const Base& b = base();
+  Id race = 0, other = 0, res = 0, plot = 0, drain = 0, relic = 0, lord = 0;
+  s.transact("refs", [&](Tx& tx) {
+    race = rules::addCatalogItem(tx, CatalogList::Races, "Проверочные люди");
+    other = rules::addCatalogItem(tx, CatalogList::Races, "Проверочные эльфы");
+    res = rules::addCatalogItem(tx, CatalogList::Resources, "Проверочный порох");
+    Province& p = tx.province(b.p[0]);
+    p.owner = b.B;
+    p.races = {RacePop{race, 1000}, RacePop{other, 1000}};
+    tx.faction(b.B).prison = {RacePop{race, 10}, RacePop{other, 5}};
+    drain = rules::createBuilding(tx, 0, "Проверочная иссушительница");
+    tx.building(drain).drain = true;
+    rules::placeBuilding(tx, b.p[0], drain, 1);
+    tx.province(b.p[0]).buildings.back().race = race;
+    plot = rules::createPlot(tx, PlotKind::External, b.A, b.B);
+    rules::addPlotProvince(tx, plot, b.p[0], false);
+    tx.plot(plot).provinces.at(0).supplies[res] = 5;
+    // Провинция A: лорд и тайник, спрятанный A.
+    tx.province(b.p[1]).owner = b.A;
+    tx.province(b.p[1]).races = {RacePop{other, 500}};
+    lord = rules::createCharacter(tx, b.A, "Проверочный лорд");
+    rules::setLord(tx, b.p[1], lord);
+    relic = rules::addRelic(tx, "Проверочная корона", Rarity::Legendary);
+    tx.province(b.p[1]).hiddenRelic = relic;
+    tx.province(b.p[1]).hiddenBy = b.A;
+  });
+  {
+    const Normalized n = normalized(s.world());
+    CHECK_MSG(n.warns.empty(), text(n.warns));
+  }
+  s.transact("remove", [&](Tx& tx) {
+    rules::removeCatalogItem(tx, CatalogList::Resources, res);
+    rules::removeCatalogItem(tx, CatalogList::Races, race);
+  });
+  const World& w = s.world();
+  CHECK_EQ(w.faction(b.B)->prison.size(), size_t(1));
+  CHECK_EQ(w.province(b.p[0])->buildings.back().race, Id(0));
+  CHECK(w.plot(plot)->provinces.at(0).supplies.empty());
+  {
+    const Normalized n = normalized(w);
+    CHECK_MSG(n.warns.empty(), text(n.warns));
+    CHECK_EQ(n.mask, u32(0));
+  }
+  s.transact("faction", [&](Tx& tx) { rules::removeFaction(tx, b.A); });
+  CHECK_EQ(s.world().province(b.p[1])->lord, Id(0));
+  CHECK_EQ(s.world().province(b.p[1])->hiddenBy, Id(0));
+  CHECK_EQ(s.world().province(b.p[1])->hiddenRelic, relic);   // тайник остаётся — найдут раскопки
+  const Normalized n = normalized(s.world());
+  CHECK_MSG(n.warns.empty(), text(n.warns));
+  CHECK_EQ(n.mask, u32(0));
+}

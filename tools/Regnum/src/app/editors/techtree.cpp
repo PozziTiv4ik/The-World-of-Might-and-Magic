@@ -690,9 +690,9 @@ void drawTechTree(App& a, Id faction) {
   const bool common = faction == 0;
   const Faction* fac = common ? nullptr : w.faction(faction);
   if (!common && !fac) {
-    // Фракции нет (удалена или не выбрана) — предложить выбрать.
+    // Фракции нет (удалена или не выбрана) — выбор дерева.
     ui::Area ar(RectF{R.cx() - 180, R.cy() - 120, 360, 240}, 0);
-    ui::emptyState("tech-tree", "Выберите государство, гильдию или общее дерево.");
+    ui::emptyState("tech-tree", "Фракция не выбрана");
     Id pick = faction;
     if (factionSwitch("pick", pick, false, "Общее дерево") && pick != faction) a.openEditor("techtree", pick);
     return;

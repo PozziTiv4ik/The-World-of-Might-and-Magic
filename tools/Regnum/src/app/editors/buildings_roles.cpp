@@ -144,9 +144,20 @@ void recipeEdit(App& a, const BN& b, int ri, bool ro, RecipeUi& st) {
       set("Название рецепта", nr);
     }
     a.markUi(m + ".name");
-    if (ui::iconButton("trash", "Удалить рецепт", {.disabled = ro, .tone = ui::Tone::Danger}) &&
-        a.act("Удалить рецепт", [&](Tx& tx) { rules::removeRecipe(tx, bid, ri); }))
-      st.open = -1;
+    if (ui::iconButton("trash", "Удалить рецепт", {.disabled = ro, .tone = ui::Tone::Danger})) {
+      // Провинции с этим рецептом переходят на первый (цикл прерывается) — как и прочие удаления, с подтверждением.
+      i64 used = 0;
+      w.provinces.each([&](const Province& p) {
+        for (const ProvBuilding& pb : p.buildings)
+          if (pb.building == bid && pb.recipe == ri) used++;
+      });
+      const std::string title = rules::recipeTitle(w, rc);
+      std::string text = "Рецепт «" + (title.empty() ? std::string("без названия") : title) + "» будет удалён.";
+      if (used)
+        text += " " + fmtInt(used) + " " + plural(used, "провинция перейдёт", "провинции перейдут", "провинций перейдут") +
+                " на первый рецепт, их циклы прервутся.";
+      a.confirmAct("Удалить рецепт?", text, "Удалить", "Удалить рецепт", [bid, ri](Tx& tx) { rules::removeRecipe(tx, bid, ri); });
+    }
     a.markUi(m + ".remove");
     if (ui::iconButton("chevron-up", "Свернуть")) st.open = -1;
     a.markUi(m + ".collapse");
@@ -295,6 +306,7 @@ void recipesEditor(App& a, const BN& b, bool ro) {
   RecipeUi& st = ui::state<RecipeUi>(ui::id("ui"));
   if (st.building != bid) st = RecipeUi{bid, b.recipes.size() == 1 ? 0 : -1, b.recipes.size()};
   if (b.recipes.size() > st.count) st.open = int(b.recipes.size()) - 1;   // новый рецепт — сразу в правке
+  else if (b.recipes.size() < st.count) st.open = -1;                      // рецепт удалён — правка закрывается
   st.count = b.recipes.size();
   if (st.open >= int(b.recipes.size())) st.open = -1;
   for (int ri = 0; ri < int(b.recipes.size()); ri++) {

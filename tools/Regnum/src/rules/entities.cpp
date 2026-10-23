@@ -91,15 +91,17 @@ void removeFaction(Tx& tx, Id faction) {
 
   // Провинции: владение, гарнизон, оккупация, влияние, штабы.
   for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
-         return p.owner == faction || p.occupier == faction || contains(p.hqs, faction) ||
+         return p.owner == faction || p.occupier == faction || p.hiddenBy == faction || contains(p.hqs, faction) ||
                 std::any_of(p.influence.begin(), p.influence.end(), [&](const Influence& i) { return i.guild == faction; }) ||
                 std::any_of(p.buildings.begin(), p.buildings.end(), [&](const ProvBuilding& b) { return b.payer == faction; });
        })) {
     Province& p = tx.province(pid);
     for (ProvBuilding& b : p.buildings)
       if (b.payer == faction) b.payer = 0;  // плательщик упразднён: при отмене возвращать некому
+    if (p.hiddenBy == faction) p.hiddenBy = 0;   // тайник упразднённого государства находят раскопки любого государства
     if (p.owner == faction) {
       p.owner = 0;
+      p.lord = 0;   // как при захвате: у провинции без владельца нет лорда
       p.garrison.clear();
       p.garrisonHeroes.clear();
       p.garrisonLoyalty = schema::kMaxLoyalty;

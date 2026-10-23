@@ -47,6 +47,19 @@ std::vector<std::string> dropEmptied(Tx& tx, const std::unordered_set<Id>& befor
   return names;
 }
 
+// Реликвия тайника исчезающей провинции — на склад спрятавшего государства (нет его — владельца провинции); без
+// государства остаётся свободной. Вызывать после удаления записи провинции (уникальная реликвия уже не в тайнике).
+void releaseHidden(Tx& tx, Id relic, Id hiddenBy, Id owner) {
+  if (!relic || !tx.w().relic(relic)) return;
+  for (Id s : {hiddenBy, owner}) {
+    const Faction* f = tx.w().faction(s);
+    if (f && f->isState()) {
+      moveRelic(tx, relic, RelicPlace{}, RelicPlace{RelicPlace::State, s, 0, s}, 1);
+      return;
+    }
+  }
+}
+
 // Новые провинции получают археологические места: все четыре слота по шансам мест (core/arch.h).
 void fillArchSlots(Tx& tx) {
   if (tx.w().catalogs->archSites.empty()) return;
@@ -217,6 +230,10 @@ void dropProvinceRecord(Tx& tx, Id province, const std::string& why) {
   for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.capital == province; })) tx.faction(fid).capital = 0;
   const int refunds = refundProvinceConstruction(tx, p);
   tx.eraseProvince(province);
+  // Реликвии хранилищ построек — владельцу провинции, тайник — спрятавшему; заговоры забывают провинцию.
+  for (const ProvBuilding& pb : p.buildings) releaseBuildingRelics(tx, p.owner, pb);
+  releaseHidden(tx, p.hiddenRelic, p.hiddenBy, p.owner);
+  fitPlots(tx);
   LogRefs refs{province, 0, {}};
   if (p.owner) refs.factions.push_back(p.owner);
   addLog(tx, LogKind::Province,
@@ -320,13 +337,23 @@ void mergeProvinces(Tx& tx, Id target, Id source) {
   // Ссылки на исходную провинцию.
   for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.capital == source; }))
     tx.faction(fid).capital = fid == t.owner ? target : 0;
+  std::vector<ProvBuilding> lostRelics;   // снесённые постройки с хранилищем: реликвии — прежнему владельцу
   for (const ProvBuilding& b : src.buildings)
     if (std::none_of(t.buildings.begin(), t.buildings.end(), [&](const ProvBuilding& x) { return x.building == b.building && x.relics == b.relics; }))
-      releaseBuildingRelics(tx, src.owner, b);
+      lostRelics.push_back(b);
+  // Тайник переходит в цель (если там нет своего), иначе реликвия — спрятавшему государству.
+  const bool hiddenMoves = src.hiddenRelic && !t.hiddenRelic;
+  if (hiddenMoves) {
+    t.hiddenRelic = src.hiddenRelic;
+    t.hiddenBy = src.hiddenBy;
+  }
   tx.eraseProvince(source);
+  for (const ProvBuilding& b : lostRelics) releaseBuildingRelics(tx, src.owner, b);
+  if (!hiddenMoves) releaseHidden(tx, src.hiddenRelic, src.hiddenBy, src.owner);
   int refunds = 0;
   for (const ProvBuilding& b : lostStarted)
     if (refundPaid(tx, b)) refunds++;
+  fitPlots(tx);
 
   std::string text = "Провинция " + srcName + " присоединена к " + provName(tx.w(), target);
   if (!lostSlots.empty()) text += ". Снесены из-за нехватки слотов: " + join(lostSlots, ", ");

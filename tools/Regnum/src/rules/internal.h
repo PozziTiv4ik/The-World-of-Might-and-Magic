@@ -159,6 +159,8 @@ double battleCorpses(Tx& tx, Id winnerFaction, const std::vector<Id>& winnerHero
 // присоединяются верные части остальных (0 — мятеж начался в гарнизоне); garrison — провинция, гарнизон которой
 // восстаёт вместе с ними по своей верности (0 — нет).
 MutinyResult mutinyArmies(Tx& tx, const std::vector<Id>& armies, Id clicked, Id garrison = 0);
+// Вернуть изучающей фракции уплаченное за исследование (Tech::paid или TechProgress::paid) и очистить запись.
+void refundCost(Tx& tx, Id faction, std::map<Id, double>& paid);
 // Название нового объекта: «Войско №N» / «Флот №N» — наименьший свободный номер среди объектов фракции.
 std::string defaultArmyName(const World& w, ArmyKind kind, Id faction);
 // Название союзного объекта по умолчанию (объединение войск разных фракций).

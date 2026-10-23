@@ -185,6 +185,59 @@ TEST(rules_plots_hits) {
   CHECK(!has(x.p().threats, x.hero));
 }
 
+// Золото исполненного заказа не возвращается: смерть цели не делает заказ «неисполненным»; запись об убийстве —
+// в событиях хода.
+TEST(rules_plots_hit_gold_spent) {
+  PlotFix x;
+  Fix& f = x.f;
+  f.tx([&](Tx& tx) {
+    addPlotHero(tx, x.plot, x.hero, false);
+    removePlotHero(tx, x.plot, x.hero);
+    tx.plot(x.plot).threats.push_back(x.hero);
+    content::addIntelBuildings(tx, f.A);
+    placeBuilding(tx, f.p[4], buildingByKey(tx.w(), schema::bld::IntelHq, f.A), 5);
+    orderHit(tx, x.plot, x.hero, 5000);
+  });
+  CHECK_NEAR(hitChance(f.w(), x.plot, x.hero, 5000).total, 100, 1e-9);
+  TurnReport rep;
+  f.tx([&](Tx& tx) { rep = endTurn(tx); });
+  CHECK(characterHas(f.w(), x.hero, schema::mod::Dead));
+  const TurnFactionLine* line = nullptr;
+  for (const TurnFactionLine& l : rep.factions)
+    if (l.faction == f.A) line = &l;
+  CHECK(line != nullptr);
+  if (line) CHECK_NEAR(line->treasuryAfter - line->treasuryBefore, line->income - line->expenses, 1e-6);   // без возврата 5000
+  bool logged = false;
+  for (Id lid : rep.logIds)
+    if (const LogEntry* e = f.w().logEntry(lid); e && has(e->text, "убит наёмными убийцами")) logged = true;
+  CHECK(logged);
+}
+
+// Пленные и арестованные выходят из заговора; отметка расследования снимается после арестов.
+TEST(rules_plots_captives_leave_and_alarm_reset) {
+  PlotFix x;
+  Fix& f = x.f;
+  f.tx([&](Tx& tx) {
+    for (Id h : {x.hero, x.vip}) addPlotHero(tx, x.plot, h, false);
+    setPlotLeader(tx, x.plot, x.vip);
+    addPlotProvince(tx, x.plot, f.p[0], false);
+  });
+  f.tx([&](Tx& tx) {
+    addModifier(tx, ModTarget::Character, x.vip, ensureBuiltinMod(tx, schema::mod::Captive), 0);
+    fitPlots(tx);
+  });
+  CHECK(!has(x.p().heroes, x.vip));
+  CHECK_EQ(x.p().leader, Id(0));
+  CHECK(has(x.p().heroes, x.hero));
+  f.tx([&](Tx& tx) {
+    tx.plot(x.plot).found = true;
+    tx.plot(x.plot).stage = 1;
+    tx.plot(x.plot).alarm = true;
+  });
+  f.tx([&](Tx& tx) { arrestPlotters(tx, f.B, x.plot); });
+  CHECK(!x.p().alarm);
+}
+
 TEST(rules_plots_counterintel_detect_reveal) {
   PlotFix x;
   Fix& f = x.f;

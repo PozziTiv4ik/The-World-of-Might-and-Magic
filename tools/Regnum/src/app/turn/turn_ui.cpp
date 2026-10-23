@@ -389,7 +389,10 @@ TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
     if (e->kind != LogKind::Turn && !entryOnPage(w, *e, page)) continue;
     switch (e->kind) {
       case LogKind::Turn: d.summary = e; continue;
-      case LogKind::Build: d.builds.push_back(e); break;
+      case LogKind::Build:
+        if (utf8::searchKey(e->text).find("лишилась слотов") != std::string::npos) d.demolished.push_back(e);
+        else d.builds.push_back(e);
+        break;
       case LogKind::Tech: d.techs.push_back(e); break;
       case LogKind::Economy:
         switch (economyOf(*e)) {
@@ -401,7 +404,12 @@ TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
           case Eco::Other: d.economy.push_back(e); break;
         }
         break;
-      case LogKind::Province: d.rebellions.push_back(e); break;
+      case LogKind::Province:
+        // Вид Province — и восстания, и чума, и прочие события провинций (столица, пустошь, осквернение).
+        if (startsWith(e->text, "Восстание в провинции")) d.rebellions.push_back(e);
+        else if (utf8::searchKey(e->text).find("чум") != std::string::npos) d.plague.push_back(e);
+        else d.other.push_back(e);
+        break;
       case LogKind::Trade:
         if (startsWith(e->text, "Недостача")) d.shortfalls.push_back(e);
         else d.deals.push_back(e);

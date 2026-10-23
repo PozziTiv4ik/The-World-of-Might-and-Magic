@@ -65,9 +65,11 @@ void stockDeltas(const World& w, const rules::TurnFactionLine& l, float width, f
 struct TurnDigest {
   std::vector<const LogEntry*> all;                                   // все записи хода, кроме итога
   std::vector<const LogEntry*> builds, techs, deals, economy, other;  // события
-  std::vector<const LogEntry*> debts, famine, essences, shortfalls, rebellions;  // предупреждения
+  std::vector<const LogEntry*> debts, famine, essences, shortfalls, rebellions, plague, demolished;  // предупреждения
   const LogEntry* summary = nullptr;                                  // итог хода (LogKind::Turn)
-  int warnings() const { return int(debts.size() + famine.size() + essences.size() + shortfalls.size() + rebellions.size()); }
+  int warnings() const {
+    return int(debts.size() + famine.size() + essences.size() + shortfalls.size() + rebellions.size() + plague.size() + demolished.size());
+  }
   int events() const { return int(builds.size() + techs.size() + deals.size() + economy.size() + other.size()); }
 };
 TurnDigest digest(const World& w, const rules::TurnReport& rep, int page = kPageAll);

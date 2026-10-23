@@ -20,6 +20,29 @@ std::string dealDoneText(const World& w, const Deal& d) {
   return "Выполнена сделка " + facName(w, d.a) + " и " + facName(w, d.b);
 }
 
+// Мятеж в конце хода не должен срывать весь ход: сначала пробный мятеж на черновике; отказ (например, рядом нет
+// места для войска мятежников) возвращается причиной, мятеж откладывается до следующего хода.
+template <class F>
+bool mutinyFits(const World& w, F&& fn, std::string* why) {
+  Tx probe(w);
+  try {
+    fn(probe);
+    return true;
+  } catch (const UserError& e) {
+    *why = e.what();
+    return false;
+  }
+}
+
+// Причина остановки идущего исследования: снята изученность предшествующей технологии или нет нужной постройки
+// (уплаченное при этом возвращается).
+std::string researchStopWhy(const ResearchCheck& rc) {
+  if (!rc.missing.empty()) return "не изучены предшествующие технологии";
+  const std::string& s = rc.problems.front();
+  const size_t n = utf8::next(s, 0);
+  return utf8::lower(std::string_view(s).substr(0, n)) + s.substr(n);
+}
+
 std::string modName(const World& w, Id m) {
   const Modifier* x = w.modifier(m);
   return q(nameOr(x ? x->name : std::string()));
@@ -32,12 +55,16 @@ TurnReport endTurn(Tx& tx) {
   const int turn = tx.w().turn();
   rep.turnFrom = turn;
   rep.turnTo = turn + 1;
-  auto log = [&](LogKind kind, const std::string& text, LogRefs refs) { rep.logIds.push_back(addLog(tx, kind, text, refs)); };
+  auto log = [&](LogKind kind, const std::string& text, LogRefs refs) { addLog(tx, kind, text, refs); };
+  // Записи хроники хода — все созданные в процедуре, в том числе вложенными правилами (мятежи, покушения, чума, снос).
+  const Id logFrom = tx.w().meta->seq[int(Seq::Log)];
 
+  // Снимок на начало процедуры — до первой правки транзакции: таблица, уже изменённая в транзакции, делит блоки
+  // с её копией, и копия перестала бы быть снимком.
+  const World start = tx.w();
   // Ссылки заговоров приводятся в порядок до расчёта (провинции и герои, сменившие государство).
   fitPlots(tx);
   // Расчёт по состоянию на начало процедуры.
-  const World start = tx.w();
   const std::shared_ptr<const Calc> c = calc(tx);
   const std::vector<Id> factionIds = tx.w().factions.ids();
   std::vector<std::map<Id, double>> before, beforeEss;
@@ -219,9 +246,10 @@ TurnReport endTurn(Tx& tx) {
   for (Id tid : idsWhere(tx.w().techs, [](const Tech& t) { return t.research && !t.studied; })) {
     const Tech& t0 = *tx.w().tech(tid);
     Id faction = t0.faction;
-    if (!canResearch(tx.w(), tid).missing.empty()) {
+    if (const ResearchCheck rc = canResearch(tx.w(), tid); !rc.missing.empty() || !rc.problems.empty()) {
+      refundCost(tx, faction, tx.tech(tid).paid);   // уплаченное возвращается, как при остановке вручную
       tx.tech(tid).research = false;
-      log(LogKind::Tech, facName(tx.w(), faction) + ": исследование " + techName(tx.w(), tid) + " остановлено — не изучены предшествующие технологии",
+      log(LogKind::Tech, facName(tx.w(), faction) + ": исследование " + techName(tx.w(), tid) + " остановлено — " + researchStopWhy(rc),
           LogRefs{0, 0, {faction}});
       continue;
     }
@@ -251,10 +279,10 @@ TurnReport endTurn(Tx& tx) {
     for (Id tid : list) {
       const Tech* t0 = tx.w().tech(tid);
       if (!t0) continue;
-      if (!canResearch(tx.w(), tid, fid).missing.empty()) {
+      if (const ResearchCheck rc = canResearch(tx.w(), tid, fid); !rc.missing.empty() || !rc.problems.empty()) {
+        refundCost(tx, fid, tx.faction(fid).techs[tid].paid);
         tx.faction(fid).techs[tid].research = false;
-        log(LogKind::Tech, facName(tx.w(), fid) + ": исследование " + techName(tx.w(), tid) + " остановлено — не изучены предшествующие технологии",
-            LogRefs{0, 0, {fid}});
+        log(LogKind::Tech, facName(tx.w(), fid) + ": исследование " + techName(tx.w(), tid) + " остановлено — " + researchStopWhy(rc), LogRefs{0, 0, {fid}});
         continue;
       }
       const int need = std::max(1, int(std::ceil(double(std::max(1, t0->turns)) * k - 1e-9)));
@@ -360,6 +388,10 @@ TurnReport endTurn(Tx& tx) {
     if (!tx.w().army(aid)) continue;
     std::string why;
     if (!canMutiny(tx.w(), aid, &why)) continue;
+    if (!mutinyFits(tx.w(), [&](Tx& t) { mutinyArmies(t, {aid}, aid); }, &why)) {
+      log(LogKind::War, "Мятеж в войске " + armyName(tx.w(), aid) + " отложен: " + why, LogRefs{0, aid, {tx.w().army(aid)->leader()}});
+      continue;
+    }
     MutinyResult m = mutinyArmies(tx, {aid}, aid);
     TurnEvent e;
     e.kind = TurnEvent::Mutiny;
@@ -394,6 +426,10 @@ TurnReport endTurn(Tx& tx) {
     for (Id pid : risen) {
       std::string why;
       if (!canGarrisonMutiny(tx.w(), pid, &why)) continue;
+      if (!mutinyFits(tx.w(), [&](Tx& t) { garrisonMutiny(t, pid); }, &why)) {
+        log(LogKind::War, "Мятеж гарнизона провинции " + provName(tx.w(), pid) + " отложен: " + why, LogRefs{pid, 0, {tx.w().province(pid)->owner}});
+        continue;
+      }
       MutinyResult m = garrisonMutiny(tx, pid);
       TurnEvent e;
       e.kind = TurnEvent::Mutiny;
@@ -415,11 +451,11 @@ TurnReport endTurn(Tx& tx) {
       const Id owner = p->owner;
       Rng rng(rebellionSeed(turn, pid));
       double roll = rng.uniform() * 100.0;
+      if (const Faction* o = tx.w().faction(owner); o && o->rebelOf) continue;   // мятежники не восстают против себя
       if (roll < pc->rebellion) {
         rep.rebellions.push_back(pid);
         log(LogKind::Province, "Восстание в провинции " + provName(tx.w(), pid) + " (вероятность " + fmtPct(pc->rebellion, 1) + ")",
             LogRefs{pid, 0, {owner}});
-        if (const Faction* o = tx.w().faction(owner); o && o->rebelOf) continue;   // мятежники не восстают против себя
         if (Id army = provinceUprising(tx, pid)) {
           TurnEvent e;
           e.kind = TurnEvent::Uprising;
@@ -639,6 +675,8 @@ TurnReport endTurn(Tx& tx) {
           (tx.w().settings->rebellionRoll ? ", восстаний: " + std::to_string(rep.rebellions.size()) : std::string()),
       LogRefs{});
   tx.meta().turn = turn + 1;
+  for (Id id = logFrom + 1; id <= tx.w().meta->seq[int(Seq::Log)]; id++)
+    if (tx.w().logEntry(id)) rep.logIds.push_back(id);
   return rep;
 }
 

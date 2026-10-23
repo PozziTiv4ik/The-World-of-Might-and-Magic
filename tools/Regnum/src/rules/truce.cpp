@@ -103,6 +103,19 @@ std::vector<std::string> truceProblems(const World& w, const Truce& t) {
   if (w.relation(t.a, t.b).s != RelStatus::War) out.push_back(facName(w, t.a) + " и " + facName(w, t.b) + " не в войне");
   if (t.status == RelStatus::War) out.push_back("После перемирия стороны не могут остаться в войне");
   if (t.fromA.vassal && t.fromB.vassal) out.push_back("Стороны не могут стать вассалами друг друга");
+  // Вассалитет по перемирию — без цикла: будущий сюзерен не может быть вассалом будущего вассала (прямо или через цепочку).
+  auto chainCheck = [&](Id vassal, Id suzerain) {
+    for (Id s = suzerain, guard = 0; s && guard < 64; guard++) {
+      const Faction* x = w.faction(s);
+      s = x ? x->suzerain : 0;
+      if (s == vassal) {
+        out.push_back(facName(w, suzerain) + " — вассал " + facName(w, vassal) + " (прямо или через цепочку)");
+        return;
+      }
+    }
+  };
+  if (t.fromA.vassal) chainCheck(t.a, t.b);
+  if (t.fromB.vassal) chainCheck(t.b, t.a);
   termProblems(w, t.a, t.b, t.fromA, out);
   termProblems(w, t.b, t.a, t.fromB, out);
   std::vector<std::string> uniq;
@@ -160,6 +173,8 @@ void concludeTruce(Tx& tx, const Truce& t) {
       }
     }
     if (terms.vassal) {
+      const Id was = tx.w().faction(giver)->suzerain;
+      if (was && was != taker) parts.push_back(gn + " выходит из вассалитета " + facName(tx.w(), was));
       tx.faction(giver).suzerain = taker;
       parts.push_back(gn + " становится вассалом " + tn);
     }

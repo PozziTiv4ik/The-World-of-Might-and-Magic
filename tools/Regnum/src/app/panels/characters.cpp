@@ -124,7 +124,7 @@ void groupHeader(const std::string& title, Color dot, size_t n) {
 
 void drawDirectory(App& a) {
   const World& w = a.world();
-  bool ro = a.readOnly();
+  bool ro = !a.canEdit();   // новые персонажи — правка мира (администратор)
   ListState& st = ui::state<ListState>(ui::id("##chars"));
   if (st.faction && !w.faction(st.faction)) st.faction = 0;
   {
@@ -248,7 +248,7 @@ CommandReg cmdPanel({"panel.characters", "Персонажи", "users", nullptr,
                      },
                      [](App& a) { return a.ui.screen == Screen::Editor; }, false, "Панели", 30});
 CommandReg cmdNew({"character.new", "Новый персонаж", "user-plus", nullptr, [](App& a) { createAct(a, 0); },
-                   [](App& a) { return a.ui.screen == Screen::Editor && !a.readOnly(); }, false, "Панели", 30});
+                   [](App& a) { return a.ui.screen == Screen::Editor && a.canEdit(); }, false, "Панели", 30});
 
 }  // namespace
 }  // namespace rg::app

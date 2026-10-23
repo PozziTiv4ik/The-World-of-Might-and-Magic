@@ -74,6 +74,12 @@ void dropResourceRefs(Tx& tx, Id res) {
     return ch;
   });
   fixEach(tx, tx.w().modifiers, &Tx::modifier, [&](Modifier& m) { return dropKey(m.resGen, res); });
+  // Вооружение, отданное заговорщикам провинций.
+  fixEach(tx, tx.w().plots, &Tx::plot, [&](Plot& p) {
+    bool ch = false;
+    for (PlotProvince& x : p.provinces) ch |= dropKey(x.supplies, res);
+    return ch;
+  });
   fixEach(tx, tx.w().deals, &Tx::deal, [&](Deal& d) {
     const size_t n = d.items.size();
     d.items.erase(std::remove_if(d.items.begin(), d.items.end(), [&](const DealItem& i) { return i.res == res; }), d.items.end());
@@ -206,6 +212,18 @@ void removeCatalogItem(Tx& tx, CatalogList list, Id item) {
         auto& ss = tx.faction(fid).slaves;
         ss.erase(std::remove_if(ss.begin(), ss.end(), [&](const SlaveGroup& s) { return s.race == item; }), ss.end());
       }
+      // Заключённые тюрем государств и раса иссушения построек.
+      for (Id fid : idsWhere(w.factions, [&](const Faction& f) {
+             return std::any_of(f.prison.begin(), f.prison.end(), [&](const RacePop& r) { return r.race == item; });
+           })) {
+        auto& ps = tx.faction(fid).prison;
+        ps.erase(std::remove_if(ps.begin(), ps.end(), [&](const RacePop& r) { return r.race == item; }), ps.end());
+      }
+      fixEach(tx, w.provinces, &Tx::province, [&](Province& p) {
+        bool ch = false;
+        for (ProvBuilding& b : p.buildings) ch |= dropRef(b.race, item);
+        return ch;
+      });
       break;
     case CatalogList::Cultures:
       for (Id pid : idsWhere(w.provinces, [&](const Province& p) { return p.culture == item; })) tx.province(pid).culture = 0;

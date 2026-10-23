@@ -415,6 +415,7 @@ std::vector<HitOutcome> resolveHits(Tx& tx) {
   const int turn = tx.w().turn();
   for (Id pid : idsWhere(tx.w().plots, [](const Plot& p) { return !p.hits.empty(); })) {
     const Plot p = *tx.w().plot(pid);
+    std::vector<HitOutcome> done;
     for (const PlotHit& h : p.hits) {
       if (!alive(tx.w(), h.character)) continue;
       HitOutcome o;
@@ -425,18 +426,23 @@ std::vector<HitOutcome> resolveHits(Tx& tx) {
       Rng rng(hashMix(hashMix(hashMix(0x4153534153534E31ull, u64(u32(turn))), u64(pid)), u64(h.character)));
       o.roll = rng.uniform() * 100.0;
       o.killed = o.roll < o.chance;
-      const Character* c = tx.w().character(h.character);
+      done.push_back(o);
+    }
+    // Заказы исполнены (золото потрачено при любом исходе): снимаются до смерти целей, иначе fitPlots вернул бы
+    // золото успешного заказа как «неисполненного».
+    tx.plot(pid).hits.clear();
+    for (const HitOutcome& o : done) {
+      const Character* c = tx.w().character(o.character);
       const Id own = c ? c->faction : 0;
-      const std::string name = q(tx.w().characterName(h.character));
+      const std::string name = q(tx.w().characterName(o.character));
       if (o.killed) {
-        addModifier(tx, ModTarget::Character, h.character, ensureBuiltinMod(tx, schema::mod::Dead), 0);
+        addModifier(tx, ModTarget::Character, o.character, ensureBuiltinMod(tx, schema::mod::Dead), 0);
         addLog(tx, LogKind::War, name + " убит наёмными убийцами", LogRefs{0, 0, own ? std::vector<Id>{own} : std::vector<Id>{}});
       } else {
         addLog(tx, LogKind::War, "Покушение на " + name + " провалилось", LogRefs{0, 0, own ? std::vector<Id>{own} : std::vector<Id>{}});
       }
       out.push_back(o);
     }
-    if (Plot* m = tx.w().plot(pid) ? &tx.plot(pid) : nullptr) m->hits.clear();
   }
   fitPlots(tx);
   return out;
@@ -557,6 +563,7 @@ ArrestResult arrestPlotters(Tx& tx, Id state, Id plot) {
     Plot& m = tx.plot(plot);
     m.found = false;
     m.stage = 0;
+    m.alarm = false;   // расследование закончилось арестами: отметка «Заговор частично раскрыт!» снимается
   }
   std::string text = "Аресты заговорщиков: " + facName(tx.w(), state);
   if (!where.empty()) text += " — " + join(where, ", ");
@@ -613,6 +620,8 @@ std::string executeProblem(const World& w, Id plot) {
   if (!p) return "Заговор не найден";
   if (!w.faction(p->target)) return "Государство-цель не найдено";
   if (!p->leader || !inList(p->heroes, p->leader) || !alive(w, p->leader)) return "Назначьте лидера заговора";
+  if (characterHas(w, p->leader, schema::mod::Captive)) return "Лидер заговора в плену — назначьте другого";
+  if (characterHas(w, p->leader, schema::mod::Arrested)) return "Лидер заговора под арестом — назначьте другого";
   if (p->provinces.empty() && p->heroes.empty()) return "В заговоре нет провинций и героев";
   return {};
 }
@@ -930,9 +939,12 @@ void fitPlots(Tx& tx) {
                                        return !pr || pr->sea || pr->owner != p.target;
                                      }),
                       m.provinces.end());
+    // Участники, приглашённые и угрозы — доступные герои цели: мёртвые, пленные и арестованные выходят из заговора
+    // (заказ на снятую угрозу возвращается заказчику).
     auto ok = [&](Id h) {
       const Character* c = w.character(h);
-      return c && c->faction == p.target && !hasModKey(w, c->modifiers, schema::mod::Dead);
+      return c && c->faction == p.target && !hasModKey(w, c->modifiers, schema::mod::Dead) && !hasModKey(w, c->modifiers, schema::mod::Captive) &&
+             !hasModKey(w, c->modifiers, schema::mod::Arrested);
     };
     for (std::vector<Id>* v : {&m.heroes, &m.invited, &m.threats}) v->erase(std::remove_if(v->begin(), v->end(), [&](Id h) { return !ok(h); }), v->end());
     if (m.leader && !inList(m.heroes, m.leader)) m.leader = 0;

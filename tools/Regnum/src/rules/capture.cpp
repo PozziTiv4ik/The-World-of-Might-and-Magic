@@ -18,6 +18,8 @@ bool canSiege(const World& w, Id army, Id province, std::string* why) {
   if (a->allied()) return no("Союзное войско не штурмует провинции — сначала распустите союз");
   // Войска без государства не вступают в бой с местными войсками и гарнизонами.
   if (const Faction* lf = w.faction(a->leader()); lf && lf->isWild()) return no("Войско без государства не штурмует провинции");
+  // Захват — оккупация провинции государством: войско гильдии штурм начать не может (захватить провинцию ей нельзя).
+  if (const Faction* lf = w.faction(a->leader()); !lf || !lf->isState()) return no("Провинции штурмуют только войска государств");
   const Province* p = w.province(province);
   if (!p) return no("Провинция не найдена");
   if (p->sea) return no("Морскую провинцию нельзя захватить");

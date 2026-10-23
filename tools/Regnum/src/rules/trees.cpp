@@ -93,10 +93,15 @@ Id createTech(Tx& tx, Id faction, const std::string& name) {
 }
 
 void removeTech(Tx& tx, Id tech) {
-  needTech(tx.w(), tech);
-  for (Id tid : idsWhere(tx.w().techs, [&](const Tech& t) { return contains(t.prereqs, tech); })) eraseValue(tx.tech(tid).prereqs, tech);
+  const Tech& t = needTech(tx.w(), tech);
+  // Идущее исследование удалённой технологии — уплаченное возвращается (как у построек).
+  if (t.faction && t.research && !t.studied) refundCost(tx, t.faction, tx.tech(tech).paid);
+  for (Id tid : idsWhere(tx.w().techs, [&](const Tech& x) { return contains(x.prereqs, tech); })) eraseValue(tx.tech(tid).prereqs, tech);
   for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) { return contains(b.techs, tech); })) eraseValue(tx.building(bid).techs, tech);
-  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.techs.count(tech) > 0; })) tx.faction(fid).techs.erase(tech);
+  for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.techs.count(tech) > 0; })) {
+    if (TechProgress& s = tx.faction(fid).techs[tech]; s.research && !s.studied) refundCost(tx, fid, s.paid);
+    tx.faction(fid).techs.erase(tech);
+  }
   tx.eraseTech(tech);
 }
 

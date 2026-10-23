@@ -118,7 +118,7 @@ bool provincesAdjacent(const World& w, Id a, Id b);           // общая гр
 bool canPlayerMove(const World& w, Id army, Vec2 pos, std::string* why = nullptr);
 // Перемещение тратит очко действий: позиция в другой провинции, чем from.
 bool moveSpendsAction(const World& w, Id army, Vec2 from, Vec2 to);
-void spendAction(Tx& tx, Id army);                            // истратить очко действий (войско и, если есть, его груз)
+void spendAction(Tx& tx, Id army);                            // истратить очко действий объекта (груз на борту — отдельно)
 
 // Проверки размещения берут грани из кеша geo::faces: передавайте значение мира, а не черновик с изменённой геометрией.
 std::optional<Vec2> findFreeSpot(const World& w, ArmyKind kind, Vec2 near, Id exclude = 0);   // спираль от near
