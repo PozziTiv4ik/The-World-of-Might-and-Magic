@@ -807,6 +807,7 @@ void MapView::render(gfx::Canvas& c, const RenderOptions& opt) {
   st.fillOpacity = d.world.settings->fillOpacity;
   st.dpi = v.dpi;
   st.palette = d.palette;
+  st.focus = opt.mode == schema::MapMode::Diplomacy ? opt.focusState : 0;
   d.setStyle(st);
 
   const float dpi = v.dpi;

@@ -1,7 +1,9 @@
 // Regnum — дань и репарации (DialogReg «tribute», arg — фракция, которая навязывает выплаты и получает их):
 // плательщик, вид (дань или репарации), золото за ход, срок в ходах; итог и доход сторон после выплат;
 // rules::imposeTribute. ТЗ 1.e.ii. Действующие выплаты видны и отменяются в редакторе торговли и вкладке фракции.
-// Роли (ТЗ «Доработки №4», п.5): дань — игровое действие; игрок назначает выплаты, где одна из сторон — его государство.
+// Роли (ТЗ «Доработки №4», п.5; аудит 2026-10-23, 1.1): администратор назначает выплаты сразу; игрок-получатель —
+// предлагает их плательщику (rules::propose: ответ — в «Решениях»), игрок-плательщик платит своё сразу. Доход чужой
+// стороны у игрока скрыт (App::knows).
 #include "app/app_internal.h"
 #include "app/widgets.h"
 
@@ -52,8 +54,9 @@ struct TributeDlg : Dialog {
       a.markUi("tribute.turns");
     }
     auto c = rules::calc(w);
-    const rules::FactionCalc* pc = payer ? c->faction(payer) : nullptr;
-    const rules::FactionCalc* rc = receiver ? c->faction(receiver) : nullptr;
+    // Доход стороны после выплаты — только известной стороны (туман войны).
+    const rules::FactionCalc* pc = payer && a.knows(payer) ? c->faction(payer) : nullptr;
+    const rules::FactionCalc* rc = receiver && a.knows(receiver) ? c->faction(receiver) : nullptr;
     {
       ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
       ui::stat(fmtGold(amount * turns), "Всего золота", {.icon = "coins", .tone = ui::Tone::Accent});
@@ -62,6 +65,8 @@ struct TributeDlg : Dialog {
         ui::stat(fmtGoldSigned(net), "Доход плательщика", {.icon = "trend-down", .tone = net < 0 ? ui::Tone::Danger : ui::Tone::Neutral,
                                                            .deltaText = "−" + fmtGold(amount), .invertDelta = true,
                                                            .tooltip = "Чистый доход за ход с учётом выплаты; сейчас " + fmtGoldSigned(pc->net)});
+      } else if (payer) {
+        w::hiddenStat("Доход плательщика");
       } else {
         ui::stat("—", "Доход плательщика", {.icon = "trend-down", .tone = ui::Tone::Neutral});
       }
@@ -69,6 +74,8 @@ struct TributeDlg : Dialog {
         double net = rc->net + amount;
         ui::stat(fmtGoldSigned(net), "Доход получателя", {.icon = "trend-up", .tone = ui::Tone::Success, .deltaText = "+" + fmtGold(amount),
                                                           .tooltip = "Чистый доход за ход с учётом выплаты; сейчас " + fmtGoldSigned(rc->net)});
+      } else if (receiver) {
+        w::hiddenStat("Доход получателя");
       } else {
         ui::stat("—", "Доход получателя", {.icon = "trend-up", .tone = ui::Tone::Neutral});
       }
@@ -79,17 +86,46 @@ struct TributeDlg : Dialog {
         ui::label("Казна плательщика уйдёт в долг примерно через " + nTurns(i64(std::max(1.0, std::floor(turnsLeft)))),
                   {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning"});
     }
+    // Игрок-получатель предлагает выплаты плательщику; игрок-плательщик платит сразу.
+    const Id own = a.playerState();
+    const bool offer = own && receiver == own && payer && payer != own;
+    const DealKind k = kind == 0 ? DealKind::Tribute : DealKind::Reparations;
+    Proposal p;
+    p.kind = ProposalKind::Deal;
+    p.from = own;
+    p.to = payer;
+    p.deal.kind = k;
+    p.deal.a = receiver;
+    p.deal.b = payer;
+    p.deal.items.push_back(DealItem{DealSide::B, kGold, amount, DealMode::PerTurn, std::max(1, turns), std::max(1, turns)});
+    std::vector<std::string> problems;
+    if (offer) {
+      problems = rules::proposalProblems(w, p);
+      for (std::string& s : problems) s = w::fogText(a, w, s, payer);
+      if (!problems.empty()) {
+        ui::label(problems.front(), {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
+        a.markUi("tribute.problem");
+      }
+    }
     ui::ModalFooter f;
     if (ui::button("Отмена")) return false;
     a.markUi("tribute.cancel");
-    bool ok = receiver && payer && receiver != payer && (a.canPlay(receiver) || a.canPlay(payer));
-    if (ui::button(kind == 0 ? "Навязать дань" : "Назначить репарации", {.variant = ui::Variant::Primary, .icon = kind == 0 ? "tribute" : "reparations",
-                                                                          .disabled = !ok, .isDefault = true})) {
-      DealKind k = kind == 0 ? DealKind::Tribute : DealKind::Reparations;
+    bool ok = receiver && payer && receiver != payer && (a.canPlay(receiver) || a.canPlay(payer)) && problems.empty();
+    const bool pays = own && payer == own;
+    const char* label = offer ? (kind == 0 ? "Предложить дань" : "Предложить репарации")
+                        : pays ? (kind == 0 ? "Платить дань" : "Платить репарации")
+                               : (kind == 0 ? "Навязать дань" : "Назначить репарации");
+    if (ui::button(label, {.variant = ui::Variant::Primary, .icon = kind == 0 ? "tribute" : "reparations", .disabled = !ok, .isDefault = true})) {
       Id rcv = receiver, pay = payer;
       double amt = amount;
       int n = turns;
-      if (a.play(kind == 0 ? "Навязать дань" : "Назначить репарации", [&](Tx& tx) { rules::imposeTribute(tx, k, rcv, pay, amt, n); })) {
+      if (offer) {
+        if (a.play(label, [&](Tx& tx) { rules::propose(tx, p); })) {
+          a.toast((kind == 0 ? "Дань предложена: «" : "Репарации предложены: «") + w.factionName(pay) + "»", ToastKind::Success,
+                  kind == 0 ? "tribute" : "reparations");
+          return false;
+        }
+      } else if (a.play(label, [&](Tx& tx) { rules::imposeTribute(tx, k, rcv, pay, amt, n); })) {
         a.toast(w.factionName(pay) + (kind == 0 ? " платит дань: " : " платит репарации: ") + fmtGold(amt) + " золота за ход, " + nTurns(n),
                 ToastKind::Success, kind == 0 ? "tribute" : "reparations");
         return false;

@@ -237,7 +237,9 @@ TEST(app_role_panels_research_trade_war) {
   openTab(h, own, "faction.diplomacy");
   CHECK(clickIn(h, "dip.status." + std::to_string(target)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
-  h.step();
+  h.settle();
+  CHECK(h.clickUi("dip.war.ok"));   // подтверждение войны (аудит 2026-10-23, 5.16)
+  h.settle();
   CHECK(h->world().relation(own, target).s == RelStatus::War);
   for (int i = 0; i < 4 && h->hasDialog(); i++) {   // окна вассалитета (если есть) — закрыть без ответа
     h.key(Key::Escape);
@@ -299,7 +301,8 @@ TEST(app_role_panels_world_edit_locked) {
   CHECK(h->uiRect("states.search") != nullptr);
 }
 
-// Чужое государство — только просмотр: ни мест в совете, ни найма, ни смены отношений, ни исследований и сделок.
+// Чужое государство — только просмотр: ни мест в совете, ни найма, ни смены отношений, ни исследований и сделок; совет
+// и состав войск чужого государства скрыты (туман войны, аудит 2026-10-23, 1.5).
 TEST(app_role_panels_foreign_readonly) {
   Harness h("role_foreign", 1440, 1000);
   h.demo();
@@ -307,21 +310,19 @@ TEST(app_role_panels_foreign_readonly) {
   const Id foreign = findFaction(h->world(), kForeign);
   CHECK(own && foreign);
   asPlayer(h, own);
+  CHECK(!h->knows(foreign));
   const World w0 = h->world();
   openTab(h, foreign, "faction.council");
   CHECK(h->uiRect("faction.more") == nullptr);
   CHECK(h->uiRect("council.add") == nullptr);
-  CHECK(h->uiRect("council.who.0") != nullptr);
-  CHECK(clickIn(h, "council.who.0"));
-  h.key(Key::Down);
-  h.key(Key::Enter);
-  h.step();
+  CHECK(h->uiRect("council.who.0") == nullptr);
+  CHECK(h->uiRect("fog.hidden") != nullptr);
   shotClean(h, "role_panels_foreign_council");
-  // Войска: карточка строки без «Сформировать», «Распустить» и удаления, без «Правки резерва».
+  // Войска: таблицы, найм и «Правка резерва» скрыты — только объекты на карте.
   panelTab(h, foreign, "faction.army");
   CHECK(h->uiRect("mil.army.editReserve") == nullptr);
-  CHECK(h.clickUi("mil.row.0"));
-  h.settle();
+  CHECK(h->uiRect("mil.row.0") == nullptr);
+  CHECK(h->uiRect("mil.army.hidden") != nullptr);
   CHECK(h->uiRect("mil.detail.recruit") == nullptr);
   CHECK(h->uiRect("mil.detail.disband") == nullptr);
   CHECK(h->uiRect("mil.detail.delete") == nullptr);

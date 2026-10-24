@@ -53,17 +53,19 @@ TEST(rules_production_multi_output_recipe) {
 TEST(rules_production_multiplier) {
   Fix f;
   const Id iron = res(f.w(), "Железо"), steel = res(f.w(), "Сталь");
-  // Ветка: 99 технологий, ×2…×100, по 5 ходов, цена × множитель, цепочка зависимостей.
-  for (int m = 2; m <= schema::kMaxProductionMult; m++) {
+  // Ветка: 7 ступеней ×2, ×5, ×10, ×20, ×35, ×60, ×100, цена × множитель, цепочка зависимостей.
+  const int steps[] = {2, 5, 10, 20, 35, 60, 100};
+  for (size_t i = 0; i < std::size(steps); i++) {
+    const int m = steps[i];
     const Tech* t = f.w().tech(industryTech(f.w(), m));
     CHECK_MSG(t, "нет технологии ×" + std::to_string(m));
     if (!t) continue;
-    CHECK_EQ(t->name, "Стимуляция промышленности " + std::to_string(m - 1));
-    CHECK_EQ(t->turns, 5);
+    CHECK_EQ(t->name, "Стимуляция промышленности ×" + std::to_string(m));
     CHECK_NEAR(t->cost.at(kGold), 10.0 * m, 1e-9);
     CHECK_NEAR(t->cost.at(res(f.w(), "Механические детали")), 50.0 * m, 1e-9);
-    if (m > 2) CHECK(hasPrereq(f.w(), t->id, industryTech(f.w(), m - 1)));
+    if (i > 0) CHECK(hasPrereq(f.w(), t->id, industryTech(f.w(), steps[i - 1])));
   }
+  CHECK_EQ(industryTech(f.w(), 3), Id(0));   // промежуточных технологий нет
   CHECK_EQ(schema::industryMultOf("industry37"), 37);
   CHECK_EQ(schema::industryMultOf("industry1"), 0);
   CHECK_EQ(schema::industryMultOf("industryX"), 0);
@@ -78,13 +80,13 @@ TEST(rules_production_multiplier) {
   });
   CHECK_EQ(maxProductionMult(f.w(), f.A), 1);
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setPbMult(tx, f.p[0], b, 2); }); }), "Стимуляция"));
-  // Изучены ×2 и ×3 (×4 — нет): доступно до ×3.
+  // Изучены ×2 и ×5 (×10 — нет, ×20 — да): доступно до ×5, любой множитель до него.
   f.tx([&](Tx& tx) {
-    for (int m : {2, 3}) tx.faction(f.A).techs[industryTech(tx.w(), m)].studied = true;
-    tx.faction(f.A).techs[industryTech(tx.w(), 5)].studied = true;   // разрыв цепочки не засчитывается
+    for (int m : {2, 5}) tx.faction(f.A).techs[industryTech(tx.w(), m)].studied = true;
+    tx.faction(f.A).techs[industryTech(tx.w(), 20)].studied = true;   // разрыв цепочки не засчитывается
   });
-  CHECK_EQ(maxProductionMult(f.w(), f.A), 3);
-  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setPbMult(tx, f.p[0], b, 4); }); }), "до ×3"));
+  CHECK_EQ(maxProductionMult(f.w(), f.A), 5);
+  CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setPbMult(tx, f.p[0], b, 6); }); }), "до ×5"));
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setPbMult(tx, f.p[0], b, 101); }); }), "×100"));
   f.tx([&](Tx& tx) { setPbMult(tx, f.p[0], b, 3); });
   f.tx([&](Tx& tx) { endTurn(tx); });
@@ -180,7 +182,7 @@ TEST(rules_production_content_v4) {
   CHECK(guild && guild->levels.size() == 5);
   if (guild) {
     const Modifier* m = w.modifier(guild->levels[2].modifiers.at(0));
-    CHECK(m && m->get(Fx::Slots) == 3);
+    CHECK(m && m->get(Fx::Slots) == 4);   // уровень III: 3 сверх собственного слота
     CHECK_NEAR(guild->levels[4].cost.at(idByName(c.resources, "Камень")), 4000, 1e-9);
   }
   const Building* war = bld(schema::bld::WarWorkshop);
@@ -189,7 +191,7 @@ TEST(rules_production_content_v4) {
   CHECK(war && war->cat == BuildingCat::Military && has(war->techs, powderTech));
   if (war) CHECK_NEAR(war->recipes.at(0).out.at(0).amount, 5, 1e-9);
   const Building* eng = bld(schema::bld::EngWorkshop);
-  CHECK(eng && eng->recipes.size() == 2);
+  CHECK(eng && eng->recipes.size() == 3);   // детали, запчасти и топливо из нефти (версия 6)
   const Building* pit = bld(schema::bld::CharcoalPit);
   CHECK(pit && pit->recipes.size() == 1 && pit->levels[0].cost.size() == 1);
   // «Производство пороха» — как «Производство магического пороха».

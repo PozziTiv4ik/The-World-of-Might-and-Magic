@@ -66,6 +66,31 @@ void detail::refundCost(Tx& tx, Id faction, std::map<Id, double>& paid) {
     if (tx.w().resource(res)) addStock(f, res, v);
 }
 
+int researchSlots(const World& w) {
+  const double v = constantOf(w, schema::cst::ResearchSlots).num;
+  if (!std::isfinite(v)) return 1;
+  return int(std::clamp(std::floor(v + 1e-9), 1.0, 1e6));
+}
+
+int researchCount(const World& w, Id faction) {
+  int n = 0;
+  w.techs.each([&](const Tech& t) { n += t.faction && t.faction == faction && t.research && !t.studied; });
+  if (const Faction* f = w.faction(faction))
+    for (auto& [tid, s] : f->techs)
+      if (s.research && !s.studied && w.tech(tid)) n++;
+  return n;
+}
+
+namespace {
+// Все места исследований фракции заняты: причина (пусто — место есть).
+std::string slotsBusy(const World& w, Id faction) {
+  const int slots = researchSlots(w), busy = researchCount(w, faction);
+  if (busy < slots) return {};
+  return "Одновременно — не больше " + std::to_string(slots) + " " + plural(slots, "исследования", "исследований", "исследований") + ": идёт " +
+         std::to_string(busy);
+}
+}  // namespace
+
 ResearchCheck canResearch(const World& w, Id tech, Id faction) {
   ResearchCheck r;
   const Tech* t = w.tech(tech);
@@ -87,6 +112,9 @@ ResearchCheck canResearch(const World& w, Id tech, Id faction) {
         if (need > 0 && have + 1e-9 < need)
           r.problems.push_back("Недостаточно ресурса «" + resName(w, res) + "»: нужно " + amountOf(res, need) + ", есть " + amountOf(res, std::max(0.0, have)));
       }
+  // Лимит одновременных исследований (идущее исследование он не останавливает).
+  if (!st.research && !st.studied)
+    if (std::string busy = slotsBusy(w, who); !busy.empty()) r.problems.push_back(std::move(busy));
   r.ok = !st.studied && r.missing.empty() && r.problems.empty();
   return r;
 }
@@ -182,6 +210,7 @@ void startResearch(Tx& tx, Id tech, Id faction) {
     const TechProgress cur = techState(tx.w(), tech, who);
     if (cur.studied) fail("Технология уже изучена");
     if (cur.research) fail("Технология уже исследуется");
+    if (std::string busy = slotsBusy(tx.w(), who); !busy.empty()) fail(busy);
     ResearchCheck c = canResearch(tx.w(), tech, who);
     if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
     if (!c.problems.empty()) fail(c.problems.front());
@@ -194,6 +223,7 @@ void startResearch(Tx& tx, Id tech, Id faction) {
   }
   if (t.studied) fail("Технология уже изучена");
   if (t.research) fail("Технология уже исследуется");
+  if (std::string busy = slotsBusy(tx.w(), t.faction); !busy.empty()) fail(busy);
   ResearchCheck c = canResearch(tx.w(), tech);
   if (!c.missing.empty()) fail("Сначала изучите: " + techList(tx.w(), c.missing));
   if (!c.problems.empty()) fail(c.problems.front());

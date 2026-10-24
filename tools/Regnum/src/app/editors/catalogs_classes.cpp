@@ -5,7 +5,7 @@
 // 20…, финальный ярус ультимейтов выделен; щелчок по пустой ячейке — новый талант, перетаскивание — перенос, правый
 // щелчок — меню); справа — карточка таланта (название, значок, финальный талант, ранги 1…5, очков за ранг, итог
 // «до N очков», условие из яруса выше, описание, модификаторы героя, кто изучил и на каком ранге, удаление) или
-// подкласса и класса (описания, финальные таланты, герои). В узком окне карточка — под деревом. Правка дерева, после
+// подкласса и класса (описания, модификаторы класса, финальные таланты, герои). В узком окне карточка — под деревом. Правка дерева, после
 // которой ранги героев стали незаконными, снимает их — уведомление с числом героев. Правка — только администратору.
 #include <algorithm>
 
@@ -644,6 +644,15 @@ void classCard(App& a, const World& w, const HeroClass& c, bool ro, bool head) {
     if (ui::textArea("clsdesc", desc, 72, {.placeholder = "Описание класса", .readOnly = ro}) && desc != c.desc)
       editClass(a, cls, "Описание класса", [&](HeroClass& x) { x.desc = desc; });
     a.markUi("catalogs.classCard.desc");
+  }
+  {
+    // Модификаторы героев класса (RULES.md §22): действуют как собственные модификаторы героя.
+    ui::Section ms("Модификаторы класса", "sparkles", {.badge = c.modifiers.empty() ? std::string() : std::to_string(c.modifiers.size())});
+    if (ms)
+      heroModList(a, "catalogs.classCard.mods", c.modifiers, ro, "Модификаторы класса", [cls](Tx& tx, const std::vector<Id>& ids) {
+        for (HeroClass& x : tx.catalogs().classes)
+          if (x.id == cls) x.modifiers = ids;
+      });
   }
   ui::Section sec("Герои класса", "users", {.defaultOpen = head, .badge = std::to_string(heroes.size())});
   a.markUi("catalogs.classCard.heroes");

@@ -1,7 +1,7 @@
 // Сценарии вкладки «Экономика» государства и гильдии: независимый пересчёт по формулам docs/RULES.md совпадает с
 // панелью, и завершение хода прибавляет к казне ровно «Чистый доход»; содержание специалистов; расход провизии
-// государства живых (0,001 на жителя) и предупреждение «Голод», казна до тысячных, доход торгового флота (содержание
-// галеонов × 2), маршруты гильдии (5 % ценности провинций пути).
+// государства живых (0,001 на жителя и живого воина) и предупреждение «Голод», казна до тысячных, доход торгового флота
+// («Доход торгового галеона» за корабль), маршруты гильдии (5 % ценности провинций пути).
 #include "tests/test_app_economy_util.h"
 
 using namespace rg;
@@ -22,18 +22,24 @@ struct Econ {
 std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
   std::map<Id, Econ> e;
   // Маршруты: +10 % базы за маршрут и +2,5 % за каждое государство на его пути; гильдия-владелец — 5 % ценности
-  // сухопутных провинций пути.
+  // сухопутных провинций пути. Через оккупированные провинции и провинции государств в войне с гильдией маршрут не
+  // работает (аудит 2026-10-23, п. 11).
   auto fs = geo::faces(w);
   std::map<Id, double> routeBonus;
   std::vector<std::pair<Id, std::vector<Id>>> guildRoutes;
   w.routes.each([&](const Route& r) {
     if (r.pts.empty()) return;
-    std::vector<Id> provs = fs->provincesOnPolyline(r.pts), states;
-    for (Id pid : provs)
-      if (const Province* pr = w.province(pid); pr && !pr->sea)
-        if (const Faction* o = w.faction(pr->owner); o && o->isState() && !test::has(states, o->id)) states.push_back(o->id);
-    for (Id pid : provs) routeBonus[pid] += 0.10 + 0.025 * double(states.size());
-    if (r.guild) guildRoutes.push_back({r.guild, provs});
+    std::vector<Id> open, states;
+    for (Id pid : fs->provincesOnPolyline(r.pts)) {
+      const Province* pr = w.province(pid);
+      if (!pr || pr->sea) continue;
+      if (pr->occupied && pr->occupier && pr->occupier != pr->owner && w.faction(pr->occupier)) continue;
+      if (r.guild && pr->owner && w.relation(pr->owner, r.guild).s == RelStatus::War) continue;
+      open.push_back(pid);
+      if (const Faction* o = w.faction(pr->owner); o && o->isState() && !test::has(states, o->id)) states.push_back(o->id);
+    }
+    for (Id pid : open) routeBonus[pid] += 0.10 + 0.025 * double(states.size());
+    if (r.guild) guildRoutes.push_back({r.guild, open});
   });
   std::map<Id, double> value;
   w.provinces.each([&](const Province& p) {
@@ -67,7 +73,7 @@ std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
       double gross = V * in.pct / 100;
       grossHq += gross;
       gtax += gross * t / 100;
-      e[in.guild].hqNet += gross - gross * t / 100;
+      if (!waste && !desecr) e[in.guild].hqNet += gross - gross * t / 100;   // пустошь: гильдии дохода с ценности нет
     }
     if (rec) {
       if (!blocked) {
@@ -77,14 +83,15 @@ std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
       if (p.resource == kGold)
         e[rec].provTax += std::max(0.0, std::max(0.0, p.resourceAmount) * (1 + fx[Fx::ResourcePct] / 100) + fx[Fx::ResourceFlat]);
     }
-    if (o) {
-      for (const SlaveWork& s : p.slaves) e[o->id].slaves += double(std::max<i64>(0, s.count)) * 0.002;
+    // Рабы на работах и производство построек — тому же получателю, что и налог (оккупация).
+    if (o && rec) {
+      for (const SlaveWork& s : p.slaves) e[rec].slaves += double(std::max<i64>(0, s.count)) * 0.002;
       for (const ProvBuilding& pb : p.buildings) {
         const Building* b = w.building(pb.building);
         int lvl = pb.builtLevel();
         if (!b || lvl < 1 || lvl > int(b->levels.size())) continue;
         auto it = b->levels[size_t(lvl - 1)].produce.find(kGold);
-        if (it != b->levels[size_t(lvl - 1)].produce.end() && it->second > 0) e[o->id].provTax += it->second;
+        if (it != b->levels[size_t(lvl - 1)].produce.end() && it->second > 0) e[rec].provTax += it->second;
       }
     }
   });
@@ -92,7 +99,8 @@ std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
     const Faction* g = w.faction(guild);
     if (!g || !g->isGuild()) continue;
     for (Id pid : provs)
-      if (const Province* pr = w.province(pid); pr && !pr->sea) e[guild].routes += value[pid] * 0.05;
+      if (!rules::provinceHas(w, pid, schema::mod::UndeadWaste) && !rules::provinceHas(w, pid, schema::mod::Desecrated))
+        e[guild].routes += value[pid] * 0.05;
   }
   // Снижение содержания армии: Σ upkeepCut действующих уровней достроенных построек государства, не больше 50 %.
   std::map<Id, double> cut;
@@ -111,8 +119,10 @@ std::map<Id, Econ> recompute(const World& w, const rules::Calc& c) {
     for (const ArmyRow& r : f.army)
       e[f.id].army += double(r.total) * r.upkeep * std::max(0.0, 1 + fx[Fx::ArmyUpkeepPct] / 100) * cutK;
     for (const FleetRow& r : f.fleet) e[f.id].fleet += double(r.total) * r.upkeep * fleetK;
+    // Торговые галеоны: «Доход торгового галеона» за корабль (от содержания не зависит).
     for (const GarrisonEntry& g : f.tradeFleet)
-      if (const FleetRow* r = f.fleetRow(g.row); r && r->type == ShipType::Galleon) e[f.id].tradeFleet += double(g.count) * std::max(0.0, r->upkeep) * fleetK * 2;
+      if (const FleetRow* r = f.fleetRow(g.row); r && r->type == ShipType::Galleon)
+        e[f.id].tradeFleet += double(g.count) * rules::constantOf(w, schema::cst::GalleonIncome).num;
     for (const SlaveGroup& s : f.slaves) e[f.id].slaveUpkeep += double(std::max<i64>(0, s.count)) * 0.001;
   });
   // Специалисты: различные персонажи с ролью — правитель, места совета (любой фракции), герои фракции.
@@ -163,12 +173,13 @@ TEST(app_economy_faction_lines) {
   auto c = rules::calc(h->world());
   const rules::FactionCalc* fc = c->faction(st);
   CHECK(fc->famine);
-  CHECK_NEAR(fc->provisionNeed, double(fc->population) * schema::kProvisionsPerPerson, 1e-9);
-  // Запасов нет: на расход и прошлую недостачу идёт только добыча провизии этого хода (провинции с «Зерном»).
+  // Едят жители и живые воины армии.
+  CHECK_NEAR(fc->provisionNeed, double(fc->population + fc->provisionSoldiers) * schema::kProvisionsPerPerson, 1e-9);
+  // Запасов нет: на расход идёт только добыча провизии этого хода (провинции с «Зерном»); прошлая недостача не копится.
   double produced = 0;
   for (Id r : provs)
     if (auto it = fc->resources.find(r); it != fc->resources.end()) produced += std::max(0.0, it->second.production);
-  CHECK_NEAR(fc->provisionDebtNext, std::max(0.0, fc->provisionNeed + 5 - produced), 1e-9);
+  CHECK_NEAR(fc->provisionDebtNext, std::max(0.0, fc->provisionNeed - produced), 1e-9);
   openTab(h, st, "faction.economy");
   CHECK(h->uiRect("economy.famine") != nullptr);
   shotClean(h, "economy_faction_famine");
@@ -181,7 +192,7 @@ TEST(app_economy_faction_lines) {
   h.settle();
   CHECK(h->uiRect("economy.famine") == nullptr);
 
-  // Торговый флот: 20 торговых галеонов из резерва — содержание × 2 в доход.
+  // Торговый флот: 20 торговых галеонов из резерва — по «Доходу торгового галеона» (0,5) за корабль.
   Id row = 0;
   CHECK(h->act("Галеоны", [&](Tx& tx) {
     row = rules::addFleetRow(tx, st, ShipType::Galleon, "Торговые галеоны", 20, 3.5);
@@ -189,8 +200,7 @@ TEST(app_economy_faction_lines) {
   }));
   c = rules::calc(h->world());
   fc = c->faction(st);
-  const double fleetK = std::max(0.0, 1 + fc->fx[Fx::FleetUpkeepPct] / 100);
-  CHECK_NEAR(fc->incTradeFleet, 20 * 3.5 * fleetK * 2, 1e-9);
+  CHECK_NEAR(fc->incTradeFleet, 20 * 0.5, 1e-9);
   CHECK_NEAR(fc->pirateRisk, 2, 1e-9);   // 20 галеонов без охраны — 2 %
   openTab(h, st, "faction.economy");
   shotClean(h, "economy_faction_incomes");

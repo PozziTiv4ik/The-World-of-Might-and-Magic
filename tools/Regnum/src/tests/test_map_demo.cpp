@@ -233,7 +233,7 @@ TEST(map_demo_economy_balanced) {
     CHECK(fc->expTotal < fc->incTotal * 1.5);         // расходы одного порядка с доходом
     CHECK(fc->expArmy > fc->expSpecialists);          // армия — главная статья расходов
     CHECK(std::fabs(fc->net) < fc->incTotal * 0.4);   // «слегка»: не больше 40 % дохода
-    CHECK(f.treasury() > 10 * std::fabs(fc->net));    // казны хватает надолго
+    if (fc->net < 0) CHECK(f.treasury() > 10 * -fc->net);   // дефицита казны хватает надолго
     if (fc->net < 0) negative++;
     else positive++;
   });

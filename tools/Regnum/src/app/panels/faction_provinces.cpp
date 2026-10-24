@@ -198,12 +198,16 @@ void drawHqs(App& a, Id id) {
     tax += r.share.tax;
     rows.push_back(r);
   }
+  const bool known = a.knows(id);   // туман войны: доходы чужой гильдии скрыты
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 10);
     ui::stat(fmtInt(i64(rows.size())), plural(i64(rows.size()), "штаб", "штаба", "штабов"),
              {.icon = "hq", .tone = ui::Tone::Info, .tooltip = "В провинции — не больше 5 штабов разных гильдий, у гильдии — один штаб в провинции"});
-    ui::stat(fmtGoldSigned(fc->incGuilds), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success,
-                                                           .tooltip = "Σ торговая ценность × влияние гильдии − налог провинции"});
+    if (known)
+      ui::stat(fmtGoldSigned(fc->incGuilds), "Доход штабов", {.icon = "income", .tone = ui::Tone::Success,
+                                                             .tooltip = "Σ торговая ценность × влияние гильдии − налог провинции"});
+    else
+      w::hiddenStat("Доход штабов");
   }
   ui::spacer(2);
   if (ui::Section s("Штабы", "hq", {.badge = rows.empty() ? std::string() : std::to_string(rows.size())}); s) {
@@ -221,7 +225,7 @@ void drawHqs(App& a, Id id) {
           const HqRow& A = rows[size_t(x)];
           const HqRow& B = rows[size_t(y)];
           if (col == 1) return num(A.share.pct, B.share.pct);
-          if (col == 2) return num(A.share.net, B.share.net);
+          if (col == 2 && known) return num(A.share.net, B.share.net);
           return compareRu(provName(*A.p), provName(*B.p));
         });
         for (int i : t) {
@@ -244,7 +248,8 @@ void drawHqs(App& a, Id id) {
             a.act("Влияние гильдии", [&](Tx& tx) { rules::setInfluence(tx, pid, id, pct); },
                   {.coalesce = "influence:" + std::to_string(pid) + ":" + std::to_string(id)});
           a.markUi("hq.influence." + std::to_string(pid));
-          t.text(fmtGold(r.share.net), r.share.net > 0 ? ui::Ink::Success : ui::Ink::Muted);
+          if (known) t.text(fmtGold(r.share.net), r.share.net > 0 ? ui::Ink::Success : ui::Ink::Muted);
+          else t.text(w::kHidden, ui::Ink::Muted, ui::Font::Small);
           t.cell();
           if (ui::iconButton("trash", "Закрыть штаб", {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
             std::string pname = provName(*r.p);
@@ -253,7 +258,7 @@ void drawHqs(App& a, Id id) {
           }
           a.markUi("hq.remove." + std::to_string(i));
         }
-        if (t.footer()) {
+        if (known && t.footer()) {
           t.text("Итого");
           t.text({});
           t.text(fmtGold(fc->incGuilds));
@@ -261,8 +266,9 @@ void drawHqs(App& a, Id id) {
         }
         if (int c = t.clicked(); c >= 0) a.select(SelType::Province, rows[size_t(c)].p->id, true);
       }
-      ui::label("Валовой доход " + fmtGold(gross) + " · налог провинциям " + fmtGold(tax), {.font = ui::Font::Small, .ink = ui::Ink::Muted,
-                                                                                         .tooltip = "Налог штабов идёт владельцам провинций"});
+      if (known)
+        ui::label("Валовой доход " + fmtGold(gross) + " · налог провинциям " + fmtGold(tax), {.font = ui::Font::Small, .ink = ui::Ink::Muted,
+                                                                                           .tooltip = "Налог штабов идёт владельцам провинций"});
     }
     // Открыть штаб: провинция без штаба этой гильдии и кнопка.
     if (!ro) {

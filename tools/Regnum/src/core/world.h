@@ -227,6 +227,7 @@ struct Faction {
   int detectTurn = 0;            // контрразведка: ход последнего «Обнаружить заговоры» (игрок — раз в ход)
   std::vector<RacePop> prison;   // «Тюрьмы государства»: арестованное население по расам
   bool conspiracy = false;       // государство заговора («Заговор …»): образовано осуществлённым заговором
+  int landless = 0;              // ходов подряд без провинций и войск (государство упраздняется, RULES.md §4)
   std::string notes;
   std::string entity;
 
@@ -260,6 +261,7 @@ struct Character {
   // изучено рангов (у каждого героя — своё).
   std::vector<Id> talents;
   Id jailer = 0;                 // «Под арестом»: государство, в чьей тюрьме герой
+  int respecTurn = 0;            // ход последней смены класса, подкласса или сброса талантов игроком
   std::string notes, entity;
 };
 
@@ -483,6 +485,7 @@ struct PlotHit {                      // заказное убийство (ис
   double gold = 0;                    // отдано на операцию (золото)
   int turn = 0;
   bool guarded = false;               // «Защитить от убийства» (администратор): вероятность 0 %
+  bool reviewed = false;              // администратор рассмотрел заказ (исход не меняется)
   bool operator==(const PlotHit&) const = default;
 };
 struct Plot {
@@ -515,9 +518,44 @@ struct Plot {
   }
 };
 
+// Перемирие: что отдаёт каждая сторона (rules::concludeTruce). После заключения — состояние status.
+struct TruceTerms {
+  std::vector<Id> provinces;          // провинции стороны → другой стороне
+  double reparations = 0;             // репарации: золото за ход
+  int reparationsTurns = 0;
+  std::map<Id, double> resources;     // разовые выплаты (золото — из казны, ресурсы)
+  i64 slaves = 0;                     // рабов из населения стороны (не больше 5 % её населения)
+  std::vector<Id> heroes;             // пленные герои, которых сторона держит
+  bool vassal = false;                // сторона становится вассалом другой
+  bool operator==(const TruceTerms&) const = default;
+};
+struct Truce {
+  Id a = 0, b = 0;
+  TruceTerms fromA, fromB;
+  RelStatus status = RelStatus::Neutral;
+  bool operator==(const Truce&) const = default;
+};
+
+// Предложение (rules/proposals.h): двустороннее действие игрока ждёт согласия другой стороны (to) или администратора;
+// вопрос вассалитета — решение государства to, которого нет за этим компьютером.
+//   Deal — сделка deal (обмен, подарок от другой стороны, дань или репарации): from — предложившая сторона;
+//   Truce — перемирие truce (a — from, b — to); Alliance — союз from и to;
+//   Defend — сюзерен to вступает ли в войну за вассала other, которому объявил войну from;
+//   Call — вассал to вступает ли в войну сюзерена from против other.
+struct Proposal {
+  Id id = 0;
+  ProposalKind kind = ProposalKind::Deal;
+  Id from = 0, to = 0, other = 0;
+  int turn = 1;                       // ход предложения
+  Deal deal;
+  Truce truce;
+  std::string note;
+};
+
 struct Relation {
   double v = 0;                       // -100..100
   RelStatus s = RelStatus::Unknown;
+  int calm = 0;                       // после перемирия войну нельзя объявить до этого хода (не включая его)
   bool operator==(const Relation&) const = default;
 };
 using RelMap = std::map<u64, Relation>;  // ключ relKey(a, b)
@@ -535,6 +573,43 @@ struct Settings {
   // «Свободное редактирование флотов»: новый флот ставится в любое место карты; иначе — из вкладки «Флот» государства
   // у верфи приморской провинции.
   bool freeFleets = false;
+  // Пароль роли администратора: SHA-256 (hex) пароля с солью мира (app::detail::role::adminKeyOf); пусто — без пароля.
+  std::string adminKey;
+};
+
+// Итоги завершённого хода (rules::endTurn): строки фракций, записи хроники хода, восстания, исходы заказных убийств.
+struct TurnFactionLine {
+  Id faction = 0;
+  double treasuryBefore = 0, treasuryAfter = 0, income = 0, expenses = 0;
+  std::map<Id, double> resources;     // изменение запасов ресурсов (кроме золота)
+  std::map<Id, double> essences;      // изменение запасов эссенций элементов
+  double provisionDebt = 0;           // недостача провизии после хода (голод, если больше нуля)
+  bool operator==(const TurnFactionLine&) const = default;
+};
+struct HitOutcome {                   // исход заказного убийства: roll — бросок 0…100
+  Id plot = 0, character = 0;
+  double chance = 0, roll = 0;
+  bool killed = false;
+  bool operator==(const HitOutcome&) const = default;
+};
+// События хода, которые требуют решения после него: восстание провинции (армия мятежников — битва с войском,
+// гарнизоном или захват), мятеж войска или гарнизона с верностью −100 % (верные герои — «Судьба героя»); RebelWar —
+// мятежное государство rebelState воюет с origin (вассалы и сюзерены отвечают на войну).
+struct TurnEvent {
+  enum Kind : u8 { Uprising, Mutiny, RebelWar } kind = Uprising;
+  Id army = 0;                        // армия мятежников
+  Id province = 0;
+  Id origin = 0, rebelState = 0;
+  std::vector<Id> heroes;
+  bool operator==(const TurnEvent&) const = default;
+};
+struct TurnRecord {
+  int turnFrom = 0, turnTo = 0;
+  std::vector<TurnFactionLine> factions;
+  std::vector<Id> logIds;             // записи хроники, созданные при завершении хода
+  std::vector<Id> rebellions;         // провинции, где вспыхнуло восстание
+  std::vector<HitOutcome> hits;       // исходы заказных убийств заговоров
+  bool operator==(const TurnRecord&) const = default;
 };
 
 struct Meta {
@@ -548,10 +623,12 @@ struct Meta {
   bool mapObjects = false;
   // Версия базовых записей справочников (core/content.h): мир прежней версии дополняется при чтении один раз.
   int content = 0;
-  // Счётчик случайных событий мира (археология): зерно броска — счётчик и ID участников; событие увеличивает счётчик,
-  // поэтому отмена возвращает и его.
+  // Счётчик случайных событий мира (археология, контрразведка): зерно броска — счётчик и ID участников; событие
+  // увеличивает счётчик, поэтому отмена возвращает и его (игроку действие со случайным исходом не отменить).
   u32 rng = 0;
   std::string notes;
+  TurnRecord lastTurn;                // итоги последнего завершённого хода (отчёт игрока и администратора)
+  std::vector<TurnEvent> turnEvents;  // события последнего хода, ещё не разобранные (переживают перезапуск)
 };
 
 // ================================================================ мир
@@ -573,15 +650,16 @@ struct Meta {
   X(LogEntry, log, logEntry, Log, TB_LOG, Seq::Log, "Запись хроники")                       \
   X(MapSymbol, symbols, symbol, Symbol, TB_SYMBOLS, Seq::Symbol, "Знак карты")              \
   X(MapShape, shapes, shape, Shape, TB_SHAPES, Seq::Shape, "Фигура карты")                \
-  X(Plot, plots, plot, Plot, TB_PLOTS, Seq::Plot, "Заговор")
+  X(Plot, plots, plot, Plot, TB_PLOTS, Seq::Plot, "Заговор")                           \
+  X(Proposal, proposals, proposal, Proposal, TB_PROPOSALS, Seq::Proposal, "Предложение")
 
 enum TableBit : u32 {
   TB_META = 1u << 0, TB_SETTINGS = 1u << 1, TB_CATALOGS = 1u << 2, TB_NODES = 1u << 3, TB_EDGES = 1u << 4,
   TB_PROVINCES = 1u << 5, TB_FACTIONS = 1u << 6, TB_CHARACTERS = 1u << 7, TB_RELATIONS = 1u << 8,
   TB_MODIFIERS = 1u << 9, TB_BUILDINGS = 1u << 10, TB_TECHS = 1u << 11, TB_ARMIES = 1u << 12,
   TB_ROUTES = 1u << 13, TB_DEALS = 1u << 14, TB_LOG = 1u << 15, TB_SYMBOLS = 1u << 16, TB_SHAPES = 1u << 17,
-  TB_CONSTANTS = 1u << 18, TB_PLOTS = 1u << 19,
-  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0xFFFFFu
+  TB_CONSTANTS = 1u << 18, TB_PLOTS = 1u << 19, TB_PROPOSALS = 1u << 20,
+  TB_GEO = TB_NODES | TB_EDGES, TB_MAPART = TB_SYMBOLS | TB_SHAPES, TB_ALL = 0x1FFFFFu
 };
 
 struct World {

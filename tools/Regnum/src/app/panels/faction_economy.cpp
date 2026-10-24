@@ -55,8 +55,15 @@ void moneyCards(App& a, const Faction& f, const rules::FactionCalc& fc) {
         goldRow("route", cRoutes, "Маршруты", fc.incRoutes, "5 % текущей торговой ценности каждой сухопутной провинции маршрутов гильдии");
       if ((state && fc.slaves > 0) || fc.incSlaves != 0)
         goldRow("shackles", cSlaves, "Рабы на работах", fc.incSlaves, "0,002 золота за раба на работах в провинциях за ход");
-      if (fc.incTradeFleet != 0)
-        goldRow("s-galleon", cFleet, "Торговый флот", fc.incTradeFleet, "Торговые галеоны в торговле: их содержание × 2");
+      if (fc.incTradeFleet != 0) {
+        // Каждый торговый галеон в торговле приносит константу «Доход торгового галеона» (rules::calc).
+        i64 galleons = 0;
+        for (const rules::RowCalc& rc : fc.fleet)
+          if (const FleetRow* r = f.fleetRow(rc.row); r && r->type == ShipType::Galleon) galleons += rc.trade;
+        const double each = std::max(0.0, rules::constantOf(frameWorld(a), schema::cst::GalleonIncome).num);
+        goldRow("s-galleon", cFleet, "Торговый флот", fc.incTradeFleet,
+                "Торговые галеоны в торговле: " + fmtNum(double(galleons)) + " × «Доход торгового галеона» " + gold(each) + " тыс.");
+      }
       goldRow("trade", cTrade, "Торговля", fc.incTrade, "Поступления золота по торговым сделкам «каждый ход»");
       goldRow("tribute", cTrib, "Дань и репарации", fc.incTribute, "Поступления золота от плательщиков дани и репараций");
       if (fc.incomePct != 0)
@@ -462,7 +469,9 @@ void provisionSection(App& a, const World& w, const Faction& f, const rules::Fac
   if (!s) return;
   const std::string stockTip = "Запас ресурсов группы «Провизия» с подгруппами: " + std::to_string(provs.size()) + " " +
                                plural(i64(provs.size()), "ресурс", "ресурса", "ресурсов");
-  const std::string needTip = "0,001 на жителя: " + fmtNum(double(fc.population)) + " " + plural(fc.population, "житель", "жителя", "жителей");
+  const std::string needTip = "0,001 на жителя и живого воина армии: " + fmtNum(double(fc.population)) + " " +
+                              plural(fc.population, "житель", "жителя", "жителей") + ", " + fmtNum(double(fc.provisionSoldiers)) + " " +
+                              plural(fc.provisionSoldiers, "воин", "воина", "воинов");
   const char* debtTip = "Недостача прошлых ходов: пока она больше нуля — «Голод»";
   if (ui::avail().w >= 420) {
     ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
@@ -489,7 +498,17 @@ void provisionSection(App& a, const World& w, const Faction& f, const rules::Fac
          "economy.provision.debt");
   }
   {
-    // После хода: запас и недостача (расход берётся из запаса и добычи этого хода).
+    // Кто ест провизию: жители и живые воины армии (строки и формирование; нежить, демоны, механизмы, элементали — нет).
+    ui::HStack hs(26, ui::Align::Left, 6);
+    ui::icon("population", ui::Ink::Muted, 16, "Едят провизию");
+    ui::tag("Жители " + fmtNum(double(fc.population)), ui::Tone::Neutral, "population");
+    a.markUi("economy.provision.people");
+    ui::tag("Воины " + fmtNum(double(fc.provisionSoldiers)), ui::Tone::Neutral, "army");
+    w::tagTip("Живые воины армии, включая формирование");
+    a.markUi("economy.provision.soldiers");
+  }
+  {
+    // После хода: запас и недостача (расход берётся из запаса и добычи этого хода); при недостаче — гибель от голода.
     ui::HStack hs(26, ui::Align::Left, 6);
     ui::icon("next-turn", ui::Ink::Muted, 16, "После хода");
     ui::tag("Запас " + amount(after), ui::Tone::Neutral, "grain");
@@ -497,6 +516,12 @@ void provisionSection(App& a, const World& w, const Faction& f, const rules::Fac
     if (famineNext) ui::tag("Недостача " + amount(fc.provisionDebtNext), ui::Tone::Danger, "warning");
     else ui::tag("Без недостачи", ui::Tone::Success, "check");
     a.markUi("economy.provision.debtNext");
+    if (fc.famineDeaths > 0) {
+      const double pct = rules::constantOf(w, schema::cst::FamineDeaths).num;
+      ui::tag("Погибнет " + fmtNum(double(fc.famineDeaths)), ui::Tone::Danger, "skull");
+      w::tagTip("«Гибель от голода» " + fmtPct(pct, 1) + " голодающих: недостача / 0,001");
+      a.markUi("economy.provision.deaths");
+    }
   }
   // Расход по ресурсам: поровну со всех ресурсов провизии, что есть у государства.
   if (!use.empty()) {
@@ -743,18 +768,25 @@ void tributeSection(App& a, const World& w, Id id) {
     ui::Card c({.pad = 10, .tone = r.receive ? ui::Tone::Success : ui::Tone::Danger});
     const auto& kind = schema::kDealKinds[int(d.kind)];
     {
-      ui::Row row({ui::px(20), ui::fr(1), ui::px(24)}, 24, 8);
+      // Отменяет выплаты только получатель (аудит 2026-10-23, 1.2): у плательщика-игрока кнопки нет.
+      const bool cancel = a.admin() || r.receive;
+      ui::Row row({ui::px(20), ui::fr(1), ui::px(cancel ? 24.f : 0.f)}, 24, 8);
       ui::icon(kind.icon, r.receive ? ui::Ink::Success : ui::Ink::Danger, 18, kind.name);
       ui::label(std::string(kind.name) + (r.receive ? " от" : " в пользу"), {.ink = ui::Ink::Dim});
-      if (ui::iconButton("close", d.kind == DealKind::Tribute ? "Отменить дань" : "Отменить репарации",
-                         {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
-        Id did = d.id;
-        std::string what = d.kind == DealKind::Tribute ? "дань" : "репарации";
-        a.confirm(d.kind == DealKind::Tribute ? "Отменить дань?" : "Отменить репарации?",
-                  "Выплаты прекратятся со следующего хода. Отменить можно сочетанием Ctrl+Z.", "Отменить " + what, true,
-                  [did](App& x) { x.play("Отменить выплаты", [&](Tx& tx) { rules::cancelDeal(tx, did); }); });
+      if (cancel) {
+        if (ui::iconButton("close", d.kind == DealKind::Tribute ? "Отменить дань" : "Отменить репарации",
+                           {.size = ui::Size::Small, .disabled = ro, .tone = ui::Tone::Danger})) {
+          Id did = d.id;
+          const Id by = a.playerState();   // администратор — 0
+          std::string what = d.kind == DealKind::Tribute ? "дань" : "репарации";
+          a.confirm(d.kind == DealKind::Tribute ? "Отменить дань?" : "Отменить репарации?",
+                    "Выплаты прекратятся со следующего хода. Отменить можно сочетанием Ctrl+Z.", "Отменить " + what, true,
+                    [did, by](App& x) { x.play("Отменить выплаты", [&](Tx& tx) { rules::cancelDeal(tx, did, by); }); });
+        }
+        a.markUi("tribute.cancel." + std::to_string(d.id));
+      } else {
+        ui::next(0, 24);
       }
-      a.markUi("tribute.cancel." + std::to_string(d.id));
     }
     {
       ui::Row row({ui::fr(1), ui::px(136)}, 26, 8);
@@ -769,7 +801,7 @@ void tributeSection(App& a, const World& w, Id id) {
   ui::spacer(2);
   {
     ui::Disabled dis(ro);
-    if (ui::button("Навязать дань / репарации", {.icon = "tribute", .fill = true})) {
+    if (ui::button(a.admin() ? "Навязать дань / репарации" : "Предложить дань / репарации", {.icon = "tribute", .fill = true})) {
       if (!a.openDialog("tribute", id)) a.toast("Диалог дани и репараций пока недоступен", ToastKind::Warning, "tribute");
     }
     a.markUi("economy.impose");
@@ -779,7 +811,7 @@ void tributeSection(App& a, const World& w, Id id) {
 void drawEconomy(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
-  if (!f) return;
+  if (!f || w::hiddenFor(a, id)) return;   // туман войны: казна, запасы и доходы чужой фракции скрыты
   const bool ro = !a.canEdit();   // запасы, эссенции, рабы — правка мира
   auto calc = rules::calc(w);
   const rules::FactionCalc* fc = calc->faction(id);
@@ -795,16 +827,22 @@ void drawEconomy(App& a, Id id) {
                                                     .tooltip = "Доходы − расходы за ход; прибавляется к казне при завершении хода"});
   }
   // Голод (ТЗ «Добавления в справочники», п.3): недостача провизии — сейчас или после хода.
-  if (fc->famine || fc->provisionDebtNext > kEps) {
+  if (fc->famine || fc->provisionDebtNext > kEps || fc->unpaid) {
     ui::HStack hs(26, ui::Align::Left, 6);
+    if (fc->unpaid) {   // казна в долгу — модификатор «Невыплата жалованья»
+      const Modifier* m = rules::builtinMod(w, schema::mod::Unpaid);
+      ui::tag(m && !m->name.empty() ? m->name : std::string("Невыплата жалованья"), ui::Tone::Danger, "treasury");
+      w::tagTip("Казна в долгу " + fmtGold(-f->treasury()) + ": действует модификатор «Невыплата жалованья»");
+      a.markUi("economy.unpaid");
+    }
     if (fc->famine) {
       const Modifier* m = rules::builtinMod(w, schema::mod::Famine);
       ui::tag(m && !m->name.empty() ? m->name : std::string("Голод"), ui::Tone::Danger, "warning");
-      ui::tooltip("Недостача провизии " + amount(fc->provisionDebt) + ": действует модификатор «Голод»");
+      w::tagTip("Недостача провизии " + amount(fc->provisionDebt) + ": действует модификатор «Голод»");
       a.markUi("economy.famine");
-    } else {
+    } else if (fc->provisionDebtNext > kEps) {
       ui::tag("Голод после хода", ui::Tone::Warning, "warning");
-      ui::tooltip("Провизии не хватит на расход населения: недостача " + amount(fc->provisionDebtNext));
+      w::tagTip("Провизии не хватит на расход населения и армии: недостача " + amount(fc->provisionDebtNext));
       a.markUi("economy.famineNext");
     }
   }
@@ -820,6 +858,7 @@ void drawEconomy(App& a, Id id) {
 
 // Точка на значке вкладки: казна убывает, голод (сейчас или после хода), эссенция в долгу (сейчас или после хода).
 int economyBadge(App& a, Id id) {
+  if (!a.knows(id)) return 0;
   auto calc = rules::calc(a.world());
   const rules::FactionCalc* fc = calc->faction(id);
   if (!fc) return 0;

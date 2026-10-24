@@ -8,7 +8,9 @@ using namespace rg::rulestest;
 TEST(rules_plague_spread_and_immunity) {
   Fix f;
   f.tx([&](Tx& tx) {
-    for (int i = 0; i < 8; i++) tx.province(f.p[i]).owner = f.A;
+    const Id race = addRace(tx);
+    for (int i = 0; i < 8; i++) own(tx, f.p[i], f.A, race, 1000);
+    ensureConstant(tx, schema::cst::PlagueSpread).num = 100;   // соседи заражаются наверняка
     CHECK(infectPlague(tx, f.p[1]));
   });
   const Id plague = builtinModId(f.w(), schema::mod::Plague);
@@ -41,8 +43,9 @@ TEST(rules_plague_heal_and_plague_buildings) {
   Id heal = 0, pest = 0;
   const Id water = test::idByName(f.w().catalogs->essences, "Эссенция воды"), plagueEss = test::idByName(f.w().catalogs->essences, "Эссенция чумы");
   f.tx([&](Tx& tx) {
-    tx.province(f.p[0]).owner = f.A;
-    tx.province(f.p[1]).owner = f.A;
+    const Id race = addRace(tx);   // чума приходит только в провинцию с жителями
+    own(tx, f.p[0], f.A, race, 1000);
+    own(tx, f.p[1], f.A, race, 1000);
     heal = simpleBuilding(tx, "Лечебница", f.p[0], BuildingFlag::Healing, true);
     pest = simpleBuilding(tx, "Чумной двор", f.p[1], BuildingFlag::Plague, true);
     tx.faction(f.A).ess[water] = 600;
@@ -60,4 +63,42 @@ TEST(rules_plague_heal_and_plague_buildings) {
   CHECK(provinceHas(f.w(), f.p[1], schema::mod::Plague));
   CHECK_NEAR(f.w().faction(f.A)->essence(plagueEss), 500, 1e-9);
   CHECK_NEAR(f.pc(f.p[1]).fx[Fx::PopGrowthPct], schema::kPlagueBuildingGrowth, 1e-9);
+}
+
+// Распространение — с вероятностью «Распространение чумы»; безлюдная провинция и карантин чуму не принимают, из
+// провинции на карантине чума не уходит.
+TEST(rules_plague_spread_chance_empty_and_quarantine) {
+  Fix f;
+  Id race = 0;
+  f.tx([&](Tx& tx) {
+    race = addRace(tx);
+    for (int i = 0; i < 8; i++) own(tx, f.p[i], f.A, race, 1000);
+    tx.province(f.p[2]).races.clear();   // безлюдная
+  });
+  CHECK(has([&] { std::string why; canPlague(f.w(), f.p[2], &why); return why; }(), "нет жителей"));
+  // Вероятность 0 %: чума истекает без распространения.
+  f.tx([&](Tx& tx) {
+    ensureConstant(tx, schema::cst::PlagueSpread).num = 0;
+    infectPlague(tx, f.p[1]);
+  });
+  for (int t = 0; t < schema::kPlagueTurns; t++) f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK(!provinceHas(f.w(), f.p[1], schema::mod::Plague));
+  CHECK(!provinceHas(f.w(), f.p[0], schema::mod::Plague));
+  CHECK(!provinceHas(f.w(), f.p[5], schema::mod::Plague));
+  // Карантин: в провинцию чума не приходит, из провинции — не уходит.
+  f.tx([&](Tx& tx) {
+    ensureConstant(tx, schema::cst::PlagueSpread).num = 100;
+    infectPlague(tx, f.p[4]);
+    setQuarantine(tx, f.p[4], true);
+    setQuarantine(tx, f.p[7], true);
+  });
+  CHECK(provinceHas(f.w(), f.p[4], schema::mod::Quarantine));
+  CHECK(!canPlague(f.w(), f.p[7]));
+  CHECK(has(lastLog(f.w()), "карантин"));
+  for (int t = 0; t < schema::kPlagueTurns; t++) f.tx([&](Tx& tx) { endTurn(tx); });
+  CHECK(!provinceHas(f.w(), f.p[4], schema::mod::Plague));
+  CHECK(!provinceHas(f.w(), f.p[0], schema::mod::Plague));
+  CHECK(!provinceHas(f.w(), f.p[5], schema::mod::Plague));
+  f.tx([&](Tx& tx) { setQuarantine(tx, f.p[7], false); });
+  CHECK(!provinceHas(f.w(), f.p[7], schema::mod::Quarantine));
 }

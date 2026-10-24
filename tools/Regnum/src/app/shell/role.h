@@ -3,12 +3,39 @@
 // меню мира; в мире она не хранится (сеанс), последняя роль и государство мира запоминаются в roles.json данных
 // пользователя — окно предлагает их первыми. Игроку закрыты справочники, режимы правки мира и инструменты правки
 // карты; его войска и флот ходят по правилам очка действий (rules::canPlayerMove, spendAction).
+// Пароль администратора (аудит 2026-10-23, 1.4): Settings::adminKey — SHA-256 соли мира и пароля; при заданном пароле
+// роль администратора (окно роли при открытии мира и «Сменить роль…») — только после ввода пароля, а до выбора роли
+// при открытии мира сеанс идёт за игрока. Вид карты игрока (1.6) — свой, в app.json (UiState::playerView).
 #pragma once
 #include "app/app_internal.h"
+#include "base/json.h"
 
 namespace rg::app::detail::role {
 
 constexpr const char* kAdminOnly = "Доступно только администратору редактора";
+
+// ---- пароль администратора
+// Ключ пароля мира: SHA-256 (hex) от соли и пароля; соль — время создания мира (Meta::createdAt), без него — название.
+std::string adminKeyOf(const World& w, std::string_view password);
+bool adminLocked(const World& w);                              // у мира задан пароль администратора
+bool adminPasswordOk(const World& w, std::string_view password);
+// Поле пароля: ввод скрыт точками (значение меняется при каждом вводе).
+void passwordField(std::string_view id, std::string& value, std::string_view placeholder, bool autofocus = false);
+// Окно «Пароль администратора»: задать или сменить (администратор; правка мира, отменяется Ctrl+Z).
+void askSetPassword(App& a);
+// Снять пароль (с подтверждением).
+void askClearPassword(App& a);
+
+// ---- вид карты (подписи, заливка, «Скрыть войска», размер значков)
+// Действующие настройки вида: у игрока — свои (UiState::playerView), иначе — мира.
+Settings viewSettings(const App& a);
+// Изменить вид карты: игрок — свои настройки (app.json, мир не меняется), администратор — настройки мира (play,
+// отменяется Ctrl+Z; coalesce — слияние шагов отмены ползунка).
+void setView(App& a, std::string_view label, const std::function<void(Settings&)>& fn, std::string_view coalesce = {});
+// Мир для карты: у игрока — с его настройками вида (правила и сохранение — мира).
+World mapWorld(const App& a, const World& w);
+void loadView(App& a, const json::Value& v);                   // app.json «playerView»
+json::Value viewJson(const App& a);                            // null — своих настроек нет
 
 // ---- выбор роли
 // Государства мира для игрока: сначала основные игровые (Faction::mainState), затем остальные; внутри — по названию.

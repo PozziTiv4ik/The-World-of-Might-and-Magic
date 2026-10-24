@@ -4,6 +4,8 @@
 // только при «Свободном редактировании флотов» (ТЗ «Доработки №3», п.3); иначе флот ставится у верфи во вкладке «Флот».
 // Игрок (ТЗ «Доработки №4», п.5): инструменты не на ленте и не по клавишам — только кнопкой своего государства
 // («Поставить войско»); объект — своего государства, войско — в своей провинции, флот — у её берега.
+// Администратор (аудит 2026-10-23, 8.7): в выборе фракции войска есть «Без государства» — войско без государства
+// (rules::spawnWildArmy, враждебно всем) с отрядом выбранного типа и численности.
 #include "app/panels/military.h"
 #include "app/shell/role.h"
 #include "app/tools/edit.h"
@@ -16,6 +18,12 @@ namespace mil {
 namespace {
 Id gForcedFaction = 0;   // фракция, заданная кнопкой «Поставить войско» до выбора инструмента
 bool gPanelStart = false;   // инструмент включает кнопка панели (игроку — только так)
+// «Без государства» (администратор, только войско): тип и численность отряда нового войска.
+bool gWild = false;
+UnitType gWildType = UnitType::LightInf;
+i64 gWildCount = 100;
+constexpr Id kWildPick = 0xFFFFFFF0u;   // пункт «Без государства» в выборе фракции
+const Color kWildColor = Color::hex(0x4a4a4f);
 }
 
 std::string fleetToolBlocked(App& a) {
@@ -94,6 +102,7 @@ class PlaceTool final : public MapTool {
   explicit PlaceTool(ArmyKind k) : kind_(k) {}
 
   void activate(App& a) override {
+    if (a.player() || gForcedFaction) gWild = false;   // кнопка государства и игрок — объект государства
     lastPlaceFaction() = defaultFaction(a);
     if (a.player()) lastPlaceFaction() = a.ui.playerState;   // игрок — только своё государство
   }
@@ -109,8 +118,9 @@ class PlaceTool final : public MapTool {
         a.toast(why, ToastKind::Info, "tool-fleet");
         return true;
       }
+    const bool wild = wildPick(a);
     Id fac = faction(a);
-    if (!fac) {
+    if (!fac && !wild) {
       a.toast("Сначала выберите фракцию на панели инструмента", ToastKind::Info, "crown");
       return true;
     }
@@ -125,7 +135,13 @@ class PlaceTool final : public MapTool {
     }
     Id id = 0;
     bool fleet = kind_ == ArmyKind::Fleet;
-    if (!a.play(fleet ? "Новый флот" : "Новое войско", [&](Tx& tx) { id = rules::createArmy(tx, kind_, fac, e.map); })) return true;
+    if (wild) {
+      // Войско без государства — правка мира (администратор): отряд выбранного типа и численности.
+      const rules::WildUnitSpec u{schema::unitType(gWildType).name, gWildType, {}, gWildCount};
+      if (!a.act("Новое войско без государства", [&](Tx& tx) { id = rules::spawnWildArmy(tx, e.map, {}, {u}); })) return true;
+    } else if (!a.play(fleet ? "Новый флот" : "Новое войско", [&](Tx& tx) { id = rules::createArmy(tx, kind_, fac, e.map); })) {
+      return true;
+    }
     a.select(SelType::Army, id);
     a.ui.tabOf[SelType::Army] = mil::kTabUnits;
     // Shift — поставить ещё один; иначе — к выбору (новый объект можно сразу перетаскивать).
@@ -158,6 +174,9 @@ class PlaceTool final : public MapTool {
 
  private:
   ArmyKind kind_;
+
+  // Выбрано «Без государства» (только администратору и только войско).
+  bool wildPick(App& a) const { return gWild && a.admin() && kind_ == ArmyKind::Army; }
 
   static Id defaultFaction(App& a) {
     const World& w = frameWorld(a);
@@ -196,7 +215,7 @@ class PlaceTool final : public MapTool {
         if (why) *why = "Свободное редактирование флотов выключено";
         return false;
       }
-    if (!faction(a)) {
+    if (!faction(a) && !wildPick(a)) {
       if (why) *why = "Выберите фракцию";
       return false;
     }
@@ -207,11 +226,65 @@ class PlaceTool final : public MapTool {
     return rules::validPosition(a.world(), kind_, p, 0, why);
   }
 
+  // Выбор фракции: государства и гильдии; у администратора для войска — ещё «Без государства».
+  void factionCombo(App& a, const World& w, Id fid) {
+    const bool wildOk = a.admin() && kind_ == ArmyKind::Army;
+    if (!wildOk) {
+      Id f = fid;
+      // Игрок ставит объекты только своего государства: выбор фракции недоступен.
+      if (w::factionPicker("faction", f, w::FactionFilter::Any, "", 0, a.player())) {
+        lastPlaceFaction() = f;
+        gWild = false;
+      }
+      return;
+    }
+    std::vector<const Faction*> list;
+    w.factions.each([&](const Faction& f) {
+      if (!f.isWild()) list.push_back(&f);
+    });
+    std::sort(list.begin(), list.end(), [](const Faction* x, const Faction* y) {
+      if (x->kind != y->kind) return x->kind < y->kind;
+      return compareRu(x->name, y->name) < 0;
+    });
+    w::IdOptions o;
+    o.reserve(list.size() + 1);
+    for (const Faction* f : list) o.add(f->id, w::orName(f->name), nullptr, f->color, f->isGuild() ? "гильдия" : "");
+    o.add(kWildPick, schema::kFactionKinds[int(FactionKind::Wild)].name, "skull", Color(0, 0, 0, 0), "враждебно всем");
+    Id pick = wildPick(a) ? kWildPick : fid;
+    ui::ComboOpt co;
+    co.icon = "crown";
+    co.placeholder = "—";
+    co.disabled = a.readOnly();
+    if (w::idCombo("faction", pick, o, co)) {
+      gWild = pick == kWildPick;
+      if (!gWild) lastPlaceFaction() = pick;
+    }
+  }
+
+  // «Без государства»: тип отряда и численность нового войска.
+  void wildUnit(App& a) {
+    {
+      ui::Group g(150);
+      int t = int(gWildType);
+      std::vector<ui::Option> opts;
+      for (int i = 0; i < int(UnitType::Count); i++) opts.push_back(ui::Option{schema::kUnitTypes[i].name, schema::kUnitTypes[i].icon});
+      if (ui::combo("wildType", t, opts, {.icon = "army"}) && t >= 0) gWildType = UnitType(t);
+      ui::tooltip("Тип отряда войска без государства");
+    }
+    a.markUi("place.wild.type");
+    {
+      ui::Group g(110);
+      ui::numberField("wildCount", gWildCount, {.min = 1, .max = 1e9, .tooltip = "Численность отряда"});
+    }
+    a.markUi("place.wild.count");
+  }
+
   // Параметры инструмента в верхней строке (как у остальных инструментов карты): вид объекта, фракция, её резерв.
   void drawPanel(App& a) {
     if (a.hasDialog()) return;
     const World& w = frameWorld(a);
     const bool fleet = kind_ == ArmyKind::Fleet;
+    const bool wild = wildPick(a);
     const Id fid = faction(a);
     // Резерв фракции: сколько можно назначить новому объекту (ТЗ 1.c.iii).
     i64 reserve = 0;
@@ -224,7 +297,7 @@ class PlaceTool final : public MapTool {
     }
     std::string tag = !fid ? std::string("Выберите фракцию") : rows == 0 ? std::string("Таблица пуста") : "Резерв " + fmtCount(reserve);
     const float segW = 2 * 34 + 4, pickW = 220;
-    float width = segW + 6 + pickW + 6 + tools::textW(tag, ui::Font::Strong) + 34 + 6 + 30;
+    float width = segW + 6 + pickW + 6 + (wild ? 150 + 6 + 110 : tools::textW(tag, ui::Font::Strong) + 34) + 6 + 30;
     tools::OptionsBar bar(a, fleet ? "tool-fleet" : "tool-army", fleet ? "Новый флот" : "Новое войско", width);
     if (!bar) return;
     int k = fleet ? 1 : 0;
@@ -236,13 +309,13 @@ class PlaceTool final : public MapTool {
     a.markUi("place.kind");
     {
       ui::Group g(pickW);
-      Id f = fid;
-      // Игрок ставит объекты только своего государства: выбор фракции недоступен.
-      if (w::factionPicker("faction", f, w::FactionFilter::Any, "", 0, a.player())) lastPlaceFaction() = f;
+      factionCombo(a, w, fid);
       ui::tooltip(fleet ? "Чей флот" : "Чьё войско");
     }
     a.markUi("place.faction");
-    if (!fid) {
+    if (wild) {
+      wildUnit(a);
+    } else if (!fid) {
       ui::tag(tag, ui::Tone::Warning, "warning");
     } else if (rows == 0) {
       ui::tag(tag, ui::Tone::Warning, "warning");
@@ -266,7 +339,7 @@ class PlaceTool final : public MapTool {
     std::string why;
     bool ok = valid(a, p, &why);
     const World& w = frameWorld(a);
-    Color col = w::factionColor(w, faction(a));
+    Color col = wildPick(a) ? kWildColor : w::factionColor(w, faction(a));
     float size = a.map().figureSize();
     gfx::Pt sp = v.toScreen(p);
     const ui::Theme& th = ui::theme();

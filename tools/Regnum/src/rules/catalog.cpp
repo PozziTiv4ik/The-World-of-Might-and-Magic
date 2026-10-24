@@ -372,10 +372,32 @@ RelicPlace defaultSource(const World& w, Id relic, Id state) {
 
 }  // namespace
 
+bool inventoryReachable(const World& w, Id character, bool give, std::string* why) {
+  auto no = [&](std::string s) {
+    if (why) *why = std::move(s);
+    return false;
+  };
+  const Character* c = w.character(character);
+  if (!c) return no("Персонаж не найден");
+  const std::string name = q(w.characterName(character));
+  if (hasModKey(w, c->modifiers, schema::mod::Captive)) return no(name + " в плену: его инвентарь недоступен");
+  if (hasModKey(w, c->modifiers, schema::mod::Arrested)) return no(name + " под арестом: его инвентарь недоступен");
+  if (give && hasModKey(w, c->modifiers, schema::mod::Dead)) return no(name + " мёртв");
+  return true;
+}
+
+namespace {
+void needInventoryReach(const World& w, Id character, bool give) {
+  std::string why;
+  if (!inventoryReachable(w, character, give, &why)) fail(why);
+}
+}  // namespace
+
 void giveRelic(Tx& tx, Id character, Id relic, std::optional<RelicPlace> from0) {
   const Character& c0 = needCharacter(tx.w(), character);
   const Relic* r = tx.w().relic(relic);
   if (!r) fail("Реликвия не найдена");
+  needInventoryReach(tx.w(), character, true);
   const RelicPlace from = from0 ? *from0 : defaultSource(tx.w(), relic, c0.faction);
   const RelicPlace to{RelicPlace::Hero, character, 0, c0.faction};
   if (from == to) return;
@@ -397,6 +419,7 @@ void giveRelic(Tx& tx, Id character, Id relic, std::optional<RelicPlace> from0) 
 void takeRelic(Tx& tx, Id character, Id relic) {
   const Character& c = needCharacter(tx.w(), character);
   if (!relicCount(c.inventory, relic)) return;
+  needInventoryReach(tx.w(), character, false);
   // Из инвентаря героя — в инвентарь его государства (если оно есть), иначе реликвия исчезает из мира.
   const Faction* f = tx.w().faction(c.faction);
   moveRelic(tx, relic, RelicPlace{RelicPlace::Hero, character, 0, c.faction},

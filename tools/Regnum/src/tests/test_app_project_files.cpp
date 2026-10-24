@@ -88,7 +88,8 @@ TEST(app_project_files_bundle_over_other_replaces_history) {
 
 // Внешние изменения: для мира-архива .regnum проверка была отключена, чужая правка архива молча затиралась
 // следующим Ctrl+S. Исправлено (app/project/project.cpp freshChanges: отпечаток архива — размер, время, CRC) —
-// регрессионная проверка: при возврате фокуса — вопрос, Ctrl+S — выбор, «Отмена» не трогает файл.
+// регрессионная проверка: при возврате фокуса — вопрос; Ctrl+S сливает правку агента с правкой пользователя;
+// архив не читается (слить нельзя) — выбор, «Отмена» не трогает файл, «Сохранить с заменой» пишет поверх.
 TEST(app_project_files_bundle_external_change) {
   Harness h("audit_tbmt_bundle_ext");
   h.demo();
@@ -107,8 +108,21 @@ TEST(app_project_files_bundle_external_change) {
   h.settle();
   CHECK_MSG(h->hasDialog("external"), "архив .regnum изменён другой программой — редактор не спросил, что оставить");
   h->closeDialogs();
-  // Пользователь правит другое и сохраняет — редактор спрашивает, правка агента не пропадает.
+  // Пользователь правит другое и сохраняет — правка агента сливается с его правкой и не пропадает.
   CHECK(h->act("Правка", [&](Tx& tx) { tx.meta().notes = "заметка"; }));
+  CHECK(h->save());
+  h.settle();
+  CHECK(h->hasDialog("merge"));
+  CHECK(!h->dirty());
+  io::LoadResult r = io::load(bundle);
+  CHECK_MSG(r.world.province(pid)->name == "Правка агента", "Ctrl+S затёр внешнюю правку архива");
+  CHECK_EQ(r.world.meta->notes, std::string("заметка"));
+  h->closeDialogs();
+  h.settle();
+  // Архив испорчен — слить нельзя: выбор; «Отмена» ничего не пишет.
+  hl::advance(2);
+  CHECK(fs::writeFileAtomic(bundle, std::string_view("не архив")));
+  CHECK(h->act("Правка 2", [&](Tx& tx) { tx.meta().notes = "заметка 2"; }));
   CHECK(!h->save());
   h.settle();
   CHECK(h->hasDialog("external"));
@@ -116,8 +130,7 @@ TEST(app_project_files_bundle_external_change) {
   h.settle();
   CHECK(!h->hasDialog("external"));
   CHECK(h->dirty());
-  io::LoadResult r = io::load(bundle);
-  CHECK_MSG(r.world.province(pid)->name == "Правка агента", "Ctrl+S затёр внешнюю правку архива без вопроса");
+  CHECK_EQ(fs::readFile(bundle).value_or(""), std::string("не архив"));
   // «Сохранить с заменой» — осознанная запись поверх; после неё архив снова отслеживается без вопросов.
   h.key(Key::S, ctrl());
   h.settle();
@@ -126,16 +139,17 @@ TEST(app_project_files_bundle_external_change) {
   h.settle();
   CHECK(!h->dirty());
   r = io::load(bundle);
-  CHECK(r.world.province(pid)->name != "Правка агента");
-  CHECK_EQ(r.world.meta->notes, std::string("заметка"));
+  CHECK_EQ(r.world.province(pid)->name, std::string("Правка агента"));
+  CHECK_EQ(r.world.meta->notes, std::string("заметка 2"));
   hl::setFocus(true);
   h.settle();
   CHECK(!h->hasDialog("external"));
 }
 
 // Внешние изменения проверялись только при возврате фокуса окну; Ctrl+S при изменённых файлах отказывал одним
-// уведомлением без действий. Исправлено: Ctrl+S открывает выбор «Перечитать» / «Сохранить с заменой» / «Отмена» —
-// регрессионная проверка (все три пути).
+// уведомлением без действий. Теперь Ctrl+S сливает изменения на диске с миром (запись, изменённая обеими сторонами, —
+// версия редактора, конфликт в окне итога); слить нельзя (файл не читается, смешанное сохранение) — выбор
+// «Перечитать» / «Сохранить с заменой» / «Отмена» — регрессионная проверка (все пути).
 TEST(app_project_files_conflict_on_save) {
   Harness h("audit_tbmt_more_conflict");
   h.demo();
@@ -143,54 +157,53 @@ TEST(app_project_files_conflict_on_save) {
   CHECK(h->saveTo(dir));
   BuildPick pk = pickBuild(h->world());
   CHECK(pk.pid != 0);
-  {
+  const std::string prov = fs::join(dir, "data/provinces.json");
+  auto agent = [&](const std::string& name, u64 gen) {
     World w = h->store.world();
     Tx tx(w);
-    tx.province(pk.pid).name = "Правка агента";
+    tx.province(pk.pid).name = name;
     World w2 = std::move(tx).finish();
     hl::advance(2);
-    CHECK(fs::writeFileAtomic(fs::join(dir, "data/provinces.json"), io::fileText(w2, "data/provinces.json")));
-  }
+    CHECK(fs::writeFileAtomic(prov, io::withGeneration(io::fileText(w2, "data/provinces.json"), gen)));
+  };
+  // Та же провинция правится на диске и в редакторе — слияние оставляет версию редактора и сообщает о конфликте.
+  agent("Правка агента", 0);
   CHECK(h->act("Правка пользователя", [&](Tx& tx) { tx.province(pk.pid).contentment = 42; }));
   h->toasts().clear();
   h.key(Key::S, ctrl());
   h.settle();
-  CHECK(h->dirty());   // не сохранено
-  bool action = false;
-  std::string text;
-  for (auto& t : h->toasts()) {
-    text += t.text + " | ";
-    action = action || !t.actionLabel.empty();
-  }
+  CHECK(h->hasDialog("merge"));
+  CHECK(!h->hasDialog("external"));
+  CHECK(!h->dirty());
+  io::LoadResult r = io::load(dir);
+  CHECK(r.world.province(pk.pid)->name != "Правка агента");
+  CHECK_NEAR(r.world.province(pk.pid)->contentment, 42, 1e-9);
+  h->closeDialogs();
+  h.settle();
+  // Файл на диске не читается — слить нельзя: выбор. «Отмена» — ничего не записано.
+  hl::advance(2);
+  CHECK(fs::writeFileAtomic(prov, std::string_view("{обрыв")));
+  CHECK(h->act("Ещё правка", [&](Tx& tx) { tx.province(pk.pid).contentment = 43; }));
+  h.key(Key::S, ctrl());
+  h.settle();
   CHECK(h.shot("audit_tbmt_more_conflict"));
-  CHECK_MSG(h->hasDialog("external"), "Ctrl+S при внешнем изменении: только уведомление без выбора («" + text +
-                                          "») — ни «Перечитать», ни «Сохранить с заменой»");
-  (void)action;
+  CHECK_MSG(h->hasDialog("external"), "Ctrl+S при внешнем изменении, которое нельзя слить: нет выбора «Перечитать» / «Сохранить с заменой»");
   CHECK(h->uiRect("external.reload") && h->uiRect("external.overwrite") && h->uiRect("external.cancel"));
-  // «Отмена» — ничего не записано.
   CHECK(h.clickUi("external.cancel"));
   h.settle();
   CHECK(!h->hasDialog("external"));
   CHECK(h->dirty());
-  CHECK_EQ(io::load(dir).world.province(pk.pid)->name, std::string("Правка агента"));
+  CHECK_EQ(fs::readFile(prov).value_or(""), std::string("{обрыв"));
   // «Сохранить с заменой» — версия редактора записана поверх.
   h.key(Key::S, ctrl());
   h.settle();
   CHECK(h.clickUi("external.overwrite"));
   h.settle();
   CHECK(!h->dirty());
-  io::LoadResult r = io::load(dir);
-  CHECK(r.world.province(pk.pid)->name != "Правка агента");
-  CHECK_NEAR(r.world.province(pk.pid)->contentment, 42, 1e-9);
-  // «Перечитать» — открыта версия с диска.
-  {
-    World w = h->store.world();
-    Tx tx(w);
-    tx.province(pk.pid).name = "Вторая правка агента";
-    World w2 = std::move(tx).finish();
-    hl::advance(2);
-    CHECK(fs::writeFileAtomic(fs::join(dir, "data/provinces.json"), io::fileText(w2, "data/provinces.json")));
-  }
+  r = io::load(dir);
+  CHECK_NEAR(r.world.province(pk.pid)->contentment, 43, 1e-9);
+  // Смешанное сохранение на диске (файл новее world.json) — слить нельзя; «Перечитать» — открыта версия с диска.
+  agent("Вторая правка агента", r.generation + 5);
   CHECK(h->act("Ещё правка", [&](Tx& tx) { tx.province(pk.pid).contentment = 7; }));
   h.key(Key::S, ctrl());
   h.settle();
@@ -200,6 +213,7 @@ TEST(app_project_files_conflict_on_save) {
   CHECK(!h->hasDialog("external"));
   CHECK(!h->dirty());
   CHECK_EQ(h->world().province(pk.pid)->name, std::string("Вторая правка агента"));
+  CHECK(h->hasDialog("world.fixes"));   // предупреждение о смешанном сохранении
 }
 
 // Архив .regnum: каждое завершение хода и каждое автосохранение (по умолчанию раз в минуту) пересобирает архив

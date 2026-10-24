@@ -208,7 +208,7 @@ void colonizeRow(App& a, const Province& p) {
     if (auto it = p.modTurns.find(mid); it != p.modTurns.end()) label += " · " + nTurns(it->second);
     ui::HStack hs(26, ui::Align::Left, 6);
     ui::tag(label, ui::Tone::Danger, m->icon.empty() ? "warning" : m->icon.c_str());
-    ui::tooltip("Пока действует, провинцию нельзя назначить ни одному государству");
+    w::tagTip("Пока действует, провинцию нельзя назначить ни одному государству");
   }
 }
 
@@ -329,13 +329,24 @@ void landSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool 
 }
 
 // ---------------------------------------------------------------- оккупационный гарнизон
-// Отряды из резерва оккупанта (не больше резерва) и счётчик ходов без гарнизона и войск оккупанта.
+// В провинции стоит войско оккупанта (не на борту флота): только тогда гарнизон пополняется (rules::setOccupationGarrison).
+bool occupierHere(const World& w, Id province, Id occ) {
+  return w.armies.findIf([&](const Army& ar) {
+    if (ar.isFleet() || rules::carrierOf(w, ar.id) || mil::provinceUnder(w, ar.pos) != province) return false;
+    return std::any_of(ar.groups.begin(), ar.groups.end(), [&](const ArmyGroup& g) { return g.faction == occ; });
+  }) != nullptr;
+}
+
+// Отряды из резерва оккупанта (не больше резерва; пополнить — только при его войске в провинции, причина — в подсказке
+// поля) и счётчик ходов без гарнизона и войск оккупанта.
 void occupationGarrison(App& a, const Province& p) {
   const World& wd = prov::frameWorld(a);
   const Id pid = p.id, occ = p.occupier;
   const Faction* of = wd.faction(occ);
   if (!of || !of->isState()) return;
   const bool ro = !a.canPlay(occ);   // гарнизон ставит оккупант
+  const bool here = occupierHere(wd, pid, occ);
+  const std::string noArmy = "Пополняется, только когда в провинции стоит войско «" + w::orName(of->name) + "»";
   ui::spacer(2);
   ui::caption("Оккупационный гарнизон");
   std::vector<mil::UnitRow> rows = mil::unitRows(wd, occ, false);
@@ -367,8 +378,10 @@ void occupationGarrison(App& a, const Province& p) {
       mil::unitCell(cr, l.row, false, l.row.name != l.row.typeName ? std::string_view(l.row.typeName) : std::string_view());
       t.cell();
       i64 n = l.count;
-      if (ui::numberField("n", n, {.min = 0, .max = double(l.count + l.reserve), .disabled = ro,
-                                   .tooltip = "Не больше резерва: " + mil::fmtCount(l.reserve) + " свободно"})) {
+      // Без войска оккупанта в провинции — только уменьшить (пустое поле выключено, причина — в подсказке).
+      const std::string tip = here ? "Не больше резерва: " + mil::fmtCount(l.reserve) + " свободно" : noArmy;
+      if (ui::numberField("n", n, {.min = 0, .max = double(here ? l.count + l.reserve : l.count), .disabled = ro || (!here && l.count == 0),
+                                   .tooltip = tip})) {
         Id row = l.row.id;
         a.play("Оккупационный гарнизон", [&](Tx& tx) { rules::setOccupationGarrison(tx, pid, row, n); },
               {.coalesce = "occGarrison:" + std::to_string(pid) + ":" + std::to_string(row)});

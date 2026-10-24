@@ -90,7 +90,7 @@ void factionQuick(App& a, Id id) {
   nameField(a, f->isState() ? "Переименовать государство" : "Переименовать гильдию", f->name, 200, "Название",
             [id](Tx& tx, const std::string& n) { tx.faction(id).name = n; });
   if (f->ruler && w.character(f->ruler) && room(150)) w::characterChip(f->ruler);
-  if (room(110)) {
+  if (room(110) && a.knows(id)) {   // туман войны: казна чужой фракции скрыта
     const double t = f->treasury();
     ui::label(fmtGoldShort(t), {.font = ui::Font::Small, .ink = t < 0 ? ui::Ink::Danger : ui::Ink::Dim, .icon = "coins", .tooltip = "Казна"});
   }

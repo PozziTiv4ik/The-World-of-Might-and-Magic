@@ -189,6 +189,31 @@ void revealRow(ui::Scroll& sc, float viewH, float headerH, float rowH, int k) {
   else if (off < low) sc.scrollTo(low);
 }
 
+void heroModList(App& a, const std::string& mark, const std::vector<Id>& cur, bool ro, std::string_view label,
+                 const std::function<void(Tx&, const std::vector<Id>&)>& set) {
+  std::vector<Id> ids = cur;
+  w::ModEdit ed;
+  const bool changed = w::modifierList(mark, ids, ro, w::ModScope::Hero, nullptr, &ed);
+  a.markUi(mark);   // поле добавления — последний элемент списка
+  if (!changed) return;
+  a.act(label, [&](Tx& tx) {
+    if (!ed.addKey.empty()) ids.push_back(rules::ensureBuiltinMod(tx, ed.addKey));
+    std::vector<Id> out;
+    for (Id m : ids) {
+      const Modifier* x = tx.w().modifier(m);
+      if (!x) fail("Модификатор не найден");
+      if (std::find(out.begin(), out.end(), m) != out.end()) continue;
+      if (x->kind != ModKind::Any && x->kind != ModKind::Hero)
+        fail("Модификатор «" + x->name + "» не для героев: подходят модификаторы видов «Везде» и «Для героев»");
+      if (x->key == schema::mod::Dead || x->key == schema::mod::Captive || x->key == schema::mod::Arrested || schema::isNatureKey(x->key) ||
+          schema::isAutoKey(x->key))
+        fail("Модификатор «" + x->name + "» — состояние или природа героя либо ставится сам");
+      out.push_back(m);
+    }
+    set(tx, out);
+  });
+}
+
 // ================================================================ действия с записями
 Id addItem(App& a, CatalogList l, Id group) {
   Id nid = 0;

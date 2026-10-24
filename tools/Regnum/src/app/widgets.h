@@ -53,7 +53,9 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
 // постройки (локальные эффекты — в провинции, глобальные — государству); Faction — государство или гильдия;
 // Army — войско (эффекты войск); Hero — герой (эффектов у героя нет: природа, состояния); ArchGroup — археологическая
 // группа (только модификаторы археологических групп, действуют эффекты групп).
-enum class ModScope { Any, Local, Faction, Army, Hero, ArchGroup };
+// Local — только локальные эффекты (расы); Province — список провинции: локальные эффекты — на неё, глобальные — на
+// владельца (RULES.md §1), не действуют только эффекты героя.
+enum class ModScope { Any, Local, Province, Faction, Army, Hero, ArchGroup };
 // Правка списка модификаторов помимо состава (modifierList с edit).
 struct ModEdit {
   Id termOf = 0;          // модификатор, срок которого изменён (список при этом не меняется)
@@ -80,6 +82,21 @@ std::string heroState(const World& w, const Character& c);
 // Роли (ТЗ «Доработки №4», п.5): можно ли игровое действие за фракцию (App::canPlay). Нет — уведомление с причиной
 // (открыт прошлый ход или фракция не своя) и false.
 bool checkPlay(App& a, Id faction);
+
+// Туман войны (App::knows): скрытое у чужой фракции — короткая метка «Скрыто» со значком замка.
+constexpr const char* kHidden = "Скрыто";
+void hiddenMark();
+// Показатель (ui::stat) скрытой величины: «Скрыто» и замок, подпись — label.
+void hiddenStat(std::string_view label);
+// Подробности фракции скрыты от игрока: рисует метку «Скрыто» и возвращает true (вызывающий не рисует содержимое).
+bool hiddenFor(App& a, Id faction);
+// Причина отказа правил без чужих запасов: у скрытой фракции хвост «, есть N» («Недостаточно … у X: нужно 5, есть 2»)
+// убирается.
+std::string fogText(App& a, const World& w, std::string text, Id faction);
+
+// Подсказка метки (ui::tag): подсказка над прямоугольником последнего элемента (ui::hoverTip), как ui::tooltip после
+// метки; последний элемент не меняется (markUi после — по метке).
+void tagTip(std::string_view text);
 
 // Фишки-ссылки: щелчок выделяет сущность и открывает её инспектор.
 void factionChip(Id faction, bool showKind = false);

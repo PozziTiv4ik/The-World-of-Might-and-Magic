@@ -40,10 +40,14 @@ struct TipLine {
 };
 // Богатая подсказка к последнему элементу (у элемента должна быть своя подсказка — она заменяется этой).
 void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width = 300);
+// То же над последним элементом без захвата наведения (ui::tag: ui::tooltip и breakdown к метке не показываются).
+void breakdownOver(std::string_view title, const std::vector<TipLine>& lines, float width = 300);
 std::vector<TipLine> rebellionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
 std::vector<TipLine> tradeLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);
 std::vector<TipLine> productionLines(const World& wd, const Province& p, const rules::ProvinceCalc& pc);   // с постройками добычи
 std::vector<TipLine> growthLines(const World& wd, const rules::ProvinceCalc& pc);   // прирост населения по источникам
+std::string growthPct(double v, bool sign = false);                                  // прирост, % — до сотых
+std::vector<TipLine> contentLines(const World& wd, const rules::ProvinceCalc& pc);  // довольство за ход: модификаторы, налог
 std::vector<TipLine> taxLines(const rules::ProvinceCalc& pc);
 std::vector<TipLine> slotLines(const World& wd, const rules::ProvinceCalc& pc);
 // Прибавка маршрутов к торговой ценности, % базы.

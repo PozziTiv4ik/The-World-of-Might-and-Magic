@@ -97,6 +97,8 @@ std::string sourceName(const World& w, const rules::EffectSource& s, Id self, co
       for (const rules::AutoMod& am : autos)
         if ((s.modifier && am.modifier == s.modifier) || (!s.key.empty() && am.key == s.key)) return utf8::lower(am.why);
       return "автоматически";
+    case rules::EffectSource::Hero: return "герой «" + w.characterName(s.id) + "»";
+    case rules::EffectSource::Trait: return rules::traitName(w, s);
   }
   return {};
 }
@@ -110,6 +112,8 @@ const char* sourceIcon(rules::EffectSource::Kind k) {
     case rules::EffectSource::Guild: return "guild";
     case rules::EffectSource::Army: return "army";
     case rules::EffectSource::Auto: return "lock";
+    case rules::EffectSource::Hero: return "hero";
+    case rules::EffectSource::Trait: return "list";
   }
   return "sparkles";
 }

@@ -47,7 +47,10 @@ std::vector<UnitRow> unitRows(const World& w, Id faction, bool fleet) {
       const schema::EnumInfo& ti = schema::unitType(r.type);
       UnitRow u{r.id, r.name.empty() ? std::string(ti.name) : r.name, ti.icon, ti.name, int(r.type), r.total, r.upkeep};
       u.special = r.special && w.special(r.special) ? r.special : 0;
-      u.keyMissing = !r.merc && schema::needsKeyResource(r.type) && !rules::keyAllowed(w, r.type, r.keyRes);   // наёмники — только золото
+      // Наёмники — только золото; особый отряд задаёт свой ключевой ресурс (любой ресурс справочника, правила найма —
+      // rules::recruitCost): пометка — только если его ресурса нет в справочнике.
+      if (u.special) u.keyMissing = r.keyRes && !w.resource(r.keyRes);
+      else u.keyMissing = !r.merc && schema::needsKeyResource(r.type) && !rules::keyAllowed(w, r.type, r.keyRes);
       u.elemental = schema::isElemental(r.type);
       u.merc = r.merc;
       out.push_back(std::move(u));
@@ -256,10 +259,10 @@ void typeTile(RectF r, const char* icon, Color tint) {
   ui::draw::icon(icon, RectF{r.cx() - s * 0.5f, r.cy() - s * 0.5f, s, s}, tint);
 }
 
-bool objectItem(const World& w, const Army& a, bool selected, std::string_view subtitle) {
+bool objectItem(const World& w, const Army& a, bool selected, std::string_view subtitle, bool hidden) {
   ui::IdScope s(i64(a.id) + 0x52000000LL);
   i64 n = unitCount(a);
-  std::string hint = n >= 100000 ? fmtShort(double(n)) : fmtCount(n);
+  std::string hint = hidden ? std::string(w::kHidden) : n >= 100000 ? fmtShort(double(n)) : fmtCount(n);
   const std::string name = objectName(a), caption = objectCaption(a);
   const std::string_view badge = a.allied() ? std::string_view("союз") : std::string_view();
   bool clicked = ui::listItem(name, {.dot = leaderColor(w, a), .subtitle = subtitle, .hint = hint, .badge = badge, .selected = selected,

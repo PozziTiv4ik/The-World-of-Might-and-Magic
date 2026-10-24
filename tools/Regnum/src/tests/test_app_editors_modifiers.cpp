@@ -16,6 +16,18 @@ constexpr Id kTemplateIds = 0xFFFF0000u;   // выбор шаблона без �
 
 const Modifier* rec(const World& w, Id id) { return w.modifier(id); }
 
+// Выбрать модификатор поиском по названию (поиск выбирает первое совпадение) и очистить поиск: в базовых записях сотни
+// своих модификаторов — до строки встроенного список не докрутить.
+void pickByName(Harness& h, const std::string& name) {
+  h.key(Key::F, ctrl());
+  h.type(name);
+  quick(h);
+  h.key(Key::A, ctrl());
+  h.key(Key::Backspace);
+  h.key(Key::Escape);
+  quick(h);
+}
+
 }  // namespace
 
 TEST(app_editors_modifiers_builtin) {
@@ -25,8 +37,9 @@ TEST(app_editors_modifiers_builtin) {
   h->openEditor("modifiers", 0);
   quick(h);
   // Все встроенные (ТЗ 1.1–1.26, 7 модификаторов доработок 2026-10-10, 8 модификаторов заговоров и 18 модификаторов
-  // уровней построек 2026-10-22) — в списке, даже без записей мира.
-  CHECK_EQ(schema::builtinModifiers().size(), size_t(59));
+  // уровней построек 2026-10-22, «Невыплата жалованья», «Чужая вера» и «Карантин» аудита 2026-10-23) — в списке, даже
+  // без записей мира.
+  CHECK_EQ(schema::builtinModifiers().size(), size_t(62));
   for (const Modifier& m : schema::builtinModifiers()) CHECK_MSG(h->uiRect("modifiers.builtin." + m.key) != nullptr, m.key);
   // Список сгруппирован по виду: для провинций, глобальные, для армий, для героев, для археологических групп, везде
   // (сверху вниз).
@@ -41,7 +54,7 @@ TEST(app_editors_modifiers_builtin) {
   }
   // «Патриотизм» — шаблон: записи мира нет, удалить нельзя.
   CHECK_EQ(rules::builtinModId(h->world(), schema::mod::Patriotism), Id(0));
-  CHECK(clickRevealed(h, "modifiers.builtin.patriotism", "modifiers.list"));
+  pickByName(h, "Патриотизм");
   CHECK(h->ui.editorArg >= kTemplateIds);
   CHECK(h->uiRect("modifiers.builtinTag") != nullptr);
   CHECK(h->uiRect("modifiers.autoTag") == nullptr);
@@ -74,14 +87,15 @@ TEST(app_editors_modifiers_builtin) {
     CHECK(selRow && patRow && std::fabs(selRow->y - patRow->y) < 1);
   }
   // Копия встроенного — свой модификатор без ключа.
-  CHECK(clickRevealed(h, "modifiers.builtin.ravaged", "modifiers.list"));
+  pickByName(h, "Разоренная провинция");
+  CHECK(h->uiRect("modifiers.builtin.ravaged") != nullptr && h->uiRect("modifiers.selected") != nullptr);
   h.key(Key::D, ctrl());
   quick(h);
   const Modifier* copy = rec(h->world(), h->ui.editorArg);
   CHECK(copy && copy->key.empty() && copy->has(Fx::ResourcePct));
   CHECK(h->uiRect("modifiers.delete") != nullptr);
   // Автоматический «Слабый контроль»: помечен, действует у государств демо-мира (три советника), вручную не добавляется.
-  CHECK(clickRevealed(h, "modifiers.builtin.weakControl", "modifiers.list"));
+  pickByName(h, "Слабый контроль");
   CHECK(h->uiRect("modifiers.autoTag") != nullptr);
   CHECK(h->uiRect("modifiers.addFaction") == nullptr);
   CHECK(h->uiRect("modifiers.addProvince") == nullptr);
@@ -123,15 +137,13 @@ TEST(app_editors_modifiers_effects_kind_term) {
   CHECK(rec(h->world(), mid)->kind == ModKind::Army);
   CHECK(enterValue(h, "modifiers.duration", "3"));
   CHECK_EQ(rec(h->world(), mid)->duration, 3);
-  // Верность войска за ход (эффект войск) и время исследования технологий (глобальный, предел ТЗ +400 %).
+  // Верность войска за ход (эффект войск); у модификатора войска прочих групп эффектов нет — они не действуют.
   CHECK(clickRevealed(h, "modifiers.fx.loyaltyPerTurn.on"));
   CHECK(enterValue(h, "modifiers.fx.loyaltyPerTurn.value", "-10"));
   CHECK_NEAR(rec(h->world(), mid)->fx[size_t(Fx::LoyaltyPerTurn)], -10.0, 1e-9);
   CHECK(rec(h->world(), mid)->has(Fx::LoyaltyPerTurn));
-  CHECK(clickRevealed(h, "modifiers.fx.researchTimePct.on"));
-  CHECK(enterValue(h, "modifiers.fx.researchTimePct.value", "600"));
-  CHECK_NEAR(rec(h->world(), mid)->fx[size_t(Fx::ResearchTimePct)], 400.0, 1e-9);
   CHECK(h->uiRect("modifiers.army") != nullptr);
+  CHECK(h->uiRect("modifiers.local") == nullptr && h->uiRect("modifiers.global") == nullptr && h->uiRect("modifiers.hero") == nullptr);
   // Для армий: добавить можно только войску; срок — по умолчанию.
   CHECK(h->uiRect("modifiers.addProvince") == nullptr);
   CHECK(h->uiRect("modifiers.addFaction") == nullptr);
@@ -153,9 +165,14 @@ TEST(app_editors_modifiers_effects_kind_term) {
     CHECK(a && std::find(a->modifiers.begin(), a->modifiers.end(), mid) == a->modifiers.end());
     CHECK(a && !a->modTurns.count(mid));
   }
-  // Глобальный модификатор с «Временем исследования» удлиняет исследования государства.
+  // Глобальный модификатор с «Временем исследования» (предел ТЗ +400 %) удлиняет исследования государства; у
+  // глобального видны локальные, глобальные, войск и групп эффекты, но не эффекты героя.
   CHECK(comboStep(h, "modifiers.kind", -1));   // «Для армий» → «Глобальный»
   CHECK(rec(h->world(), mid)->kind == ModKind::Faction);
+  CHECK(h->uiRect("modifiers.local") != nullptr && h->uiRect("modifiers.arch") != nullptr && h->uiRect("modifiers.hero") == nullptr);
+  CHECK(clickRevealed(h, "modifiers.fx.researchTimePct.on"));
+  CHECK(enterValue(h, "modifiers.fx.researchTimePct.value", "600"));
+  CHECK_NEAR(rec(h->world(), mid)->fx[size_t(Fx::ResearchTimePct)], 400.0, 1e-9);
   Id state = 0, tech = 0;
   h->world().techs.each([&](const Tech& t) {
     const Faction* f = h->world().faction(t.faction);
@@ -189,12 +206,20 @@ TEST(app_editors_modifiers_groups) {
       }
     return 0;
   };
+  // Список — к началу (колесо вверх до упора): в базовых записях сотни своих модификаторов.
+  auto toTop = [&] {
+    if (const RectF* l = h->uiRect("modifiers.list")) h.wheel(l->cx(), l->cy(), 1000);
+    quick(h);
+  };
   // Группы раскрыты; «Живой» — в «Для героев», под её заголовком.
   {
     const RectF* g = h->uiRect("modifiers.group.hero");
     const RectF* r = h->uiRect("modifiers.builtin.living");
     CHECK(g && r && r->y > g->y);
   }
+  // «Для провинций» и «Глобальные» (расы, должности, формы правления…) свёрнуты — «Для героев» близко к началу.
+  CHECK(clickRevealed(h, "modifiers.group.province", "modifiers.list", 0));   // заголовок — у самого верха списка
+  CHECK(clickRevealed(h, "modifiers.group.faction", "modifiers.list"));
   // Свернуть «Для героев»: строк группы нет, заголовок остаётся.
   CHECK(clickRevealed(h, "modifiers.group.hero", "modifiers.list"));
   CHECK(h->uiRect("modifiers.builtin.living") == nullptr);
@@ -216,6 +241,7 @@ TEST(app_editors_modifiers_groups) {
   CHECK(h->uiRect("modifiers.builtin.living") != nullptr);
   CHECK(h->uiRect("modifiers.selected") != nullptr);
   // Снова свернуть: выбранный остаётся выбранным, но строки не видно.
+  toTop();
   CHECK(clickRevealed(h, "modifiers.group.hero", "modifiers.list"));
   CHECK(h->uiRect("modifiers.builtin.living") == nullptr);
   CHECK_EQ(h->ui.editorArg, entryId(schema::mod::Living));
@@ -226,8 +252,8 @@ TEST(app_editors_modifiers_groups) {
   quick(h);
   CHECK(h->uiRect("modifiers.builtin.dead") != nullptr);
   CHECK(h->uiRect("modifiers.selected") != nullptr);
-  // ↑↓ — по видимым строкам: «Глобальные» свёрнуты, после последнего «Для провинций» идёт первый «Для армий».
-  CHECK(clickRevealed(h, "modifiers.group.faction", "modifiers.list"));
+  // ↑↓ — по видимым строкам: «Глобальные» свёрнуты (выше), после последнего «Для провинций» (выбор раскрывает группу)
+  // идёт первый «Для армий».
   const char* lastProv = nullptr;
   const char* firstArmy = nullptr;
   for (const Modifier& m : schema::builtinModifiers()) {
@@ -235,12 +261,11 @@ TEST(app_editors_modifiers_groups) {
     if (m.kind == ModKind::Army && !firstArmy) firstArmy = m.key.c_str();
   }
   CHECK(lastProv && firstArmy);
-  bool ownArmy = false, ownProv = false;
+  bool ownArmy = false;
   h->world().modifiers.each([&](const Modifier& m) {
     if (m.key.empty() && m.kind == ModKind::Army) ownArmy = true;
-    if (m.key.empty() && m.kind == ModKind::Province) ownProv = true;
   });
-  CHECK(!ownArmy && !ownProv);   // в демо-мире свои модификаторы — «Везде»
+  CHECK(!ownArmy);   // своих модификаторов войск в демо-мире нет: первый «Для армий» — встроенный
   if (lastProv && firstArmy) {
     h->openEditor("modifiers", entryId(lastProv));
     quick(h);
@@ -319,8 +344,10 @@ TEST(app_editors_modifiers_arch_and_generation) {
   CHECK(h->world().modifier(mid)->essGen.empty());
   CHECK(h->world().modifier(mid)->resGen.empty());
   CHECK(h->world().modifier(mid)->has(Fx::ArchSuccessPct));
-  // «Некромант» (шаблон): генерация по умолчанию — эссенция смерти +10.
-  CHECK(ed::clickRevealed(h, "modifiers.builtin.necromancer", "modifiers.list"));
+  // «Некромант» (запись мира — модификатор класса «Некромант» базовых записей): генерация по умолчанию — эссенция
+  // смерти +10.
+  CHECK(rules::builtinModId(h->world(), schema::mod::Necromancer) != 0);
+  h->openEditor("modifiers", rules::builtinModId(h->world(), schema::mod::Necromancer));
   ed::quick(h);
   CHECK(ed::reveal(h, "modifiers.gen.ess." + std::to_string(death)));
   shotClean(h, "econ2_mods_necromancer");

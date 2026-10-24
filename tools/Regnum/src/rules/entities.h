@@ -11,7 +11,9 @@ namespace rg::rules {
 
 // ================================================================ сущности
 Id createFaction(Tx& tx, FactionKind kind, const std::string& name = {});
-void removeFaction(Tx& tx, Id faction);      // чистит владения, отношения, войска, сделки, штабы, ссылки
+// Чистит владения, отношения, войска, сделки, штабы, ссылки; заключённые тюрем — в население провинций государства
+// (провинций нет — рассеиваются), уникальные реликвии склада снова свободны. why — причина в хронику («нет земель…»).
+void removeFaction(Tx& tx, Id faction, const std::string& why = {});
 Id createCharacter(Tx& tx, Id faction = 0, const std::string& name = {});
 void removeCharacter(Tx& tx, Id character);  // чистит лордов, правителей, совет, героев войск
 Id createModifier(Tx& tx, const std::string& name = {});
@@ -88,6 +90,8 @@ bool isArchFind(const World& w, Id relic);
 // штуку из инвентаря героя в инвентарь его государства.
 void giveRelic(Tx& tx, Id character, Id relic, std::optional<RelicPlace> from = std::nullopt);
 void takeRelic(Tx& tx, Id character, Id relic);
+// Инвентарь героя доступен его государству: не у пленного и не у арестованного; выдать (give) — ещё и не мёртвому.
+bool inventoryReachable(const World& w, Id character, bool give, std::string* why = nullptr);
 // Хранилище реликвий постройки (Building::relicStore): положить count штук — из инвентаря государства-владельца, его
 // героев, его хранилищ или (правка мира) новые из справочника; from не задан — как у giveRelic. Вынуть — в инвентарь
 // государства-владельца.

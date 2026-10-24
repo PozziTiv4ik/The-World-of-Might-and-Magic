@@ -104,6 +104,7 @@ TEST(rules_turn_occupied_income_recipient) {
     p.baseTrade = 100;
     p.resource = 2;
     p.resourceAmount = 10;
+    declareWar(tx, f.B, f.A);   // вне войны оккупация снимается в конце хода
     setOccupied(tx, f.p[0], f.B);
     tx.settings().occupiedIncome = OccupiedIncome::Occupier;
   });
@@ -235,15 +236,16 @@ TEST(rules_turn_population_and_contentment) {
   });
   turn(f);
   const World& w = f.w();
-  CHECK_EQ(w.province(f.p[0])->races[0].pop, 1100);
-  CHECK_EQ(w.province(f.p[0])->races[1].pop, 366);  // 366,3 → 366
+  // Положительный прирост убывает к пределу населения (средняя провинция — 120 000): 10 % × (1 − 1333 / 120 000).
+  CHECK_EQ(w.province(f.p[0])->races[0].pop, 1099);  // 1098,9 → 1099
+  CHECK_EQ(w.province(f.p[0])->races[1].pop, 366);   // 365,9 → 366
   CHECK_NEAR(w.province(f.p[0])->contentment, 100, 1e-9);  // в пределах −100…100
   CHECK_EQ(w.province(f.p[1])->races[0].pop, 2);    // 1,5 → 2
   CHECK_NEAR(w.province(f.p[1])->contentment, -100, 1e-9);
   CHECK_EQ(w.province(f.seaW)->races[0].pop, 100);  // морская провинция не участвует
   CHECK_EQ(w.province(f.p[2])->races[0].pop, 500);
   turn(f);
-  CHECK_EQ(f.w().province(f.p[0])->races[0].pop, 1210);
+  CHECK_EQ(f.w().province(f.p[0])->races[0].pop, 1208);   // 1099 × (1 + 10 % × (1 − 1465 / 120 000))
   CHECK_EQ(f.w().province(f.p[1])->races[0].pop, 1);
 }
 

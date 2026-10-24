@@ -115,7 +115,7 @@ const EffectInfo kEffects[kFxCount] = {
   {Fx::RebellionPct, "rebellionPct", "Вероятность восстания", "%", -50, 50, true, false, false, false, "rebellion"},
   {Fx::ResourcePct, "resourcePct", "Добыча ресурса, %", "%", -100, 100, true, false, false, false, "resource"},
   {Fx::ResourceFlat, "resourceFlat", "Добыча ресурса, количество", "", -100, 100, true, false, false, false, "resource"},
-  {Fx::Slots, "slots", "Слоты построек", "", -5, 5, true, false, false, true, "slots"},
+  {Fx::Slots, "slots", "Слоты построек", "", -10, 10, true, false, false, true, "slots"},
   {Fx::IncomePct, "incomePct", "Доход в казну", "%", -50, 50, false, false, false, false, "treasury"},
   {Fx::DiplomacyPerTurn, "diplomacyPerTurn", "Отношения за ход", "", -25, 25, false, true, true, false, "diplomacy"},
   {Fx::ArmyUpkeepPct, "armyUpkeepPct", "Содержание войск", "%", -75, 75, false, false, false, false, "army-upkeep"},
@@ -181,6 +181,14 @@ const EnumInfo kModKinds[int(ModKind::Count)] = {
 const EnumInfo kPlotKinds[int(PlotKind::Count)] = {
   {"external", "Против другого государства", "target"},
   {"internal", "Внутренний заговор", "eye-off"},
+};
+
+const EnumInfo kProposalKinds[int(ProposalKind::Count)] = {
+  {"deal", "Сделка", "handshake"},
+  {"truce", "Перемирие", "diplomacy"},
+  {"alliance", "Союз", "alliance"},
+  {"defend", "Защита вассала", "shield"},
+  {"call", "Призыв вассала", "banner"},
 };
 
 const EnumInfo kDealItemKinds[int(DealItemKind::Count)] = {
@@ -364,6 +372,8 @@ const std::vector<Modifier>& builtinModifiers() {
                    {{F::TradePct, 5}, {F::ContentmentPerTurn, 1}}));
     v.push_back(mk(mod::Famine, "Голод", ModKind::Faction, 0, "grain", 0x9b6a2c, "Запас провизии меньше нуля.",
                    {{F::LoyaltyPerTurn, -1}, {F::PopGrowthPct, -1}, {F::ContentmentPerTurn, -5}}));
+    v.push_back(mk(mod::Unpaid, "Невыплата жалованья", ModKind::Faction, 0, "treasury", 0xa8432c, "Казна в долгу.",
+                   {{F::LoyaltyPerTurn, -5}, {F::ContentmentPerTurn, -2}}));
     v.push_back(mk(mod::UndeadWaste, "Пустошь нежити", ModKind::Province, 0, "skull", 0x4b4f58,
                    "Население — 0. Строить и получать доход с ценности может только государство нежити."));
     v.push_back(mk(mod::Desecrated, "Оскверненная провинция", ModKind::Province, 0, "flame", 0x8e2a22,
@@ -379,6 +389,10 @@ const std::vector<Modifier>& builtinModifiers() {
                    "Истекая сама, распространяется на соседние провинции.", {{F::PopGrowthPct, -5}}));
     v.push_back(mk(mod::PlagueImmunity, "Временный иммунитет", ModKind::Province, kImmunityTurns, "heal", 0x4fb09a,
                    "Пока действует, чуму установить нельзя."));
+    v.push_back(mk(mod::ForeignFaith, "Чужая вера", ModKind::Province, 0, "religion", 0x8a6d3b, "Религия провинции — не религия государства.",
+                   {{F::ContentmentPerTurn, -1}}));
+    v.push_back(mk(mod::Quarantine, "Карантин", ModKind::Province, kQuarantineTurns, "shield", 0x4f8a9b,
+                   "Чума не приходит в провинцию и не уходит из неё.", {{F::TradePct, -25}, {F::ContentmentPerTurn, -2}}));
     v.push_back(mk(mod::ArchWounded, "Ранение в ходе исследования", ModKind::ArchGroup, kWoundTurns, "warning", 0xb5523b,
                    "Группу нельзя отправлять на исследования."));
     v.push_back(mk(mod::ArchPlague, "Заражение чумой", ModKind::ArchGroup, kPlagueTurns, "plague", 0x7f8f2a,
@@ -416,7 +430,8 @@ const std::vector<Modifier>& builtinModifiers() {
     for (size_t k = 0, i = 1; k < keys.size(); i++) {
       v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Province, 0, "b-residential", 0x5f9d6a, "", {{F::PopGrowthPct, double(i)}}));
       k++;
-      v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Province, 0, "slots", 0xc08a3a, "", {{F::Slots, double(i)}}));
+      // «Гильдия строителей» сама занимает слот: уровень N даёт N + 1 слот (прибавка N сверх своего).
+      v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Province, 0, "slots", 0xc08a3a, "", {{F::Slots, double(i) + 1}}));
       k++;
       v.push_back(mk(keys[k].c_str(), names[k].c_str(), ModKind::Faction, 0, "crosshair", 0x5b4a7a,
                      "Успех заказных убийств заговоров против других государств.", {{F::PlotAssassinPct, 10.0 * double(i)}}));
@@ -444,7 +459,7 @@ bool isNatureKey(std::string_view key) { return key == mod::Living || key == mod
 
 bool isAutoKey(std::string_view key) {
   return key == mod::Capital || key == mod::Decentralization || key == mod::WeakControl || key == mod::Centralized || key == mod::Famine ||
-         key == mod::CouncilInfluence || key == mod::ArchValues;
+         key == mod::CouncilInfluence || key == mod::ArchValues || key == mod::Unpaid || key == mod::ForeignFaith;
 }
 
 const std::vector<BuiltinGen>& builtinGens() {
@@ -502,6 +517,22 @@ const std::vector<Constant>& builtinConstants() {
     v.push_back(num(cst::ArchGroupPeople, "Население на археологическую группу", 100,
                     "Сколько жителей (у государства нежити — трупов) уходит на одну археологическую группу"));
     v.push_back(num(cst::ArchGroupGold, "Золото на археологическую группу", 5, "Сколько золота стоит одна археологическая группа"));
+    v.push_back(num(cst::TaxNorm, "Налог без недовольства", 10, "Общий налог провинции, %, выше которого падает её довольство"));
+    v.push_back(num(cst::TaxUnrest, "Недовольство налогом", 0.2, "Довольство за ход: минус столько за каждый процент налога сверх нормы"));
+    v.push_back(num(cst::FamineDeaths, "Гибель от голода", 10,
+                    "Сколько процентов голодающих (недостача провизии / норма на жителя) гибнет за ход"));
+    v.push_back(num(cst::PopGrowthBase, "Естественный прирост", 0.5,
+                    "Прирост населения провинций государства живых за ход, %; уменьшается к пределу населения провинции"));
+    v.push_back(num(cst::PlagueSpread, "Распространение чумы", 50, "Вероятность, %, заражения каждой соседней провинции, когда чума истекает"));
+    v.push_back(num(cst::GalleonIncome, "Доход торгового галеона", 0.5, "Золото за ход от одного торгового галеона в торговле"));
+    v.push_back(num(cst::ResearchSlots, "Одновременных исследований", 3,
+                    "Сколько технологий (своих и общих вместе) фракция исследует одновременно"));
+    v.push_back(num(cst::DealBreak, "Расторжение сделки", -10, "Изменение отношений, когда сторона расторгает сделку «каждый ход»"));
+    v.push_back(num(cst::LandlessTurns, "Ходов без земель и войск", 3,
+                    "Государство в войне без провинций, войск и флота столько ходов подряд упраздняется"));
+    v.push_back(num(cst::TruceCalm, "Мир после перемирия", 5, "Сколько ходов после перемирия стороны не могут объявить друг другу войну"));
+    v.push_back(num(cst::RespecTurns, "Ходов между сменами класса", 10,
+                    "Игрок меняет класс, подкласс или сбрасывает таланты героя не чаще, чем раз в столько ходов"));
     return v;
   }();
   return list;
@@ -535,6 +566,8 @@ const EnumInfo kMapModes[int(MapMode::Count)] = {
   {"religion", "Религии", "religion"},
   {"culture", "Культуры", "culture"},
   {"terrain", "Чистая карта", "mode-terrain"},
+  {"diplomacy", "Дипломатия", "diplomacy"},
+  {"plague", "Чума и пустоши", "plague"},
 };
 
 int findEnum(const EnumInfo* list, int n, std::string_view id) {
@@ -577,6 +610,7 @@ const SeqInfo kSeqs[kSeqCount] = {
   {"archGroup", "ag", "археологической группы"},
   {"subClass", "sc", "подкласса героя"},
   {"plot", "pt", "заговора"},
+  {"proposal", "pr", "предложения"},
 };
 
 const SeqInfo& seqInfo(Seq s) {

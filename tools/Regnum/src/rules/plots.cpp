@@ -54,7 +54,8 @@ int stateBuildingLevel(const World& w, Id state, std::string_view key) {
   return best;
 }
 
-// Бросок события заговора: зерно — счётчик случайных событий мира и участники (каждое нажатие — новый бросок).
+// Бросок события заговора: зерно — счётчик случайных событий мира и участники (каждое нажатие — новый бросок). Рост
+// счётчика — отметка «действие со случайным исходом»: игроку его не отменить (app/app.cpp).
 Rng plotRng(Tx& tx, Id a, Id b) {
   const u32 n = ++tx.meta().rng;
   return Rng(hashMix(hashMix(hashMix(0x504C4F5453434F4Eull, u64(n)), u64(a)), u64(b)));
@@ -347,11 +348,9 @@ double heroAssassinPct(const World& w, Id character) {
   const Character* c = w.character(character);
   if (!c) return 0;
   double v = 0;
-  auto add = [&](Id m) {
-    if (const Modifier* x = w.modifier(m); x && x->has(Fx::AssassinPct) && std::isfinite(x->get(Fx::AssassinPct))) v += x->get(Fx::AssassinPct);
-  };
-  for (Id m : c->modifiers) add(m);
-  for (Id m : talentModifiers(w, character)) add(m);
+  for (const HeroMod& hm : heroModifiers(w, character))
+    if (const Modifier* x = w.modifier(hm.modifier); x && x->has(Fx::AssassinPct) && std::isfinite(x->get(Fx::AssassinPct)))
+      v += x->get(Fx::AssassinPct) * hm.scale;
   return v;
 }
 
@@ -399,6 +398,15 @@ void cancelHit(Tx& tx, Id plot, Id character) {
   refund(tx, p, h->gold);
   auto& v = tx.plot(plot).hits;
   v.erase(std::remove_if(v.begin(), v.end(), [&](const PlotHit& x) { return x.character == character; }), v.end());
+}
+
+void setHitReviewed(Tx& tx, Id plot, Id character, bool on) {
+  const Plot& p = needPlot(tx.w(), plot);
+  const PlotHit* h = p.hit(character);
+  if (!h) fail("Заказа на этого героя нет");
+  if (h->reviewed == on) return;
+  for (PlotHit& x : tx.plot(plot).hits)
+    if (x.character == character) x.reviewed = on;
 }
 
 void guardHit(Tx& tx, Id plot, Id character, bool on) {
@@ -730,12 +738,14 @@ PlotResult executePlot(Tx& tx, Id plot) {
   const Faction& T = *tx.w().faction(target);
   const std::string name = "Заговор " + nameOr(tx.w().characterName(P.leader), kNameless);
   const Color base = T.color;
+  const StateKind kind = T.stateKind;   // заговорщики — того же вида, что и государство-цель
+  const Id capital = T.capital;
   const Id S = createFaction(tx, FactionKind::State, name);
   {
     Faction& s = tx.faction(S);
     s.conspiracy = true;
     s.rebelOf = target;
-    s.stateKind = StateKind::Living;
+    s.stateKind = kind;
     s.color = Color::mix(base, Color::hex(0x2a1a3a), 0.6f);
     s.flag.colors = {s.color, Color::hex(0x141018), Color::hex(0xd9c79a)};
     s.flag.pattern = FlagPattern::Bend;
@@ -902,6 +912,17 @@ PlotResult executePlot(Tx& tx, Id plot) {
       Army& m = tx.army(a);
       m.groups[0].heroes.push_back(h);
       if (!m.commander) m.commander = h;
+    }
+  }
+  // Войск восстания нет — свободные герои образуют своё войско у провинции, где лидер — лорд (иначе у столицы цели,
+  // иначе у первой её провинции): государство заговора не исчезает в конце хода без войск.
+  if (!free.empty() && uprisings.empty()) {
+    Id at = tx.w().provinces.firstId([&](const Province& p) { return p.lord == P.leader && !p.sea; });
+    if (!at && capital && tx.w().province(capital)) at = capital;
+    if (!at) at = tx.w().provinces.firstId([&](const Province& p) { return p.owner == target && !p.sea; });
+    if (const auto lab = at ? provinceLabel(tx, at) : std::nullopt) {
+      const Id cmd = contains(free, P.leader) ? P.leader : free.front();
+      newArmy(ArmyKind::Army, "Заговорщики: " + nameOr(tx.w().characterName(P.leader), kNameless), *lab, ArmyGroup{S, {}, free}, cmd);
     }
   }
 

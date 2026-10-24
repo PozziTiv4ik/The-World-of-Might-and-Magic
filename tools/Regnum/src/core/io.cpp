@@ -8,6 +8,7 @@
 #include "base/jobs.h"
 #include "codec/zip.h"
 #include "codec/zlib.h"
+#include "core/content.h"
 #include "core/io_internal.h"
 
 namespace rg::io {
@@ -60,14 +61,83 @@ i64 wallMs() {
 // (FAT — 2 с) не меняет mtime, поэтому свежие файлы сверяются по содержимому.
 constexpr i64 kRacyMs = 2000;
 
-FileStamp stampOf(const std::string& data, std::optional<i64> mtime) {
+FileStamp stampOf(const std::string& data, std::optional<i64> mtime, u64 gen) {
   FileStamp s;
   s.exists = true;
   s.size = data.size();
   s.crc = codec::crc32(data);
   s.mtime = mtime.value_or(0);
   s.checked = wallMs();
+  s.gen = gen;
   return s;
+}
+
+// ---------------------------------------------------------------- метка поколения
+// Член верхнего уровня в тексте файла (json::write с отступом 2 и запись по строке на элемент): «\n  "generation": N».
+constexpr std::string_view kGenLine = "\n  \"generation\": ";
+
+// Где в тексте метка вместе с запятой-разделителем: [начало, конец) для удаления; nullopt — метки нет (или текст не
+// в принятом виде).
+std::optional<std::pair<size_t, size_t>> genSpan(std::string_view text) {
+  const size_t p = text.find(kGenLine);
+  if (p == std::string_view::npos) return std::nullopt;
+  size_t e = p + kGenLine.size();
+  const size_t digits = e;
+  while (e < text.size() && text[e] >= '0' && text[e] <= '9') e++;
+  if (e == digits || e >= text.size()) return std::nullopt;
+  if (text[e] == ',') return std::make_pair(p, e + 1);   // не последний член: «\n  "generation": N,» перед следующим
+  if (text[e] == '\n' && p > 0 && text[p - 1] == ',') return std::make_pair(p - 1, e);   // последний: «,\n  "generation": N»
+  return std::nullopt;
+}
+
+// Текст на диске совпадает с text (без метки) без учёта своей метки поколения — без копирования.
+bool sameBody(std::string_view disk, std::string_view text) {
+  if (disk == text) return true;
+  auto s = genSpan(disk);
+  if (!s) return false;
+  const size_t cut = s->second - s->first;
+  return disk.size() - cut == text.size() && disk.substr(0, s->first) == text.substr(0, s->first) &&
+         disk.substr(s->second) == text.substr(s->first);
+}
+
+// Вставить метку в текст без метки (на место по алфавиту ключей верхнего уровня).
+void insertGeneration(std::string& out, u64 gen) {
+  if (!gen) return;
+  const std::string member = std::string(kGenLine) + std::to_string(gen);
+  // Ключи верхнего уровня — «\n  "ключ": » в порядке байтов: метка встаёт перед первым большим ключом.
+  for (size_t p = out.find("\n  \""); p != std::string::npos; p = out.find("\n  \"", p + 1)) {
+    const size_t ks = p + 4, ke = out.find('"', ks);
+    if (ke == std::string::npos) break;
+    if (std::string_view(out).substr(ks, ke - ks) > std::string_view(kGenerationKey)) {
+      out.insert(p, member + ",");
+      return;
+    }
+  }
+  const size_t close = out.rfind("\n}");
+  if (close == std::string::npos || close == 0) return;   // не объект в принятом виде — без метки
+  out.insert(close, "," + member);
+}
+
+// Метка разобранного файла; член удаляется (разбор таблиц его не знает). 0 — нет или не целое ≥ 1.
+u64 takeGeneration(Value& v) {
+  if (!v.isObj()) return 0;
+  const Value* g = v.find(kGenerationKey);
+  if (!g) return 0;
+  const double d = g->asNum(0);
+  const u64 gen = d >= 1 && d < 9e15 && d == std::floor(d) ? u64(d) : 0;
+  v.erase(kGenerationKey);
+  return gen;
+}
+
+// Мир только для чтения: причины по-русски (пусто — запись разрешена). version — версия формата world.json.
+std::string lockReason(double version, const World& w, const std::vector<std::string>& missing) {
+  std::vector<std::string> why;
+  if (!missing.empty()) why.push_back((missing.size() == 1 ? "Нет файла данных " : "Нет файлов данных ") + join(missing, ", ") + ".");
+  if (version > kVersion) why.push_back("Формат мира новее этой версии Regnum (" + json::write(Value(version)) + ").");
+  if (w.meta->content > content::kVersion)
+    why.push_back("Базовые записи мира новее этой версии Regnum (версия " + std::to_string(w.meta->content) + ", программа знает " +
+                  std::to_string(content::kVersion) + ").");
+  return join(why, " ");
 }
 
 // ---------------------------------------------------------------- источник файлов: папка или архив
@@ -174,13 +244,17 @@ LoadResult loadFrom(const Source& src) {
   Value world = parseFile(*worldText, src.origin(kWorldFile));
   Warnings warnFiles[F_COUNT];
   checkVersion(world, src.origin(kWorldFile), warnFiles[F_WORLD]);
-  if (!r.bundle) r.files.files[kWorldFile] = stampOf(*worldText, worldTime);
+  const double version = world.num("version", 1);
+  const u64 worldGen = takeGeneration(world);
+  r.generation = worldGen;
+  if (!r.bundle) r.files.files[kWorldFile] = stampOf(*worldText, worldTime, worldGen);
 
   Parts parts;
   std::string errors[F_COUNT];
   std::string texts[F_COUNT];
   bool present[F_COUNT] = {};
   FileStamp stamps[F_COUNT];
+  u64 gens[F_COUNT] = {};
   // Архив читается последовательно, папка — параллельно; разбор — параллельно.
   auto readOne = [&](size_t i) {
     const std::string rel = kFiles[i].path;
@@ -192,7 +266,7 @@ LoadResult loadFrom(const Source& src) {
       errors[i] = "Не удалось прочитать " + src.origin(rel) + ": " + e;
       return;
     }
-    if (!r.bundle) stamps[i] = stampOf(*text, t);
+    if (!r.bundle) stamps[i] = stampOf(*text, t, 0);
     texts[i] = std::move(*text);
     present[i] = true;
   };
@@ -205,6 +279,8 @@ LoadResult loadFrom(const Source& src) {
     try {
       Value v = parseFile(texts[i], src.origin(kFiles[i].path));
       std::string().swap(texts[i]);
+      gens[i] = takeGeneration(v);
+      stamps[i].gen = gens[i];
       decode(v, FileId(i), parts, warnFiles[i]);
     } catch (const std::exception& e) {
       errors[i] = e.what();
@@ -214,7 +290,16 @@ LoadResult loadFrom(const Source& src) {
     if (!errors[i].empty()) fail(errors[i]);
   decode(world, F_WORLD, parts, warnFiles[F_WORLD]);
   for (size_t i = 0; i < F_WORLD; i++) {
-    if (!present[i] && !kFiles[i].optional) warnFiles[i].push_back({kFiles[i].path, "", "файл не найден — таблица пуста"});
+    if (!present[i] && !kFiles[i].optional) {
+      warnFiles[i].push_back({kFiles[i].path, "", "файл не найден — таблица пуста"});
+      r.missing.push_back(kFiles[i].path);
+    }
+    // Смешанное сохранение: файл записан сохранением, которое не дошло до world.json (оно пишется последним).
+    if (present[i] && worldGen && gens[i] > worldGen) {
+      warnFiles[i].push_back({kFiles[i].path, "", "смешанное сохранение: файл новее world.json (поколение " + std::to_string(gens[i]) +
+                                                      ", у world.json — " + std::to_string(worldGen) + ")"});
+      r.mixed.push_back(kFiles[i].path);
+    }
     if (!r.bundle) r.files.files[kFiles[i].path] = stamps[i];
   }
   r.warnings = std::move(warnFiles[F_WORLD]);
@@ -224,6 +309,7 @@ LoadResult loadFrom(const Source& src) {
     if (fileIndex(rel) < 0 && utf8::lower(fs::ext(rel)) == ".json")
       r.warnings.push_back({rel, "", "неизвестный файл данных — не читается (имена файлов мира — docs/FORMAT.md)"});
   r.world = assemble(std::move(parts), r.warnings, &r.fixedTables);
+  r.readOnly = lockReason(version, r.world, r.missing);
   return r;
 }
 
@@ -246,17 +332,20 @@ std::vector<int> allFiles() {
 // ---------------------------------------------------------------- резервные копии
 // .regnum-backup/<папка файла>/<имя>.<NNNNNN><расширение>; номер растёт, хранятся последние keep.
 // auto — версия, записанная автосохранением: своя очередь в .regnum-backup/auto/ (ручные копии не вытесняются).
-std::string backupFile(const std::string& folder, const std::string& relIn, const std::string& content, int keep, bool autoQueue = false) {
-  std::string root = fs::join(folder, kBackupDir);
+struct Copy {
+  u64 num = 0;
+  std::string path;  // полный путь
+  std::string rel;   // относительный путь в папке мира
+  i64 mtime = 0;
+};
+// Копии файла relIn одной очереди по возрастанию номера.
+std::vector<Copy> backupCopies(const std::string& folder, const std::string& relIn, bool autoQueue) {
   std::string rel = autoQueue ? "auto/" + relIn : relIn;
   std::string sub = fs::parent(rel);
+  std::string root = fs::join(folder, kBackupDir);
   std::string dir = sub.empty() ? root : fs::join(root, sub);
-  std::string err;
-  std::string ignore = fs::join(root, ".gitignore");
-  if (!fs::isFile(ignore) && !fs::writeFileAtomic(ignore, std::string_view("*\n"), &err))
-    fail("Не удалось создать папку резервных копий «" + root + "»: " + err);
   std::string stem = fs::stem(rel), ext = fs::ext(rel);
-  std::vector<std::pair<u64, std::string>> have;
+  std::vector<Copy> have;
   for (auto& e : fs::list(dir)) {
     if (e.dir) continue;
     const std::string& n = e.name;
@@ -267,18 +356,34 @@ std::string backupFile(const std::string& folder, const std::string& relIn, cons
     u64 k = 0;
     auto res = std::from_chars(num.data(), num.data() + num.size(), k);
     if (num.empty() || res.ec != std::errc() || res.ptr != num.data() + num.size()) continue;
-    have.push_back({k, e.path});
+    have.push_back({k, e.path, std::string(kBackupDir) + "/" + (sub.empty() ? "" : sub + "/") + n, e.mtime});
   }
-  std::sort(have.begin(), have.end());
-  u64 next = have.empty() ? 1 : have.back().first + 1;
+  std::sort(have.begin(), have.end(), [](const Copy& a, const Copy& b) { return a.num < b.num; });
+  return have;
+}
+
+// Копия, совпадающая с последней копией очереди, не дублируется (повторная попытка сохранения после ошибки,
+// возврат к прежнему содержимому): очередь не вытесняется одинаковыми версиями.
+std::string backupFile(const std::string& folder, const std::string& relIn, const std::string& content, int keep, bool autoQueue = false) {
+  std::string root = fs::join(folder, kBackupDir);
+  std::string rel = autoQueue ? "auto/" + relIn : relIn;
+  std::string sub = fs::parent(rel);
+  std::string dir = sub.empty() ? root : fs::join(root, sub);
+  std::string err;
+  std::string ignore = fs::join(root, ".gitignore");
+  if (!fs::isFile(ignore) && !fs::writeFileAtomic(ignore, std::string_view("*\n"), &err))
+    fail("Не удалось создать папку резервных копий «" + root + "»: " + err);
+  std::vector<Copy> have = backupCopies(folder, relIn, autoQueue);
+  if (!have.empty() && fs::readFile(have.back().path) == content) return have.back().rel;
+  u64 next = have.empty() ? 1 : have.back().num + 1;
   char buf[32];
   std::snprintf(buf, sizeof buf, ".%06llu", static_cast<unsigned long long>(next));
-  std::string name = stem + buf + ext;
+  std::string name = fs::stem(rel) + buf + fs::ext(rel);
   std::string full = fs::join(dir, name);
   if (!fs::writeFileAtomic(full, content, &err)) fail("Не удалось создать резервную копию «" + full + "»: " + err);
-  have.push_back({next, full});
+  have.push_back({next, full, {}, 0});
   size_t excess = have.size() > size_t(keep) ? have.size() - size_t(keep) : 0;
-  for (size_t i = 0; i < excess; i++) fs::remove(have[i].second);
+  for (size_t i = 0; i < excess; i++) fs::remove(have[i].path);
   return std::string(kBackupDir) + "/" + (sub.empty() ? "" : sub + "/") + name;
 }
 
@@ -527,31 +632,111 @@ SaveResult save(const std::string& folder, const World& w, u32 dirtyTables, File
   }
 
   SaveResult res;
-  auto texts = fileTexts(w, todo);
+  // Тексты без метки поколения и прежнее содержимое; совпадающие с диском (без метки) файлы не переписываются.
+  std::vector<std::string> texts = fileTexts(w, todo);
+  std::vector<std::optional<std::string>> olds(todo.size());
+  jobs::parallelFor(todo.size(), [&](size_t k) {
+    const std::string full = fs::join(folder, kFiles[todo[k]].path);
+    if (fs::isFile(full)) olds[k] = fs::readFile(full);
+  }, 1);
+  std::vector<size_t> changed;   // индексы todo в порядке записи (world.json — последним)
   for (size_t k = 0; k < todo.size(); k++) {
     const std::string rel = kFiles[todo[k]].path;
-    const std::string full = fs::join(folder, rel);
-    const std::string& text = texts[k];
-    std::optional<std::string> old = fs::isFile(full) ? fs::readFile(full) : std::nullopt;
-    if (old && *old == text) {
+    if (olds[k] && sameBody(*olds[k], texts[k])) {
       res.unchanged.push_back(rel);
-      if (state) state->files[rel] = stampOf(text, fs::mtime(full));
+      if (state) state->files[rel] = stampOf(*olds[k], fs::mtime(fs::join(folder, rel)), generationIn(*olds[k]));
       continue;
     }
-    if (old && opt.backups && opt.keepBackups > 0) {
-      bool autoQueue = std::find(opt.autoBackups.begin(), opt.autoBackups.end(), rel) != opt.autoBackups.end();
-      res.backups.push_back(backupFile(folder, rel, *old, opt.keepBackups, autoQueue));
+    changed.push_back(k);
+  }
+  if (!changed.empty()) {
+    // Поколение: несколько файлов — новое, и world.json (запись о сохранении целиком) пишется последним даже без
+    // изменений; один файл заменяется атомарно сам — поколение world.json на диске.
+    const std::string worldFull = fs::join(folder, kWorldFile);
+    auto worldOnDisk = fs::isFile(worldFull) ? fs::readFile(worldFull) : std::nullopt;
+    u64 diskGen = 0;
+    if (worldOnDisk)
+      if (auto v = json::tryParse(*worldOnDisk)) diskGen = u64(std::max<i64>(0, v->integer(kGenerationKey, 0)));
+    const bool multi = changed.size() > 1;
+    if (multi && todo[changed.back()] != F_WORLD) {
+      auto it = std::find(todo.begin(), todo.end(), int(F_WORLD));
+      if (it != todo.end()) {   // world.json без изменений — всё равно пишется последним
+        changed.push_back(size_t(it - todo.begin()));
+        res.unchanged.erase(std::remove(res.unchanged.begin(), res.unchanged.end(), std::string(kWorldFile)), res.unchanged.end());
+      } else {
+        // world.json не входил в запись — его внешнее изменение не затирается молча.
+        if (state && !opt.overwriteExternal && worldOnDisk)
+          if (auto st = state->files.find(kWorldFile); st != state->files.end() && changedOnDisk(worldFull, st->second))
+            fail(std::string("Файлы мира изменены другой программой: ") + kWorldFile +
+                 ". Перечитайте мир или сохраните с заменой чужих изменений.");
+        todo.push_back(F_WORLD);
+        texts.push_back(fileText(w, kWorldFile));
+        olds.push_back(worldOnDisk);
+        changed.push_back(todo.size() - 1);
+      }
     }
-    if (!fs::writeFileAtomic(full, text, &err)) fail("Не удалось записать «" + full + "»: " + err);
-    res.written.push_back(rel);
-    if (state) state->files[rel] = stampOf(text, fs::mtime(full));
+    u64 gen = diskGen;
+    if (multi) {
+      u64 known = diskGen;
+      if (state)
+        for (auto& [rel, st] : state->files) known = std::max(known, st.gen);
+      gen = known + 1;
+    }
+    for (size_t k : changed) insertGeneration(texts[k], gen);
+
+    // Резервные копии прежних версий — до записи (ошибка здесь ничего не меняет).
+    for (size_t k : changed) {
+      const std::string rel = kFiles[todo[k]].path;
+      if (!olds[k] || !opt.backups || opt.keepBackups <= 0) continue;
+      bool autoQueue = std::find(opt.autoBackups.begin(), opt.autoBackups.end(), rel) != opt.autoBackups.end();
+      res.backups.push_back(backupFile(folder, rel, *olds[k], opt.keepBackups, autoQueue));
+    }
+    // Все временные файлы, затем замены: файл, занятый другой программой, не оставляет мир наполовину записанным.
+    std::vector<std::string> temps;
+    auto dropTemps = [&](size_t from) {
+      for (size_t j = from; j < temps.size(); j++) fs::remove(temps[j]);
+    };
+    for (size_t k : changed) {
+      const std::string full = fs::join(folder, kFiles[todo[k]].path);
+      auto tmp = fs::writeTemp(full, texts[k], &err);
+      if (!tmp) {
+        dropTemps(0);
+        fail("Мир не сохранён: " + err + ". Файлы мира на диске не изменены.");
+      }
+      temps.push_back(*tmp);
+    }
+    for (size_t j = 0; j < changed.size(); j++) {
+      const size_t k = changed[j];
+      const std::string full = fs::join(folder, kFiles[todo[k]].path);
+      if (fs::replaceFile(temps[j], full, &err)) continue;
+      dropTemps(j);
+      // Уже заменённые файлы — к прежним версиям (новый файл — удаляется): мир на диске остаётся прежним.
+      std::vector<std::string> stuck;
+      for (size_t c = j; c-- > 0;) {
+        const size_t kc = changed[c];
+        const std::string rel = kFiles[todo[kc]].path, fc = fs::join(folder, rel);
+        const bool back = olds[kc] ? fs::writeFileAtomic(fc, *olds[kc]) : fs::remove(fc);
+        if (!back) {
+          stuck.push_back(rel);
+          if (state) state->files[rel] = stampOf(texts[kc], fs::mtime(fc), gen);
+        }
+      }
+      if (stuck.empty()) fail("Мир не сохранён: " + err + ". Файлы мира на диске не изменены — повторите сохранение.");
+      fail("Мир не сохранён: " + err + ". Не удалось вернуть прежние версии файлов " + join(stuck, ", ") +
+           " — мир на диске смешан (прежние версии — в " + kBackupDir + ").");
+    }
+    for (size_t k : changed) {
+      const std::string rel = kFiles[todo[k]].path;
+      res.written.push_back(rel);
+      if (state) state->files[rel] = stampOf(texts[k], fs::mtime(fs::join(folder, rel)), gen);
+    }
   }
   if (state) {
     // Отпечатки файлов, не входивших в запись, остаются прежними; недостающие — снимаются с диска.
     for (const FileDef& f : kFiles) {
       if (state->files.count(f.path)) continue;
       std::string full = fs::join(folder, f.path);
-      if (auto data = fs::readFile(full)) state->files[f.path] = stampOf(*data, fs::mtime(full));
+      if (auto data = fs::readFile(full)) state->files[f.path] = stampOf(*data, fs::mtime(full), generationIn(*data));
       else state->files[f.path] = FileStamp{};
     }
   }
@@ -586,10 +771,82 @@ FileStamp stampFile(const std::string& path) {
   auto mt = fs::mtime(path);
   auto data = fs::isFile(path) ? fs::readFile(path) : std::nullopt;
   if (!data) return FileStamp{};
-  return stampOf(*data, mt);
+  return stampOf(*data, mt, generationIn(*data));
 }
 
 bool fileChanged(const std::string& path, FileStamp& st) { return changedOnDisk(path, st); }
+
+// ================================================================ метка поколения
+u64 generationIn(std::string_view text) {
+  const size_t p = text.find(kGenLine);
+  if (p == std::string_view::npos) return 0;
+  const char* b = text.data() + p + kGenLine.size();
+  const char* e = text.data() + text.size();
+  u64 v = 0;
+  auto r = std::from_chars(b, e, v);
+  return r.ec == std::errc() && r.ptr != b ? v : 0;
+}
+
+std::string withoutGeneration(std::string_view text) {
+  auto s = genSpan(text);
+  if (!s) return std::string(text);
+  std::string out;
+  out.reserve(text.size());
+  out.append(text.substr(0, s->first)).append(text.substr(s->second));
+  return out;
+}
+
+std::string withGeneration(std::string_view text, u64 gen) {
+  std::string out = withoutGeneration(text);
+  insertGeneration(out, gen);
+  return out;
+}
+
+// ================================================================ резервные копии: восстановление
+std::optional<BackupCopy> latestBackup(const std::string& folder, const std::string& rel, u64 maxGeneration) {
+  std::vector<Copy> all;
+  for (bool autoQueue : {false, true}) {
+    auto list = backupCopies(folder, rel, autoQueue);
+    all.insert(all.end(), list.begin(), list.end());
+  }
+  // Новые первыми: по времени записи, при равном времени — по номеру в очереди.
+  std::stable_sort(all.begin(), all.end(), [](const Copy& a, const Copy& b) {
+    if (a.mtime != b.mtime) return a.mtime > b.mtime;
+    return a.num > b.num;
+  });
+  for (const Copy& c : all) {
+    auto text = fs::readFile(c.path);
+    if (!text) continue;
+    auto v = json::tryParse(*text);
+    if (!v || !v->isObj()) continue;
+    const u64 gen = u64(std::max<i64>(0, v->integer(kGenerationKey, 0)));
+    if (maxGeneration && gen > maxGeneration) continue;
+    return BackupCopy{rel, c.rel, gen, c.mtime};
+  }
+  return std::nullopt;
+}
+
+std::vector<std::string> restoreBackups(const std::string& folder, const std::vector<std::string>& files, u64 maxGeneration,
+                                        std::vector<std::string>* noCopy) {
+  std::vector<std::string> done;
+  for (const std::string& rel : files) {
+    if (fileIndex(rel) < 0) continue;
+    auto c = latestBackup(folder, rel, maxGeneration);
+    auto text = c ? fs::readFile(fs::join(folder, c->copy)) : std::nullopt;
+    if (!text) {
+      if (noCopy) noCopy->push_back(rel);
+      continue;
+    }
+    const std::string full = fs::join(folder, rel);
+    // Нынешняя версия (смешанное сохранение) не теряется: она уходит в копии, но новее допустимого поколения —
+    // повторное восстановление её не выберет.
+    if (auto cur = fs::isFile(full) ? fs::readFile(full) : std::nullopt; cur && *cur != *text) backupFile(folder, rel, *cur, kKeepBackups);
+    std::string err;
+    if (!fs::writeFileAtomic(full, *text, &err)) fail("Не удалось восстановить «" + rel + "» из резервной копии: " + err);
+    done.push_back(rel);
+  }
+  return done;
+}
 
 std::string savedTime(const std::string& path) {
   try {
@@ -631,6 +888,7 @@ void convert(const std::string& src, const std::string& dst, Warnings* warnings,
   auto source = openSource(src);
   LoadResult r = loadFrom(*source);
   if (warnings) warnings->insert(warnings->end(), r.warnings.begin(), r.warnings.end());
+  if (!r.readOnly.empty()) fail("Мир «" + src + "» можно открыть только для чтения: " + r.readOnly);
   std::vector<SnapshotInfo> infos;
   u64 head = 0;
   auto history = readHistory(*source, &infos, &head);
@@ -796,14 +1054,22 @@ LoadResult fromJson(std::string_view text, const std::string& origin) {
   Parts parts;
   jobs::parallelFor(size_t(F_COUNT), [&](size_t i) {
     const Value* v = files.find(kFiles[i].path);
-    if (v) decode(*v, FileId(i), parts, warnFiles[i]);
-    else if (!kFiles[i].optional) warnFiles[i].push_back({kFiles[i].path, "", "файла нет в снимке — таблица пуста"});
+    if (v && v->has(kGenerationKey)) {   // метка поколения файла папки — не данные таблицы
+      Value copy = *v;
+      takeGeneration(copy);
+      decode(copy, FileId(i), parts, warnFiles[i]);
+    } else if (v) {
+      decode(*v, FileId(i), parts, warnFiles[i]);
+    } else if (!kFiles[i].optional) {
+      warnFiles[i].push_back({kFiles[i].path, "", "файла нет в снимке — таблица пуста"});
+    }
   }, 1);
   r.warnings = std::move(warnFiles[F_WORLD]);
   for (size_t i = 0; i < F_WORLD; i++) r.warnings.insert(r.warnings.end(), warnFiles[i].begin(), warnFiles[i].end());
   for (auto& [k, v] : files.members())
     if (fileIndex(k) < 0) r.warnings.push_back({k, "", "неизвестный файл в снимке — отброшен"});
   r.world = assemble(std::move(parts), r.warnings, &r.fixedTables);
+  r.readOnly = lockReason(std::max(ver, world->num("version", 1)), r.world, {});
   return r;
 }
 
@@ -963,6 +1229,7 @@ std::optional<Autosave> loadAutosaveInfo(AutosaveInfo info, std::string* error) 
     a.info = std::move(info);
     a.world = std::move(r.world);
     a.warnings = std::move(r.warnings);
+    a.readOnly = std::move(r.readOnly);
     return a;
   } catch (const UserError& e) {
     if (error) *error = e.what();

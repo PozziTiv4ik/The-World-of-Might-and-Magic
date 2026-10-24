@@ -1,5 +1,7 @@
 // Сценарии хроники: поиск, фильтр вида записи, запись ведущего, переход к объекту записи.
+#include "app/shell/role.h"
 #include "app/turn/history.h"
+#include "app/turn/turn_ui.h"
 #include "tests/test_app_util.h"
 
 using namespace rg;
@@ -103,4 +105,53 @@ TEST(app_chronicle_filter_note) {
   h.key(Key::Escape);
   h->undo();
   CHECK_EQ(h->store.world().log.size(), logs);
+}
+
+// Туман войны в хронике (аудит 2026-10-23, 1.5 и 8.3): игрок видит общие записи и записи с участием своего государства,
+// союзников, сюзерена и вассалов; записи о чужих государствах скрыты. «Моё государство» — быстрый отбор.
+TEST(app_chronicle_player_fog_and_mine) {
+  Harness h("chronicle_fog");
+  h.demo();
+  const Id hel = factionByName(h->world(), "Хельдвиг"), kor = factionByName(h->world(), "Корвен"), sol = factionByName(h->world(), "Солмар");
+  CHECK(hel && kor && sol);
+  Id own = 0, ally = 0, foreign = 0, general = 0;
+  CHECK(h->act("Записи", [&](Tx& tx) {
+    rules::setRelation(tx, hel, sol, 60, RelStatus::Alliance);
+    rules::setRelation(tx, hel, kor, 0, RelStatus::Neutral);
+    if (tx.w().faction(kor)->suzerain == hel) rules::setSuzerain(tx, kor, 0);   // Корвен — не вассал и не сюзерен
+    if (tx.w().faction(hel)->suzerain == kor) rules::setSuzerain(tx, hel, 0);
+    own = rules::addLog(tx, LogKind::Note, "Запись о Хельдвиге", rules::LogRefs{0, 0, {hel}});
+    ally = rules::addLog(tx, LogKind::Note, "Запись о союзнике", rules::LogRefs{0, 0, {sol}});
+    foreign = rules::addLog(tx, LogKind::Note, "Запись о Корвене", rules::LogRefs{0, 0, {kor}});
+    general = rules::addLog(tx, LogKind::Note, "Общая запись", {});
+  }));
+  app::detail::role::becomePlayer(h.a(), hel);
+  h.settle();
+  app::turnui::showChronicle(h.a(), 0);
+  h.settle();
+  CHECK_EQ(h->ui.drawer, std::string("chronicle"));
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(own)) != nullptr);
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(ally)) != nullptr);
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(general)) != nullptr);
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(foreign)) == nullptr);
+  CHECK(h->uiRect("chronicle.note") == nullptr);   // запись в хронику — правка мира
+  // «Моё государство»: только записи о нём; повторно — снова все видимые.
+  CHECK(h.clickUi("chronicle.mine"));
+  h.settle();
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(own)) != nullptr);
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(ally)) == nullptr);
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(general)) == nullptr);
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("chronicle_player_mine"));
+  CHECK(h.clickUi("chronicle.mine"));
+  h.settle();
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(ally)) != nullptr);
+  // Администратор видит всё.
+  app::detail::role::becomeAdmin(h.a());
+  h.settle();
+  app::turnui::showChronicle(h.a(), 0);
+  h.settle();
+  CHECK(h->uiRect("chronicle.entry." + std::to_string(foreign)) != nullptr);
+  CHECK(h->uiRect("chronicle.mine") == nullptr);
 }

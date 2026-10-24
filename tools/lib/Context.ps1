@@ -67,7 +67,8 @@ function New-WmmaCharacterMemory {
     $graph=$Data.graph
     $knowledge=$Data.knowledge
     $cards=@()
-    foreach($person in $graph.entities | Where-Object {$_.type -eq 'character'}){
+    # A merged card is a redirect; its memory is the memory of the main card.
+    foreach($person in $graph.entities | Where-Object {$_.type -eq 'character' -and -not $_.merged_into}){
         $text=Read-WmmaText (Join-Path $root $person.path)
         $profile=Get-WmmaCharacterMemoryData $root $person -Data $Data
         $traits=@();foreach($heading in @('Характер','Известные черты','Цели','Биография и образ')){
@@ -82,25 +83,42 @@ function New-WmmaCharacterMemory {
     return [pscustomobject][ordered]@{schema_version=1;type='character_memory_view';generated_by='tools/Собрать_память.ps1';characters=$cards}
 }
 
+# Registry IDs are the game master's navigation; a character packet does not show them.
+function Remove-WmmaRegistryIds {
+    param([string]$Text)
+    $id='(?:DEC(?:-PENDING)?-\d+|Q-(?:C\d+|WORLD)-\d+|FRONT-[A-Z0-9-]+|FACT-\d+)'
+    $result=[regex]::Replace($Text,'\s*\((?:\s*`?'+$id+'`?\s*[,;]?)+\)','')
+    $result=[regex]::Replace($result,'`?\b'+$id+'\b`?','')
+    return [regex]::Replace($result,'[ \t]{2,}',' ')
+}
+
 function Get-WmmaContext {
     param([string]$Root,[string]$Branch='',[string]$Query='',[string]$Entity='',[ValidateSet('gm','character')][string]$Audience='gm',[ValidateRange(500,20000)][int]$MaxWords=2000,[object]$Data)
-    if($Audience -eq 'character' -and -not $Branch){throw 'Character audience requires an explicit branch.'}
     $Data=Resolve-WmmaReadModel $Root $Data
     $selection=Get-WmmaSelection $Root $Branch $Query -Data $Data
     $graph=$Data.graph
     $knowledge=$Data.knowledge
     $byId=$Data.entities_by_id
     $requested=if($Entity){Resolve-WmmaEntity $Data $Entity}else{$null}
+    $viewer=$selection.branch.character_id
+    if($Audience -eq 'character'){
+        # The viewer is the branch character or the character named by -Entity (an NPC
+        # without a branch). The character packet is a minimal filter, not a full perspective.
+        if($requested -and $requested.type -ne 'character'){throw 'Character audience: -Entity must name the viewing character.'}
+        if($selection.branch -and $requested -and $requested.id -ne $viewer){throw 'Character audience: -Branch and -Entity name different characters.'}
+        if(-not $selection.branch -and -not $requested){throw 'Character audience requires an explicit branch or a character ID (-Entity CHAR-…).'}
+        if($requested){$viewer=$requested.id}
+    }
     $sceneIds=if($selection.branch){@($selection.branch.scene_ids)}else{@($selection.state.scene_ids)}
     if($requested){
         $sceneIds=if($requested.type -eq 'scene'){@($requested.id)}else{@($Data.scenes_by_participant[$requested.id]|Where-Object {$_}|Sort-Object @{Expression={[int]$_.chapter};Descending=$true},path|Select-Object -First 3|ForEach-Object {$_.id})}
     }
     $factIds=@($selection.state.fact_ids)+@($selection.branch.fact_ids)
-    $viewer=$selection.branch.character_id
+    # A replaced fact (superseded_by) stays in the registry as history, not in packets.
     $facts=@($knowledge.facts|Where-Object {
-        $relevant=if($requested){$_.subject_ids -contains $requested.id}else{$factIds -contains $_.id}
+        $relevant=if($Audience -eq 'character'){$_.known_to -contains $viewer -or $factIds -contains $_.id -or $_.subject_ids -contains $viewer}elseif($requested){$_.subject_ids -contains $requested.id}else{$factIds -contains $_.id}
         $visible=Test-WmmaFactVisible $_ $viewer $Audience
-        $relevant -and $visible
+        $relevant -and $visible -and -not $_.superseded_by
     })
     $blocks=[Collections.Generic.List[object]]::new();$tick=[char]96
     function Add-Block([string]$Id,[string]$Title,[string]$Text,[string]$Path,[string]$Reason,[string]$Scope='current'){
@@ -147,7 +165,32 @@ function Get-WmmaContext {
     $orderedFacts=if($selection.branch){@($facts|Sort-Object @{Expression={if($selection.branch.fact_ids -contains $_.id){0}else{1}}},id)}else{$facts}
     foreach($fact in $orderedFacts){
         $refs=@($fact.evidence_ids|Where-Object {$byId.ContainsKey($_)}|ForEach-Object {$tick+$byId[$_].path+$tick}) -join ', '
-        Add-Block $fact.id ('Сведение: '+$fact.truth) ($fact.text+' Основание: '+$refs) '09_Реестры/Знания.json' 'Факт, донесение или неизвестное с основанием'
+        $factText=if($Audience -eq 'character'){Remove-WmmaRegistryIds $fact.text}else{$fact.text}
+        Add-Block $fact.id ('Сведение: '+$fact.truth) ($factText+' Основание: '+$refs) '09_Реестры/Знания.json' 'Факт, донесение или неизвестное с основанием'
+    }
+    $characterSceneIds=@()
+    if($Audience -eq 'character'){
+        # Minimal filter by participant_ids: «Что известно персонажу» is written from the point
+        # of view of the branch character, so only scenes of the viewer's own line where the
+        # viewer takes part give their contents; other participations are listed without it.
+        $povByBranch=@{};foreach($line in @($Data.state.branches)){$povByBranch[$line.name]=$line.character_id}
+        $participations=@($Data.scenes_by_participant[$viewer]|Where-Object {$_}|Sort-Object @{Expression={[int]$_.chapter};Descending=$true},@{Expression={$_.path};Descending=$true})
+        foreach($node in @($participations|Where-Object {$_.branch -and $povByBranch[$_.branch] -eq $viewer}|Select-Object -First 4)){
+            $known=Get-WmmaSection (Read-WmmaText (Join-Path $Root $node.path)) 'Что известно персонажу'
+            if(-not $known){continue}
+            Add-Block $node.id ($node.name+' — что известно персонажу') (Remove-WmmaRegistryIds $known) $node.path 'Сцена его сюжетной линии с его участием по participant_ids; минимальный фильтр'
+            $characterSceneIds+=$node.id
+        }
+        $card=Read-WmmaText (Join-Path $Root $byId[$viewer].path)
+        foreach($heading in @('Манера речи','Личные воспоминания')){
+            $body=Get-WmmaSection $card $heading
+            if($body -and $body -notmatch '^(Не установлен|Не установлена|Уточнить|Только события)'){Add-Block $viewer ($byId[$viewer].name+' — '+$heading.ToLowerInvariant()) (Remove-WmmaRegistryIds $body) $byId[$viewer].path 'Раздел карточки о собственной речи и памяти персонажа'}
+        }
+        $others=@($participations|Where-Object {$characterSceneIds -notcontains $_.id}|Select-Object -First 10)
+        if($others.Count){
+            $list=($others|ForEach-Object {'- '+$_.name+': '+$tick+$_.path+$tick}) -join [Environment]::NewLine
+            Add-Block 'participations' 'Другие сцены с участием персонажа' $list '09_Реестры/Сущности.json' 'Участие по participant_ids; эти сцены записаны с другой точки зрения, их содержание персонажу не передаётся автоматически'
+        }
     }
     if($Audience -eq 'gm'){
         foreach($id in @($sceneIds|Select-Object -Unique)){
@@ -180,8 +223,8 @@ function Get-WmmaContext {
         }
         $lines.Add($prefix+$body+$suffix);$included.Add([pscustomobject]@{id=$block.id;path=$block.path;reason=$block.reason;scope=$block.scope})
     }
-    if($Audience -eq 'character'){$lines.Add('Выданы только явно известные этому персонажу сведения. Отсутствие записи не доказывает незнание: оно означает отсутствие подтверждённой привязки.')}
+    if($Audience -eq 'character'){$lines.Add('Минимальный фильтр: факты с явным кругом знающих, «Что известно персонажу» сцен его линии с его участием, его манера речи. Участие не доказывает знание каждой фразы; отсутствие записи не доказывает незнание.')}
     if($omitted.Count){$lines.Add("Ограничение объёма: $($omitted.Count) блоков сокращены или опущены. Полные тексты доступны по ссылкам; Json содержит перечень.")}
     $rendered=(($lines -join [Environment]::NewLine).Replace([char]13+[string][char]10,[string][char]10)).TrimEnd()+[char]10
-    return [pscustomobject]@{text=$rendered;included=@($included);omitted=@($omitted);facts=$facts;scene_ids=$(if($Audience -eq 'character'){@()}else{$sceneIds});selection=$(if($Audience -eq 'character'){$null}else{$selection})}
+    return [pscustomobject]@{text=$rendered;included=@($included);omitted=@($omitted);facts=$facts;scene_ids=$(if($Audience -eq 'character'){@($characterSceneIds)}else{$sceneIds});selection=$(if($Audience -eq 'character'){$null}else{$selection})}
 }

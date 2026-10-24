@@ -422,16 +422,17 @@ TEST(rules_naval_dissolve_aboard_allied_army) {
     embark(tx, f.army, f.fleet);
   });
   CHECK(!canReturnGroup(f.w(), f.army, f.C));   // на борту — сначала высадка
-  // Союз распался: союзник высаживается на ближайший берег, войско лидера остаётся на борту.
+  // Союз распался: флот распущен первым, войско лидера остаётся на борту, группа союзника уходит на свои корабли.
   f.tx([&](Tx& tx) { declareWar(tx, f.A, f.C); });
   CHECK_EQ(cargoOf(f.w(), f.fleet), f.army);
   CHECK(!f.w().army(f.army)->allied());
-  Id landed = 0;
+  Id shipC = 0, armyC = 0;
   f.w().armies.each([&](const Army& a) {
-    if (a.leader() == f.C && !a.isFleet()) landed = a.id;
+    if (a.leader() == f.C) (a.isFleet() ? shipC : armyC) = a.id;
   });
-  CHECK(landed != 0);
-  CHECK(validPosition(f.w(), ArmyKind::Army, f.w().army(landed)->pos, landed));
+  CHECK(shipC != 0 && armyC != 0);
+  CHECK_EQ(cargoOf(f.w(), shipC), armyC);
+  CHECK_EQ(unitsIn(f.w(), armyC, f.C, cRow), 200);
 }
 
 // ---------------------------------------------------------------- флот у верфи

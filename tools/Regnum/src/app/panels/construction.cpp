@@ -52,10 +52,16 @@ void multPicker(App& a, Id pid, const ProvBuilding& pb, Id owner, bool can) {
   const int mult = std::clamp(pb.mult, 1, schema::kMaxProductionMult);
   const int max = owner ? rules::maxProductionMult(w, owner) : 1;
   const int shown = std::max(mult, std::min(max + 1, schema::kMaxProductionMult));
+  // Закрытый множитель ×m открывает ближайшая ступень ветки не меньше m (ступени идут не подряд: ×2, ×5, ×10…).
+  std::map<int, std::string> steps;
+  w.techs.each([&](const Tech& t) {
+    if (const int k = t.faction == 0 ? schema::industryMultOf(t.key) : 0) steps.emplace(k, t.name);
+  });
   std::vector<std::string> labels, hints;
   for (int m = 1; m <= shown; m++) {
     labels.push_back("×" + std::to_string(m));
-    hints.push_back(m > max ? "«Стимуляция промышленности " + std::to_string(m - 1) + "»" : std::string());
+    const auto step = steps.lower_bound(m);
+    hints.push_back(m > max ? "«" + (step != steps.end() ? step->second : std::string("Стимуляция промышленности")) + "»" : std::string());
   }
   std::vector<ui::Option> opts;
   for (int m = 1; m <= shown; m++) opts.push_back(ui::Option{labels[size_t(m - 1)], nullptr, Color(0, 0, 0, 0), hints[size_t(m - 1)], m > max && m != mult});
@@ -310,8 +316,9 @@ void askDemolish(App& a, Id pid, Id bid, const std::string& name) {
             "Снести", true, [pid, bid](App& x) { x.play("Снести постройку", [&](Tx& tx) { rules::demolish(tx, pid, bid); }); });
 }
 
-// Ячейки слотов: постройки, стройки, свободные места, переполнение.
-void slotGrid(App& a, Id pid, const std::vector<ProvBuilding>& list, int slots, bool canBuild) {
+// Ячейки слотов: постройки, стройки, свободные места, переполнение. known = false — стройки чужого владельца скрыты
+// (туман войны): занятый слот с замком.
+void slotGrid(App& a, Id pid, const std::vector<ProvBuilding>& list, int slots, bool canBuild, bool known = true) {
   const World& w = a.world();
   const ui::Theme& th = ui::theme();
   const float cell = 42, gap = 6;
@@ -332,7 +339,13 @@ void slotGrid(App& a, Id pid, const std::vector<ProvBuilding>& list, int slots, 
     bool over = i >= slots;
     std::string tip;
     const char* iconName = "plus";
-    if (i < int(order.size())) {
+    if (i < int(order.size()) && !known && order[size_t(i)]->constructing) {
+      ui::draw::rect(r, th.surface3.alpha(0.5f), 10);
+      ui::draw::rectStroke(r, over ? th.danger : th.borderStrong.alpha(0.8f), 10, 1);
+      ui::draw::icon("lock", r.inset(13), th.textMuted);
+      tip = w::kHidden;
+      iconName = "lock";
+    } else if (i < int(order.size())) {
       const ProvBuilding& pb = *order[size_t(i)];
       const Building* b = w.building(pb.building);
       Color cc = b ? bld::catColor(b->cat) : th.textMuted;
@@ -403,9 +416,10 @@ void drawBuildings(App& a, Id pid) {
   const bool play = ownerId && a.canPlay(ownerId);
   const bool edit = a.canEdit();
   const bool player = a.player();
+  const bool known = a.knows(ownerId);   // туман войны: стройки, циклы и хранилища чужого владельца скрыты
   auto calc = rules::calc(w);
   const rules::ProvinceCalc* pc = calc->province(pid);
-  const rules::FactionCalc* fc = ownerId ? calc->faction(ownerId) : nullptr;
+  const rules::FactionCalc* fc = ownerId && known ? calc->faction(ownerId) : nullptr;
   int slots = pc ? pc->slots : 0;
   int used = int(list.size());
   int built = 0, constructing = 0;
@@ -428,7 +442,8 @@ void drawBuildings(App& a, Id pid) {
                       schema::cityType(city).name + "»: " + fmtSigned(pc ? pc->slotsCity : 0) + "\nМодификаторы: " + fmtSigned(pc ? pc->slotsMods : 0);
     ui::stat(std::to_string(used) + " / " + std::to_string(slots), "Слоты", {.icon = "slots", .tone = over ? ui::Tone::Danger : ui::Tone::Accent, .tooltip = tip});
     a.markUi("prov.slots");
-    ui::stat(std::to_string(constructing), "Строится", {.icon = "hourglass", .tone = ui::Tone::Info, .tooltip = "Построено: " + std::to_string(built)});
+    if (known) ui::stat(std::to_string(constructing), "Строится", {.icon = "hourglass", .tone = ui::Tone::Info, .tooltip = "Построено: " + std::to_string(built)});
+    else w::hiddenStat("Строится");
   }
   // Слоты: откуда берутся и сетка
   {
@@ -437,14 +452,14 @@ void drawBuildings(App& a, Id pid) {
       ui::HStack hs(0, ui::Align::Left, 6);
       ui::tag(std::string(schema::provSize(size).name) + " " + fmtSigned(pc ? pc->slotsSize : 0), ui::Tone::Neutral, schema::provSize(size).icon);
       ui::tag(std::string(schema::cityType(city).name) + " " + fmtSigned(pc ? pc->slotsCity : 0), ui::Tone::Neutral, schema::cityType(city).icon);
-      ui::tooltip("Тип города — по населению: " + fmtNum(double(pc ? pc->population : 0)) + " жителей");
+      w::tagTip("Тип города — по населению: " + fmtNum(double(pc ? pc->population : 0)) + " жителей");
     }
     if (pc && pc->slotsMods != 0) {
       ui::HStack hs(0, ui::Align::Left, 6);
       ui::tag("Модификаторы " + fmtSigned(pc->slotsMods), pc->slotsMods > 0 ? ui::Tone::Success : ui::Tone::Danger, "sparkles");
     }
     if (slots == 0 && list.empty()) ui::label("У провинции нет слотов для построек.", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "info"});
-    else slotGrid(a, pid, list, slots, canBuild);
+    else slotGrid(a, pid, list, slots, canBuild, known);
     if (over)
       ui::label("Занято " + std::to_string(used) + " из " + std::to_string(slots) + " слотов — новые постройки недоступны, пока не освободится место.",
                 {.font = ui::Font::Small, .ink = ui::Ink::Danger, .icon = "warning", .wrap = true});
@@ -481,7 +496,7 @@ void drawBuildings(App& a, Id pid) {
     return nullptr;
   };
   // Стройки
-  if (constructing > 0) {
+  if (constructing > 0 && known) {
     if (ui::Section s("Строится", "hourglass", {.badge = std::to_string(constructing)}); s) {
       for (const ProvBuilding& pb : list) {
         if (!pb.constructing) continue;
@@ -553,7 +568,7 @@ void drawBuildings(App& a, Id pid) {
               bld::levelProduceChips(w, *L, pv.resource, true);
             }
             extras(a, *b, pb.builtLevel(), owner, fc);
-            if (b->extract) extractor(a, pv, *b, pb.builtLevel(), pc);
+            if (b->extract) extractor(a, pv, *b, pb.builtLevel(), known ? pc : nullptr);
             bld::roleActions(a, pid, pb, *b);
           }
           if (play) {
@@ -561,7 +576,9 @@ void drawBuildings(App& a, Id pid) {
             a.markUi("prov.demolish." + std::to_string(pb.building));
           }
         }
-        // Преобразование ресурсов (ТЗ «Доработки», п.3) и иссушение населения.
+        // Преобразование ресурсов (ТЗ «Доработки», п.3) и иссушение населения; у чужого владельца (туман войны) — скрыты
+        // вместе с хранилищем реликвий и улучшением (цена — по его запасам).
+        if (!known) continue;
         if (b->convert) converter(a, pid, pb, *b, owner, fc, play);
         if (b->drain) drainer(a, pv, pb, *b, owner, fc, play);
         if (b->relicStore) bld::relicStoreBlock(a, pid, pb.building);
@@ -625,7 +642,7 @@ bool visibleBuildings(App& a, Id pid) {
 
 int badgeBuildings(App& a, Id pid) {
   const Province* p = a.world().province(pid);
-  if (!p) return 0;
+  if (!p || !a.knows(p->owner)) return 0;   // стройки чужого владельца — туман войны
   int n = 0;
   for (const ProvBuilding& pb : p->buildings) n += pb.constructing;
   return n;

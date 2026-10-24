@@ -1,6 +1,9 @@
 // Regnum — настройки: интерфейс (цветокор, масштаб, цвета карты, проводник) — для программы;
-// карта, правила и сохранение — настройки мира (World::settings, изменения отменяются Ctrl+Z).
+// карта, правила и сохранение — настройки мира (World::settings, изменения отменяются Ctrl+Z). Роли (аудит 2026-10-23,
+// 1.4, 1.6): вид карты у игрока — свой (app.json, мир не меняется), у администратора — настройки мира; правила,
+// автосохранение и пароль администратора меняет только администратор.
 #include "app/app_internal.h"
+#include "app/shell/role.h"
 
 namespace rg::app::detail {
 
@@ -74,34 +77,35 @@ struct SettingsDlg : Dialog {
     a.markUi("settings.browser");
   }
 
+  // Вид карты: у игрока — свой (app.json), у администратора — настройки мира (role::setView).
   void mapSection(App& a) {
-    const Settings& s = *a.store.world().settings;
-    ui::Disabled dis(a.readOnly());   // вид карты — и игроку (play)
+    const Settings s = role::viewSettings(a);
+    ui::Disabled dis(a.readOnly());
     ui::prop("Прозрачность заливки", "layers");
     double op = std::round(double(s.fillOpacity) * 100);
     if (ui::slider("fill", op, 0, 100, {.step = 5, .unit = "%"})) {
       float v = float(op / 100.0);
-      a.play("Прозрачность заливки", [v](Tx& tx) { tx.settings().fillOpacity = v; }, {.coalesce = "settings.fill"});
+      role::setView(a, "Прозрачность заливки", [v](Settings& x) { x.fillOpacity = v; }, "settings.fill");
     }
     a.markUi("settings.fill");
     ui::spacer(4);
     ui::caption("Подписи на карте");
     bool st = s.labelStates, pr = s.labelProvinces, ar = s.labelArmies;
-    if (ui::toggle("Государства", st)) a.play("Подписи государств", [st](Tx& tx) { tx.settings().labelStates = st; });
+    if (ui::toggle("Государства", st)) role::setView(a, "Подписи государств", [st](Settings& x) { x.labelStates = st; });
     a.markUi("settings.labelStates");
-    if (ui::toggle("Провинции", pr)) a.play("Подписи провинций", [pr](Tx& tx) { tx.settings().labelProvinces = pr; });
-    if (ui::toggle("Войска и флот", ar)) a.play("Подписи войск", [ar](Tx& tx) { tx.settings().labelArmies = ar; });
+    if (ui::toggle("Провинции", pr)) role::setView(a, "Подписи провинций", [pr](Settings& x) { x.labelProvinces = pr; });
+    if (ui::toggle("Войска и флот", ar)) role::setView(a, "Подписи войск", [ar](Settings& x) { x.labelArmies = ar; });
     ui::spacer(4);
     ui::caption("Войска и флот");
     bool hide = !s.showArmies;
-    if (ui::toggle("Скрыть войска", hide)) a.play(hide ? "Скрыть войска" : "Показать войска", [hide](Tx& tx) { tx.settings().showArmies = !hide; });
+    if (ui::toggle("Скрыть войска", hide)) role::setView(a, hide ? "Скрыть войска" : "Показать войска", [hide](Settings& x) { x.showArmies = !hide; });
     a.markUi("settings.hideArmies");
     // Размер значка войска и флота — постоянный на экране при любом масштабе карты (ТЗ «Фиксы», п.3 и 11).
     ui::prop("Размер значков", "army");
     double fs = s.figureSize;
     if (ui::slider("figure", fs, schema::kFigureSizeMin, schema::kFigureSizeMax, {.step = 2})) {
       int v = int(std::lround(fs));
-      a.play("Размер значков войск", [v](Tx& tx) { tx.settings().figureSize = v; }, {.coalesce = "settings.figure"});
+      role::setView(a, "Размер значков войск", [v](Settings& x) { x.figureSize = v; }, "settings.figure");
     }
     a.markUi("settings.figureSize");
   }
@@ -129,18 +133,34 @@ struct SettingsDlg : Dialog {
       a.act("Свободное редактирование флотов", [freeFleets](Tx& tx) { tx.settings().freeFleets = freeFleets; });
     ui::tooltip("Новый флот (Shift+A) — в любом месте моря; без этого — у верфи приморской провинции во вкладке «Флот» государства");
     a.markUi("settings.freeFleets");
+    // Пароль администратора (аудит 2026-10-23, 1.4): задать, сменить, снять.
+    ui::spacer(4);
+    ui::caption("Пароль администратора");
+    {
+      const bool locked = role::adminLocked(a.store.world());
+      ui::HStack hs(30, ui::Align::Left, 8);
+      ui::label(locked ? "Задан" : "Не задан", {.ink = locked ? ui::Ink::Success : ui::Ink::Muted, .icon = locked ? "lock" : "unlock"});
+      a.markUi("settings.password.state");
+      ui::flex();
+      if (ui::button(locked ? "Сменить…" : "Задать…", {.icon = "lock", .size = ui::Size::Small})) role::askSetPassword(a);
+      a.markUi("settings.password.set");
+      if (locked) {
+        if (ui::button("Снять", {.variant = ui::Variant::Subtle, .icon = "unlock", .size = ui::Size::Small})) role::askClearPassword(a);
+        a.markUi("settings.password.clear");
+      }
+    }
   }
 
   void saveSection(App& a) {
     const Settings& s = *a.store.world().settings;
-    ui::Disabled dis(a.readOnly());
+    ui::Disabled dis(!a.canEdit());   // сохранение мира — настройка администратора
     ui::prop("Автосохранение каждые", "clock");
     int sec = s.autosaveSec;
     if (ui::numberField("autosave", sec, {.min = 10, .max = 3600, .step = 10, .unit = "с", .steppers = true}))
-      a.play("Период автосохранения", [sec](Tx& tx) { tx.settings().autosaveSec = sec; }, {.coalesce = "settings.autosave"});
+      a.act("Период автосохранения", [sec](Tx& tx) { tx.settings().autosaveSec = sec; }, {.coalesce = "settings.autosave"});
     a.markUi("settings.autosave");
     bool folder = s.autosaveFolder;
-    if (ui::toggle("Автосохранение в папку мира", folder)) a.play("Автосохранение в папку", [folder](Tx& tx) { tx.settings().autosaveFolder = folder; });
+    if (ui::toggle("Автосохранение в папку мира", folder)) a.act("Автосохранение в папку", [folder](Tx& tx) { tx.settings().autosaveFolder = folder; });
     ui::tooltip("Копия для восстановления после сбоя сохраняется всегда — в папке данных программы");
     a.markUi("settings.autosaveFolder");
   }
@@ -161,7 +181,7 @@ struct SettingsDlg : Dialog {
       default: saveSection(a); break;
     }
     if (world && section > 0 && a.readOnly()) ui::label("Открыт прошлый ход — настройки мира только для просмотра", {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "lock"});
-    else if (world && section == 2 && !a.admin()) ui::label("Правила мира меняет администратор редактора", {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "lock"});
+    else if (world && section >= 2 && !a.admin()) ui::label(role::kAdminOnly, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "lock"});
     ui::ModalFooter f;
     if (ui::button("Готово", {.variant = ui::Variant::Primary, .isDefault = true})) return false;
     a.markUi("dialog.ok");

@@ -2,8 +2,9 @@
 // провинции (свои), репарации золотом за ход и срок (как в окне «Дань или репарации»), разовые выплаты золота и
 // ресурсов, рабы (не больше 5 % населения стороны), пленные герои, которых сторона держит, и «Стать вассалом».
 // Итоговое состояние (по умолчанию «Статус-кво»), причины, мешающие заключению (rules::truceProblems), —
-// rules::concludeTruce одним действием (отменяется Ctrl+Z). Роли (ТЗ «Доработки №4», п.5): перемирие и его условия —
-// игровое действие воюющего государства (App::play).
+// rules::concludeTruce одним действием (отменяется Ctrl+Z). Роли (ТЗ «Доработки №4», п.5; аудит 2026-10-23, 1.1,
+// 1.5): администратор заключает перемирие сразу; игрок — сторона войны — предлагает его другой стороне
+// (rules::propose: ответ — в «Решениях»); запасы чужой стороны у игрока скрыты (App::knows).
 #include "app/flows.h"
 #include "app/panels/faction_common.h"
 #include "gfx/icons.h"
@@ -27,6 +28,8 @@ struct TruceDlg final : Dialog {
     ui::IdScope scope(key);
     const Faction* g = w.faction(giver);
     if (!g) return;
+    const bool known = a.knows(giver);   // запасы чужой стороны у игрока скрыты
+    auto have = [&](double v) { return known ? "есть " + money(v) : std::string(w::kHidden); };
     ui::Card card({.pad = 12, .icon = "export", .title = "Отдаёт «" + displayName(*g) + "»"});
     // Провинции.
     ui::caption("Провинции");
@@ -75,7 +78,7 @@ struct TruceDlg final : Dialog {
         else terms.resources.erase(kGold);
       }
       a.markUi("truce." + k + ".gold");
-      ui::label("есть " + fmtGold(g->treasury()), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
+      ui::label(known ? "есть " + fmtGold(g->treasury()) : std::string(w::kHidden), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .align = ui::Align::Right});
     }
     for (auto it = terms.resources.begin(); it != terms.resources.end();) {
       const Id res = it->first;
@@ -86,7 +89,7 @@ struct TruceDlg final : Dialog {
       ui::IdScope rs{i64(res)};
       ui::Row r({ui::px(18), ui::fr(1), ui::px(110), ui::px(24)}, 30, 6);
       ui::iconColored(w::resourceIcon(w, res), w::resourceColor(w, res), 16);
-      ui::label(resourceName(w, res), {.tooltip = "Есть: " + money(g->stock(res))});
+      ui::label(resourceName(w, res), {.tooltip = have(g->stock(res))});
       double v = it->second;
       if (ui::numberField("amount", v, {.min = 0, .max = 1e12, .step = 10, .digits = 3, .tooltip = "Количество"})) it->second = std::max(0.0, v);
       a.markUi("truce." + k + ".res." + std::to_string(res));
@@ -101,7 +104,7 @@ struct TruceDlg final : Dialog {
       for (const CatalogItem& c : w.catalogs->resources)
         if (c.id != kGold && !terms.resources.count(c.id)) list.push_back(&c);
       std::vector<std::string> hints;
-      for (const CatalogItem* c : list) hints.push_back("есть " + money(g->stock(c->id)));
+      for (const CatalogItem* c : list) hints.push_back(known ? have(g->stock(c->id)) : std::string());
       int idx = -1;
       if (!list.empty() &&
           ui::combo("res", idx, int(list.size()),
@@ -196,8 +199,23 @@ struct TruceDlg final : Dialog {
         ui::requestRedraw();
       }
     }
-    // Почему нельзя заключить: список причин правил.
-    std::vector<std::string> problems = rules::truceProblems(w, t);
+    // Игрок предлагает перемирие другой стороне: его государство — сторона А предложения.
+    const Id own = a.playerState();
+    Proposal offer;
+    if (own) {
+      rules::Truce tr = t;
+      if (tr.b == own) {
+        std::swap(tr.a, tr.b);
+        std::swap(tr.fromA, tr.fromB);
+      }
+      offer.kind = ProposalKind::Truce;
+      offer.from = tr.a;
+      offer.to = tr.b;
+      offer.truce = tr;
+    }
+    // Почему нельзя заключить: список причин правил (у игрока — без запасов скрытой стороны).
+    std::vector<std::string> problems = own ? rules::proposalProblems(w, offer) : rules::truceProblems(w, t);
+    for (std::string& s : problems) s = w::fogText(a, w, s, own == t.a ? t.b : t.a);
     for (size_t i = 0; i < problems.size() && i < 4; i++) {
       ui::IdScope ps{int(i)};
       ui::label(problems[i], {.font = ui::Font::Small, .ink = ui::Ink::Warning, .icon = "warning", .wrap = true});
@@ -208,7 +226,16 @@ struct TruceDlg final : Dialog {
     a.markUi("truce.cancel");
     // Без кнопки по умолчанию: Enter в полях условий только фиксирует значение, а не заключает перемирие.
     const bool party = a.canPlay(t.a) || a.canPlay(t.b);
-    if (ui::button("Заключить перемирие", {.variant = ui::Variant::Primary, .icon = "handshake", .disabled = !problems.empty() || !party})) {
+    if (own) {
+      if (ui::button("Предложить перемирие", {.variant = ui::Variant::Primary, .icon = "handshake", .disabled = !problems.empty() || !party,
+                                              .tooltip = "Условия примет или отклонит другая сторона"})) {
+        const std::string other = w.factionName(offer.to);
+        if (a.play("Предложить перемирие: " + other, [&](Tx& tx) { rules::propose(tx, offer); })) {
+          a.toast("Перемирие предложено: «" + other + "»", ToastKind::Success, "handshake");
+          return false;
+        }
+      }
+    } else if (ui::button("Заключить перемирие", {.variant = ui::Variant::Primary, .icon = "handshake", .disabled = !problems.empty() || !party})) {
       rules::Truce tr = t;
       if (a.play("Перемирие", [&](Tx& tx) { rules::concludeTruce(tx, tr); })) {
         a.toast("Перемирие: " + w.factionName(tr.a) + " и " + w.factionName(tr.b), ToastKind::Success, "handshake");

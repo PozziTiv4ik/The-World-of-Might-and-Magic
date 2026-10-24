@@ -200,6 +200,96 @@ void Norm::deals() {
   });
 }
 
+void Norm::proposals() {
+  const World base = w();
+  base.proposals.each([&](const Proposal& p0) {
+    Proposal p = p0;
+    const std::string where = refStr(Seq::Proposal, p.id);
+    auto drop = [&](const std::string& why) {
+      warn(F_PROPOSALS, where, why + " — предложение удалено");
+      tx.eraseProposal(p.id);
+    };
+    if (fixEnum(p.kind, int(ProposalKind::Count), ProposalKind::Deal, F_PROPOSALS, where, "kind")) return drop("неизвестный вид");
+    if (!exists(Seq::Faction, p.from) || !exists(Seq::Faction, p.to) || p.from == p.to) return drop("нет сторон предложения");
+    const bool states = p.kind != ProposalKind::Deal;
+    if (states && (!isState(p.from) || !isState(p.to))) return drop("стороны — не государства");
+    if ((p.kind == ProposalKind::Defend || p.kind == ProposalKind::Call) && !isState(p.other)) return drop("нет третьего государства");
+    if (p.kind == ProposalKind::Deal) {
+      const Deal& d = p.deal;
+      if (!exists(Seq::Faction, d.a) || !exists(Seq::Faction, d.b) || d.a == d.b) return drop("нет сторон сделки");
+      for (const DealItem& it : d.items) {
+        const bool ok = it.kind == DealItemKind::Province ? exists(Seq::Province, it.ref)
+                        : it.kind == DealItemKind::Hero   ? exists(Seq::Character, it.ref)
+                                                          : hasCat(Seq::Resource, it.res);
+        if (!ok) return drop("позиция сделки ссылается на удалённую запись");
+      }
+    }
+    if (p.kind == ProposalKind::Truce) {
+      const Truce& t = p.truce;
+      if (!isState(t.a) || !isState(t.b) || t.a == t.b) return drop("нет сторон перемирия");
+      for (const TruceTerms* tt : {&t.fromA, &t.fromB}) {
+        for (Id pr : tt->provinces)
+          if (!exists(Seq::Province, pr)) return drop("условие перемирия ссылается на удалённую провинцию");
+        for (Id h : tt->heroes)
+          if (!exists(Seq::Character, h)) return drop("условие перемирия ссылается на удалённого персонажа");
+        for (auto& [r, v] : tt->resources)
+          if (!hasCat(Seq::Resource, r)) return drop("условие перемирия ссылается на удалённый ресурс");
+      }
+    }
+    bool ch = fixNum(p.turn, 1, kMaxTurn, 1, F_PROPOSALS, where, "turn");
+    if (p.kind != ProposalKind::Defend && p.kind != ProposalKind::Call && p.other) {
+      p.other = 0;
+      ch = true;
+    }
+    if (ch) tx.proposal(p.id) = std::move(p);
+  });
+}
+
+void Norm::turnState() {
+  Meta m = *w().meta;
+  bool ch = false;
+  TurnRecord& t = m.lastTurn;
+  auto keep = [&](std::vector<Id>& v, Seq s) {
+    const size_t n = v.size();
+    v.erase(std::remove_if(v.begin(), v.end(), [&](Id id) { return !exists(s, id); }), v.end());
+    ch |= v.size() != n;
+  };
+  keep(t.logIds, Seq::Log);
+  keep(t.rebellions, Seq::Province);
+  {
+    const size_t n = t.factions.size();
+    t.factions.erase(std::remove_if(t.factions.begin(), t.factions.end(), [&](const TurnFactionLine& l) { return !exists(Seq::Faction, l.faction); }),
+                     t.factions.end());
+    const size_t h = t.hits.size();
+    t.hits.erase(std::remove_if(t.hits.begin(), t.hits.end(), [&](const HitOutcome& o) { return !exists(Seq::Character, o.character); }), t.hits.end());
+    ch |= t.factions.size() != n || t.hits.size() != h;
+  }
+  // События хода: войско мятежников и государства — существующие (событие без войска, кроме войны мятежников, снимается).
+  std::vector<TurnEvent> events;
+  for (TurnEvent e : m.turnEvents) {
+    if (int(e.kind) > int(TurnEvent::RebelWar)) {
+      ch = true;
+      continue;
+    }
+    if (e.army && !exists(Seq::Army, e.army)) e.army = 0;
+    if (e.province && !exists(Seq::Province, e.province)) e.province = 0;
+    if (e.origin && !exists(Seq::Faction, e.origin)) e.origin = 0;
+    if (e.rebelState && !exists(Seq::Faction, e.rebelState)) e.rebelState = 0;
+    e.heroes.erase(std::remove_if(e.heroes.begin(), e.heroes.end(), [&](Id h) { return !exists(Seq::Character, h); }), e.heroes.end());
+    const bool alive = e.kind == TurnEvent::RebelWar ? (e.origin && e.rebelState) : (e.army || !e.heroes.empty());
+    if (!alive) {
+      ch = true;
+      continue;
+    }
+    events.push_back(std::move(e));
+  }
+  if (events != m.turnEvents) {
+    m.turnEvents = std::move(events);
+    ch = true;
+  }
+  if (ch) tx.meta() = std::move(m);
+}
+
 // Хроника хранит историю: ссылки на удалённые провинции, войска и фракции допустимы и не проверяются.
 void Norm::log() {
   const World base = w();
@@ -319,7 +409,7 @@ void Norm::relations() {
   for (auto& [k, r] : rel) {
     Id a = Id(k >> 32), b = Id(k & 0xFFFFFFFFu);
     if (!exists(Seq::Faction, a) || !exists(Seq::Faction, b) || a == b || a > b || !std::isfinite(r.v) || r.v < -100 ||
-        r.v > 100 || int(r.s) < 0 || int(r.s) > 3)
+        r.v > 100 || int(r.s) < 0 || int(r.s) > 3 || r.calm < 0 || r.calm > kMaxTurn)
       bad = true;
   }
   if (!bad) return;
@@ -338,6 +428,7 @@ void Norm::relations() {
     Relation r = r0;
     fixNum(r.v, -100.0, 100.0, 0.0, F_RELATIONS, where, "v");
     fixEnum(r.s, 4, RelStatus::Unknown, F_RELATIONS, where, "s");
+    fixNum(r.calm, 0, kMaxTurn, 0, F_RELATIONS, where, "calm");
     res[relKey(a, b)] = r;
   }
   tx.relations() = std::move(res);

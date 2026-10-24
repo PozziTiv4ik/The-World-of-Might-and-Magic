@@ -59,11 +59,12 @@ Tree makeTree(Fix& f) {
 // ---------------------------------------------------------------- классы и подклассы
 TEST(rules_talents_classes) {
   Fix f;
-  // 20 базовых классов, «Жнец» стал «Мехомантом»; у каждого — подклассы с деревьями по 60 очков.
+  // 20 базовых классов, «Жнец» стал «Мехомантом», «Палладин» — «Паладином»; у каждого — подклассы с деревьями по 60
+  // очков, ярус открывается после 7 очков в ярусе выше (по 10 очков в ярусе — есть выбор).
   const auto& classes = f.w().catalogs->classes;
   CHECK_EQ(classes.size(), size_t(20));
-  CHECK(test::idByName(classes, "Палладин") && test::idByName(classes, "Некромант") && test::idByName(classes, "Мехомант"));
-  CHECK(!test::idByName(classes, "Жнец"));
+  CHECK(test::idByName(classes, "Паладин") && test::idByName(classes, "Некромант") && test::idByName(classes, "Мехомант"));
+  CHECK(!test::idByName(classes, "Жнец") && !test::idByName(classes, "Палладин"));
   int subs = 0;
   for (const HeroClass& c : classes) {
     CHECK(c.subclasses.size() >= 3);
@@ -73,7 +74,7 @@ TEST(rules_talents_classes) {
       for (const Talent& t : s.talents) pts += t.maxPoints();
       CHECK_EQ(pts, 60);
       CHECK_EQ(talentTiers(s), 6);
-      CHECK_EQ(s.tierPoints, 10);
+      CHECK_EQ(s.tierPoints, 7);
     }
   }
   CHECK_EQ(subs, 70);

@@ -286,11 +286,15 @@ TEST(app_role_player_restrictions) {
   CHECK(h->world().faction(hel)->name != "Чужое имя");
   CHECK(h->play("Игровое", [&](Tx& tx) { tx.faction(hel).tax = 12; }));
   CHECK_EQ(h->world().faction(hel)->tax, 12.0);
-  // «Завершить ход», сохранение и экспорт — доступны.
+  // «Завершить ход» (отметка готовности), сохранение и экспорт — доступны; сам ход завершает только администратор.
   CHECK(app::findCommand("turn.end")->enabled(h.a()));
   CHECK(app::findCommand("file.save")->enabled(h.a()));
   CHECK(app::findCommand("file.export")->enabled(h.a()));
-  CHECK(h->endTurnNow());
+  h.dropToasts();
+  CHECK(!h->endTurnNow());
+  CHECK_EQ(h->world().turn(), turn);
+  CHECK(hasToast(h, "администратор"));
+  CHECK(adminEndTurn(h));
   CHECK_EQ(h->world().turn(), turn + 1);
   h->closeDialogs();
   h.settle();
@@ -377,7 +381,7 @@ TEST(app_role_player_one_building_per_turn) {
   CHECK(adminCan);
   CHECK(!h->play("Строить ещё", [&](Tx& tx) { rules::startBuilding(tx, sp.province, can[1], true); }));
   // Следующий ход — снова можно.
-  CHECK(h->endTurnNow());
+  CHECK(adminEndTurn(h));
   h->closeDialogs();
   h.settle();
   CHECK(h->play("Строить ещё", [&](Tx& tx) { rules::startBuilding(tx, sp.province, can[1], true); }));

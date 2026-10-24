@@ -165,12 +165,48 @@ bool hasModKey(const World& w, const std::vector<Id>& mods, std::string_view key
   return false;
 }
 bool characterHas(const World& w, Id character, std::string_view key) {
-  const Character* c = w.character(character);
-  if (!c) return false;
-  if (hasModKey(w, c->modifiers, key)) return true;
-  for (Id m : talentModifiers(w, character))
-    if (const Modifier* x = w.modifier(m); x && x->key == key) return true;
+  for (const HeroMod& hm : heroModifiers(w, character))
+    if (const Modifier* x = w.modifier(hm.modifier); x && x->key == key) return true;
   return false;
+}
+
+std::vector<HeroMod> heroModifiers(const World& w, Id character) {
+  std::vector<HeroMod> out;
+  const Character* c = w.character(character);
+  if (!c) return out;
+  auto add = [&](Id m, double scale) {
+    if (!m || !w.modifier(m) || !(scale > 0)) return;
+    for (HeroMod& x : out)
+      if (x.modifier == m) {
+        x.scale += scale;
+        return;
+      }
+    out.push_back(HeroMod{m, scale});
+  };
+  for (Id m : c->modifiers) add(m, 1);
+  const HeroClass* hc = w.heroClass(c->heroClass);
+  if (hc)
+    for (Id m : hc->modifiers) add(m, 1);
+  for (const RelicStack& st : c->inventory)
+    if (const Relic* r = w.relic(st.relic); r && st.count > 0)
+      for (Id m : r->modifiers) add(m, 1);
+  if (const SubClass* sc = hc ? hc->subclass(c->subclass) : nullptr; sc && !c->talents.empty()) {
+    std::vector<std::pair<Id, int>> ranks;   // талант → изучено рангов (порядок изучения)
+    for (Id t : c->talents) {
+      auto it = std::find_if(ranks.begin(), ranks.end(), [&](const auto& x) { return x.first == t; });
+      if (it != ranks.end()) it->second++;
+      else ranks.push_back({t, 1});
+    }
+    for (auto& [t, n] : ranks)
+      if (const Talent* x = sc->talent(t))
+        for (Id m : x->modifiers) add(m, double(n));
+  }
+  // Лич заменяет некроманта: «Некромант» (свой, от класса, реликвии или таланта) у лича не действует.
+  const bool lich = std::any_of(out.begin(), out.end(), [&](const HeroMod& x) { return w.modifier(x.modifier)->key == schema::mod::Lich; });
+  if (lich)
+    out.erase(std::remove_if(out.begin(), out.end(), [&](const HeroMod& x) { return w.modifier(x.modifier)->key == schema::mod::Necromancer; }),
+              out.end());
+  return out;
 }
 
 std::vector<Id> talentModifiers(const World& w, Id character) {
@@ -417,12 +453,16 @@ std::vector<AutoMod> autoModifiers(const World& w, Id faction) {
     addKey(schema::mod::Centralized, seats);
     // «Влияние совета»: вместе с «Централизованной властью» — значение модификатора за каждую
     // должность в совете.
-    const int posts = int(f->council.size());
-    addKey(schema::mod::CouncilInfluence, std::to_string(posts) + " " + plural(posts, "должность", "должности", "должностей") + " в совете");
+    // Считаются занятые места: пустые должности влияния не дают.
+    const int posts = n;
+    addKey(schema::mod::CouncilInfluence, std::to_string(posts) + " " + plural(posts, "занятая должность", "занятые должности", "занятых должностей") +
+                                              " в совете");
     if (!out.empty() && out.back().key == schema::mod::CouncilInfluence) out.back().scale = double(posts);
   }
   // Голод: недостача провизии (ресурсов группы «Провизия» не хватило на расход населения).
   if (f->provisionDebt > 1e-9) addKey(schema::mod::Famine, "Недостача провизии " + fmtNum(f->provisionDebt, 2));
+  // Невыплата жалованья: казна в долгу.
+  if (f->treasury() < -1e-9) addKey(schema::mod::Unpaid, "Долг казны " + fmtGold(-f->treasury()));
   // Должности: модификатор занятой или пустующей должности.
   for (const CatalogItem& pos : w.catalogs->positions) {
     if (pos.modifiers.empty() && pos.vacantModifiers.empty()) continue;
@@ -449,6 +489,16 @@ std::vector<AutoMod> autoProvinceModifiers(const World& w, Id province) {
   const Province* p = w.province(province);
   if (!p || p->sea) return out;
   const Faction* o = w.faction(p->owner);
+  // «Чужая вера»: у провинции и государства-владельца заданы разные религии.
+  if (o && o->isState() && p->religion && o->religion && p->religion != o->religion) {
+    AutoMod a;
+    a.key = schema::mod::ForeignFaith;
+    a.modifier = builtinModId(w, a.key);
+    a.m = builtinMod(w, a.key);
+    const CatalogItem* rel = Catalogs::find(w.catalogs->religions, p->religion);
+    a.why = "Вера провинции — " + q(rel ? nameOr(rel->name) : std::string("?")) + ", не вера " + facName(w, o->id);
+    if (a.m) out.push_back(std::move(a));
+  }
   if (o && o->isState() && o->capital == province) {
     AutoMod a;
     a.key = schema::mod::Capital;

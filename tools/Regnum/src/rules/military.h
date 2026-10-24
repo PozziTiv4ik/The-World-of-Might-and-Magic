@@ -30,10 +30,17 @@ struct Encounter {
 Encounter encounter(const World& w, Id moving, Vec2 pos);
 void mergeArmies(Tx& tx, Id target, Id source);       // одна фракция: численности складываются
 void formAllied(Tx& tx, Id target, Id source);        // союзники: группы хранятся раздельно
-std::vector<Id> dissolveAllied(Tx& tx, Id army);      // группы → отдельные объекты рядом; ID всех объектов, исходный первым
+// Группы → отдельные объекты рядом; ID всех объектов, исходный первым. Войско на борту флота — отказ (сначала высадка;
+// распад союза по дипломатии высаживает группы сам — splitBrokenAlliances).
+std::vector<Id> dissolveAllied(Tx& tx, Id army);
 struct SplitSpec { std::map<std::pair<Id, Id>, i64> units; std::vector<Id> heroes; };   // (фракция, строка) -> число
 Id splitArmy(Tx& tx, Id army, const SplitSpec& spec);  // новый объект рядом
-void declareWar(Tx& tx, Id a, Id b);                  // «в войне», отношения −25
+// Объявить войну можно, если стороны не в войне, a — не вассал b (вассал воюет с сюзереном только «Восстать») и не
+// идёт срок перемирия (Relation::calm; мятежники его не соблюдают). why — причина отказа.
+bool canDeclareWar(const World& w, Id a, Id b, std::string* why = nullptr);
+// «В войне», отношения −25. Сюзерен, объявивший войну вассалу, снимает вассалитет; сделки «каждый ход», дань и
+// репарации пары расторгаются, предложения между воюющими снимаются, союзные объекты пары распускаются.
+void declareWar(Tx& tx, Id a, Id b);
 
 struct BattleResult {
   Id attacker = 0, defender = 0;
@@ -52,17 +59,27 @@ struct BattleOutcome {
 BattleOutcome resolveBattle(Tx& tx, const BattleResult& r);   // потери, смещение проигравшего, хроника
 
 // ================================================================ штурм и захват провинции
-// Войско у замка или башни провинции государства, с которым его фракция в войне (мятежники — у провинции своего
-// прежнего государства). why — причина отказа.
-bool canSiege(const World& w, Id army, Id province, std::string* why = nullptr);
+// Войско государства (не союзное, не на борту) в провинции государства, с которым его фракция в войне, или у её знака
+// «замок» или «башня» (мятежники — у провинции своего прежнего государства). Нельзя: своя провинция, уже оккупированная
+// нападающим или другим государством, в провинции стоит войско владельца или его союзников, воюющих с нападающим
+// («Сначала разбейте войско …»). at — где будет стоять войско (по умолчанию — где стоит). why — причина отказа.
+bool canSiege(const World& w, Id army, Id province, std::string* why = nullptr, std::optional<Vec2> at = std::nullopt);
 struct SiegeResult {
   Id attacker = 0, province = 0;
   bool attackerWins = true;
   Vec2 attackerOrigin;
   std::map<std::pair<Id, Id>, i64> attackerLosses;   // (фракция, строка) → потери нападающего
-  std::map<Id, i64> garrisonLosses;                  // строка гарнизона → потери
+  std::map<Id, i64> garrisonLosses;                  // строка гарнизона (освобождение — оккупационного) → потери
 };
 BattleOutcome resolveSiege(Tx& tx, const SiegeResult& r);
+// «Освободить провинцию»: войско владельца (или его союзника), воюющего с оккупантом, в оккупированной провинции (или у
+// её знака); в провинции нет войск оккупанта и его союзников, воюющих с освободителем. Бой с оккупационным гарнизоном —
+// как штурм (потери, победитель; победа снимает оккупацию, уцелевшие — в резерв оккупанта); гарнизона нет — оккупация
+// снимается сразу.
+bool canLiberate(const World& w, Id army, Id province, std::string* why = nullptr, std::optional<Vec2> at = std::nullopt);
+BattleOutcome resolveLiberation(Tx& tx, const SiegeResult& r);
+// Войско, которое сначала надо разбить, чтобы штурмовать (освобождать) провинцию; 0 — нет.
+Id assaultBlocker(const World& w, Id army, Id province);
 enum class Capture : u8 { Occupy, Plunder, Raze, Devastate, Count };
 struct CaptureOptions {
   bool can[int(Capture::Count)] = {};
@@ -70,8 +87,11 @@ struct CaptureOptions {
   double plunderGold = 0, razeGold = 0;
   i64 population = 0;
 };
+// Варианты захвата: условия штурма (война, войско у провинции, нет войск владельца; своя провинция — нельзя) и пустой
+// гарнизон владельца.
 CaptureOptions captureOptions(const World& w, Id army, Id province);
 // Захват после победы над гарнизоном (или без гарнизона). slavesPct — опустошение: доля населения в рабы, 0…75.
+// Разорение или опустошение последней провинции государства — его запасы победителю (conquestLoot).
 void capture(Tx& tx, Id army, Id province, Capture how, int slavesPct = 0);
 
 // ================================================================ герои
@@ -81,6 +101,12 @@ void heroFate(Tx& tx, Id character, Fate fate, Id captor, Id burial);
 // Воскрешение погибшего героя: природа (schema::mod::Living/Undead/Demon/Mechanism) и государство.
 void resurrect(Tx& tx, Id character, std::string_view natureKey, Id faction);
 std::vector<Id> captivesOf(const World& w, Id state);   // пленники государства
+// Пленник или арестованный: отпустить (пленившее государство; отношения с государством героя +5) или казнить
+// (отношения −20; место захоронения — необязательно).
+void releaseCaptive(Tx& tx, Id character);
+void executeCaptive(Tx& tx, Id character, Id burial = 0);
+// Арест героя государством state (правка мира администратором): «Под арестом», тюрьма state.
+void arrestCharacter(Tx& tx, Id character, Id state);
 
 // ================================================================ мятеж
 bool canMutiny(const World& w, Id army, std::string* why = nullptr);

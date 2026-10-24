@@ -48,7 +48,23 @@ bool canPlague(const World& w, Id province, std::string* why) {
   if (hasModKey(w, p->modifiers, schema::mod::PlagueImmunity))
     return no("У провинции " + provName(w, province) + " временный иммунитет: чуму установить нельзя");
   if (hasModKey(w, p->modifiers, schema::mod::UndeadWaste)) return no("Чума не приходит в пустошь нежити");
+  if (hasModKey(w, p->modifiers, schema::mod::Quarantine)) return no("В провинции " + provName(w, province) + " карантин");
+  if (provincePop(*p) <= 0) return no("В провинции " + provName(w, province) + " нет жителей");
   return true;
+}
+
+void setQuarantine(Tx& tx, Id province, bool on) {
+  const Province& p = needProvince(tx.w(), province);
+  if (p.sea) fail("Карантин — только для сухопутной провинции");
+  if (!on) {
+    if (Id m = modWithKey(tx.w(), p.modifiers, schema::mod::Quarantine)) dropModifier(tx, ModTarget::Province, province, m);
+    return;
+  }
+  if (!p.owner) fail("У провинции нет владельца — объявить карантин некому");
+  if (hasModKey(tx.w(), p.modifiers, schema::mod::Quarantine)) return;
+  const Id owner = p.owner;
+  addModifier(tx, ModTarget::Province, province, ensureBuiltinMod(tx, schema::mod::Quarantine));
+  addLog(tx, LogKind::Province, "В провинции " + provName(tx.w(), province) + " объявлен карантин", LogRefs{province, 0, {owner}});
 }
 
 bool infectPlague(Tx& tx, Id province) {

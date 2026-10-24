@@ -34,7 +34,8 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         $profile += @('','## Открытые последствия','')
         foreach($d in $decisions.decisions | Where-Object {$_.state -eq 'pending' -and $branch.focus_ids -contains $_.id}){$profile += '- ' + $d.id + ': ' + $d.question}
         foreach($q in $questions.questions | Where-Object {$_.status -ne 'resolved' -and $branch.focus_ids -contains $_.id}){$profile += '- ' + $q.id + ': ' + $q.text}
-        $profile += @('','## История','',('Подробности прежних глав: `' + $branch.history + '`. Текущий пакет: `01_Кампания/Контекст/' + $branch.name + '.md`.'))
+        $past=if($branch.history -and $branch.history -ne '-'){'Подробности прежних глав: `' + $branch.history + '`.'}else{'Прежних подробных записей у ветки нет; история — в её сценах.'}
+        $profile += @('','## История','',($past + ' Текущий пакет: `01_Кампания/Контекст/' + $branch.name + '.md`.'))
         Write-WmmaText (Join-Path $root "01_Кампания/Ветки/$($branch.name)/00_Профиль_ветки.md") (($profile -join "`n")+"`n")
     }
     $summary=@('# Сводка кампании','','---','type: campaign_summary','status: active','canon_level: support',"last_closed_chapter: $($chapter-1)","current_chapter: $chapter",'generated_by: tools/Собрать_контекст.ps1','---','','## Текущее положение','','Актуальная точка: `01_Кампания/00_Текущий_контекст.md`. Ближайшие вопросы и угрозы: `01_Кампания/07_Следующий_ход.md`.','','## История кампании','','Полная прежняя сводка сохранена в `01_Кампания/История/Сводка_до_v2.md`. Завершённые главы и их итоги находятся в папках глав и архива канона.','','## Активные линии','')

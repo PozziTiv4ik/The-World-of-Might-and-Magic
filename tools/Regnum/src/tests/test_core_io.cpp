@@ -78,7 +78,9 @@ TEST(core_io_file_format) {
     CHECK_MSG(!text.empty() && text.back() == '\n', f.path);
     CHECK_MSG(text.find('\r') == std::string::npos, f.path);
     CHECK_MSG(json::tryParse(text).has_value(), f.path);
-    CHECK_EQ(text, io::fileText(w, f.path));
+    // Файл папки — канонический текст таблицы и метка поколения сохранения (test_core_io_storage.cpp).
+    CHECK_EQ(io::withoutGeneration(text), io::fileText(w, f.path));
+    CHECK_EQ(io::generationIn(text), u64(1));
   }
   std::string world = read(fs::join(dir, "world.json"));
   CHECK(world.find("\"format\": \"regnum-world\"") != std::string::npos);
@@ -645,9 +647,10 @@ TEST(core_io_recent_projects) {
 
 TEST(core_io_project_files) {
   auto& files = io::projectFiles();
-  CHECK_EQ(files.size(), size_t(17));
+  CHECK_EQ(files.size(), size_t(18));
   CHECK_EQ(std::string(files.back().path), std::string("world.json"));
   CHECK_EQ(io::tablesOfFile("data/plots.json"), u32(TB_PLOTS));
+  CHECK_EQ(io::tablesOfFile("data/proposals.json"), u32(TB_PROPOSALS));
   u32 all = 0;
   for (auto& f : files) {
     CHECK_MSG((all & f.tables) == 0, f.path);

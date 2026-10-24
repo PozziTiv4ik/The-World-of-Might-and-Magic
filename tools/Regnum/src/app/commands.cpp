@@ -60,8 +60,9 @@ CommandReg cRedo({"edit.redo", "Повторить", "redo", "Ctrl+Y", [](App& a
 // ---- ход
 CommandReg cEndTurn({"turn.end", "Завершить ход", "next-turn", "Ctrl+Enter", [](App& a) { a.endTurn(); }, editable, false, "Ход"});
 CommandReg cHistory({"turn.history", "История ходов", "history", nullptr, [](App& a) { a.openDialog("turn.history"); }, inEditor, false, "Ход"});
+// Итоги последнего хода — из мира (Meta::lastTurn), и игроку (итоги его государства).
 CommandReg cReport({"turn.report", "Отчёт о последнем ходе", "scroll", nullptr, [](App& a) { a.openDialog("turn.report"); },
-                    [](App& a) { return inEditor(a) && a.lastTurnReport().has_value(); }, false, "Ход"});
+                    [](App& a) { return inEditor(a) && a.store.world().meta->lastTurn.turnTo > 0; }, false, "Ход"});
 CommandReg cBack({"turn.current", "Вернуться к текущему ходу", "arrow-right", nullptr, [](App& a) { a.backToCurrent(); },
                   [](App& a) { return a.readOnly(); }, false, "Ход"});
 

@@ -66,41 +66,7 @@ $registry.decisions = @(
 
 Write-WmmaRegistry $root 'Решения' $registry
 
-$contextPath = Join-Path $root '01_Кампания\00_Текущий_контекст.md'
-if (Test-Path -LiteralPath $contextPath) {
-    $contextLines = Get-Content -Encoding UTF8 -LiteralPath $contextPath
-    # Only the numbered decision entry is removed. Narrative paragraphs survive;
-    # their reference is updated to the accepted ID without deleting other facts.
-    $contextLines = @($contextLines | ForEach-Object {
-        if ($_ -match ('^\d+\.\s+`' + [regex]::Escape($PendingId) + '`')) { return }
-        $_.Replace($PendingId, $AcceptedId)
-    })
-    $renumbered = New-Object 'System.Collections.Generic.List[string]'
-    $insideImmediate = $false
-    $counter = 1
-
-    foreach ($line in $contextLines) {
-        if ($line -eq '## Немедленные решения') {
-            $insideImmediate = $true
-            $counter = 1
-            $renumbered.Add($line) | Out-Null
-            continue
-        }
-
-        if ($insideImmediate -and $line -match '^##\s+') {
-            $insideImmediate = $false
-        }
-
-        if ($insideImmediate -and $line -match '^\d+\.\s+`DEC-PENDING-\d{3}`') {
-            $renumbered.Add(($line -replace '^\d+\.', "$counter.")) | Out-Null
-            $counter++
-        } else {
-            $renumbered.Add($line) | Out-Null
-        }
-    }
-
-    Write-WmmaText $contextPath (($renumbered -join "`n").TrimEnd() + "`n")
-}
+# 01_Кампания/00_Текущий_контекст.md is a generated view: Собрать_контекст rebuilds it from the registry.
 
 Complete-WmmaMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
 

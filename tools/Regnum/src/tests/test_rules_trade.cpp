@@ -255,7 +255,7 @@ TEST(rules_trade_fleet_and_pirates) {
     frig = addFleetRow(tx, f.A, ShipType::Frigate, "", 10, 1);
     setTradeFleet(tx, f.A, gal, 20);
   });
-  CHECK_NEAR(f.fc(f.A).incTradeFleet, 400, 1e-9);
+  CHECK_NEAR(f.fc(f.A).incTradeFleet, 10, 1e-9);   // 20 галеонов × «Доход торгового галеона» 0,5 (от содержания не зависит)
   CHECK_NEAR(f.fc(f.A).pirateRisk, 2, 1e-9);
   CHECK_EQ(reserveOf(f.w(), f.A, gal), 0);
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { setTradeFleet(tx, f.A, gal, 21); }); }), "В резерве недостаточно"));

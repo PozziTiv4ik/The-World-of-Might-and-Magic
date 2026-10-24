@@ -4,7 +4,8 @@
 // (catalogs_classes.cpp), 11 археологические места и 12 сундуки сокровищ (catalogs_arch.cpp). Простые справочники —
 // таблица с правкой названия и цвета, добавлением, удалением через rules::removeCatalogItem (с перечнем мест
 // использования; встроенные записи закреплены), числами использования и карточкой выбранной записи со ссылками;
-// у должности — модификаторы занятой и пустующей должности (ТЗ «Общие доработки», п.4–5). Использование записей
+// у должности — модификаторы занятой и пустующей должности (ТЗ «Общие доработки», п.4–5), у расы, культуры, религии и
+// формы правления — модификаторы записи (аудит 2026-10-23, п.7.5). Использование записей
 // считается одним проходом по миру и кешируется по тождеству мира (catalogs_usage.cpp). Расы и культуры — по алфавиту
 // (ТЗ «Доработки №2», п.2–3). Узкое окно — вкладки только значками. Справочники — правка мира: только администратор
 // редактора (игроку окно закрыто, App::canEdit).
@@ -179,6 +180,26 @@ void positionMods(App& a, const CatalogItem& c) {
   field("Модификатор отсутствия должности", "user", "catalogs.position.vacant", true);
 }
 
+// Модификаторы расы, культуры, религии и формы правления (ТЗ аудита 7.5, RULES.md §1): раса — провинциям, где она
+// преобладает (локальные эффекты; предлагаются модификаторы «Для провинций» и «Везде»); культура и религия — провинциям
+// с ней и государствам с ней («Для провинций», «Глобальный», «Везде»); форма правления — государствам («Глобальный»,
+// «Везде»).
+void traitMods(App& a, CatalogList l, const CatalogItem& c) {
+  const Id id = c.id;
+  const bool ro = !a.canEdit();
+  const w::ModScope scope = l == CatalogList::Races ? w::ModScope::Local : l == CatalogList::Governments ? w::ModScope::Faction : w::ModScope::Any;
+  ui::Section sec("Модификаторы", "sparkles", {.badge = std::to_string(c.modifiers.size())});
+  if (!sec) return;
+  std::vector<Id> ids = c.modifiers;
+  const bool changed = w::modifierList("catalogs.item.mods", ids, ro, scope);
+  a.markUi("catalogs.item.mods");   // поле добавления — последний элемент списка
+  if (changed)
+    a.act("Модификаторы записи справочника", [&](Tx& tx) {
+      for (CatalogItem& x : rules::catalogList(tx.catalogs(), l))
+        if (x.id == id) x.modifiers = ids;
+    });
+}
+
 void listCard(App& a, State& st, const World& w, const ListDef& d, const Row& row) {
   const CatalogItem& c = *row.item;
   const Use& u = *row.use;
@@ -232,6 +253,7 @@ void listCard(App& a, State& st, const World& w, const ListDef& d, const Row& ro
     }
   }
   if (d.list == CatalogList::Positions) positionMods(a, c);
+  else if (schema::catalogHasModifiers(d.list)) traitMods(a, d.list, c);
   usageSection(a, st, w, d.list, c, u);
   ui::spacer(4);
   if (!locked(d.list, c) && deleteButton(a, orName(c.name, "запись"))) askRemove(a, d.list, c.id);

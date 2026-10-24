@@ -50,6 +50,7 @@ static void loadPrefs(App& a) {
   a.ui.inspectorWidth = float(clamp(v->num("inspectorWidth", 380), 320.0, 640.0));
   d.browserDir = v->str("browserDir");
   d.builtinBrowser = v->boolean("builtinBrowser", false);
+  detail::role::loadView(a, v->get("playerView"));   // вид карты у игрока
 }
 
 void detail::savePrefs(App& a) {
@@ -65,6 +66,7 @@ void detail::savePrefs(App& a) {
   v.set("browserDir", d.browserDir);
   v.set("builtinBrowser", d.builtinBrowser);
   if (json::Value player = detail::shell::playerPrefs(); !player.isNull()) v.set("player", std::move(player));
+  if (json::Value view = detail::role::viewJson(a); !view.isNull()) v.set("playerView", std::move(view));
   std::string text = json::write(v, json::WriteOptions{2, true, false});
   text.push_back('\n');
   std::string err;
@@ -119,8 +121,9 @@ App::~App() {
 void App::onStoreChange(const Change& c) {
   Impl& d = *d_;
   if (!readOnly()) {
-    if (c.kind == Change::Load) d.map->setWorld(*c.after);
-    else d.map->worldChanged(*c.before, *c.after, c.tables);
+    // У игрока — карта с его настройками вида (detail::role::mapWorld).
+    if (c.kind == Change::Load) d.map->setWorld(detail::role::mapWorld(*this, *c.after));
+    else d.map->worldChanged(*c.before, detail::role::mapWorld(*this, *c.after), c.tables);
     d.mapGen++;
   }
   platform::invalidate();
@@ -129,11 +132,23 @@ void App::onStoreChange(const Change& c) {
 // ================================================================ мир
 const World& App::world() const { return ui.viewTurn ? viewWorld_ : store.world(); }
 
+bool App::knows(Id faction) const {
+  if (!player() || !faction || faction == ui.playerState) return true;
+  const World& w = world();
+  const Faction* f = w.faction(faction);
+  const Faction* me = w.faction(ui.playerState);
+  if (!f || !me) return false;
+  if (f->suzerain == me->id || me->suzerain == faction) return true;
+  return w.relation(me->id, faction).s == RelStatus::Alliance;
+}
+
 bool App::play(std::string_view label, const std::function<void(Tx&)>& fn, const TxOptions& opt) {
   const bool was = d_->playing;
   d_->playing = true;
+  const u64 v0 = store.version();
   const bool ok = act(label, fn, opt);
   d_->playing = was;
+  if (ok && player() && store.version() != v0) detail::journalPlay(*this, label);   // журнал действий игроков
   return ok;
 }
 
@@ -159,8 +174,12 @@ bool App::act(std::string_view label, const std::function<void(Tx&)>& fn, const 
     constexpr u32 kSlotTables = TB_PROVINCES | TB_FACTIONS | TB_MODIFIERS | TB_TECHS | TB_BUILDINGS | TB_CATALOGS | TB_CHARACTERS;
     std::vector<rules::SlotLoss> loss;
     if (touched & kSlotTables) loss = rules::slotLosses(before, after);
+    // Действие игрока со случайным исходом (археология, контрразведка — счётчик случайных событий вырос) отменить
+    // нельзя: история отмены очищается, иначе неудачный бросок можно было бы переиграть.
+    const bool random = d_->playing && player() && after.meta->rng != before.meta->rng;
     if (loss.empty()) {
       store.transact(label, [&](Tx& t) { t.replaceWorld(after); }, opt);
+      if (random) store.clearHistory();
       return true;
     }
     std::vector<std::string> lines;
@@ -175,7 +194,8 @@ bool App::act(std::string_view label, const std::function<void(Tx&)>& fn, const 
     std::string text = "Данное действие уберёт слоты провинции и лишит её следующих построек: " + join(lines, "; ") + ".";
     std::string lbl(label);
     TxOptions o = opt;
-    confirm("Провинция лишится слотов", text, "Продолжить", true, [before, after, loss, lbl, o](App& a) {
+    const bool playing = d_->playing && player();
+    confirm("Провинция лишится слотов", text, "Продолжить", true, [before, after, loss, lbl, o, playing, random](App& a) {
       if (World::diff(a.store.world(), before) != 0) {
         a.toast("Мир изменился — повторите действие", ToastKind::Warning, "warning");
         return;
@@ -185,6 +205,8 @@ bool App::act(std::string_view label, const std::function<void(Tx&)>& fn, const 
           t.replaceWorld(after);
           rules::trimExcessBuildings(t, &loss);
         }, o);
+        if (random) a.store.clearHistory();
+        if (playing) detail::journalPlay(a, lbl);   // журнал действий игроков: подтверждённое действие тоже
       } catch (const std::exception& e) {
         a.error(e);
       }
@@ -283,12 +305,13 @@ void App::setUiScale(float s) {
 
 void App::toggleFullscreen() { platform::setFullscreen(!platform::fullscreen()); }
 
+// Ctrl+K и F1 закрывают только своё окно: окна событий хода, битв и встреч под ними остаются.
 void App::showPalette() {
-  if (hasDialog("palette")) closeDialogs();
+  if (hasDialog("palette")) detail::closeDialog(*this, "palette");
   else openDialog("palette");
 }
 void App::showHelp() {
-  if (hasDialog("help")) closeDialogs();
+  if (hasDialog("help")) detail::closeDialog(*this, "help");
   else openDialog("help");
 }
 void App::showSettings() { openDialog("settings"); }

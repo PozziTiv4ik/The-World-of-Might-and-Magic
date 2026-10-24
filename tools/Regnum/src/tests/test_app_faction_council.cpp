@@ -93,7 +93,8 @@ TEST(app_faction_council_limit_and_influence) {
     if (!st && f.isState()) st = f.id;
   });
   CHECK(st != 0);
-  // Десять должностей, пять назначений — «Централизованная власть» и «Влияние совета» −2 % × 10.
+  // Десять должностей, пять назначений — «Централизованная власть» и «Влияние совета» −2 % × 5: считаются только
+  // занятые места (аудит 2026-10-23, 6.5).
   CHECK(h->act("Совет", [&](Tx& tx) {
     tx.faction(st).council.clear();
     for (int i = 0; i < schema::kMaxCouncilSeats; i++) {
@@ -108,8 +109,13 @@ TEST(app_faction_council_limit_and_influence) {
   double influence = 0;
   for (const rules::AutoMod& am : rules::autoModifiers(h->world(), st))
     if (am.key == schema::mod::CouncilInfluence) influence = am.scale;
-  CHECK_NEAR(influence, 10.0, 1e-9);
-  CHECK(fx[Fx::ResearchTimePct] <= -20 + 1e-9);
+  CHECK_NEAR(influence, 5.0, 1e-9);
+  // «Влияние совета» — источник эффектов государства (вклад — множитель × эффект модификатора; прочие источники —
+  // засеянные модификаторы формы правления и культуры демонстрационного мира).
+  bool fromInfluence = false;
+  for (const rules::EffectSource& src : fx.sources) fromInfluence = fromInfluence || src.key == schema::mod::CouncilInfluence;
+  CHECK(fromInfluence);
+  CHECK(rules::builtinMod(h->world(), schema::mod::CouncilInfluence)->get(Fx::ResearchTimePct) < 0);
   factionTab(h, st, "faction.council");
   CHECK(h->uiRect("council.influence") != nullptr);
   CHECK(tr::revealIn(h, "council.add"));

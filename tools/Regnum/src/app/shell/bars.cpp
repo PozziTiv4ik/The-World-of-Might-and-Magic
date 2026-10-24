@@ -25,6 +25,11 @@ std::string saveStatus(App& a, ui::Tone& tone, std::string& tip) {
   if (a.readOnly()) {
     status = "только просмотр";
     tone = ui::Tone::Info;
+  } else if (!d.lock.empty()) {   // мир открыт только для чтения (нет файла данных, новее программы)
+    status = "только чтение";
+    tone = ui::Tone::Warning;
+    tip = d.lock + "\n" + a.projectPath();
+    return status;
   } else if (a.dirty()) {
     status = a.projectPath().empty() ? "не сохранён" : "изменён";
     tone = ui::Tone::Warning;
@@ -57,6 +62,7 @@ void worldMenu(App& a) {
   item("file.saveAs");
   item("file.export");
   item("file.reveal");
+  item("file.check");
   ui::menuSeparator();
   item("turn.history");
   item("app.role");
@@ -72,7 +78,9 @@ void modeMenu(App& a) {
   for (int i = 0; i < int(schema::MapMode::Count); i++) {
     const schema::EnumInfo& mi = schema::kMapModes[i];
     ui::IdScope s(i);
-    if (ui::menuItem(mi.name, {.icon = mi.icon, .shortcut = {Key(int(Key::D1) + i), 0}, .checked = int(a.ui.mapMode) == i}))
+    // Клавиши режимов: 1–9, десятый — 0, дальше — без клавиши.
+    const ui::Shortcut key = i < 9 ? ui::Shortcut{Key(int(Key::D1) + i), 0} : i == 9 ? ui::Shortcut{Key::D0, 0} : ui::Shortcut{};
+    if (ui::menuItem(mi.name, {.icon = mi.icon, .shortcut = key, .checked = int(a.ui.mapMode) == i}))
       a.setMapMode(schema::MapMode(i));
   }
   ui::endMenu();

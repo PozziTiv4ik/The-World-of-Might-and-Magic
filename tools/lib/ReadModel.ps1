@@ -33,15 +33,21 @@ function New-WmmaReadModel {
     }
     $graph=$registries['Сущности'];$knowledge=$registries['Знания']
     $byId=New-WmmaIdIndex @($graph.entities)
+    # A merged card is a redirect: its ID, title and aliases answer for the main card.
+    $mergedInto=@{}
+    foreach($entity in $graph.entities){if($entity.merged_into -and $byId.ContainsKey($entity.merged_into)){$mergedInto[$entity.id]=$entity.merged_into}}
     $byPath=@{};$byAlias=@{};$byType=@{};$scenesByParticipant=@{};$factsBySubject=@{}
     foreach($entity in $graph.entities){
         $byPath[$entity.path]=$entity
         Add-WmmaIndexItem $byType $entity.type $entity
+        $answer=if($mergedInto.ContainsKey($entity.id)){$byId[$mergedInto[$entity.id]]}else{$entity}
         foreach($alias in @(@($entity.name)+@($entity.aliases)|Sort-Object -Unique)){
-            Add-WmmaIndexItem $byAlias $alias $entity
+            if(-not $alias){continue}
+            if($byAlias.ContainsKey($alias) -and $byAlias[$alias].Contains($answer)){continue}
+            Add-WmmaIndexItem $byAlias $alias $answer
         }
         if($entity.type -eq 'scene'){
-            foreach($id in @($entity.participant_ids|Sort-Object -Unique)){
+            foreach($id in @($entity.participant_ids|ForEach-Object {if($mergedInto.ContainsKey($_)){$mergedInto[$_]}else{$_}}|Sort-Object -Unique)){
                 Add-WmmaIndexItem $scenesByParticipant $id $entity
             }
         }
@@ -64,6 +70,7 @@ function New-WmmaReadModel {
         graph=$graph;state=$registries['Контекст'];knowledge=$knowledge
         decisions=$registries['Решения'];questions=$registries['Вопросы'];fronts=$registries['Фронты']
         entities_by_id=$byId;entities_by_path=$byPath;entities_by_alias=$byAlias;entities_by_type=$byType
+        merged_into=$mergedInto
         scenes_by_participant=$scenesByParticipant;facts_by_subject=$factsBySubject
         facts_by_id=(New-WmmaIdIndex @($knowledge.facts))
         decisions_by_id=$decisions;decision_aliases=$decisionAliases
@@ -80,9 +87,13 @@ function Resolve-WmmaReadModel {
     return $Data
 }
 
+# A stable ID, a merged ID (answers with the main card) or an unambiguous title or alias.
 function Resolve-WmmaEntity {
     param([object]$Data,[string]$Entity)
-    if($Data.entities_by_id.ContainsKey($Entity)){return $Data.entities_by_id[$Entity]}
+    if($Data.entities_by_id.ContainsKey($Entity)){
+        if($Data.merged_into -and $Data.merged_into.ContainsKey($Entity)){return $Data.entities_by_id[$Data.merged_into[$Entity]]}
+        return $Data.entities_by_id[$Entity]
+    }
     $matches=@($Data.entities_by_alias[$Entity]|Where-Object {$_})
     if($matches.Count -ne 1){throw "Entity is missing or ambiguous: $Entity ($($matches.Count) matches). Use a stable ID."}
     return $matches[0]

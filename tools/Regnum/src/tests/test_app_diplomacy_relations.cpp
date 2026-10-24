@@ -24,10 +24,14 @@ TEST(app_diplomacy_relations_symmetric) {
   h->world().factions.each([&](const Faction& f) {
     if (f.id != a) CHECK(h->uiRect("dip.row." + std::to_string(f.id)) != nullptr);
   });
-  // «В войне» отсюда — объявление войны: отношения −25 (ТЗ 1.c.iv), запись хроники.
+  // «В войне» отсюда — объявление войны после подтверждения: отношения −25 (ТЗ 1.c.iv), запись хроники.
   CHECK(clickIn(h, "dip.status." + std::to_string(b)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
-  h.step();
+  h.settle();
+  CHECK(h->hasDialog("dip.war"));
+  CHECK(h->world().relation(a, b).s != RelStatus::War);
+  CHECK(h.clickUi("dip.war.ok"));
+  h.settle();
   CHECK(h->world().relation(a, b).s == RelStatus::War);
   CHECK_NEAR(h->world().relation(a, b).v, schema::kWarRelation, 1e-9);
   // Поле — действующее значение (с «+10 одна вера», ТЗ «Доработки №4», п.3); хранится значение без смещения.

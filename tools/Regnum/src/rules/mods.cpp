@@ -97,6 +97,7 @@ void needFinite(double v, const char* what) {
 void addStock(Faction& f, Id res, double delta) {
   double& v = f.res[res];
   v += delta;
+  if (res == kGold) v = std::round(v * 1000.0) / 1000.0;   // золото — до тысячных
   if (std::fabs(v) < 1e-9) v = 0;  // без «−0» и хвостов округления
 }
 
@@ -143,12 +144,13 @@ struct FxSum {
   Level level;
   Id self;
   Effects e;
+  bool noArmy = false;   // уровень государства без эффектов войск (герои правителя и совета: их войско — своё)
 
   bool counts(int i) const {
     const auto& info = schema::kEffects[i];
     switch (level) {
       case Level::Province: return info.local;
-      case Level::Faction: return !info.local && !info.hero;
+      case Level::Faction: return !info.local && !info.hero && !(noArmy && info.army);
       case Level::Army: return info.army;
       case Level::Arch: return info.arch;
     }
@@ -177,6 +179,17 @@ struct FxSum {
   }
   void add(EffectSource::Kind kind, Id id, Id mod) { addMod(kind, id, mod, w.modifier(mod)); }
 
+  // Модификаторы героя с весами (rules::heroModifiers).
+  void hero(Id character) {
+    for (const HeroMod& hm : heroModifiers(w, character)) addMod(EffectSource::Hero, character, hm.modifier, w.modifier(hm.modifier), {}, hm.scale);
+  }
+  // Модификаторы записи справочника: раса, культура, религия, форма правления.
+  void trait(const std::vector<CatalogItem>& list, Id item, const char* key) {
+    if (!item) return;
+    if (const CatalogItem* c = Catalogs::find(list, item))
+      for (Id m : c->modifiers) addMod(EffectSource::Trait, item, m, w.modifier(m), key);
+  }
+
   // Модификаторы фракции, её изученных технологий и модификаторы, которые ставятся сами (совет, голод, должности).
   void faction(const SourceIndex& si, const Faction& f, EffectSource::Kind modKind) {
     for (Id m : f.modifiers) add(modKind, f.id, m);
@@ -185,6 +198,10 @@ struct FxSum {
         for (Id m : t->modifiers) add(EffectSource::Tech, t->id, m);
     if (auto* as = si.autosOf(f.id))
       for (const AutoMod& a : *as) addMod(EffectSource::Auto, f.id, a.modifier, a.m, a.key, a.scale);
+    // Культура, религия и форма правления фракции: локальные эффекты — во всех её провинциях, глобальные — ей.
+    trait(w.catalogs->cultures, f.culture, "culture");
+    trait(w.catalogs->religions, f.religion, "religion");
+    trait(w.catalogs->governments, f.government, "government");
   }
 
   // Постройки провинции: набор модификаторов текущего достроенного уровня.
@@ -230,6 +247,24 @@ Effects provinceFx(const World& w, const SourceIndex& si, const Province& p) {
     s.add(EffectSource::Province, p.id, m);
   }
   for (const AutoMod& a : autoProvinceModifiers(w, p.id)) s.addMod(EffectSource::Auto, p.id, a.modifier, a.m, a.key);
+  // Культура, религия и преобладающая раса провинции. Культура и религия, совпадающие с государственными, считаются
+  // один раз — через государство (его локальные эффекты действуют во всех его провинциях).
+  const Faction* own = w.faction(p.owner);
+  const bool state = own && own->isState();
+  if (!state || p.culture != own->culture) s.trait(w.catalogs->cultures, p.culture, "culture");
+  if (!state || p.religion != own->religion) s.trait(w.catalogs->religions, p.religion, "religion");
+  {
+    Id race = 0;
+    i64 best = 0;
+    for (const RacePop& r : p.races)
+      if (r.pop > best) {
+        best = r.pop;
+        race = r.race;
+      }
+    s.trait(w.catalogs->races, race, "race");
+  }
+  // Лорд провинции (герой владельца, доступный): его локальные эффекты.
+  if (const Character* lord = w.character(p.lord); lord && p.owner && lord->faction == p.owner && heroAvailable(w, p.lord)) s.hero(p.lord);
   if (const Faction* o = w.faction(p.owner); o && o->isState()) s.faction(si, *o, EffectSource::Faction);
   s.buildings(p);
   for (Id g : p.hqs)
@@ -242,20 +277,31 @@ Effects factionFx(const World& w, const SourceIndex& si, const Faction& f, const
   s.faction(si, f, EffectSource::Faction);
   if (f.isState())
     for (const Province* p : owned)
-      if (!p->sea && p->owner == f.id) s.buildings(*p);
+      if (!p->sea && p->owner == f.id) {
+        s.buildings(*p);
+        for (Id m : p->modifiers) s.add(EffectSource::Province, p->id, m);   // глобальные эффекты модификаторов провинции
+      }
+  // Правитель и герои на местах совета (свои и доступные): глобальные эффекты, кроме эффектов войск.
+  std::vector<Id> heroes;
+  auto take = [&](Id h) {
+    const Character* c = w.character(h);
+    if (c && c->faction == f.id && heroAvailable(w, h) && !contains(heroes, h)) heroes.push_back(h);
+  };
+  take(f.ruler);
+  for (const CouncilSeat& seat : f.council) take(seat.character);
+  s.noArmy = true;
+  for (Id h : heroes) s.hero(h);
+  s.noArmy = false;
   return std::move(s.e);
 }
 
 Effects armyFx(const World& w, const Army& a, const Effects* leaderFx) {
   FxSum s{w, FxSum::Level::Army, a.leader(), {}};
   for (Id m : a.modifiers) s.add(EffectSource::Army, a.id, m);
-  // Эффекты войск у модификаторов героев войска (и изученных ими талантов).
+  // Эффекты войск у модификаторов героев войска (свои, класса, реликвий, талантов по рангам).
   for (const ArmyGroup& g : a.groups)
     for (Id h : g.heroes)
-      if (const Character* c = w.character(h)) {
-        for (Id m : c->modifiers) s.add(EffectSource::Army, a.id, m);
-        for (Id m : talentModifiers(w, h)) s.add(EffectSource::Army, a.id, m);
-      }
+      if (w.character(h)) s.hero(h);
   // Эффекты войск государства-лидера (его модификаторы, технологии, совет, голод).
   Effects lf = leaderFx ? *leaderFx : factionEffects(w, a.leader());
   for (int i = 0; i < kFxCount; i++)
@@ -302,6 +348,24 @@ ArchStats archStatsWith(const World& w, const ArchGroup& g, const Effects& facti
 }  // namespace detail
 
 // ================================================================ публичный интерфейс
+std::string traitName(const World& w, const EffectSource& s) {
+  struct Kind {
+    const char* key;
+    const char* noun;
+    const std::vector<CatalogItem> Catalogs::*list;
+  };
+  static const Kind kinds[] = {{"race", "раса", &Catalogs::races},
+                               {"culture", "культура", &Catalogs::cultures},
+                               {"religion", "религия", &Catalogs::religions},
+                               {"government", "форма правления", &Catalogs::governments}};
+  for (const Kind& k : kinds)
+    if (s.key == k.key) {
+      const CatalogItem* c = Catalogs::find((*w.catalogs).*k.list, s.id);
+      return std::string(k.noun) + " " + detail::q(c ? nameOr(c->name) : std::string("?"));
+    }
+  return "справочник";
+}
+
 Effects provinceEffects(const World& w, Id province) {
   const Province* p = w.province(province);
   if (!p) return {};

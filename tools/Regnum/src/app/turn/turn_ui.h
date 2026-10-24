@@ -1,6 +1,7 @@
-// Regnum — общие элементы интерфейса хода, истории ходов и хроники: строки хроники, страницы и сводка итога хода,
-// мелкие элементы таблиц, окна области (turn/*.cpp, panels/chronicle.cpp, окна торговли). Снимки ходов и возврат —
-// turn/history.h.
+// Regnum — общие элементы интерфейса хода, истории ходов и хроники: строки хроники и туман войны в ней, вкладка
+// «События» сущностей, страницы и сводка итога хода, готовность игроков, итоги хода игроку, мелкие элементы таблиц,
+// окна области (turn/*.cpp, panels/chronicle.cpp, panels/events.cpp, окна торговли). Снимки ходов и возврат —
+// turn/history.h; журнал действий игроков — turn/journal.h.
 #pragma once
 #include <optional>
 
@@ -27,6 +28,22 @@ struct LogRowOpt {
 // Строка записи: значок вида, текст с переносом, ссылки (фракции, провинция), время. true — щелчок.
 bool logRow(const World& w, const LogEntry& e, const LogRowOpt& o = {});
 
+// Участники записи: её фракции, владелец её провинции и фракции групп её войска (без повторов, по порядку).
+std::vector<Id> entryParties(const World& w, const LogEntry& e);
+// Запись касается государства state: оно среди участников.
+bool entryConcerns(const World& w, const LogEntry& e, Id state);
+// Туман войны (App::knows): администратору видны все записи; игроку — общие (без участников) и записи с участием
+// известных ему государств (своё, союзники, сюзерен, вассалы).
+bool entryVisible(const App& a, const World& w, const LogEntry& e);
+// Имя упомянуто в тексте словом целиком (без учёта регистра, ё = е): записи о герое.
+bool mentions(std::string_view text, std::string_view name);
+
+// Вкладка «События» провинции, государства, героя и войска: записи хроники, которые отбирает match и видит роль, по
+// ходам — новые сверху, строками logRow (щелчок — выделить и показать объект записи); пусто — одна строка. Строки
+// помечаются «<mark>.<запись>», кнопка «Показать ещё» — «<mark>.more». Отбор кешируется по mark и salt (salt —
+// то, от чего ещё зависит match: например, имя героя).
+void entityEvents(App& a, const World& w, const std::function<bool(const LogEntry&)>& match, std::string_view mark, u64 salt = 0);
+
 // ---------------------------------------------------------------- мелкие элементы
 void iconTile(RectF r, const char* icon, ui::Tone tone);        // значок на тонированной подложке
 void factionLabel(const World& w, Id faction, float h = 24);    // флаг и название в строке (ячейка таблицы)
@@ -49,8 +66,8 @@ bool entryOnPage(const World& w, const LogEntry& e, int page);
 // Подписи переключателя страниц с числом фракций: «Основные государства · 2», «Остальные · 9».
 std::string pageLabel(int page, size_t count);
 
-// Строки итога хода страницы: государства, затем гильдии, по названию.
-std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep, int page = kPageAll);
+// Строки итога хода страницы: государства, затем гильдии, по названию; state ≠ 0 — только строка этого государства.
+std::vector<const TurnFactionLine*> sortedLines(const World& w, const TurnRecord& rep, int page = kPageAll, Id state = 0);
 // Есть ли у строки изменения запасов: ресурсы, эссенции элементов или недостача провизии после хода.
 bool hasStockChanges(const rules::TurnFactionLine& l);
 // Изменения запасов строкой шириной width (w — мир, в котором есть ресурсы и эссенции строки): «Голод» с недостачей
@@ -72,7 +89,8 @@ struct TurnDigest {
   }
   int events() const { return int(builds.size() + techs.size() + deals.size() + economy.size() + other.size()); }
 };
-TurnDigest digest(const World& w, const rules::TurnReport& rep, int page = kPageAll);
+// state ≠ 0 — только записи, которые касаются этого государства (страница не учитывается).
+TurnDigest digest(const World& w, const TurnRecord& rep, int page = kPageAll, Id state = 0);
 
 // ---------------------------------------------------------------- готовность игроков (ТЗ «Доработки №1», п.1)
 // Игрок отмечает готовность завершить ход за своё государство (rules::setTurnReady), ход завершает администратор.
@@ -84,6 +102,12 @@ struct ReadyRow {
 };
 std::vector<ReadyRow> readiness(const World& w);
 int readyCount(const World& w);                                 // государств, отметивших готовность в этом ходу
+// Основные игровые государства: всего и отметивших готовность в этом ходу («Готовность 2/5»).
+struct MainReady {
+  int ready = 0, total = 0;
+  bool all() const { return ready >= total; }
+};
+MainReady mainReady(const World& w);
 // Таблица готовности: флаг и название, отметка «Готов» (основные без отметки — приглушённо); height > 0 — своя
 // прокрутка. Строки помечаются «<mark>.<государство>».
 void readinessTable(App& a, const World& w, std::string_view id, float height, std::string_view mark);
@@ -95,6 +119,17 @@ float statePillWidth(std::string_view label, ui::Size size = ui::Size::Normal);
 // Игрок: отметить готовность завершить ход за своё государство или снять отметку (игровое действие, отменяется
 // Ctrl+Z); короткое уведомление.
 void toggleReady(App& a);
+// Игрок нажал «Завершить ход»: ещё не готов — предпросмотр хода своего государства (окно «turn.ready» с кнопкой
+// «Готов»); уже готов — отметка снимается сразу.
+void askReady(App& a);
+
+// ---------------------------------------------------------------- итоги хода игроку
+// Каждый кадр экрана мира: игрок впервые видит мир после смены хода (последний виденный ход его государства в этом мире
+// — turns.json данных пользователя) — окно «Итоги хода N» по его государству (Meta::lastTurn).
+void playerArrival(App& a);
+// Последний ход мира path, итоги которого видел игрок за state (0 — не видел), и запись отметки.
+int seenTurn(const App& a, const std::string& path, Id state);
+void markSeen(const App& a, const std::string& path, Id state, int turn);
 
 // Прокрутка высотой по содержимому прошлого кадра, но не выше maxH (модальные окна).
 class FitScroll {
@@ -115,7 +150,10 @@ void showChronicle(App& a, int turn);
 
 // Диалоги области.
 std::unique_ptr<Dialog> makeConfirm(App& a);
-std::unique_ptr<Dialog> makeReport(App& a, const rules::TurnReport& rep);
+// Игрок: предпросмотр хода только со строкой своего государства и кнопкой «Готов» (окно «turn.ready»).
+std::unique_ptr<Dialog> makeReadyPreview(App& a);
+// Итоги хода (окно «turn.report»); state ≠ 0 — по государству игрока: его казна и запасы, записи хода о нём.
+std::unique_ptr<Dialog> makeReport(App& a, const TurnRecord& rep, Id state = 0);
 std::unique_ptr<Dialog> makeHistory(App& a);
 
 }  // namespace rg::app::turnui

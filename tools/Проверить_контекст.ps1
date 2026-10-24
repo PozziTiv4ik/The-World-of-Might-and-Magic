@@ -45,6 +45,10 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     foreach($doc in @(Get-WmmaDocuments $root)){
         if(-not $doc.id -or -not $byId.ContainsKey($doc.id)){$errors.Add("Document missing from graph: $($doc.path)")}
     }
+    # ID format by type, and merged cards: a redirect that nothing references directly.
+    foreach($problem in @(Get-WmmaEntityIdProblems $graph)+@(Get-WmmaMergedReferenceProblems -Graph $graph -State $state -Knowledge $knowledge -Decisions $decisions -Chronology $events)){
+        if($problem.kind -eq 'Error'){$errors.Add($problem.message)}else{$warnings.Add($problem.message)}
+    }
     $edgeKeys=[Collections.Generic.HashSet[string]]::new()
     foreach($edge in @($graph.edges)+@($graph.references)){
         if(-not $edgeKeys.Add("$($edge.from)|$($edge.to)|$($edge.kind)|$($edge.evidence)|$($edge.scope)")){$errors.Add('Duplicate graph relationship.')}
@@ -78,6 +82,16 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
             foreach($record in $proof){foreach($evidenceId in $record.evidence_ids){if(-not $byId.ContainsKey($evidenceId)){$errors.Add("Unknown knowledge evidence: $evidenceId")}}}
         }
     }
+    # A replaced fact keeps its record; the replacement chain ends and pointers move on.
+    $replacedBy=@{};foreach($fact in $knowledge.facts){if($fact.superseded_by){$replacedBy[$fact.id]=[string]$fact.superseded_by}}
+    foreach($id in @($replacedBy.Keys|Sort-Object)){
+        if(-not $factIds.ContainsKey($replacedBy[$id])){$errors.Add("Fact is replaced by an unknown fact: $id -> $($replacedBy[$id])");continue}
+        $cursor=$replacedBy[$id];$seen=@{$id=$true}
+        while($cursor -and $replacedBy.ContainsKey($cursor)){if($seen.ContainsKey($cursor)){$errors.Add("Cyclic fact replacement: $id");break};$seen[$cursor]=$true;$cursor=$replacedBy[$cursor]}
+    }
+    foreach($holder in @($state)+@($state.branches)){
+        foreach($id in @($holder.fact_ids|Where-Object {$replacedBy.ContainsKey($_)})){$warnings.Add("Context points to a replaced fact: $id (use $($replacedBy[$id]))")}
+    }
     $frontIds=@($data.fronts_by_id.Keys)
     $focusIds=@($questions.questions|ForEach-Object {$_.id})+@($decisions.decisions|ForEach-Object {$_.id;$_.resolved_from}|Where-Object {$_})+$frontIds
     foreach($id in $state.fact_ids){if(-not $factIds.ContainsKey($id)){$errors.Add("Unknown global fact: $id")}}
@@ -89,11 +103,12 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         foreach($id in $branch.focus_ids){if($focusIds -notcontains $id){$errors.Add("Unknown branch focus: $id")}}
         foreach($id in $branch.scene_ids){if(-not $byId.ContainsKey($id) -or $byId[$id].type -ne 'scene'){$errors.Add("Unknown branch scene: $id")}}
         foreach($id in $branch.fact_ids){if(-not $factIds.ContainsKey($id)){$errors.Add("Unknown branch fact: $id")}}
-        $profile=Read-WmmaText (Join-Path $root "01_Кампания/Ветки/$($branch.name)/00_Профиль_ветки.md")
+        $profile=Read-WmmaText (Join-Path $root "01_Кампания/Ветки/$($branch.name)/00_Профиль_ветки.md") -AllowMissing
+        if(-not $profile){$errors.Add("Branch profile is missing: $($branch.name); rebuild with Собрать_контекст.");continue}
         if((Get-WmmaMeta $profile 'current_chapter') -ne [string]$chapter){$errors.Add("Stale chapter in branch: $($branch.name)")}
         foreach($id in $branch.scene_ids){if($byId.ContainsKey($id) -and -not $profile.Contains($byId[$id].path)){$errors.Add("Branch omits linked shared scene: $($branch.name) -> $id")}}
         $expected=Get-WmmaContext -Root $root -Branch $branch.name -MaxWords 1800 -Data $data
-        $actual=Read-WmmaText (Join-Path $root "01_Кампания/Контекст/$($branch.name).md")
+        $actual=Read-WmmaText (Join-Path $root "01_Кампания/Контекст/$($branch.name).md") -AllowMissing
         if($actual -cne $expected.text){$errors.Add("Stale branch packet: $($branch.name)")}
         if([regex]::Matches($actual,'\S+').Count -gt 1800){$errors.Add("Branch packet exceeds word budget: $($branch.name)")}
     }

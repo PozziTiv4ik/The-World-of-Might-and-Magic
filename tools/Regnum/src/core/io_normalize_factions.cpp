@@ -179,11 +179,13 @@ void Norm::factions() {
     // Отметка готовности и ход контрразведки — номера ходов; тюрьма — расы справочника, люди ≥ 0, без повторов.
     ch |= fixNum(f.readyTurn, 0, kMaxTurn, 0, F_FACTIONS, where, "readyTurn");
     ch |= fixNum(f.detectTurn, 0, kMaxTurn, 0, F_FACTIONS, where, "detectTurn");
-    if (!f.isState() && (!f.prison.empty() || f.readyTurn || f.conspiracy)) {
+    ch |= fixNum(f.landless, 0, kMaxTurn, 0, F_FACTIONS, where, "landless");
+    if (!f.isState() && (!f.prison.empty() || f.readyTurn || f.conspiracy || f.landless)) {
       warn(F_FACTIONS, where, "тюрьма, готовность к ходу и заговор бывают только у государства — сняты");
       f.prison.clear();
       f.readyTurn = 0;
       f.conspiracy = false;
+      f.landless = 0;
       ch = true;
     }
     ch |= fixKeyed(
@@ -376,6 +378,7 @@ void Norm::characters() {
     // подклассом получает его); таланты — ранги дерева подкласса, по порядку изучения законные (условие изучено
     // полностью, ярус открыт, рангов не больше наибольшего, очков не больше уровня).
     ch |= fixNum(c.level, 1, schema::kMaxHeroLevel, 1, F_CHARACTERS, where, "level");
+    ch |= fixNum(c.respecTurn, 0, kMaxTurn, 0, F_CHARACTERS, where, "respecTurn");
     ch |= fixRef(c.heroClass, Seq::HeroClass, F_CHARACTERS, where, "heroClass");
     const HeroClass* hc = base.heroClass(c.heroClass);
     if (c.subclass && (!hc || !hc->subclass(c.subclass))) {

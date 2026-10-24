@@ -116,12 +116,12 @@ TEST(app_trees_features_editor) {
   undo(h);
   CHECK_NEAR(bld(h, b)->levels[0].drainEss.at(blood), 40, 1e-12);
 
-  // Сталелитейная: 10 рецептов строками; раскрыть третий, назвать, добавить эссенцию на входе; новый рецепт и удаление
+  // Сталелитейная: 11 рецептов строками; раскрыть третий, назвать, добавить эссенцию на входе; новый рецепт и удаление
   // (с подтверждением).
   app::openBuildingTree(h.a(), 0, steel);
   h.settle(40);
-  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(10));
-  for (int i = 0; i < 10; i++) CHECK(h->uiRect("bt.recipe." + std::to_string(i) + ".row") != nullptr);
+  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(11));
+  for (int i = 0; i < 11; i++) CHECK(h->uiRect("bt.recipe." + std::to_string(i) + ".row") != nullptr);
   CHECK(clickSide(h, "bt.recipe.2.open"));
   CHECK(h->uiRect("bt.recipe.2.name") != nullptr);
   CHECK(typeSide(h, "bt.recipe.2.name", "Оскверненная плавка"));
@@ -133,17 +133,17 @@ TEST(app_trees_features_editor) {
   CHECK(revealSide(h, "bt.recipe.2.name"));
   shotClean(h, "trees_features_recipes", 60);
   CHECK(clickSide(h, "bt.recipe.add"));
-  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(11));
-  CHECK(h->uiRect("bt.recipe.10.name") != nullptr);   // новый — сразу в правке
-  CHECK(clickSide(h, "bt.recipe.10.remove"));
+  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(12));
+  CHECK(h->uiRect("bt.recipe.11.name") != nullptr);   // новый — сразу в правке
+  CHECK(clickSide(h, "bt.recipe.11.remove"));
   h.settle(10);
   CHECK(h->hasDialog("confirm"));
-  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(11));
+  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(12));
   CHECK(h.clickUi("dialog.ok"));
   h.settle(10);
   CHECK(!h->hasDialog("confirm"));
-  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(10));
-  CHECK(h->uiRect("bt.recipe.9.name") == nullptr);   // правка удалённого рецепта закрыта
+  CHECK_EQ(bld(h, steel)->recipes.size(), size_t(11));
+  CHECK(h->uiRect("bt.recipe.10.name") == nullptr);   // правка удалённого рецепта закрыта
   // Подсказка карточки на схеме — рецепты списком.
   {
     RectF nr = rectOf(h.a(), "bt.node." + std::to_string(steel));

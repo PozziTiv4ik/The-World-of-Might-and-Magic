@@ -9,7 +9,11 @@ param(
 
     [string]$PortraitPath = 'null',
 
-    [switch]$Force,
+    # Other names of the same person.
+    [string[]]$Aliases = @(),
+
+    # IDs of existing characters with a similar name that are confirmed to be other people.
+    [string[]]$DistinctFrom = @(),
 
     [switch]$SkipCheck
 )
@@ -23,72 +27,91 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Assert-WmmaSingleLine $Name 'Name'
+foreach ($alias in $Aliases) { Assert-WmmaSingleLine $alias 'Alias' }
 $fileName = Convert-WmmaFileName -Value $Name
 $relativePath = "03_Персонажи/$fileName.md"
 $targetPath = Join-Path $root ($relativePath -replace '/', '\')
 
-if ((Test-Path -LiteralPath $targetPath) -and -not $Force) {
-    throw "Character file already exists: $relativePath"
+# An existing card is never replaced: its ID and text stay. Edit it by hand instead.
+if (Test-Path -LiteralPath $targetPath) {
+    throw "Character file already exists: $relativePath. Edit the existing card to keep its ID and text."
 }
 
 if ($PortraitStatus -eq 'available' -and ($PortraitPath -eq 'null' -or [string]::IsNullOrWhiteSpace($PortraitPath))) {
     throw 'portrait_status=available requires -PortraitPath.'
 }
 
-$content = @"
-# $Name
+# One person, one card: a title or alias equal to, or contained in, an existing one is refused.
+$graph = Read-WmmaRegistry $root 'Сущности'
+Assert-WmmaEntityIds $graph $DistinctFrom -Type @('character') -Label 'distinct character'
+$similar = @(Find-WmmaSimilarEntities @($graph.entities | Where-Object { $_.type -eq 'character' }) (@($Name) + @($Aliases)) -Except $DistinctFrom)
+if ($similar.Count) {
+    throw ("A character with the same or a contained name already exists:`n" + (($similar | ForEach-Object { "- $($_.id) $($_.name) ($($_.path)), совпадение: $($_.match)" }) -join "`n") +
+        "`nUse the existing card (add an alias there) or, for a different person, repeat with -DistinctFrom <ID> and record the distinction in 03_Персонажи/00_Словарь_имен_и_алиасов.md.")
+}
 
----
-type: character
-status: active
-canon_level: active
-role: $Role
-portrait: $PortraitPath
-portrait_status: $PortraitStatus
----
+$id = New-WmmaEntityId -Root $root -Type 'character'
+$meta = @(
+    'type: character'
+    'status: active'
+    'canon_level: active'
+    "role: $Role"
+    "portrait: $PortraitPath"
+    "portrait_status: $PortraitStatus"
+    "id: $id"
+    "aliases: $(Format-WmmaMetaArray $Aliases)"
+)
+if ($DistinctFrom.Count) { $meta += "distinct_from: $(Format-WmmaMetaArray $DistinctFrom)" }
 
-## Кратко
+$content = @(
+    "# $Name"
+    ''
+    '---'
+    $meta
+    '---'
+    ''
+    '## Кратко'
+    ''
+    $Role
+    ''
+    '## Текущее положение'
+    ''
+    'Уточнить.'
+    ''
+    '## Портрет'
+    ''
+    "- Статус: $PortraitStatus"
+    "- Основной файл: $PortraitPath"
+    '- Идея для генерации: уточнить по карточке персонажа и стилю проекта.'
+    ''
+    '## Прошлое'
+    ''
+    '- Уточнить.'
+    ''
+    '## Цели'
+    ''
+    '- Уточнить.'
+    ''
+    '## Связи'
+    ''
+    '- Союзники: уточнить.'
+    '- Враги: уточнить.'
+    '- Семья: уточнить.'
+    '- Политические связи: уточнить.'
+    ''
+    '## Секреты и неизвестное'
+    ''
+    '- Уточнить.'
+    ''
+    '## Связанные файлы'
+    ''
+    '- `03_Персонажи/00_Индекс_персонажей.md`'
+) -join "`n"
 
-$Role
+Write-WmmaText $targetPath ($content + "`n")
 
-## Текущее положение
+Complete-WmmaMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_персонажей' -SkipCheck:$SkipCheck
 
-Уточнить.
-
-## Портрет
-
-- Статус: $PortraitStatus
-- Основной файл: $PortraitPath
-- Идея для генерации: уточнить по карточке персонажа и стилю проекта.
-
-## Прошлое
-
-- Уточнить.
-
-## Цели
-
-- Уточнить.
-
-## Связи
-
-- Союзники: уточнить.
-- Враги: уточнить.
-- Семья: уточнить.
-- Политические связи: уточнить.
-
-## Секреты и неизвестное
-
-- Уточнить.
-
-## Связанные файлы
-
-- ``03_Персонажи/00_Индекс_персонажей.md``
-"@
-
-# Bytes as written by Set-Content: the text and one platform line break.
-Write-WmmaText $targetPath ($content + [Environment]::NewLine)
-
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_индекс_персонажей' -SkipCheck:$SkipCheck
-
-"Created character: $relativePath"
+"Created character: $relativePath ($id)"
 }

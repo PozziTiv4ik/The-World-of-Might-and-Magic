@@ -47,6 +47,7 @@ std::string dims(int w) { return fmtInt(w) + " × " + fmtInt(map::MapExport::hei
 void begin(App& a, State& s) {
   map::RenderOptions o;
   o.mode = a.ui.mapMode;
+  o.focusState = detail::renderOptions(a).focusState;   // «Дипломатия» — относительно того же государства, что на экране
   o.labels = s.labels;
   if (!s.armies) a.world().armies.each([&](const Army& ar) { o.hideArmies.push_back(ar.id); });
   // Галочка «Войска и флот» экспорта главнее «Скрыть войска» на карте редактора.

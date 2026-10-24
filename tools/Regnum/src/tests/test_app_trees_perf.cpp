@@ -85,14 +85,14 @@ TEST(app_trees_perf_frames) {
   CHECK(bz < rg::test::perf(160));
 }
 
-// Общее дерево базовых записей (с веткой «Стимуляция промышленности» — 99 технологий змейкой): всё дерево на холсте,
+// Общее дерево базовых записей («Археология», порох, «Стимуляция промышленности» — 7 ступеней): всё дерево на холсте,
 // наведение, масштаб и панорама вблизи (карточки и связи за краем холста не строятся).
 TEST(app_trees_perf_common_tree) {
   Harness h("trees_perf_common", 1600, 1000);
   h.demo();
   int n = 0;
   h->world().techs.each([&](const Tech& t) { n += t.faction == 0; });
-  CHECK(n >= 99);
+  CHECK(n >= 19);
   app::openTechTree(h.a(), 0);
   h.settle();
   h.key(Key::F);

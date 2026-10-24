@@ -1,6 +1,7 @@
 // Regnum — ход: подтверждение с предварительным итогом, снимки мира (конец хода перед расчётом и начало
-// следующего), расчёт (rules::endTurn), уведомление с отчётом, просмотр прошлых ходов и возврат к ним. Игрок ход не
-// завершает — отмечает готовность своего государства (turnui::toggleReady), ход для всех завершает администратор.
+// следующего), расчёт (rules::endTurn; итоги и события хода — в мире), уведомление с отчётом, просмотр прошлых ходов и
+// возврат к ним (исправления нормализации снимка — окном «Мир открыт с исправлениями»). Игрок ход не завершает —
+// после предпросмотра своего государства отмечает готовность (turnui::askReady), ход для всех завершает администратор.
 // История с ветвями: снимки уникальны (ход + вид + номер), ветвь текущего мира — цепочка parent от snapHead;
 // новые снимки живут в памяти до сохранения мира. Окна — confirm_dialog.cpp, report_dialog.cpp, history_dialog.cpp.
 #include <unordered_map>
@@ -105,9 +106,14 @@ const Snap* rowSnap(const std::vector<Snap>& all, u64 head, int current, int tur
 
 std::string snapKey(const Snap& s) { return s.mem ? "mem:" + std::to_string(s.info.seq) : s.info.file; }
 
-World loadSnap(App::Impl& d, const Snap& s) {
+// Мир снимка; warnings и fixed — исправления нормализации снимка с диска и исправленные таблицы (снимки в памяти уже
+// нормализованы).
+World loadSnap(App::Impl& d, const Snap& s, io::Warnings* warnings = nullptr, u32* fixed = nullptr) {
   if (s.mem) return s.mem->world;
-  return std::move(io::loadSnapshotFile(d.path, s.info.file).world);
+  io::LoadResult r = io::loadSnapshotFile(d.path, s.info.file);
+  if (warnings) *warnings = std::move(r.warnings);
+  if (fixed) *fixed = r.fixedTables;
+  return std::move(r.world);
 }
 
 // Смена ветви при «Завершить ход» и возвратах — для Ctrl+Z / Ctrl+Y (подписка на хранилище).
@@ -179,10 +185,11 @@ void App::endTurn() {
     toast("Открыт прошлый ход — вернитесь к текущему, чтобы завершить ход", ToastKind::Warning, "lock", "К текущему ходу", [](App& a) { a.backToCurrent(); });
     return;
   }
-  // Игрок не завершает ход: «Завершить ход» (кнопка, Ctrl+Enter, палитра) ставит или снимает отметку готовности его
-  // государства (в мире — администратор видит её в окне завершения хода и в разделе «Решения»).
+  // Игрок не завершает ход: «Завершить ход» (кнопка, Ctrl+Enter, палитра) сначала показывает предпросмотр хода его
+  // государства с кнопкой «Готов» — она ставит отметку готовности (в мире — администратор видит её в окне завершения хода
+  // и в разделе «Решения»); уже готов — отметка снимается.
   if (player()) {
-    turnui::toggleReady(*this);
+    turnui::askReady(*this);
     return;
   }
   if (hasDialog("turn.confirm")) return;
@@ -198,6 +205,10 @@ void App::endTurn() {
 
 bool App::endTurnNow() {
   if (ui.screen != Screen::Editor || readOnly()) return false;
+  if (!admin()) {   // ход для всех завершает администратор (аудит 2026-10-23, 1.4)
+    toast("Ход завершает администратор редактора", ToastKind::Warning, "lock");
+    return false;
+  }
   Impl& d = *d_;
   trackHead(*this);
   World before = store.world();
@@ -224,8 +235,9 @@ bool App::endTurnNow() {
   if (!rep.hits.empty() && admin()) text += " · покушений: " + std::to_string(rep.hits.size());   // исходы — в отчёте хода
   bool warn = !rep.rebellions.empty() || debts > 0;
   toast(text, warn ? ToastKind::Warning : ToastKind::Success, "next-turn", "Отчёт", [](App& a) { a.openDialog("turn.report"); });
-  // Восстания и мятежи хода — окна по очереди (битва, штурм или захват, судьба героев).
-  flow::processTurnEvents(*this, rep);
+  // Восстания и мятежи хода — окна по очереди (битва, штурм или захват, судьба героев); очередь — в мире
+  // (Meta::turnEvents): неразобранное остаётся в «Решениях».
+  flow::processTurnEvents(*this);
   return true;
 }
 
@@ -258,7 +270,7 @@ bool App::viewTurn(int turn) {
   setEditBorders(false);
   setEditMap(false);
   setTool(ToolId::Select);
-  d.map->setWorld(viewWorld_);
+  d.map->setWorld(detail::role::mapWorld(*this, viewWorld_));   // у игрока — его вид карты
   d.mapGen++;
   if (ui.sel && !selectionExists(viewWorld_, ui.sel)) ui.sel = {};
   ui.hover = {};
@@ -270,7 +282,7 @@ void App::backToCurrent() {
   if (!ui.viewTurn) return;
   ui.viewTurn.reset();
   viewWorld_ = World{};
-  d_->map->setWorld(store.world());
+  d_->map->setWorld(detail::role::mapWorld(*this, store.world()));
   d_->mapGen++;
   if (ui.sel && !selectionExists(store.world(), ui.sel)) ui.sel = {};
   ui.hover = {};
@@ -333,6 +345,8 @@ bool rollbackToTurn(App& a, int turn) {
   const u64 oldHead = d.snapHead;
   u64 target = 0;
   std::optional<World> w;
+  io::Warnings fixes;
+  u32 fixedTables = 0;
   {
     auto all = allSnaps(d);
     const Snap* s = rowSnap(all, oldHead, now, turn);
@@ -341,7 +355,7 @@ bool rollbackToTurn(App& a, int turn) {
       return false;
     }
     try {
-      w = loadSnap(d, *s);
+      w = loadSnap(d, *s, &fixes, &fixedTables);
     } catch (const std::exception& e) {
       a.error(e);
       return false;
@@ -371,6 +385,12 @@ bool rollbackToTurn(App& a, int turn) {
       x.toast("Возврат отменён: снова ход " + std::to_string(cur.turn()), ToastKind::Info, "undo");
     }
   });
+  // Снимок с диска исправлен нормализацией — то же окно, что при открытии мира и восстановлении автосохранения:
+  // исправленные таблицы перепишутся при сохранении, автосохранение в папку мира без согласия их не пишет.
+  if (!fixes.empty()) {
+    d.fixedTables |= fixedTables;
+    detail::showFixes(a, fixes);
+  }
   return true;
 }
 

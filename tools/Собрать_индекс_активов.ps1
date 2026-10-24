@@ -16,49 +16,31 @@ $targetPath = Join-Path $assetRoot '00_Индекс_активов.md'
 
 # Rows of the previous index keep their order; new cards go to the end.
 $existingRows = (Get-WmmaIndexRows -Text (Read-WmmaText $targetPath -AllowMissing) -FileColumn 4 -HeaderCell 'Владелец').Rows
-$assetRows = New-Object 'System.Collections.Generic.List[object]'
+$cards = @(Get-WmmaAssetCards $root)
 
-foreach ($file in Get-ChildItem -LiteralPath $assetRoot -Recurse -File -Filter '*.md') {
-    if ($file.Name -eq '00_Индекс_активов.md' -or $file.Name -eq 'README.md') {
-        continue
-    }
-
-    $text = Read-WmmaText $file.FullName
-    if ((Get-WmmaMeta -Text $text -Field 'type') -ne 'character_asset') {
-        continue
-    }
-
-    $relativePath = Get-WmmaRelativePath -Root $root $file.FullName
-    $owner = Get-WmmaMeta -Text $text -Field 'owner'
-    $assetKind = Get-WmmaMeta -Text $text -Field 'asset_kind'
-    $status = Get-WmmaMeta -Text $text -Field 'status'
-
-    foreach ($required in @(
-        [pscustomobject]@{ Name = 'owner'; Value = $owner },
-        [pscustomobject]@{ Name = 'asset_kind'; Value = $assetKind },
-        [pscustomobject]@{ Name = 'status'; Value = $status }
-    )) {
-        if ([string]::IsNullOrWhiteSpace($required.Value)) {
-            throw "Character asset card is missing $($required.Name): $relativePath"
+foreach ($card in $cards) {
+    foreach ($required in @('Owner', 'OwnerId', 'Kind', 'Status')) {
+        if ([string]::IsNullOrWhiteSpace($card.$required)) {
+            $field = @{ Owner = 'owner'; OwnerId = 'owner_id'; Kind = 'asset_kind'; Status = 'status' }[$required]
+            throw "Character asset card is missing ${field}: $($card.File)"
         }
     }
-
-    $assetRows.Add([pscustomobject]@{
-        Owner = $owner
-        Asset = Get-WmmaTitle -Text $text
-        Kind = $assetKind
-        Status = $status
-        File = $relativePath
-        Order = if ($existingRows.ContainsKey($relativePath)) { $existingRows[$relativePath].Order } else { 100000 }
-    }) | Out-Null
 }
 
 $lines = New-WmmaGeneratedHeader -Title 'Индекс активов персонажей' -Type 'character_assets_index' -CanonLevel 'active' -Script 'Собрать_индекс_активов' `
     -Intro 'Этот файл генерируется автоматически из карточек активов персонажей. Подробные правила: `00_Инструкции_для_ИИ/05_Активы_персонажей.md`.'
 $lines.Add('')
 Add-WmmaMarkdownTable $lines @('Владелец', 'Актив', 'Тип', 'Статус', 'Файл') @(
-    $assetRows | Sort-Object Order, Owner, Asset, File | ForEach-Object { ,@($_.Owner, $_.Asset, $_.Kind, $_.Status, "``$($_.File)``") }
+    $cards |
+        Sort-Object @{ Expression = { if ($existingRows.ContainsKey($_.File)) { $existingRows[$_.File].Order } else { 100000 } } }, Owner, Asset, File |
+        ForEach-Object { ,@($_.Owner, $_.Asset, $_.Kind, $_.Status, "``$($_.File)``") }
 ) -Escape { param($Value) Format-WmmaTableCell -Empty '-' $Value }
+
+# Owner indexes: the asset table of each owner is generated from the cards with its owner_id;
+# the summary and restrictions of an existing owner index are the author's notes and stay.
+foreach ($view in @(Get-WmmaOwnerAssetIndexViews -Root $root -Cards $cards)) {
+    Write-WmmaText (Join-Path $root $view.Path) $view.Text
+}
 
 Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'character asset index' -SkipCheck:$SkipCheck
 }

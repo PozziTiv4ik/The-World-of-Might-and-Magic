@@ -38,6 +38,11 @@ bool Norm::exists(Seq s, Id id) const {
     case Seq::Tech: return w().techs.has(id);
     case Seq::Army: return w().armies.has(id);
     case Seq::Node: return w().nodes.has(id);
+    case Seq::Route: return w().routes.has(id);
+    case Seq::Deal: return w().deals.has(id);
+    case Seq::Log: return w().log.has(id);
+    case Seq::Plot: return w().plots.has(id);
+    case Seq::Proposal: return w().proposals.has(id);
     default: return hasCat(s, id);
   }
 }
@@ -320,6 +325,8 @@ void Norm::run() {
   deals();
   log();
   plots();
+  proposals();
+  turnState();
   relations();
   counters();
   natures();

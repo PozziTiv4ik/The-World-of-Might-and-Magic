@@ -3,8 +3,11 @@
 
 #include "app/app_internal.h"
 #include "app/widgets.h"
+#include "base/fs.h"
+#include "base/json.h"
 #include "gfx/text.h"
 
+#include <climits>
 #include <unordered_map>
 
 namespace rg::app::turnui {
@@ -188,6 +191,120 @@ bool logRow(const World& w, const LogEntry& e, const LogRowOpt& o) {
   return focusable && it.clicked;
 }
 
+// ================================================================ участники записи и туман войны
+std::vector<Id> entryParties(const World& w, const LogEntry& e) {
+  std::vector<Id> out;
+  auto add = [&](Id f) {
+    if (f && w.faction(f) && std::find(out.begin(), out.end(), f) == out.end()) out.push_back(f);
+  };
+  for (Id f : e.factions) add(f);
+  if (const Province* p = e.province ? w.province(e.province) : nullptr) add(p->owner);
+  if (const Army* ar = e.army ? w.army(e.army) : nullptr)
+    for (const ArmyGroup& g : ar->groups) add(g.faction);
+  return out;
+}
+
+bool entryConcerns(const World& w, const LogEntry& e, Id state) {
+  if (!state) return false;
+  const std::vector<Id> p = entryParties(w, e);
+  return std::find(p.begin(), p.end(), state) != p.end();
+}
+
+bool entryVisible(const App& a, const World& w, const LogEntry& e) {
+  if (!a.player()) return true;
+  const std::vector<Id> parties = entryParties(w, e);
+  if (parties.empty()) return true;   // общая запись (заметка ведущего, итог хода)
+  for (Id f : parties)
+    if (a.knows(f)) return true;
+  return false;
+}
+
+bool mentions(std::string_view text, std::string_view name) {
+  const std::string n = utf8::searchKey(name);
+  if (n.empty()) return false;
+  const std::string t = utf8::searchKey(text);
+  for (size_t at = t.find(n); at != std::string::npos; at = t.find(n, at + 1)) {
+    bool left = at == 0;
+    if (!left) {
+      size_t p = utf8::prev(t, at);
+      left = !utf8::isWordChar(utf8::decode(t, p));
+    }
+    const size_t end = at + n.size();
+    bool right = end >= t.size();
+    if (!right) {
+      size_t q = end;
+      right = !utf8::isWordChar(utf8::decode(t, q));
+    }
+    if (left && right) return true;
+  }
+  return false;
+}
+
+void entityEvents(App& a, const World& w, const std::function<bool(const LogEntry&)>& match, std::string_view mark, u64 salt) {
+  // Отбор — по таблице хроники, фракциям и отношениям (туман войны), роли и вкладке; видна одна вкладка за раз.
+  struct Cache {
+    Table<LogEntry> log;
+    Table<Faction> factions;
+    std::shared_ptr<const RelMap> rel;
+    std::string key;
+    u64 salt = 0;
+    Id state = 0;
+    bool player = false, valid = false;
+    std::vector<Id> ids;
+  };
+  static Cache c;
+  const std::string key(mark);
+  if (!c.valid || c.key != key || c.salt != salt || !c.log.same(w.log) || !c.factions.same(w.factions) || c.rel != w.relations ||
+      c.player != a.player() || c.state != a.ui.playerState) {
+    std::vector<const LogEntry*> v;
+    w.log.each([&](const LogEntry& e) {
+      if (match(e) && entryVisible(a, w, e)) v.push_back(&e);
+    });
+    std::sort(v.begin(), v.end(), [](const LogEntry* x, const LogEntry* y) { return x->turn != y->turn ? x->turn > y->turn : x->id > y->id; });
+    c.ids.clear();
+    for (const LogEntry* e : v) c.ids.push_back(e->id);
+    c.log = w.log;
+    c.factions = w.factions;
+    c.rel = w.relations;
+    c.key = key;
+    c.salt = salt;
+    c.player = a.player();
+    c.state = a.ui.playerState;
+    c.valid = true;
+  }
+  if (c.ids.empty()) {
+    ui::emptyState("chronicle", "Событий нет.");
+    a.markUi(key + ".empty");
+    return;
+  }
+  int& limit = ui::state<int>(ui::id("##events.limit"));
+  if (limit <= 0) limit = 60;
+  const int shown = std::min<int>(int(c.ids.size()), limit);
+  int turn = INT_MIN;
+  const LogEntry* pick = nullptr;
+  for (int i = 0; i < shown; i++) {
+    const LogEntry* e = w.log.get(c.ids[size_t(i)]);
+    if (!e) continue;
+    if (e->turn != turn) {
+      turn = e->turn;
+      ui::IdScope s(i64(turn) + 0x7000000);
+      if (i > 0) ui::spacer(2);
+      ui::caption("Ход " + std::to_string(turn));
+    }
+    if (logRow(w, *e, {.showTime = false, .maxLines = 4})) pick = e;
+    a.markUi(key + "." + std::to_string(e->id));
+  }
+  if (int(c.ids.size()) > shown) {
+    const int more = std::min(60, int(c.ids.size()) - shown);
+    if (ui::button("Показать ещё " + std::to_string(more), {.variant = ui::Variant::Secondary, .icon = "chevron-down", .fill = true})) limit = shown + 60;
+    a.markUi(key + ".more");
+  }
+  if (pick) {
+    LogEntry e = *pick;
+    detail::later(a, [e](App& x) { focusEntry(x, e); });
+  }
+}
+
 // ================================================================ мелкие элементы
 void iconTile(RectF r, const char* icon, ui::Tone tone) {
   Color c = ui::toneColor(tone);
@@ -289,9 +406,13 @@ std::string pageLabel(int page, size_t count) {
   return std::string(page == kPageMain ? "Основные государства" : "Остальные") + " · " + std::to_string(count);
 }
 
-std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rules::TurnReport& rep, int page) {
-  std::vector<const rules::TurnFactionLine*> v;
+std::vector<const TurnFactionLine*> sortedLines(const World& w, const TurnRecord& rep, int page, Id state) {
+  std::vector<const TurnFactionLine*> v;
   for (auto& l : rep.factions) {
+    if (state) {   // итоги игрока — только его государство
+      if (l.faction == state) v.push_back(&l);
+      continue;
+    }
     const Faction* f = w.faction(l.faction);
     if (f && f->isWild()) continue;   // «Без государства» — не в итогах хода
     if (page == kPageAll || isMainState(w, l.faction) == (page == kPageMain)) v.push_back(&l);
@@ -306,7 +427,7 @@ std::vector<const rules::TurnFactionLine*> sortedLines(const World& w, const rul
   return v;
 }
 
-bool hasStockChanges(const rules::TurnFactionLine& l) { return !l.resources.empty() || !l.essences.empty() || l.provisionDebt > 1e-9; }
+bool hasStockChanges(const TurnFactionLine& l) { return !l.resources.empty() || !l.essences.empty() || l.provisionDebt > 1e-9; }
 
 namespace {
 
@@ -381,12 +502,12 @@ void stockDeltas(const World& w, const rules::TurnFactionLine& l, float width, f
   }
 }
 
-TurnDigest digest(const World& w, const rules::TurnReport& rep, int page) {
+TurnDigest digest(const World& w, const TurnRecord& rep, int page, Id state) {
   TurnDigest d;
   for (Id lid : rep.logIds) {
     const LogEntry* e = w.log.get(lid);
     if (!e) continue;
-    if (e->kind != LogKind::Turn && !entryOnPage(w, *e, page)) continue;
+    if (e->kind != LogKind::Turn && (state ? !entryConcerns(w, *e, state) : !entryOnPage(w, *e, page))) continue;
     switch (e->kind) {
       case LogKind::Turn: d.summary = e; continue;
       case LogKind::Build:
@@ -445,6 +566,16 @@ int readyCount(const World& w) {
     if (rules::turnReady(w, f.id)) n++;
   });
   return n;
+}
+
+MainReady mainReady(const World& w) {
+  MainReady r;
+  w.factions.each([&](const Faction& f) {
+    if (!f.isState() || !f.mainState) return;
+    r.total++;
+    if (rules::turnReady(w, f.id)) r.ready++;
+  });
+  return r;
 }
 
 void readinessTable(App& a, const World& w, std::string_view id, float height, std::string_view mark) {
@@ -506,6 +637,84 @@ void toggleReady(App& a) {
   if (!a.play(ready ? "Готов завершить ход" : "Отменить готовность", [&](Tx& tx) { rules::setTurnReady(tx, st, ready); })) return;
   if (ready) a.toast("Готов завершить ход", ToastKind::Success, "check");
   else a.toast("Готовность снята", ToastKind::Info, "hourglass");
+}
+
+void askReady(App& a) {
+  const Id st = a.ui.playerState;
+  if (!a.player() || !a.store.world().faction(st)) return;
+  if (rules::turnReady(a.store.world(), st)) {   // уже готов — снять отметку без окна
+    toggleReady(a);
+    return;
+  }
+  if (a.hasDialog("turn.ready")) return;
+  std::unique_ptr<Dialog> dlg;
+  try {
+    dlg = makeReadyPreview(a);
+  } catch (const std::exception& e) {
+    a.error(e);
+    return;
+  }
+  a.openDialog(std::move(dlg));
+}
+
+// ================================================================ итоги хода игроку
+namespace {
+
+// turns.json данных пользователя: мир (папка или архив) → государство → последний ход, итоги которого игрок видел.
+std::string seenPath(const App& a) { return fs::join(a.dataDir(), "turns.json"); }
+
+json::Value readSeen(const App& a) {
+  std::optional<json::Value> v;
+  if (auto text = fs::readFile(seenPath(a))) v = json::tryParse(*text);
+  if (!v || !v->isObj()) return json::Value::object();
+  return std::move(*v);
+}
+
+}  // namespace
+
+int seenTurn(const App& a, const std::string& path, Id state) {
+  if (path.empty() || !state) return 0;
+  const json::Value v = readSeen(a);
+  return int(std::max<i64>(0, v.obj(path).integer(std::to_string(state))));
+}
+
+void markSeen(const App& a, const std::string& path, Id state, int turn) {
+  if (path.empty() || !state) return;
+  json::Value v = readSeen(a);
+  json::Value e = v.obj(path);
+  if (!e.isObj()) e = json::Value::object();
+  e.set(std::to_string(state), double(turn));
+  v.erase(path);   // мир — последним: старые записи вытесняются первыми
+  v.set(path, std::move(e));
+  while (v.size() > 64) v.erase(v.members().front().first);
+  std::string text = json::write(v, json::WriteOptions{2, false, false});
+  text.push_back('\n');
+  std::string err;
+  if (!fs::writeFileAtomic(seenPath(a), text, &err)) logWarn("turns.json: %s", err.c_str());
+}
+
+void playerArrival(App& a) {
+  if (!a.player() || a.readOnly() || a.hasDialog() || ui::anyModalOpen()) return;
+  const std::string& path = a.projectPath();
+  if (path.empty()) return;   // отметка — по миру: у мира без файла её нет
+  const World& w = a.store.world();
+  const TurnRecord& rec = w.meta->lastTurn;
+  const Id st = a.ui.playerState;
+  if (rec.turnTo <= 0 || rec.turnTo != w.turn() || !w.faction(st)) return;
+  // Файл отметок читается один раз на сочетание (данные пользователя, мир, государство, ход).
+  struct Checked {
+    std::string dataDir, path;
+    Id state = 0;
+    int turn = 0;
+  };
+  static Checked done;
+  if (done.dataDir == a.dataDir() && done.path == path && done.state == st && done.turn == rec.turnTo) return;
+  done = Checked{a.dataDir(), path, st, rec.turnTo};
+  bool line = false;
+  for (const TurnFactionLine& l : rec.factions) line = line || l.faction == st;
+  if (!line || seenTurn(a, path, st) >= rec.turnTo) return;   // государства не было в конце хода или итоги уже видены
+  markSeen(a, path, st, rec.turnTo);
+  a.openDialog(makeReport(a, rec, st));
 }
 
 // ================================================================ прокрутка по содержимому

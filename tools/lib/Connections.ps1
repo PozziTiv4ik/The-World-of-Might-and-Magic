@@ -67,6 +67,8 @@ function Get-WmmaConnections {
     $index=New-WmmaConnectionIndex $Data -IncludeReferences:$IncludeReferences -IncludeHistory:$IncludeHistory
     $requested=$Entity
     if($Data.decision_aliases.ContainsKey($Entity)){$Entity=$Data.decision_aliases[$Entity].id}
+    # A merged card is a redirect: navigation starts at the card it joined.
+    if($Data.merged_into -and $Data.merged_into.ContainsKey($Entity)){$Entity=$Data.merged_into[$Entity]}
     $start=if($index.nodes.ContainsKey($Entity)){$index.nodes[$Entity]}else{Resolve-WmmaEntity $Data $Entity}
     $visited=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     [void]$visited.Add($start.id)

@@ -31,6 +31,9 @@ Write-FixtureDocument '01_Кампания/Ветки/Scene.md' 'scene' 'SCENE-t
 ## Участники
 [A](../../03_Персонажи/A.md), [B](../../03_Персонажи/B.md).
 '@ @('chapter: 1','source_ids: ["SRC-test"]','participant_ids: ["CHAR-a", "CHAR-b"]','front_ids: ["FRONT-TEST"]')
+# A duplicate merged into A: a redirect card that another document still mentions.
+Write-WmmaText (Join-Path $fixture '03_Персонажи/D.md') ((@('# Дубль A','','---','type: character','status: merged','id: CHAR-d','aliases: []','merged_into: CHAR-a','---','','## Объединено','Перенаправление на [A](A.md).','') -join "`n"))
+Write-FixtureDocument '04_Локации/Ref.md' 'location' 'LOC-ref' 'Старая ссылка: [дубль](../03_Персонажи/D.md).'
 Write-WmmaText (Join-Path $fixture '07_Черновики_и_идеи/Входящие_сообщения.md') '# Входящие'
 Write-WmmaText (Join-Path $fixture '03_Персонажи/История/A.md') '# История
 
@@ -189,5 +192,50 @@ Step 'Graph schema rejects mixed layers and missing evidence' {
     $invalid=$graph|ConvertTo-Json -Depth 30|ConvertFrom-Json
     $invalid.edges[0].evidence=''
     Expect-Failure {Test-Json -Json ($invalid|ConvertTo-Json -Depth 30) -SchemaFile $schema -ErrorAction Stop} 'Unproven relationship accepted'
+}
+Step 'A merged card redirects names, mentions and navigation to the main card' {
+    $fixtureGraph=$graph
+    $merged=New-WmmaReadModel $fixture
+    $redirect=$merged.entities_by_id['CHAR-d']
+    Assert-True ($redirect.merged_into -eq 'CHAR-a' -and $merged.merged_into['CHAR-d'] -eq 'CHAR-a') 'Redirect lost its target'
+    Assert-True ((Resolve-WmmaEntity $merged 'CHAR-d').id -eq 'CHAR-a') 'Merged ID did not resolve to the main card'
+    Assert-True ((Resolve-WmmaEntity $merged 'Дубль A').id -eq 'CHAR-a') 'Title of the merged card did not resolve to the main card'
+    Assert-True (@($fixtureGraph.references|Where-Object {$_.from -eq 'LOC-ref' -and $_.to -eq 'CHAR-a'}).Count -eq 1) 'Mention of the redirect was not counted for the main card'
+    Assert-True (@($fixtureGraph.references|Where-Object {$_.to -eq 'CHAR-d'}).Count -eq 0) 'Mention still points at the redirect'
+    $connections=Get-WmmaConnections $fixture CHAR-d -IncludeReferences -MaxNodes 200 -Data $merged
+    Assert-True ($connections.entity.id -eq 'CHAR-a' -and $connections.requested_id -eq 'CHAR-d') 'Navigation did not start at the main card'
+    $memory=New-WmmaCharacterMemory $fixture -Data $merged
+    Assert-True (@($memory.characters|Where-Object character_id -eq 'CHAR-d').Count -eq 0) 'Redirect card got its own memory'
+    $problems=@(Get-WmmaMergedReferenceProblems -Graph $fixtureGraph -State $merged.state -Knowledge $merged.knowledge -Decisions $merged.decisions -Chronology ([pscustomobject]@{relations=@()}))
+    Assert-True ($problems.Count -eq 0) "Clean redirect reported: $($problems.message -join '; ')"
+    $knowledge=$merged.knowledge|ConvertTo-Json -Depth 20|ConvertFrom-Json
+    $knowledge.facts[0].known_to=@('CHAR-d')
+    $problems=@(Get-WmmaMergedReferenceProblems -Graph $fixtureGraph -State $merged.state -Knowledge $knowledge -Decisions $merged.decisions -Chronology ([pscustomobject]@{relations=@()}))
+    Assert-True (@($problems|Where-Object {$_.message -like '*merged entity*CHAR-d*use CHAR-a*'}).Count -eq 1) 'Direct reference to the redirect passed'
+}
+Step 'A replaced fact leaves context packets and keeps its record' {
+    $path=Join-Path $fixture '09_Реестры/Знания.json';$original=Read-WmmaText $path
+    $statePath=Join-Path $fixture '09_Реестры/Контекст.json';$stateOriginal=Read-WmmaText $statePath
+    try{
+        $knowledge=Read-WmmaJson $path
+        $knowledge.facts=@($knowledge.facts)+@(
+            [pscustomobject]@{id='FACT-004';text='OLD_TOKEN';truth='reported';visibility='public';known_to=@();subject_ids=@('CHAR-a');evidence_ids=@('SRC-test')},
+            [pscustomobject]@{id='FACT-005';text='NEW_TOKEN';truth='confirmed';visibility='public';known_to=@();subject_ids=@('CHAR-a');evidence_ids=@('SRC-test')})
+        Write-WmmaJson $path $knowledge
+        $state=Read-WmmaJson $statePath;$state.branches[0].fact_ids=@($state.branches[0].fact_ids)+@('FACT-004');Write-WmmaJson $statePath $state
+        $result=Set-WmmaFactSuperseded -Root $fixture -FactId FACT-004 -ReplacedBy FACT-005
+        Assert-True ($result.changed -and $result.moved_pointers -eq 1) 'Replacement did not move the pointer'
+        Assert-True (@((Read-WmmaJson $statePath).branches[0].fact_ids) -contains 'FACT-005') 'Branch still points at the old fact'
+        Expect-Failure {Set-WmmaFactSuperseded -Root $fixture -FactId FACT-005 -ReplacedBy FACT-004} 'Replacement cycle accepted'
+        $context=Get-WmmaContext $fixture -Branch A -Audience gm -Data (New-WmmaReadModel $fixture)
+        Assert-True ($context.text.Contains('NEW_TOKEN') -and -not $context.text.Contains('OLD_TOKEN')) 'Replaced fact stayed in the packet'
+        $old=@((Read-WmmaJson $path).facts|Where-Object id -eq 'FACT-004')[0]
+        Assert-True ($old.superseded_by -eq 'FACT-005' -and $old.text -eq 'OLD_TOKEN') 'Replaced fact record changed'
+    }finally{Write-WmmaText $path $original;Write-WmmaText $statePath $stateOriginal}
+}
+Step 'Similar names in a graph are reported unless confirmed distinct' {
+    $pairs=@(Get-WmmaSimilarNamePairs @($graph.entities|Where-Object type -eq 'character'))
+    Assert-True (@($pairs|Where-Object {($_.ids -join '|') -eq 'CHAR-a|CHAR-b'}).Count -eq 1) 'Shared alias was not reported'
+    Assert-True (@($pairs|Where-Object {$_.ids -contains 'CHAR-d'}).Count -eq 0) 'Redirect card was reported as a duplicate'
 }
 Complete-WmmaTestRun $fixture -KeepFixture:$KeepFixture

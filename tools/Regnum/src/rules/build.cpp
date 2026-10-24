@@ -55,6 +55,26 @@ void releaseBuildingRelics(Tx& tx, Id state, const ProvBuilding& pb) {
   for (const RelicStack& st : pb.relics)
     if (tx.w().relic(st.relic) && st.count > 0) moveRelic(tx, st.relic, RelicPlace{}, RelicPlace{RelicPlace::State, state, 0, state}, st.count);
 }
+
+bool refundCycle(Tx& tx, Id state, const ProvBuilding& pb) {
+  if (pb.cycle <= 0) return false;
+  const Building* b = tx.w().building(pb.building);
+  const Recipe* rc = b && b->convert ? activeRecipe(*b, pb) : nullptr;
+  if (!rc || !tx.w().faction(state)) return true;   // вход вернуть некому (или рецепта уже нет)
+  // Вход цикла списан при его начале: рецепт × множитель, не больше открытого государству (как в расчёте хода).
+  int mult = std::clamp(pb.mult, 1, schema::kMaxProductionMult);
+  if (mult > 1) mult = std::min(mult, maxProductionMult(tx.w(), state));
+  Faction& f = tx.faction(state);
+  for (const ResAmount& x : rc->in)
+    if (x.amount > 0 && tx.w().resource(x.res)) addStock(f, x.res, x.amount * mult);
+  for (const ResAmount& x : rc->essIn)
+    if (x.amount > 0 && tx.w().essence(x.res)) {
+      double& v = f.ess[x.res];
+      v += x.amount * mult;
+      if (std::fabs(v) < 1e-9) f.ess.erase(x.res);
+    }
+  return true;
+}
 }  // namespace detail
 
 namespace {
@@ -84,6 +104,9 @@ void placeChecks(const World& w, const Province& p, const Building& b, const Pro
     r.push_back("В пустоши нежити строит только государство нежити");
   if (owner && hasModKey(w, p.modifiers, schema::mod::Desecrated) && owner->stateKind != StateKind::Demonic)
     r.push_back("В осквернённой провинции строит только государство демонов");
+  // Владелец не строит в провинции, которую оккупировал противник.
+  if (owner && !p.sea)
+    if (const Id occ = occupierOf(w, p)) r.push_back("Провинция оккупирована: " + facName(w, occ) + " — строить нельзя");
   if (b.levels.empty()) r.push_back("У постройки нет уровней");
   // Только для видов государства (мясопилка — государству нежити).
   if (owner && b.stateKinds && !((b.stateKinds >> unsigned(owner->stateKind)) & 1u)) {
@@ -101,9 +124,18 @@ void placeChecks(const World& w, const Province& p, const Building& b, const Pro
   for (const BuildingReq& rq : b.requires_) {
     const Building* rb = w.building(rq.building);
     if (!rb || rq.building == b.id) continue;
-    const ProvBuilding* have = findPb(p, rq.building);
-    if (!have || have->builtLevel() < rq.level)
-      r.push_back("Нужна постройка " + buildingName(w, rq.building) + (rq.level > 1 ? " уровня " + std::to_string(rq.level) : ""));
+    // Культовая постройка (одна на карту или на государство) требуется в любой провинции государства-владельца
+    // («Штаб Контрразведки» — «Штаб Разведки» 4 уровня), остальные — в этой провинции.
+    bool ok = false;
+    if (rb->cat == BuildingCat::Cult && owner)
+      w.provinces.each([&](const Province& q) {
+        const ProvBuilding* x = q.owner == owner->id && !q.sea ? findPb(q, rq.building) : nullptr;
+        ok = ok || (x && x->builtLevel() >= rq.level);
+      });
+    else if (const ProvBuilding* have = findPb(p, rq.building)) ok = have->builtLevel() >= rq.level;
+    if (!ok)
+      r.push_back("Нужна постройка " + buildingName(w, rq.building) + (rq.level > 1 ? " уровня " + std::to_string(rq.level) : "") +
+                  (rb->cat == BuildingCat::Cult ? " в государстве" : ""));
   }
   for (Id t : b.techs)
     if (w.tech(t) && (!owner || !techStudied(w, t, owner->id))) r.push_back("Нужна технология " + techName(w, t));
@@ -327,8 +359,9 @@ std::vector<SlotLoss> excessBuildings(const World& w) { return excessIn(w, nullp
 }  // namespace
 
 std::vector<SlotLoss> slotLosses(const World& before, const World& after) {
-  // Провинции, где стало меньше слотов, чем построек, а до изменения постройки помещались (или лишних стало больше).
-  // Тип города, упавший вместе с населением, слотов не отнимает: постройки остаются (новые — только в свободные слоты).
+  // Провинции, где лишних построек (сверх слотов) стало больше, чем до изменения. Сносится только прибавка лишних —
+  // не больше, чем потеряно слотов: постройки, законно оставшиеся сверх слотов раньше (тип города упал вместе с
+  // населением), остаются. Тип города, упавший вместе с населением, слотов не отнимает (новые — только в свободные).
   std::vector<SlotLoss> now = excessIn(after, nullptr, &before), out;
   if (now.empty()) return out;
   std::vector<Id> ids;
@@ -336,7 +369,12 @@ std::vector<SlotLoss> slotLosses(const World& before, const World& after) {
   std::vector<SlotLoss> was = excessIn(before, &ids);
   for (SlotLoss& l : now) {
     auto it = std::find_if(was.begin(), was.end(), [&](const SlotLoss& x) { return x.province == l.province; });
-    if (it == was.end() || it->buildings.size() < l.buildings.size()) out.push_back(std::move(l));
+    const int wasExcess = it == was.end() ? 0 : int(it->buildings.size()), nowExcess = int(l.buildings.size());
+    if (nowExcess <= wasExcess) continue;
+    const int gone = nowExcess - wasExcess;
+    l.slots = l.used - gone;                 // остаются все постройки, кроме последних gone
+    l.buildings.resize(size_t(gone));        // список — с конца
+    out.push_back(std::move(l));
   }
   return out;
 }
@@ -358,6 +396,7 @@ void trimExcessBuildings(Tx& tx, const std::vector<SlotLoss>* only) {
     for (const ProvBuilding& pb : gone) {
       names.push_back(buildingName(tx.w(), pb.building));
       if (pb.constructing) refundPaid(tx, pb);
+      refundCycle(tx, owner, pb);   // снос посреди цикла преобразования: вход — владельцу
       releaseBuildingRelics(tx, owner, pb);
     }
     addLog(tx, LogKind::Build,
@@ -443,16 +482,16 @@ void setPbRecipe(Tx& tx, Id province, Id building, int recipe) {
 }
 
 int maxProductionMult(const World& w, Id state) {
-  // Технологии ветки по множителю; множитель ×N доступен, когда изучены все технологии ×2…×N.
+  // Технологии ветки по множителю (ступени могут идти не подряд: ×2, ×5, ×10…); множитель ×N доступен, когда изучены
+  // все ступени ветки до ×N включительно.
   std::map<int, Id> branch;
   w.techs.each([&](const Tech& t) {
     if (t.faction != 0) return;
-    if (int m = schema::industryMultOf(t.key)) branch.emplace(m, t.id);
+    if (int m = schema::industryMultOf(t.key); m >= 2 && m <= schema::kMaxProductionMult) branch.emplace(m, t.id);
   });
   int best = 1;
-  for (int m = 2; m <= schema::kMaxProductionMult; m++) {
-    auto it = branch.find(m);
-    if (it == branch.end() || !techStudied(w, it->second, state)) break;
+  for (auto& [m, id] : branch) {
+    if (!techStudied(w, id, state)) break;
     best = m;
   }
   return best;
@@ -1007,7 +1046,11 @@ void demolish(Tx& tx, Id province, Id building) {
   auto& list = tx.province(province).buildings;
   list.erase(std::remove_if(list.begin(), list.end(), [&](const ProvBuilding& x) { return x.building == building; }), list.end());
   releaseBuildingRelics(tx, owner, gone);
-  addLog(tx, LogKind::Build, "Снесена постройка " + buildingName(tx.w(), building) + " в провинции " + provName(tx.w(), province),
+  // Снос посреди цикла преобразования: вход цикла возвращается владельцу.
+  const bool cycle = refundCycle(tx, owner, gone);
+  addLog(tx, LogKind::Build,
+         "Снесена постройка " + buildingName(tx.w(), building) + " в провинции " + provName(tx.w(), province) +
+             (cycle ? ": цикл преобразования прерван, ресурсы на входе возвращены" : ""),
          LogRefs{province, 0, owner ? std::vector<Id>{owner} : std::vector<Id>{}});
 }
 

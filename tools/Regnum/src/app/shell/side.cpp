@@ -136,9 +136,10 @@ void toolStrip(App& a, RectF r) {
     }
     if (admin) stripSep(kBtnL);
     {
-      bool hidden = !a.world().settings->showArmies;
+      // Вид карты: у игрока — свой (app.json), у администратора — настройка мира.
+      bool hidden = !role::viewSettings(a).showArmies;
       if (ui::iconButton(hidden ? "eye-off" : "eye", hidden ? "Показать войска" : "Скрыть войска", {.size = ui::Size::Large, .toggled = hidden, .disabled = ro}))
-        a.play(hidden ? "Показать войска" : "Скрыть войска", [hidden](Tx& tx) { tx.settings().showArmies = hidden; });   // вид карты — и игроку
+        role::setView(a, hidden ? "Показать войска" : "Скрыть войска", [hidden](Settings& s) { s.showArmies = hidden; });
       a.markUi("tool.hideArmies");
     }
   }
@@ -375,7 +376,9 @@ void drawLayers(App& a) {
   for (int i = 0; i < int(schema::MapMode::Count); i++) {
     const schema::EnumInfo& mi = schema::kMapModes[i];
     ui::IdScope s(i);
-    if (ui::listItem(mi.name, {.icon = mi.icon, .hint = std::to_string(i + 1), .selected = int(a.ui.mapMode) == i})) a.setMapMode(schema::MapMode(i));
+    // Клавиши режимов: 1–9, десятый — 0, дальше — без клавиши.
+    const std::string key = i < 9 ? std::to_string(i + 1) : i == 9 ? std::string("0") : std::string();
+    if (ui::listItem(mi.name, {.icon = mi.icon, .hint = key, .selected = int(a.ui.mapMode) == i})) a.setMapMode(schema::MapMode(i));
     a.markUi("mode." + std::to_string(i + 1));
   }
   ui::gap(8);
@@ -401,25 +404,24 @@ void drawLayers(App& a) {
     a.markUi("legend", RectF{top.x, top.y, top.w, ui::avail().y - top.y});
     ui::gap(8);
   }
-  // Что показывать (настройки мира — отменяются Ctrl+Z).
+  // Что показывать: у администратора — настройки мира (отменяются Ctrl+Z), у игрока — свои (app.json).
   ui::spacer(6);
   navCaption("На карте");
-  const Settings& st = *a.store.world().settings;
+  const Settings st = role::viewSettings(a);
   ui::Disabled dis(a.readOnly());
   bool sl = st.labelStates, pl = st.labelProvinces, al = st.labelArmies, ar = st.showArmies;
-  // Вид карты (подписи, войска, заливка) — и игроку: play.
-  if (ui::toggle("Подписи государств", sl)) a.play("Подписи государств", [sl](Tx& tx) { tx.settings().labelStates = sl; });
+  if (ui::toggle("Подписи государств", sl)) role::setView(a, "Подписи государств", [sl](Settings& s) { s.labelStates = sl; });
   a.markUi("layers.labelStates");
-  if (ui::toggle("Подписи провинций", pl)) a.play("Подписи провинций", [pl](Tx& tx) { tx.settings().labelProvinces = pl; });
-  if (ui::toggle("Подписи войск", al)) a.play("Подписи войск", [al](Tx& tx) { tx.settings().labelArmies = al; });
-  if (ui::toggle("Войска и флот", ar)) a.play(ar ? "Показать войска" : "Скрыть войска", [ar](Tx& tx) { tx.settings().showArmies = ar; });
+  if (ui::toggle("Подписи провинций", pl)) role::setView(a, "Подписи провинций", [pl](Settings& s) { s.labelProvinces = pl; });
+  if (ui::toggle("Подписи войск", al)) role::setView(a, "Подписи войск", [al](Settings& s) { s.labelArmies = al; });
+  if (ui::toggle("Войска и флот", ar)) role::setView(a, ar ? "Показать войска" : "Скрыть войска", [ar](Settings& s) { s.showArmies = ar; });
   a.markUi("layers.armies");
   ui::spacer(2);
   ui::label("Заливка провинций", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   double op = std::round(double(st.fillOpacity) * 100);
   if (ui::slider("fill", op, 0, 100, {.step = 5, .unit = "%"})) {
     float v = float(op / 100.0);
-    a.play("Прозрачность заливки", [v](Tx& tx) { tx.settings().fillOpacity = v; }, {.coalesce = "settings.fill"});
+    role::setView(a, "Прозрачность заливки", [v](Settings& s) { s.fillOpacity = v; }, "settings.fill");
   }
   a.markUi("layers.fill");
   (void)th;

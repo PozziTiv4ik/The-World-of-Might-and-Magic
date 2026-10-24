@@ -29,9 +29,13 @@ struct ModUse {
   std::vector<Id> provinces, states, guilds, techs, armies, heroes, positions;
   std::vector<std::pair<Id, int>> levels;   // постройка, номер уровня (с 1)
   std::vector<std::pair<Id, Id>> groups;    // археологические группы: государство, группа
+  // Справочники: расы, культуры, религии, формы правления, реликвии, классы героев и таланты (подкласс, талант).
+  std::vector<Id> races, cultures, religions, governments, relics, classes;
+  std::vector<std::pair<Id, Id>> talents;
   size_t total() const {
     return provinces.size() + states.size() + guilds.size() + techs.size() + levels.size() + armies.size() + heroes.size() + positions.size() +
-           groups.size();
+           groups.size() + races.size() + cultures.size() + religions.size() + governments.size() + relics.size() + classes.size() +
+           talents.size();
   }
 };
 ModUse usageOf(const World& w, Id mod);
@@ -48,8 +52,11 @@ void usageSection(App& a, const Modifier& m, const std::map<std::string, std::ve
 // ---------------------------------------------------------------- эффекты и генерация (modifiers_effects.cpp)
 enum class FxGroup : u8 { Local, Global, Army, Arch, Hero };
 u32 archMask();                                                     // эффекты археологических групп
+// Группа эффектов видна в карточке: действует у вида модификатора (RULES.md §1 — провинция: локальные, а глобальные,
+// войск и групп — у владельца; государство: все, кроме эффектов героя; войско — эффекты войск; группа — эффекты групп;
+// герой и «Везде» — все) или в ней уже есть включённый эффект.
+bool groupShown(const Modifier& m, FxGroup group);
 void effectGroup(App& a, const Modifier& m, FxGroup group, bool ro);
-u32 heroMask();   // эффекты героя (EffectInfo::hero)
 void genSection(App& a, const Modifier& m, bool ro);
 
 }  // namespace rg::app::modedit

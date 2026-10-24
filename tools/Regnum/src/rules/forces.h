@@ -17,7 +17,8 @@ RecruitCost recruitCost(const World& w, Id faction, Id row, i64 count);
 void recruit(Tx& tx, Id faction, Id row, i64 count);
 void cancelFormation(Tx& tx, Id faction, int index);          // возврат людей и ресурсов
 void disbandReserve(Tx& tx, Id faction, Id row, i64 count);   // роспуск резерва: воины → население
-// Корабли из резерва в торговле и оккупационный гарнизон.
+// Корабли из резерва в торговле и оккупационный гарнизон (отряды из резерва оккупанта; пополнить — только когда в
+// провинции стоит его войско, уменьшить — всегда).
 void setTradeFleet(Tx& tx, Id faction, Id row, i64 count);
 void setOccupationGarrison(Tx& tx, Id province, Id row, i64 count);
 // Верность войска −100…100 % (с «Непреклонным лоялистом» не уменьшается, у «Армии нежити» — 100 %).

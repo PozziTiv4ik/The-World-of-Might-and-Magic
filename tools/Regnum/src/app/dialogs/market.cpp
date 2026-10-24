@@ -36,7 +36,7 @@ struct Lot {
 bool Market::draw(App& a) {
   const World& w = a.world();
   const Faction* f = w.faction(state);
-  if (!f || !f->isState()) return false;
+  if (!f || !f->isState() || !a.knows(state)) return false;   // туман войны: хранилища чужого государства скрыты
   const bool can = a.canPlay(state);
   const bool market = rules::hasMarket(w, state);
   std::vector<Lot> lots;

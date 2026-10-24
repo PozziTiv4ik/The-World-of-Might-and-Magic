@@ -4,10 +4,12 @@
 // позиция отмечена пунктиром, подпись у призрака сообщает, что произойдёт. Отпускание — rules::encounter:
 // свободное место — перемещение; своя фракция — предложение объединить; союзник — союзное войско; статус-кво
 // или незнакомы — объявить войну, затем битва; война — панель битвы; иначе (море, суша, флот, занято) —
-// возврат с причиной. Войско на знаке «замок» или «башня» провинции государства, с которым его фракция в войне, —
-// штурм (ТЗ «Механика войн», п.4): войско встаёт у стен, окно штурма гарнизона или захвата. Отказ в диалоге плавно
-// возвращает объект на исходную позицию. Войско на флот своего государства — посадка (окно подтверждения), а если на
-// борту уже есть войско — окно обмена отрядами с ним (ТЗ «Доработки №3», п.6).
+// возврат с причиной. Войско на знаке «замок» или «башня» провинции государства, с которым его фракция в войне (у
+// провинции без такого знака — у её подписи), — штурм (ТЗ «Механика войн», п.4): войско встаёт у стен, окно штурма
+// гарнизона или захвата; своя (союзная) провинция, оккупированная противником, — «Освободить провинцию» (бой с
+// оккупационным гарнизоном или сразу снятие оккупации). В провинции стоит войско противника — отказ «Сначала разбейте
+// войско …». Отказ в диалоге плавно возвращает объект на исходную позицию. Войско на флот своего государства — посадка
+// (окно подтверждения), а если на борту уже есть войско — окно обмена отрядами с ним (ТЗ «Доработки №3», п.6).
 // Игрок (ТЗ «Доработки №4», п.5) двигает только свои объекты: внутри своей провинции — свободно, в соседнюю — за
 // очко действий (до следующего хода), дальше или без очка — возврат с причиной; посадка на флот, высадка и бой тоже
 // тратят очко войска. Пока призрак в пути, соседние провинции подсвечены.
@@ -39,24 +41,40 @@ struct DragState {
   Vec2 returnFrom;
   double returnStart = 0;
   rules::Encounter preview;  // что произойдёт при отпускании
-  Id siegeProvince = 0;      // штурм: провинция замка или башни под призраком (0 — нет)
-  Id siegeSymbol = 0;
+  Id siegeProvince = 0;      // штурм или освобождение: провинция замка, башни или подписи под призраком (0 — нет)
+  Id siegeSymbol = 0;        // замок или башня (0 — у подписи провинции без такого знака)
+  Vec2 siegeAt;              // точка в провинции, где встанет войско (проверки правил)
+  bool liberate = false;     // освобождение своей (союзной) провинции от оккупации
+  std::string siegeWhy;      // штурм (освобождение) невозможен: в провинции войско противника
   std::optional<map::ArmyMark> stack;   // нажата стопка: щелчок без перетаскивания приближает её
   std::string denied;        // игрок: перемещение не по правилам очка действий — причина
   std::vector<Id> reach;     // игрок: соседние провинции, куда объект может перейти в этом ходу
   bool active() const { return phase == Dragging || phase == Pending || phase == Returning; }
 };
 
+bool isFort(const MapSymbol* s) { return s && (s->kind == SymbolKind::Castle || s->kind == SymbolKind::Tower); }
+
+// В провинции есть замок или башня (знаки сцены карты в её габаритах).
+bool hasFort(const World& w, const map::art::Scene& sc, Id province, const Box2& box) {
+  for (Id id : sc.symbolsIn(box))
+    if (const MapSymbol* s = detail::mapSymbol(w, id); isFort(s) && mil::provinceUnder(w, s->p) == province) return true;
+  return false;
+}
+
 // Штурм (ТЗ «Механика войн», п.4): призрак войска над знаком «замок» или «башня» провинции государства, с которым
-// фракция войска в войне (rules::canSiege). Встреча с другим объектом важнее штурма.
+// фракция войска в войне (rules::canSiege), у провинции без такого знака — у её подписи. Своя (союзная) провинция,
+// оккупированная противником, — освобождение (rules::canLiberate). Встреча с другим объектом важнее штурма.
 void siegeTarget(App& a, DragState& d) {
   d.siegeProvince = d.siegeSymbol = 0;
+  d.liberate = false;
+  d.siegeWhy.clear();
   if (d.preview.target) return;
   const World& w = mil::frameWorld(a);
   const Army* ar = w.army(d.army);
   if (!ar || ar->isFleet()) return;
   auto sc = a.map().artScene();
-  if (!sc) return;
+  auto fs = geo::faces(w);
+  if (!sc || !fs) return;
   // Замок или башня под призраком — даже если поверх нарисована гора: ближайший по середине значка.
   const double tol = a.map().view().toMapLen(6), reach = tol + 160;   // знаки — до ×8 обычного размера
   Id sym = 0;
@@ -64,19 +82,52 @@ void siegeTarget(App& a, DragState& d) {
   double best = 1e300;
   for (Id id : sc->symbolsIn(Box2(d.pos.x - reach, d.pos.y - reach, d.pos.x + reach, d.pos.y + reach))) {
     const MapSymbol* x = detail::mapSymbol(w, id);
-    if (!x || (x->kind != SymbolKind::Castle && x->kind != SymbolKind::Tower)) continue;
+    if (!isFort(x)) continue;
     const Box2 b = map::art::symbolBox(*x);
     if (!b.inflated(tol).contains(d.pos) || dist2(b.center(), d.pos) >= best) continue;
     best = dist2(b.center(), d.pos);
     sym = id;
     s = x;
   }
-  if (!s) return;
-  Id pid = mil::provinceUnder(w, s->p);
-  if (!pid) pid = mil::provinceUnder(w, d.pos);
-  if (!pid || !rules::canSiege(w, d.army, pid)) return;
+  Id pid = 0;
+  if (s) {
+    pid = mil::provinceUnder(w, s->p);
+    if (!pid) pid = mil::provinceUnder(w, d.pos);
+  } else {
+    // Провинция без замка и башни — штурм у её подписи.
+    pid = mil::provinceUnder(w, d.pos);
+    const Province* p = w.province(pid);
+    const geo::ProvinceShape* sh = p && !p->sea ? fs->shape(pid) : nullptr;
+    if (!sh || dist(sh->label, d.pos) > std::max(double(schema::kObjectRadius), a.map().view().toMapLen(24)) || hasFort(w, *sc, pid, sh->box)) return;
+  }
+  if (!pid) return;
+  // Где встанет войско: призрак, а если он за границей провинции (у знака на краю) — у подписи провинции.
+  Vec2 at = d.pos;
+  if (mil::provinceUnder(w, at) != pid)
+    if (const geo::ProvinceShape* sh = fs->shape(pid)) at = sh->label;
+  if (rules::canLiberate(w, d.army, pid, nullptr, at)) {
+    d.liberate = true;
+  } else if (!rules::canSiege(w, d.army, pid, nullptr, at)) {
+    // Провинция противника, но в ней стоит его войско: сначала битва с ним (призрак не встанет у стен).
+    if (Id b = rules::assaultBlocker(w, d.army, pid))
+      if (const Army* x = w.army(b)) d.siegeWhy = "Сначала разбейте войско «" + mil::objectName(*x) + "»";
+    return;
+  }
   d.siegeProvince = pid;
-  d.siegeSymbol = sym;
+  d.siegeSymbol = s ? sym : 0;
+  d.siegeAt = at;
+}
+
+// Место у стен: точка призрака (или свободное место рядом), если правила штурма (освобождения) её принимают; иначе —
+// свободное место у точки в провинции (siegeAt).
+std::optional<Vec2> wallsSpot(const World& w, const DragState& d) {
+  auto ok = [&](Vec2 p) {
+    return d.liberate ? rules::canLiberate(w, d.army, d.siegeProvince, nullptr, p) : rules::canSiege(w, d.army, d.siegeProvince, nullptr, p);
+  };
+  if (rules::validPosition(w, ArmyKind::Army, d.pos, d.army) && ok(d.pos)) return d.pos;
+  for (Vec2 near : {d.pos, d.siegeAt})
+    if (auto spot = rules::findFreeSpot(w, ArmyKind::Army, near, d.army); spot && ok(*spot)) return spot;
+  return std::nullopt;
 }
 
 // Приблизить карту к стопке наложившихся объектов так, чтобы они разошлись на отдельные фигурки.
@@ -144,7 +195,7 @@ std::string playerDenied(App& a, const DragState& d) {
   const Army* t = w.army(e.target);
   if (d.siegeProvince) {
     if (!rules::hasAction(w, d.army)) return spentText(w, d.army);
-    return rules::canPlayerMove(w, d.army, d.pos, &why) ? std::string() : why;
+    return rules::canPlayerMove(w, d.army, d.siegeAt, &why) ? std::string() : why;
   }
   switch (e.type) {
     case rules::EncounterType::None: return rules::canPlayerMove(w, d.army, d.pos, &why) ? std::string() : why;
@@ -193,7 +244,9 @@ Status statusOf(App& a, const DragState& d) {
   const Army* t = w.army(e.target);
   std::string tn = t ? "«" + mil::objectName(*t) + "»" : std::string();
   if (!d.denied.empty()) return {"lock", d.denied, ui::Tone::Danger};
+  if (!d.siegeWhy.empty()) return {"lock", d.siegeWhy, ui::Tone::Danger};
   if (d.siegeProvince) {
+    if (d.liberate) return {"unlock", "Освободить: " + w.provinceName(d.siegeProvince), ui::Tone::Success};
     const MapSymbol* s = detail::mapSymbol(w, d.siegeSymbol);
     return {s && s->kind == SymbolKind::Tower ? "tower" : "castle", "Штурм: " + w.provinceName(d.siegeProvince), ui::Tone::Danger};
   }
@@ -365,21 +418,26 @@ class SelectTool final : public MapTool {
     Color col = mil::leaderColor(w, *ar), col2 = mil::allyColor(w, *ar);
     Status st = statusOf(a, d);
     Color tone = ui::toneColor(st.tone);
-    bool blocked = (d.preview.type == rules::EncounterType::Blocked && !d.siegeProvince) || !d.denied.empty();
+    bool blocked = (d.preview.type == rules::EncounterType::Blocked && !d.siegeProvince) || !d.denied.empty() || !d.siegeWhy.empty();
     if (d.phase == DragState::Dragging && !d.reach.empty()) {
       // Игрок: куда объект может перейти в этом ходу.
       const tools::Palette P = tools::palette();
       for (Id pid : d.reach) tools::highlightProvince(c, w, v, pid, P.success.alpha(0.12f), P.success.alpha(0.95f), 1.8f, true);
     }
-    if (d.phase == DragState::Dragging && d.siegeProvince)
-      if (const MapSymbol* s = detail::mapSymbol(w, d.siegeSymbol)) {
-        // Цель штурма: замок или башня.
+    if (d.phase == DragState::Dragging && d.siegeProvince) {
+      // Цель штурма (освобождения): замок или башня, у провинции без них — подпись провинции.
+      if (const MapSymbol* s = d.siegeSymbol ? detail::mapSymbol(w, d.siegeSymbol) : nullptr) {
         const Box2 b = map::art::symbolBox(*s);
         const gfx::Pt sc = v.toScreen(b.center());
         const float rr = std::max(size * 0.7f, float(std::max(b.w(), b.h()) * v.zoom * 0.6));
         c.fillCircle(sc.x, sc.y, rr, tone.alpha(0.16f));
         c.strokeCircle(sc.x, sc.y, rr, 2.5f, tone);
+      } else {
+        const gfx::Pt sc = v.toScreen(d.siegeAt);
+        c.fillCircle(sc.x, sc.y, size * 0.8f, tone.alpha(0.16f));
+        c.strokeCircle(sc.x, sc.y, size * 0.8f, 2.5f, tone);
       }
+    }
     if (d.phase != DragState::Returning) {
       // Исходная позиция и путь.
       gfx::Stroke dash;
@@ -423,8 +481,9 @@ class SelectTool final : public MapTool {
 
   platform::Cursor cursor(App& a) override {
     if (d_->phase == DragState::Dragging)
-      return (d_->preview.type == rules::EncounterType::Blocked && !d_->siegeProvince) || !d_->denied.empty() ? platform::Cursor::NotAllowed
-                                                                                                           : platform::Cursor::Grabbing;
+      return (d_->preview.type == rules::EncounterType::Blocked && !d_->siegeProvince) || !d_->denied.empty() || !d_->siegeWhy.empty()
+                 ? platform::Cursor::NotAllowed
+                 : platform::Cursor::Grabbing;
     if (a.ui.hover.type == SelType::Army) return a.readOnly() || !role::ownArmy(a, a.ui.hover.id) ? platform::Cursor::Hand : platform::Cursor::Grab;
     if (a.ui.hover.type == SelType::Route) return platform::Cursor::Hand;
     return platform::Cursor::Arrow;
@@ -450,6 +509,11 @@ class SelectTool final : public MapTool {
       startReturn(a, d);
       return;
     }
+    if (!d.siegeWhy.empty()) {
+      a.toast(d.siegeWhy, ToastKind::Warning, "lock");
+      startReturn(a, d);
+      return;
+    }
     rules::Encounter e = d.preview;
     Id id = d.army;
     bool fleet = ar->isFleet();
@@ -462,10 +526,11 @@ class SelectTool final : public MapTool {
       x.requestRedraw();
     };
     if (d.siegeProvince) {
-      // Штурм: войско встаёт у стен (место занято — ближайшее свободное рядом), затем окно штурма или захвата.
+      // Штурм (освобождение): войско встаёт у стен (место занято — ближайшее свободное рядом), затем окно штурма,
+      // захвата или освобождения.
       const Id pid = d.siegeProvince;
       const Vec2 origin = d.origin;
-      std::optional<Vec2> to = rules::validPosition(w, ArmyKind::Army, d.pos, id) ? std::optional<Vec2>(d.pos) : rules::findFreeSpot(w, ArmyKind::Army, d.pos, id);
+      std::optional<Vec2> to = wallsSpot(w, d);
       if (!to) {
         a.toast("Рядом со стенами нет свободного места", ToastKind::Warning, "warning");
         startReturn(a, d);

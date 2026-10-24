@@ -31,6 +31,28 @@ function Get-WmmaHistoryIndex {
     return $result
 }
 
+# Graph node of one document. merged_into (a redirect card) and distinct_from (names
+# confirmed to belong to other entities) appear only when the card sets them.
+function New-WmmaGraphNode {
+    param([object]$Document,[hashtable]$History)
+    $name=([regex]::Match($Document.text,'(?m)^# (.+)')).Groups[1].Value.Trim()
+    $fronts=@(Get-WmmaArrayMeta $Document.text 'front_ids');$legacy=Get-WmmaMeta $Document.text 'front_id'
+    if($legacy -and $legacy -ne '-'){$fronts+=@($legacy)}
+    $node=[ordered]@{
+        id=$Document.id;type=$Document.type;name=$name;path=$Document.path;status=(Get-WmmaMeta $Document.text 'status')
+        chapter=(Get-WmmaMeta $Document.text 'chapter');branch=(Get-WmmaMeta $Document.text 'branch')
+        aliases=@(@($name)+@(Get-WmmaArrayMeta $Document.text 'aliases')|Sort-Object -Unique)
+        front_ids=@($fronts|Sort-Object -Unique);source_ids=@(Get-WmmaArrayMeta $Document.text 'source_ids');participant_ids=@(Get-WmmaArrayMeta $Document.text 'participant_ids')
+        history_paths=@($History[$Document.path]|Where-Object {$_});historical_source_ids=@()
+        provenance='unresolved';content_sha256=(Get-WmmaHash $Document.text)
+    }
+    $mergedInto=Get-WmmaMeta $Document.text 'merged_into'
+    if($mergedInto -and $mergedInto -ne '-'){$node.merged_into=$mergedInto}
+    $distinct=@(Get-WmmaArrayMeta $Document.text 'distinct_from')
+    if($distinct.Count){$node.distinct_from=$distinct}
+    return $node
+}
+
 function New-WmmaGraph {
     param([string]$Root,[switch]$AssignMissingIds)
     $docs=@(Get-WmmaDocuments $Root|Sort-Object path);$byPath=@{};$byId=@{};$next=@{}
@@ -50,21 +72,22 @@ function New-WmmaGraph {
         }
         $byPath[$doc.path]=$doc.id
     }
+    # A merged card is a redirect: mentions of its path count for the card it joined.
+    $merged=@{}
+    foreach($doc in $docs){$target=Get-WmmaMeta $doc.text 'merged_into';if($target -and $target -ne '-'){$merged[$doc.id]=$target}}
     $history=Get-WmmaHistoryIndex $Root
     $nodes=[Collections.Generic.List[object]]::new();$edges=[Collections.Generic.List[object]]::new()
     $keys=[Collections.Generic.HashSet[string]]::new()
     function Add-GraphEdge([string]$From,[string]$To,[string]$Kind,[string]$Evidence,[string]$Scope='current'){
+        if($Kind -in @('references','source_reference') -and $merged.ContainsKey($To)){$To=$merged[$To]}
         if($From -eq $To -and $Kind -in @('references','source_reference')){return}
         $key="$From|$To|$Kind|$Evidence|$Scope"
         if($keys.Add($key)){$edges.Add([ordered]@{from=$From;to=$To;kind=$Kind;evidence=$Evidence;scope=$Scope})}
     }
     foreach($doc in $docs){
-        $name=([regex]::Match($doc.text,'(?m)^# (.+)')).Groups[1].Value.Trim()
-        $fronts=@(Get-WmmaArrayMeta $doc.text 'front_ids');$legacy=Get-WmmaMeta $doc.text 'front_id'
-        if($legacy -and $legacy -ne '-'){$fronts+=@($legacy)}
-        $sources=@(Get-WmmaArrayMeta $doc.text 'source_ids');$participants=@(Get-WmmaArrayMeta $doc.text 'participant_ids')
-        foreach($id in $sources){Add-GraphEdge $doc.id $id 'sourced_from' $doc.path}
-        foreach($id in $participants){Add-GraphEdge $doc.id $id 'participant' $doc.path}
+        $node=New-WmmaGraphNode $doc $history
+        foreach($id in $node.source_ids){Add-GraphEdge $doc.id $id 'sourced_from' $doc.path}
+        foreach($id in $node.participant_ids){Add-GraphEdge $doc.id $id 'participant' $doc.path}
         $documents=@([pscustomobject]@{path=$doc.path;text=$doc.text;scope='current'})
         foreach($hp in @($history[$doc.path]|Where-Object {$_})){
             $documents+=[pscustomobject]@{path=$hp;text=(Read-WmmaText (Join-Path $Root $hp));scope='historical'}
@@ -75,14 +98,7 @@ function New-WmmaGraph {
             $kind=if($byId[$target].type -like 'source*'){'source_reference'}else{'references'}
             Add-GraphEdge $doc.id $target $kind $item.path $item.scope
         }}
-        $nodes.Add([ordered]@{
-            id=$doc.id;type=$doc.type;name=$name;path=$doc.path;status=(Get-WmmaMeta $doc.text 'status')
-            chapter=(Get-WmmaMeta $doc.text 'chapter');branch=(Get-WmmaMeta $doc.text 'branch')
-            aliases=@(@($name)+@(Get-WmmaArrayMeta $doc.text 'aliases')|Sort-Object -Unique)
-            front_ids=@($fronts|Sort-Object -Unique);source_ids=$sources;participant_ids=$participants
-            history_paths=@($history[$doc.path]|Where-Object {$_});historical_source_ids=@()
-            provenance='unresolved';content_sha256=(Get-WmmaHash $doc.text)
-        })
+        $nodes.Add($node)
     }
     $inboxPath='07_Черновики_и_идеи/Входящие_сообщения.md'
     foreach($entry in @(Get-WmmaInboxEntries (Read-WmmaText (Join-Path $Root $inboxPath)))){
@@ -107,4 +123,51 @@ function New-WmmaGraph {
         edges=@($ordered|Where-Object kind -ne 'references')
         references=@($ordered|Where-Object kind -eq 'references')
     }
+}
+
+# Fast registration for a batch of write commands run with -SkipCheck: upserts the nodes
+# and the direct relationships of the given documents in Сущности.json, so the next command
+# sees their IDs. Собрать_связи (in Завершить_ход and Подготовить_ход) later rebuilds the
+# whole graph from all documents; until then mentions of the new documents by other
+# documents and inbox provenance stay unrecorded.
+function Register-WmmaDocuments {
+    param([string]$Root,[string[]]$Paths)
+    $graphPath=Join-Path $Root '09_Реестры/Сущности.json'
+    $graph=Read-WmmaJson $graphPath
+    $history=Get-WmmaHistoryIndex $Root
+    $entities=[Collections.Generic.List[object]]::new();foreach($entity in @($graph.entities)){$entities.Add($entity)}
+    $edges=[Collections.Generic.List[object]]::new();foreach($edge in @($graph.edges)+@($graph.references)){if($edge){$edges.Add($edge)}}
+    $byPath=@{};$types=@{};foreach($entity in $entities){$byPath[$entity.path]=$entity.id;$types[$entity.id]=$entity.type}
+    foreach($path in @($Paths|Where-Object {$_})){
+        $full=Resolve-WmmaPath $Root $path
+        $relative=Get-WmmaRelativePath $Root $full
+        $text=Read-WmmaText $full
+        $document=[pscustomobject]@{path=$relative;full_path=$full;text=$text;type=(Get-WmmaMeta $text 'type');id=(Get-WmmaMeta $text 'id')}
+        if(-not $document.id){throw "Document has no ID yet: $relative"}
+        $clash=@($entities|Where-Object {$_.id -ceq $document.id -and $_.path -cne $relative})
+        if($clash.Count){throw "Duplicate entity ID: $($document.id) ($relative, $($clash[0].path))"}
+        foreach($old in @($entities|Where-Object {$_.path -ceq $relative -or $_.id -ceq $document.id})){[void]$entities.Remove($old)}
+        foreach($old in @($edges|Where-Object {$_.evidence -ceq $relative})){[void]$edges.Remove($old)}
+        $node=New-WmmaGraphNode $document $history
+        $byPath[$relative]=$document.id;$types[$document.id]=$document.type
+        $refs=@(Get-WmmaDocumentReferences $Root $relative $text -KnownPaths $byPath)
+        $sources=@($node.source_ids)
+        foreach($ref in $refs){
+            $target=$byPath[$ref]
+            if(-not $target -or $target -ceq $document.id){continue}
+            $kind=if($types[$target] -like 'source*'){'source_reference'}else{'references'}
+            $edges.Add([pscustomobject][ordered]@{from=$document.id;to=$target;kind=$kind;evidence=$relative;scope='current'})
+            if($kind -eq 'source_reference'){$sources+=$target}
+        }
+        foreach($id in @($node.source_ids)){$edges.Add([pscustomobject][ordered]@{from=$document.id;to=$id;kind='sourced_from';evidence=$relative;scope='current'})}
+        foreach($id in @($node.participant_ids)){$edges.Add([pscustomobject][ordered]@{from=$document.id;to=$id;kind='participant';evidence=$relative;scope='current'})}
+        $node.source_ids=@($sources|Where-Object {$_}|Sort-Object -Unique)
+        $node.provenance=if($node.type -like 'source*'){'original'}elseif($node.source_ids.Count){'linked'}else{'unresolved'}
+        $entities.Add([pscustomobject]$node)
+    }
+    $ordered=@($edges|Sort-Object from,to,kind,evidence,scope)
+    $graph.entities=@($entities|Sort-Object path)
+    $graph.edges=@($ordered|Where-Object kind -ne 'references')
+    $graph.references=@($ordered|Where-Object kind -eq 'references')
+    Write-WmmaJson $graphPath $graph
 }

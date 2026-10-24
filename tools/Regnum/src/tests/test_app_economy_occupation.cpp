@@ -28,6 +28,22 @@ Id rowWithReserve(Harness& h, Id faction, i64 atLeast) {
   return row;
 }
 
+// Войска оккупанта уходят из провинции (расформировываются); new — новое пустое войско оккупанта у подписи провинции:
+// пополнять оккупационный гарнизон можно, только пока в провинции стоит войско оккупанта (аудит 2026-10-23, 5.2).
+bool occupierArmy(Harness& h, Id pid, Id occ, bool fresh) {
+  auto fs = geo::faces(h->world());
+  const geo::ProvinceShape* sh = fs ? fs->shape(pid) : nullptr;
+  if (!sh) return false;
+  return h->act("Войска оккупанта", [&](Tx& tx) {
+    for (Id aid : tx.w().armies.ids())
+      if (const Army* a = tx.w().army(aid); a && !a->isFleet() && a->leader() == occ && fs->provinceAt(a->pos) == pid) rules::disband(tx, aid);
+    if (!fresh) return;
+    auto spot = rules::findFreeSpot(tx.w(), ArmyKind::Army, sh->label);
+    if (!spot || fs->provinceAt(*spot) != pid) fail("нет места для войска оккупанта");
+    rules::createArmy(tx, ArmyKind::Army, occ, *spot);
+  });
+}
+
 // Провинция государства (не столица, без оккупации), где нет ни одного войска на карте.
 Id quietProvince(const World& w) {
   auto fs = geo::faces(w);
@@ -55,6 +71,7 @@ TEST(app_economy_occupation_garrison) {
   });
   CHECK(pid != 0);
   const Id occ = prov(h, pid)->occupier;
+  CHECK(occupierArmy(h, pid, occ, false));   // войска оккупанта уходят из провинции
   const Id row = rowWithReserve(h, occ, 50);
   const i64 reserve = rules::reserveOf(h->world(), occ, row);
   CHECK(reserve >= 50);
@@ -62,6 +79,19 @@ TEST(app_economy_occupation_garrison) {
   const std::string field = "province.occGarrison." + std::to_string(row);
   CHECK(ensureVisible(h, field));
   CHECK(h->uiRect("province.occIdle") != nullptr);
+  // Без войска оккупанта в провинции гарнизон не пополнить: поле выключено, причина — в подсказке.
+  CHECK(typeNumber(h, field, "10"));
+  CHECK_EQ(garrisonOf(*prov(h, pid), row), 0);
+  if (const RectF* r = h->uiRect(field)) {
+    const RectF fr = *r;
+    h.move(fr.x - 40, fr.cy() + 40);
+    h.frames(4);
+    h.move(fr.cx(), fr.cy());
+    h.frames(40);
+    CHECK_MSG(ui::tooltipText().find("стоит войско") != std::string::npos, ui::tooltipText());
+  }
+  CHECK(occupierArmy(h, pid, occ, true));
+  CHECK(ensureVisible(h, field));
   // Назначить отряды из резерва оккупанта.
   const i64 want = std::min<i64>(reserve, 120);
   CHECK(typeNumber(h, field, std::to_string(want)));
@@ -97,7 +127,11 @@ TEST(app_economy_occupation_idle) {
     if (!occ && f.isState() && f.id != owner) occ = f.id;
   });
   CHECK(occ != 0);
-  CHECK(h->act("Оккупация", [&](Tx& tx) { rules::setOccupied(tx, pid, occ); }));
+  CHECK(h->act("Оккупация", [&](Tx& tx) {
+    // Вне войны оккупация снимается в конце хода сразу (аудит 2026-10-23, 5.2).
+    if (tx.w().relation(occ, owner).s != RelStatus::War) rules::setRelation(tx, occ, owner, -60, RelStatus::War);
+    rules::setOccupied(tx, pid, occ);
+  }));
   openProvince(h, pid, "province.overview");
   CHECK(ensureVisible(h, "province.occIdle"));
   // Без гарнизона и войск оккупанта счётчик растёт; на пятом ходу оккупация снимается.
@@ -117,7 +151,9 @@ TEST(app_economy_occupation_idle) {
   // С оккупационным гарнизоном счётчик не растёт.
   CHECK(h->act("Оккупация", [&](Tx& tx) { rules::setOccupied(tx, pid, occ); }));
   const Id row = rowWithReserve(h, occ, 10);
+  CHECK(occupierArmy(h, pid, occ, true));   // гарнизон пополняется, пока в провинции стоит войско оккупанта
   CHECK(h->act("Гарнизон", [&](Tx& tx) { rules::setOccupationGarrison(tx, pid, row, 10); }));
+  CHECK(occupierArmy(h, pid, occ, false));
   for (int t = 0; t < 2; t++) {
     CHECK(h->endTurnNow());
     h->toasts().clear();

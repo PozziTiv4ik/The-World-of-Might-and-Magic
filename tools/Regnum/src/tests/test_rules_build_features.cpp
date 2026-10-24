@@ -225,11 +225,12 @@ TEST(rules_build_features_plague_building_growth) {
   f.tx([&](Tx& tx) {
     lab = simpleBuilding(tx, "Чумная лаборатория", f.p[0], BuildingFlag::Plague, true);
     infectPlague(tx, f.p[0]);
+    tx.faction(f.A).res[provisionResources(tx.w()).front()] = 1000;   // провизии хватает: при голоде прироста нет
   });
   // Со «Зданием чумы» чума даёт прирост: население растёт.
   CHECK_NEAR(f.pc(f.p[0]).fx[Fx::PopGrowthPct], schema::kPlagueBuildingGrowth, 1e-9);
   f.tx([&](Tx& tx) { endTurn(tx); });
-  CHECK_EQ(popOf(f.w(), f.p[0]), 10250);
+  CHECK_EQ(popOf(f.w(), f.p[0]), 10229);   // +2,5 % × (1 − 10 000 / 120 000): прирост убывает к пределу населения
   // Модификатор в провинции показывается с действующим приростом.
   const Id plague = builtinModId(f.w(), schema::mod::Plague);
   const Modifier view = provinceModView(f.w(), f.p[0], plague);
@@ -238,7 +239,7 @@ TEST(rules_build_features_plague_building_growth) {
   f.tx([&](Tx& tx) { demolish(tx, f.p[0], lab); });
   CHECK_NEAR(provinceModView(f.w(), f.p[0], plague).get(Fx::PopGrowthPct), -5, 1e-9);
   f.tx([&](Tx& tx) { endTurn(tx); });
-  CHECK(popOf(f.w(), f.p[0]) < 10250);
+  CHECK(popOf(f.w(), f.p[0]) < 10229);
 }
 
 TEST(rules_build_features_heal_with_herbs) {
@@ -400,12 +401,13 @@ TEST(rules_build_features_content_v3) {
   CHECK(bld(schema::bld::CorpseMill) && bld(schema::bld::CorpseMill)->stateKinds == (1u << int(StateKind::Undead)));
   CHECK(bld(schema::bld::Drainer) && bld(schema::bld::Drainer)->drain && bld(schema::bld::Drainer)->levels[0].drainPop == 100);
   CHECK(bld(schema::bld::Sprinkler) && bld(schema::bld::Sprinkler)->recipes.size() == 1 && bld(schema::bld::Sprinkler)->recipes[0].essIn.size() == 1);
-  // 9 рецептов версии 3 и «Обсидиановая сталь» версии 5 (обсидиан и уголь).
-  CHECK(bld(schema::bld::Steelworks) && bld(schema::bld::Steelworks)->recipes.size() == 10);
-  if (const Building* sw = bld(schema::bld::Steelworks); sw && sw->recipes.size() == 10) {
-    const Recipe& ob = sw->recipes.back();
+  // 9 рецептов версии 3, «Обсидиановая сталь» версии 5 (обсидиан и уголь) и «Сталь на топливе» версии 6.
+  CHECK(bld(schema::bld::Steelworks) && bld(schema::bld::Steelworks)->recipes.size() == 11);
+  if (const Building* sw = bld(schema::bld::Steelworks); sw && sw->recipes.size() == 11) {
+    const Recipe& ob = sw->recipes[9];
     CHECK_EQ(ob.name, std::string("Обсидиановая сталь"));
     CHECK(ob.in.size() == 2 && ob.out.size() == 1 && w.resource(ob.out[0].res) && w.resource(ob.out[0].res)->name == "Обсидиановая сталь");
+    CHECK_EQ(sw->recipes.back().name, std::string("Сталь на топливе"));
   }
   const Building* conv = bld(schema::bld::AlchemyConverter);
   CHECK(conv && conv->techs.size() == 1 && w.tech(conv->techs[0]) && w.tech(conv->techs[0])->key == schema::tech::MagicPowder);
@@ -439,4 +441,32 @@ TEST(rules_build_features_population_drop_keeps_buildings) {
   auto opts = buildOptions(f.w(), f.p[0]);
   auto it = std::find_if(opts.begin(), opts.end(), [&](const BuildOption& o) { return o.building == extra; });
   CHECK(it != opts.end() && has(join(it->reasons, ";"), "Нет свободных слотов"));
+}
+
+// Требование культовой постройки (одна на государство) — в любой провинции государства: «Штаб Контрразведки» требует
+// «Штаб Разведки» 4 уровня, а не в той же провинции (аудит 2026-10-23, п.7.14).
+TEST(rules_build_features_cult_requirement_in_state) {
+  Fix f;
+  Id s = 0;
+  f.tx([&](Tx& tx) {
+    s = createFaction(tx, FactionKind::State, "Держава");
+    const Id race = addRace(tx);
+    own(tx, f.p[0], s, race, 20000);
+    own(tx, f.p[1], s, race, 20000);
+  });
+  const Id intel = test::buildingByKey(f.w(), schema::bld::IntelHq, s), counter = test::buildingByKey(f.w(), schema::bld::CounterIntelHq, s);
+  CHECK(intel && counter);
+  auto needsIntel = [&](Id pid) {
+    for (const BuildOption& o : buildOptions(f.w(), pid))
+      if (o.building == counter) return has(join(o.placeReasons, ";"), "Штаб Разведки");
+    return true;
+  };
+  CHECK(needsIntel(f.p[1]));
+  f.tx([&](Tx& tx) { placeBuilding(tx, f.p[0], intel, 3); });
+  CHECK(needsIntel(f.p[1]));   // уровня 3 мало
+  f.tx([&](Tx& tx) { placeBuilding(tx, f.p[0], intel, 4); });
+  CHECK(!needsIntel(f.p[1]));
+  CHECK(!needsIntel(f.p[0]));
+  f.tx([&](Tx& tx) { placeBuilding(tx, f.p[1], counter, 1); });
+  CHECK_EQ(f.w().province(f.p[1])->buildings.size(), size_t(1));
 }

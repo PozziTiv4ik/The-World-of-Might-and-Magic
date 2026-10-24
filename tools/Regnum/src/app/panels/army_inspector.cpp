@@ -11,6 +11,7 @@
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
+#include "app/turn/turn_ui.h"
 #include "gfx/icons.h"
 
 namespace rg::app::mil {
@@ -390,117 +391,22 @@ void loyaltySources(const World& w, const Army& ar, double delta) {
               {.font = ui::Font::Small, .ink = ui::Ink::Success});
 }
 
-// Модификатор для добавления войску: запись мира (id) или встроенный, которого в мире ещё нет (key).
-struct ModChoice {
-  Id id = 0;
-  std::string key, name, hint;
-  const char* icon = "sparkles";
-  Color color{0, 0, 0, 0};
-  bool disabled = false;
-};
-
-std::vector<ModChoice> modChoices(const World& w, const Army& ar) {
-  std::vector<ModChoice> out;
-  const bool cruel = rules::armyHas(w, ar.id, schema::mod::DemonArmy) || rules::armyHas(w, ar.id, schema::mod::Ruthless);
-  auto add = [&](Id id, const Modifier& m) {
-    ModChoice c;
-    c.id = id;
-    c.key = m.key;
-    c.name = m.name.empty() ? std::string("Модификатор") : m.name;
-    c.icon = m.icon.empty() || !gfx::hasIcon(m.icon) ? "sparkles" : m.icon.c_str();
-    c.color = m.color;
-    if (m.key == schema::mod::Sadism && !cruel) {   // ТЗ «Модификаторы», 1.19
-      c.disabled = true;
-      c.hint = "армии демонов и безжалостные";
-    } else if (m.duration > 0) {
-      c.hint = nTurns(m.duration);
-    }
-    out.push_back(std::move(c));
-  };
-  w.modifiers.each([&](const Modifier& m) {
-    if (std::find(ar.modifiers.begin(), ar.modifiers.end(), m.id) != ar.modifiers.end()) return;
-    if (!w::modifierFits(m, w::ModScope::Army) || w::modifierInert(m, w::ModScope::Army)) return;
-    add(m.id, m);
-  });
-  for (const Modifier& t : schema::builtinModifiers())
-    if (t.kind == ModKind::Army && !rules::builtinModId(w, t.key)) add(0, t);
-  std::sort(out.begin(), out.end(), [](const ModChoice& x, const ModChoice& y) { return compareRu(x.name, y.name) < 0; });
-  return out;
-}
-
-void setArmyMods(App& a, Id army, const char* label, const std::function<void(Tx&, std::vector<Id>&)>& edit) {
-  a.act(label, [&](Tx& tx) {
-    std::vector<Id> mods = tx.w().army(army)->modifiers;
-    edit(tx, mods);
-    rules::setModifiers(tx, rules::ModTarget::Army, army, mods);
-  });
-}
-
-// Модификаторы войска фишками: срок в ходах на фишке (щелчок — правка срока), крестик — снять, «Добавить».
+// Модификаторы войска — общий список модификаторов (w::modifierList, ModScope::Army; аудит 2026-10-23, 8.4): срок в
+// ходах на фишке (щелчок — правка срока), крестик — снять, «Добавить модификатор» (встроенные без записи мира создаются
+// при выборе; «Садизм» — только армиям демонов и безжалостным, отказ правила). Правка — администратору.
 void armyModifiers(App& a, const Army& ar) {
-  const World& w = frameWorld(a);
-  const bool ro = !a.canEdit();   // модификаторы вручную — правка мира
   const Id id = ar.id;
-  ui::IdScope scope("mods");
-  bool any = false;
-  for (Id mid : ar.modifiers) any = any || w.modifier(mid);
-  if (any) {
-    ui::ChipFlow chipFlow;
-    for (size_t i = 0; i < ar.modifiers.size(); i++) {
-      const Id mid = ar.modifiers[i];
-      const Modifier* m = w.modifier(mid);
-      if (!m) continue;
-      ui::IdScope s{i64(mid)};
-      auto it = ar.modTurns.find(mid);
-      const int left = it == ar.modTurns.end() ? 0 : it->second;
-      std::string tip;
-      for (int f = 0; f < kFxCount; f++)
-        if (m->has(Fx(f))) tip += (tip.empty() ? "" : "\n") + w::effectText(Fx(f), m->fx[size_t(f)]);
-      if (!m->desc.empty()) tip = m->desc + (tip.empty() ? "" : "\n" + tip);
-      tip = (left > 0 ? "Осталось: " + nTurns(left) : std::string("Бессрочно")) + (tip.empty() ? "" : "\n" + tip);
-      ui::ChipOpt co;
-      co.icon = m->icon.empty() || !gfx::hasIcon(m->icon) ? "sparkles" : m->icon.c_str();
-      co.color = m->color;
-      co.removable = !ro;
-      co.clickable = a.admin();   // срок и редактор — администратору
-      co.tooltip = tip;
-      const std::string name = (m->name.empty() ? std::string("Модификатор") : m->name) + (left > 0 ? " · " + std::to_string(left) : std::string());
-      ui::ChipAction act = ui::flowChip(name, co);
-      a.markUi("army.mods.chip." + std::to_string(i));
-      if (act == ui::ChipAction::Remove) {
-        setArmyMods(a, id, "Снять модификатор войска", [mid](Tx&, std::vector<Id>& mods) { mods.erase(std::remove(mods.begin(), mods.end(), mid), mods.end()); });
-        break;
-      }
-      if (act == ui::ChipAction::Click) ui::openPopup("term");
-      if (ui::beginPopup("term", {.side = ui::Side::Below, .width = 280})) {
-        ui::label(m->name.empty() ? std::string("Модификатор") : m->name, {.font = ui::Font::Strong, .icon = co.icon});
-        ui::prop("Срок", "hourglass");
-        int n = left;
-        if (ui::numberField("turns", n, {.min = 0, .max = 1000, .unit = "ход|хода|ходов", .steppers = true, .disabled = ro,
-                                         .tooltip = "Ходов действия; 0 — бессрочно"}))
-          a.act("Срок модификатора войска", [&](Tx& tx) { rules::setModTurns(tx, rules::ModTarget::Army, id, mid, std::max(0, n)); },
-                {.coalesce = "armymod:" + std::to_string(id) + ":" + std::to_string(mid)});
-        a.markUi("army.mods.term");
-        if (ui::button("Открыть в редакторе", {.icon = "sparkles", .fill = true})) {
-          ui::closePopup();
-          a.openEditor("modifiers", mid);
-        }
-        ui::endPopup();
-      }
-    }
-  }
-  if (ro) return;
-  std::vector<ModChoice> choices = modChoices(w, ar);
-  if (choices.empty()) return;
-  std::vector<ui::Option> opts;
-  for (const ModChoice& c : choices) opts.push_back(ui::Option{c.name, c.icon, c.color, c.hint, c.disabled});
-  int idx = -1;
-  if (ui::combo("add", idx, opts, {.placeholder = "Добавить модификатор", .search = 1, .icon = "plus"}) && idx >= 0 && idx < int(choices.size()) &&
-      !choices[size_t(idx)].disabled) {
-    const ModChoice c = choices[size_t(idx)];
-    setArmyMods(a, id, "Модификатор войска", [c](Tx& tx, std::vector<Id>& mods) { mods.push_back(c.id ? c.id : rules::ensureBuiltinMod(tx, c.key)); });
-  }
-  a.markUi("army.mods.add");
+  std::vector<Id> ids = ar.modifiers;
+  w::ModEdit ed;
+  if (w::modifierList("army.mods", ids, !a.canEdit(), w::ModScope::Army, &ar.modTurns, &ed))
+    a.act("Модификаторы войска", [&](Tx& tx) {
+      if (!ed.addKey.empty()) ids.push_back(rules::ensureBuiltinMod(tx, ed.addKey));
+      rules::setModifiers(tx, rules::ModTarget::Army, id, ids);
+    });
+  else if (ed.termOf)
+    a.act("Срок модификатора войска", [&](Tx& tx) { rules::setModTurns(tx, rules::ModTarget::Army, id, ed.termOf, ed.turns); },
+          {.coalesce = "armymod:" + std::to_string(id) + ":" + std::to_string(ed.termOf)});
+  if (a.canEdit()) a.markUi("army.mods.add");
 }
 
 // Верность войска −100…100 % (ТЗ «Общие доработки», п.12), изменение за ход, модификаторы; при верности ниже нуля —
@@ -615,6 +521,13 @@ void drawUnits(App& a, Id id) {
     else ui::label(fleet ? "открытое море" : "вне провинций", {.ink = ui::Ink::Muted});
   }
   if (fleet && (rules::fleetCapacity(w, id) > 0 || rules::cargoOf(w, id))) capacityRow(a, id);
+  // Туман войны: верность и состав по фракциям чужого войска скрыты (численность видна и на карте).
+  bool known = false;
+  for (const ArmyGroup& g : ar->groups) known = known || a.knows(g.faction);
+  if (!known) {
+    w::hiddenMark();
+    return;
+  }
   loyaltyCard(a, *ar);
   // Действия: войско на борту вместо «Разделить» — «Высадка войска»; флот с войском на борту не расформировывается.
   const bool loaded = fleet && rules::cargoOf(w, id);
@@ -701,28 +614,11 @@ bool cargoVisible(App& a, Id id) {
 int cargoBadge(App& a, Id id) { return rules::cargoOf(frameWorld(a), id) ? -1 : 0; }
 
 // ---------------------------------------------------------------- вкладка «События»
+// Записи хроники об этом войске или флоте — общая вкладка событий (turnui::entityEvents, как у провинции, государства
+// и героя): строки хроники, щелчок — показать объект записи.
 void drawLog(App& a, Id id) {
   const World& w = frameWorld(a);
-  std::vector<const LogEntry*> list;
-  w.log.each([&](const LogEntry& e) {
-    if (e.army == id) list.push_back(&e);
-  });
-  std::sort(list.begin(), list.end(), [](const LogEntry* x, const LogEntry* y) { return x->turn != y->turn ? x->turn > y->turn : x->id > y->id; });
-  if (list.empty()) {
-    ui::emptyState("chronicle", "Событий с этим объектом пока нет.");
-    return;
-  }
-  int lastTurn = -1;
-  for (const LogEntry* e : list) {
-    ui::IdScope s(i64(e->id));
-    if (e->turn != lastTurn) {
-      ui::caption("Ход " + std::to_string(e->turn));
-      lastTurn = e->turn;
-    }
-    ui::Row r({ui::px(18), ui::fr(1)}, ui::kAuto, 10);
-    ui::icon(schema::logKind(e->kind).icon, e->kind == LogKind::Battle || e->kind == LogKind::War ? ui::Ink::Danger : ui::Ink::Dim, 16);
-    ui::text(e->text, ui::Font::Body, ui::Ink::Normal);
-  }
+  turnui::entityEvents(a, w, [id](const LogEntry& e) { return e.army == id; }, "army.events." + std::to_string(id));
 }
 
 

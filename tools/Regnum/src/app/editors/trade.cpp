@@ -5,8 +5,12 @@
 // с остатком ходов и расторжением.
 // ТЗ 1.b.vii (вкладка торговли, безвозмездно, доход за ход на срок), 1.d.iii (гильдии торгуют), 1.e.ii (дань),
 // «Механика героев», п.2 (обмен пленными), «Механика войн», п.3 (обмен провинциями).
-// Роли (ТЗ «Доработки №4», п.5): игрок заключает и расторгает только сделки своего государства (App::play) — его
-// сторона в черновике закреплена; сделки мира видны для просмотра.
+// Роли (ТЗ «Доработки №4», п.5; аудит 2026-10-23, 1.1, 1.2, 1.5): игрок составляет только сделки своего государства —
+// его сторона в черновике закреплена. Позиции только своей стороны — «Подарить» сразу (App::play); с позициями другой
+// стороны — «Предложить»: предложение (rules::propose) ждёт ответа другой стороны или администратора в «Решениях».
+// Расторгает сделку её сторона (rules::cancelDeal с расторгающим государством: отношения «Расторжение сделки»), дань и
+// репарации — только получатель. Игрок видит сделки, где хотя бы одна сторона ему известна (App::knows), запасы чужой
+// стороны скрыты. Администратор заключает сделки за любые стороны сразу.
 #include "app/editors/trade.h"
 
 #include "app/app_internal.h"
@@ -184,6 +188,14 @@ void statusTag(const Deal& d) {
   }
 }
 
+// Расторгнуть может: администратор — любую; игрок — сделку своего государства, дань и репарации — только получатель.
+bool canCancel(App& a, const Deal& d) {
+  if (a.readOnly() || d.status != DealStatus::Active) return false;
+  if (a.admin()) return true;
+  const Id own = a.playerState();
+  return own && (d.kind == DealKind::Trade ? (d.a == own || d.b == own) : d.a == own);
+}
+
 }  // namespace
 
 bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
@@ -202,9 +214,9 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
       ui::flex();
       const std::string since = "Заключена на ходу " + std::to_string(d.turn);
       ui::label("ход " + std::to_string(d.turn), {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "clock", .tooltip = since});
-      if (active) {
+      if (active && (a.admin() || canCancel(a, d))) {   // плательщику дани и чужим сделкам у игрока — без кнопки
         std::string tip = d.kind == DealKind::Trade ? "Расторгнуть сделку" : d.kind == DealKind::Tribute ? "Отменить дань" : "Отменить репарации";
-        if (ui::iconButton("trash", tip, {.size = ui::Size::Small, .disabled = !a.canPlay(d.a) && !a.canPlay(d.b), .tone = ui::Tone::Danger})) cancel = true;
+        if (ui::iconButton("trash", tip, {.size = ui::Size::Small, .disabled = !canCancel(a, d), .tone = ui::Tone::Danger})) cancel = true;
         a.markUi("trade.cancel." + std::to_string(d.id));
       }
     }
@@ -292,13 +304,25 @@ bool dealCard(App& a, const World& w, const Deal& d, const CardOpt& o) {
 }
 
 void askCancel(App& a, Id deal) {
-  const Deal* d = a.world().deal(deal);
+  const World& w = a.world();
+  const Deal* d = w.deal(deal);
   if (!d) return;
-  if (!a.canPlay(d->a) && !w::checkPlay(a, d->b)) return;   // расторгает сторона сделки
+  if (!canCancel(a, *d)) {   // расторгает сторона сделки, дань и репарации — получатель
+    if (a.readOnly()) w::checkPlay(a, d->a);
+    else a.toast(d->kind == DealKind::Trade ? std::string("Только сделки своего государства") : "Выплаты отменяет только получатель — " + w.factionName(d->a),
+                 ToastKind::Warning, "lock");
+    return;
+  }
+  const Id by = a.playerState();   // администратор — 0: без последствий
   std::string title = d->kind == DealKind::Trade ? "Расторгнуть сделку?" : d->kind == DealKind::Tribute ? "Отменить дань?" : "Отменить репарации?";
-  std::string text = "Выплаты «каждый ход» прекратятся; уже переданное не вернётся. Отменить можно Ctrl+Z.";
-  a.confirm(title, text, d->kind == DealKind::Trade ? "Расторгнуть" : "Отменить выплаты", true, [deal](App& x) {
-    if (x.play("Расторгнуть сделку", [&](Tx& tx) { rules::cancelDeal(tx, deal); })) x.toast("Сделка расторгнута", ToastKind::Info, "trade");
+  std::string text = "Выплаты «каждый ход» прекратятся; уже переданное не вернётся.";
+  if (by && d->kind == DealKind::Trade) {
+    const double pen = rules::constantOf(w, schema::cst::DealBreak).num;
+    if (std::isfinite(pen) && pen != 0) text += " Отношения с «" + w.factionName(d->a == by ? d->b : d->a) + "» " + fmtSigned(pen) + ".";
+  }
+  text += " Отменить можно Ctrl+Z.";
+  a.confirm(title, text, d->kind == DealKind::Trade ? "Расторгнуть" : "Отменить выплаты", true, [deal, by](App& x) {
+    if (x.play("Расторгнуть сделку", [&](Tx& tx) { rules::cancelDeal(tx, deal, by); })) x.toast("Сделка расторгнута", ToastKind::Info, "trade");
   });
 }
 
@@ -320,7 +344,7 @@ bool resourceCombo(std::string_view id, Id& res, Id payer, Id group) {
   for (Id r : rules::resourcesIn(w, group))
     if (const CatalogItem* c = w.resource(r)) list.push_back(c);
   if (const CatalogItem* cur = w.resource(res); cur && std::find(list.begin(), list.end(), cur) == list.end()) list.insert(list.begin(), cur);
-  const Faction* f = w.faction(payer);
+  const Faction* f = app().knows(payer) ? w.faction(payer) : nullptr;   // запасы чужой стороны скрыты
   std::vector<std::string> hints;
   hints.reserve(list.size());
   for (const CatalogItem* c : list)
@@ -347,11 +371,15 @@ bool resourceCombo(std::string_view id, Id& res, Id payer, Id group) {
   return true;
 }
 
-// Запасы стороны строкой: казна и до трёх ресурсов.
-void stocks(const World& w, Id fid) {
+// Запасы стороны строкой: казна и до трёх ресурсов (чужая сторона у игрока — «Скрыто»).
+void stocks(App& a, const World& w, Id fid) {
   const Faction* f = w.faction(fid);
   ui::HStack hs(20, ui::Align::Left, 6);
   if (!f) return;
+  if (!a.knows(fid)) {
+    w::hiddenMark();
+    return;
+  }
   std::vector<std::pair<Id, double>> rs;
   for (auto& [r, v] : f->res)
     if (r != kGold && v > 0) rs.push_back({r, v});
@@ -420,7 +448,7 @@ bool itemEditor(App& a, const World& w, DraftItem& it, Id payer) {
     if (ui::iconButton("close", "Убрать позицию", {.size = ui::Size::Small})) remove = true;
     a.markUi(key + ".remove");
   }
-  const Faction* f = w.faction(payer);
+  const Faction* f = a.knows(payer) ? w.faction(payer) : nullptr;   // запасы чужой стороны скрыты
   double have = f ? f->stock(it.res) : 0;
   {
     // Количество, режим (значки: разово / каждый ход), срок или запас плательщика.
@@ -484,7 +512,7 @@ void partyColumn(App& a, const World& w, Draft& d, DealSide side) {
     pruneRefs(w, d);
   }
   a.markUi(isA ? "trade.party.a" : "trade.party.b");
-  stocks(w, party);
+  stocks(a, w, party);
   ui::spacer(2);
   int n = 0, otherN = 0;
   for (auto& it : d.items) (it.from == side ? n : otherN)++;
@@ -563,14 +591,34 @@ void composer(App& a, const World& w) {
   ui::spacer(4);
   Deal deal = toDeal(d);
   bool ready = d.a && d.b && !d.items.empty();
-  rules::DealCheck chk = ready ? rules::validateDeal(w, deal) : rules::DealCheck{false, {}};
   bool hasA = false, hasB = false;
   for (auto& it : d.items) (it.from == DealSide::A ? hasA : hasB) = true;
   bool gift = hasA != hasB;
+  // Игрок: позиции другой стороны — предложение ей (ответ — в «Решениях»), только свои — подарок сразу.
+  const Id own = a.playerState();
+  const Id other = own == d.a ? d.b : d.a;
+  const bool propose = own && (own == d.a ? hasB : hasA);
+  Proposal offer;
+  offer.kind = ProposalKind::Deal;
+  offer.from = own;
+  offer.to = other;
+  offer.deal = deal;
+  rules::DealCheck chk{false, {}};
+  if (ready) {
+    if (propose) {
+      chk.problems = rules::proposalProblems(w, offer);
+      chk.ok = chk.problems.empty();
+    } else {
+      chk = rules::validateDeal(w, deal);
+    }
+    for (std::string& p : chk.problems) p = w::fogText(a, w, p, other);   // без запасов скрытой стороны
+  }
+  if (propose) gift = false;
   if (!ready) {
     // Пока нет сторон и позиций — без подсказок: «Заключить сделку» недоступна.
   } else if (chk.ok) {
-    ui::Card c({.pad = 12, .icon = gift ? "star" : "check-circle", .title = gift ? "Подарок можно передать" : "Сделку можно заключить", .tone = ui::Tone::Success});
+    ui::Card c({.pad = 12, .icon = gift ? "star" : "check-circle",
+                .title = propose ? "Сделку можно предложить" : gift ? "Подарок можно передать" : "Сделку можно заключить", .tone = ui::Tone::Success});
     for (int sd = 0; sd < 2; sd++) {
       DealSide side = DealSide(sd);
       std::vector<std::string> parts;
@@ -596,12 +644,20 @@ void composer(App& a, const World& w) {
   if (ready) a.markUi("trade.check");
   {
     ui::HStack hs(32, ui::Align::Left, 8);
-    if (ui::button("Дань или репарации", {.icon = "tribute", .tooltip = "Навязать выплаты золотом на срок"}))
-      a.openDialog("tribute", a.playerState() ? a.playerState() : d.a);
+    if (ui::button("Дань или репарации", {.icon = "tribute", .tooltip = own ? "Выплаты золотом на срок: предложить другой стороне" : "Навязать выплаты золотом на срок"}))
+      a.openDialog("tribute", own ? own : d.a);
     a.markUi("trade.tribute");
     ui::flex();
     const bool party = a.canPlay(d.a) || a.canPlay(d.b);   // сделку заключает её сторона
-    if (ui::button(gift ? "Подарить" : "Заключить сделку", {.variant = ui::Variant::Primary, .icon = gift ? "star" : "handshake", .disabled = !chk.ok || !party})) {
+    if (propose) {
+      if (ui::button("Предложить", {.variant = ui::Variant::Primary, .icon = "handshake", .disabled = !chk.ok || !party,
+                                    .tooltip = "Сделку примет или отклонит другая сторона"})) {
+        if (a.play("Предложить сделку: " + w.factionName(other), [&](Tx& tx) { rules::propose(tx, offer); })) {
+          a.toast("Сделка предложена: «" + w.factionName(other) + "»", ToastKind::Success, "handshake");
+          d.items.clear();
+        }
+      }
+    } else if (ui::button(gift ? "Подарить" : "Заключить сделку", {.variant = ui::Variant::Primary, .icon = gift ? "star" : "handshake", .disabled = !chk.ok || !party})) {
       Id nid = 0;
       if (a.play(gift ? "Подарок" : "Торговая сделка", [&](Tx& tx) { nid = rules::concludeDeal(tx, deal); })) {
         const Deal* nd = a.store.world().deal(nid);
@@ -621,8 +677,9 @@ void dealsList(App& a, const World& w) {
   Draft& d = draft();
   int active = 0, tributes = 0;
   double goldPerTurn = 0;
+  auto seen = [&](const Deal& x) { return a.knows(x.a) || a.knows(x.b); };   // туман войны: сделки чужих сторон скрыты
   w.deals.each([&](const Deal& x) {
-    if (x.status != DealStatus::Active) return;
+    if (x.status != DealStatus::Active || !seen(x)) return;
     active++;
     if (x.kind != DealKind::Trade) tributes++;
     for (auto& it : x.items)
@@ -646,6 +703,7 @@ void dealsList(App& a, const World& w) {
   }
   std::vector<const Deal*> list;
   for (const Deal* x : dealsOf(w, ls.faction)) {
+    if (!seen(*x)) continue;
     bool act = x->status == DealStatus::Active;
     if (ls.status == 0 && !act) continue;
     if (ls.status == 1 && act) continue;

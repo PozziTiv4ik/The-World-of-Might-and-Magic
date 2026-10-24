@@ -1,6 +1,8 @@
 // Regnum — шапка инспектора провинции (ТЗ 1.a.iii, 1.a.iv, 1.a.ix): название с переименованием на месте, владелец
 // с флагом, метки «море» и «оккупирована», меню действий, галочка «Морская провинция»; команды провинции. Переименование,
-// море, объединение и удаление — правка мира (App::canEdit).
+// море, объединение и удаление — правка мира (App::canEdit). Метки состояния (аудит 2026-10-23, 8.1): «Чума · N»,
+// «Иммунитет · N», «Карантин · N» (N — ходов осталось), «Пустошь», «Осквернена»; «Карантин» — игровое действие
+// владельца у провинции с чумой или соседней с ней (снять — крестик метки).
 #include "app/panels/province_common.h"
 #include "gfx/text.h"
 
@@ -102,6 +104,71 @@ void drawName(App& a, const Province& p) {
   }
 }
 
+// ---------------------------------------------------------------- чума, карантин, пустошь, осквернение
+// Встроенный модификатор провинции с ключом: ID записи (0 — нет).
+Id modOf(const World& w, const Province& p, std::string_view key) {
+  for (Id m : p.modifiers)
+    if (const Modifier* x = w.modifier(m); x && x->key == key) return m;
+  return 0;
+}
+
+// Чума в соседней провинции (общая граница).
+bool plagueNear(const World& w, Id pid) {
+  bool near = false;
+  w.edges.each([&](const Edge& e) {
+    if (near) return;
+    const Id o = e.pl == pid ? e.pr : e.pr == pid ? e.pl : 0;
+    if (!o || o == pid) return;
+    if (const Province* q = w.province(o); q && !q->sea && modOf(w, *q, schema::mod::Plague)) near = true;
+  });
+  return near;
+}
+
+void statusRow(App& a, const World& wd, const Province& p) {
+  struct Mark {
+    const char* key;
+    const char* name;
+    const char* icon;
+    ui::Tone tone;
+    bool turns;   // со сроком
+  };
+  static constexpr Mark kMarks[] = {{schema::mod::Plague, "Чума", "plague", ui::Tone::Warning, true},
+                                    {schema::mod::PlagueImmunity, "Иммунитет", "heal", ui::Tone::Success, true},
+                                    {schema::mod::Quarantine, "Карантин", "shield", ui::Tone::Info, true},
+                                    {schema::mod::UndeadWaste, "Пустошь", "skull", ui::Tone::Neutral, false},
+                                    {schema::mod::Desecrated, "Осквернена", "flame", ui::Tone::Danger, false}};
+  const Id pid = p.id;
+  const Id quarantine = modOf(wd, p, schema::mod::Quarantine);
+  const bool own = p.owner && a.canPlay(p.owner);   // карантин — игровое действие владельца
+  const bool offer = own && !quarantine && (modOf(wd, p, schema::mod::Plague) || plagueNear(wd, pid));
+  bool any = offer;
+  for (const Mark& m : kMarks) any = any || modOf(wd, p, m.key);
+  if (!any) return;
+  ui::HStack hs(26, ui::Align::Left, 6);
+  for (const Mark& m : kMarks) {
+    const Id mid = modOf(wd, p, m.key);
+    if (!mid) continue;
+    const Modifier* md = wd.modifier(mid);
+    auto it = p.modTurns.find(mid);
+    const int left = m.turns && it != p.modTurns.end() ? it->second : 0;
+    const std::string label = left > 0 ? std::string(m.name) + " · " + std::to_string(left) : std::string(m.name);
+    const bool lift = mid == quarantine && own;
+    std::string tip = md && !md->desc.empty() ? md->desc : std::string(md ? md->name : m.name);
+    if (left > 0) tip += "\nОсталось: " + nTurns(left);
+    if (lift) tip += "\nСнять карантин — крестик";
+    ui::IdScope s(m.key);
+    if (ui::chip(label, {.icon = m.icon, .tone = m.tone, .removable = lift, .tooltip = tip}) == ui::ChipAction::Remove)
+      a.play("Снять карантин", [pid](Tx& tx) { rules::setQuarantine(tx, pid, false); });
+    a.markUi(std::string("province.status.") + m.key);
+  }
+  if (offer) {
+    if (ui::button("Карантин", {.icon = "shield", .size = ui::Size::Small,
+                                .tooltip = "Объявить карантин: чума не приходит в провинцию и не уходит из неё"}))
+      a.play("Объявить карантин", [pid](Tx& tx) { rules::setQuarantine(tx, pid, true); });
+    a.markUi("province.quarantine");
+  }
+}
+
 void drawHeader(App& a, Id pid) {
   const World& wd = a.world();
   const Province* p = wd.province(pid);
@@ -141,6 +208,7 @@ void drawHeader(App& a, Id pid) {
       }
     }
   }
+  if (!p->sea) statusRow(a, wd, *p);
   // ТЗ 1.a.iii: галочка «Морская провинция» — вся информация скрывается (данные сохраняются).
   {
     bool sea = p->sea;

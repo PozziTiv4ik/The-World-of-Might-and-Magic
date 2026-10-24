@@ -2,6 +2,8 @@
 // цвета видов, фильтры (вид, фракция, диапазон ходов, поиск), щелчок по записи — выделить и показать объект;
 // «Записать событие» — заметка текущего хода (rules::addLog, LogKind::Note). ТЗ: механика хода фиксирует все
 // зависящие от хода происшествия на карте. Запись в хронику — правка мира (только администратор, ТЗ «Доработки №4», п.5).
+// Туман войны (аудит 2026-10-23, 1.5, 8.3): игрок видит общие записи и записи с участием известных ему государств
+// (turnui::entryVisible); быстрый отбор «Моё государство» — записи о его государстве.
 #include "app/app_internal.h"
 #include "app/turn/turn_ui.h"
 #include "app/widgets.h"
@@ -50,29 +52,37 @@ bool matches(const World& w, const LogEntry& e, const Filter& f) {
   return true;
 }
 
-// Отфильтрованные записи (новые ходы сверху, внутри хода — новые сверху); кеш по таблице хроники и фильтру.
+// Отфильтрованные записи (новые ходы сверху, внутри хода — новые сверху); кеш по таблице хроники, фильтру и туману
+// войны (роль, государство игрока, фракции и отношения). visible — сколько записей видит роль без фильтра.
 struct Cache {
   Table<LogEntry> log;
+  Table<Faction> factions;
+  std::shared_ptr<const RelMap> rel;
   bool valid = false;
   u64 sig = 0;
   std::vector<Id> ids;
   std::map<int, int> perTurn;
+  size_t visible = 0;
 };
 Cache& cache() {
   static Cache c;
   return c;
 }
 
-const Cache& entries(const World& w) {
+const Cache& entries(App& a, const World& w) {
   Cache& c = cache();
   const Filter& f = filter();
   u64 s = hash64(f.query);
   s = hashMix(s, f.kinds);
   s = hashMix(s, f.faction);
   s = hashMix(s, u64(u32(f.from)) << 32 | u32(f.to));
-  if (c.valid && c.sig == s && c.log.same(w.log)) return c;
+  s = hashMix(s, a.player() ? 0x9100000000ull + a.ui.playerState : 0);
+  if (c.valid && c.sig == s && c.log.same(w.log) && (!a.player() || (c.factions.same(w.factions) && c.rel == w.relations))) return c;
   std::vector<const LogEntry*> v;
+  c.visible = 0;
   w.log.each([&](const LogEntry& e) {
+    if (!turnui::entryVisible(a, w, e)) return;
+    c.visible++;
     if (matches(w, e, f)) v.push_back(&e);
   });
   std::sort(v.begin(), v.end(), [](const LogEntry* a, const LogEntry* b) { return a->turn != b->turn ? a->turn > b->turn : a->id > b->id; });
@@ -83,6 +93,8 @@ const Cache& entries(const World& w) {
     c.perTurn[e->turn]++;
   }
   c.log = w.log;
+  c.factions = w.factions;
+  c.rel = w.relations;
   c.sig = s;
   c.valid = true;
   return c;
@@ -230,8 +242,9 @@ void drawChronicle(App& a) {
   Filter& f = filter();
   {
     const bool note = a.admin();   // запись в хронику — правка мира
+    const Id mine = a.player() && w.faction(a.ui.playerState) ? a.ui.playerState : 0;   // игрок: «Моё государство»
     const ui::Len cols[] = {ui::fr(1), ui::px(30), ui::px(30)};
-    ui::Row r(std::span<const ui::Len>(cols, note ? 3 : 2), 30, 6);
+    ui::Row r(std::span<const ui::Len>(cols, note || mine ? 3 : 2), 30, 6);
     if (ui::searchField("q", f.query, "Поиск в хронике")) f.limit = 120;
     a.markUi("chronicle.search");
     if (ui::iconButton("filter", "Фильтры: вид, фракция, ходы", {.toggled = f.active(), .badge = f.active()})) ui::openPopup("filters");
@@ -240,11 +253,17 @@ void drawChronicle(App& a) {
     if (note) {
       if (ui::iconButton("quill", "Записать событие", {.disabled = a.readOnly()})) openNote(a);
       a.markUi("chronicle.note");
+    } else if (mine) {
+      if (ui::iconButton("crown", "Моё государство", {.toggled = f.faction == mine})) {
+        f.faction = f.faction == mine ? 0 : mine;
+        f.limit = 120;
+      }
+      a.markUi("chronicle.mine");
     }
   }
   activeChips(w);
-  const Cache& c = entries(w);
-  if (w.log.empty()) {
+  const Cache& c = entries(a, w);
+  if (w.log.empty() || c.visible == 0) {
     ui::spacer(16);
     if (ui::emptyState("chronicle", "Хроника пуста.", !a.canEdit() ? std::string_view() : "Записать событие", "quill"))
       openNote(a);
@@ -261,7 +280,7 @@ void drawChronicle(App& a) {
   {
     ui::HStack hs(18, ui::Align::Left, 6);
     std::string n = fmtInt(i64(c.ids.size())) + " " + plural(i64(c.ids.size()), "запись", "записи", "записей");
-    if (c.ids.size() != w.log.size()) n += " из " + fmtInt(i64(w.log.size()));
+    if (c.ids.size() != c.visible) n += " из " + fmtInt(i64(c.visible));
     ui::label(n, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   }
   int shown = std::min<int>(int(c.ids.size()), std::max(20, f.limit));

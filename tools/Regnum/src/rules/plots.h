@@ -68,14 +68,12 @@ HitChance hitChance(const World& w, Id plot, Id character, double gold);
 void orderHit(Tx& tx, Id plot, Id character, double gold);
 void cancelHit(Tx& tx, Id plot, Id character);           // золото возвращается заказчику
 void guardHit(Tx& tx, Id plot, Id character, bool on);   // администратор: «Защитить от убийства»
+// Администратор рассмотрел заказ (исход не меняется; рассмотренный заказ не ждёт решения).
+void setHitReviewed(Tx& tx, Id plot, Id character, bool on);
 // Модификатор героя к успеху заказного убийства (модификаторы и таланты, %).
 double heroAssassinPct(const World& w, Id character);
-// Исход заказа в конце хода (rules::endTurn): roll — бросок 0…100.
-struct HitOutcome {
-  Id plot = 0, character = 0;
-  double chance = 0, roll = 0;
-  bool killed = false;
-};
+// Исход заказа в конце хода (rules::endTurn; HitOutcome — core/world.h): roll — бросок 0…100.
+using rg::HitOutcome;
 std::vector<HitOutcome> resolveHits(Tx& tx);
 
 // ================================================================ контрразведка

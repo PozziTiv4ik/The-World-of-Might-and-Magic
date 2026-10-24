@@ -64,8 +64,8 @@ struct HitDlg final : Dialog {
     {
       ui::Card card({.pad = 10});
       part("coins", "База", hc.base, "1 % за " + fmtGold(range.perPct));
-      if (p->external()) part("eye", "Штаб Разведки", hc.intel, "«Штаб Разведки» заказчика");
-      part("shield", "Защита государства", hc.guard, "«Штаб Контрразведки» государства героя");
+      if (p->external()) part("eye", "Разведка", hc.intel, "Эффекты заказчика: «Штаб Разведки», таланты и модификаторы");
+      part("shield", "Защита государства", hc.guard, "Эффекты государства героя: «Штаб Контрразведки», таланты и модификаторы");
       part("hero", "Модификаторы героя", hc.hero, "Модификаторы и таланты героя");
       ui::separator();
       ui::Row r({ui::fr(1), ui::px(110)}, 34, 8);

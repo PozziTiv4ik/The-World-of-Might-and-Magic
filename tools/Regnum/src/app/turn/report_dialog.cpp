@@ -3,7 +3,8 @@
 // хроники хода по видам (щелчок — показать на карте); предупреждения: долги, голод, нехватка эссенций на содержание
 // элементалей, недостачи по сделкам, восстания, снос построек сверх слотов, чума; исходы заказных убийств заговоров
 // (администратору: вероятность, погиб или выжил). Две страницы, как в подтверждении хода (ТЗ «Фиксы», п.16): основные
-// игровые государства и остальные фракции.
+// игровые государства и остальные фракции. Итоги берутся из мира (Meta::lastTurn) и переживают перезапуск; игроку —
+// «Итоги хода N» его государства: его карточка и записи хода о нём (без страниц и исходов покушений).
 #include "app/app_internal.h"
 #include "app/turn/turn_ui.h"
 #include "app/widgets.h"
@@ -26,13 +27,13 @@ void kindHeader(LogKind k, size_t n) {
 }
 
 // Исход заказного убийства — на странице государства героя (основные или остальные).
-bool hitOnPage(const World& w, const rules::HitOutcome& o, int page) {
+bool hitOnPage(const World& w, const HitOutcome& o, int page) {
   const Character* c = w.character(o.character);
   return page == kPageAll || isMainState(w, c ? c->faction : 0) == (page == kPageMain);
 }
 
 // Строка исхода: портрет, имя и государство героя с заговором, вероятность (подсказка — бросок), «Погиб» или «Выжил».
-void hitRow(App& a, const World& w, const rules::HitOutcome& o) {
+void hitRow(App& a, const World& w, const HitOutcome& o) {
   const ui::Theme& th = ui::theme();
   const Character* c = w.character(o.character);
   ui::IdScope s{i64(o.character)};
@@ -61,21 +62,22 @@ void hitRow(App& a, const World& w, const rules::HitOutcome& o) {
 }
 
 struct ReportDlg : Dialog {
-  rules::TurnReport rep;
+  TurnRecord rep;
+  Id state = 0;    // итоги игрока: только его государство
   int page = -2;   // kPageMain / kPageOther; −2 — выбрать при первом показе
   const char* id() const override { return "turn.report"; }
   Style style(App&) override {
     Style s;
     s.title = "Итоги хода " + std::to_string(rep.turnFrom);
     s.icon = "scroll";
-    s.width = 940;
+    s.width = state ? 780 : 940;
     s.dismissOnBackdrop = true;
     return s;
   }
 
   // Карточка фракции: флаг, название, изменение казны, казна после, полосы дохода и расхода, запасы.
   // true — щелчок (открыть фракцию).
-  bool factionCard(App& a, const World& w, const rules::TurnFactionLine& l, double scale) {
+  bool factionCard(App& a, const World& w, const TurnFactionLine& l, double scale) {
     const Faction* f = w.faction(l.faction);
     if (!f) return false;
     const ui::Theme& th = ui::theme();
@@ -122,6 +124,7 @@ struct ReportDlg : Dialog {
 
   bool draw(App& a) override {
     const World& w = a.store.world();
+    if (state && !w.faction(state)) return false;
     const size_t nMain = sortedLines(w, rep, kPageMain).size(), nOther = sortedLines(w, rep, kPageOther).size();
     if (page == -2) page = nMain ? kPageMain : kPageOther;   // нет основных государств — сразу остальные
     {
@@ -129,15 +132,21 @@ struct ReportDlg : Dialog {
       ui::tag("Ход " + std::to_string(rep.turnFrom), ui::Tone::Neutral, "hourglass");
       ui::icon("arrow-right", ui::Ink::Muted, 16);
       ui::tag("Ход " + std::to_string(rep.turnTo), ui::Tone::Accent, "next-turn");
+      if (const Faction* f = state ? w.faction(state) : nullptr) {
+        ui::flex();
+        ui::flag(f->flag, 24, 16, 3);
+        ui::label(w::orName(f->name), {.font = ui::Font::Strong});
+        a.markUi("turn.report.state");
+      }
     }
-    {
+    if (!state) {
       const std::string l0 = pageLabel(kPageMain, nMain), l1 = pageLabel(kPageOther, nOther);
       int pg = page;
       if (ui::segmented("pages", pg, {{"crown", l0, "Основные игровые государства"}, {"list", l1, "Остальные государства и гильдии"}}))
         page = pg == kPageOther ? kPageOther : kPageMain;
       a.markUi("turn.report.pages");
     }
-    TurnDigest d = digest(w, rep, page);
+    TurnDigest d = digest(w, rep, page, state);
     {
       ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1), ui::fr(1)}, 64, 10);
       ui::stat(std::to_string(d.all.size()), "Записей хроники", {.icon = "chronicle", .tone = ui::Tone::Info});
@@ -150,8 +159,8 @@ struct ReportDlg : Dialog {
     {
       FitScroll body("body", std::max(200.f, ui::viewport().h - 370));
       // Предупреждения
-      std::vector<const rules::TurnFactionLine*> lines = sortedLines(w, rep, page);
-      std::vector<const rules::TurnFactionLine*> debtors;
+      std::vector<const TurnFactionLine*> lines = sortedLines(w, rep, page, state);
+      std::vector<const TurnFactionLine*> debtors;
       for (auto* l : lines)
         if (l->treasuryAfter < 0) debtors.push_back(l);
       if (!debtors.empty() || !d.famine.empty() || !d.essences.empty() || !d.shortfalls.empty() || !d.rebellions.empty() || !d.plague.empty() ||
@@ -187,25 +196,26 @@ struct ReportDlg : Dialog {
         a.markUi("turn.report.warnings");
       }
       // Заказные убийства заговоров: кто, вероятность, погиб или выжил (только администратору — шансы и броски).
-      std::vector<const rules::HitOutcome*> hits;
-      if (a.admin())
-        for (const rules::HitOutcome& o : rep.hits)
+      std::vector<const HitOutcome*> hits;
+      if (a.admin() && !state)
+        for (const HitOutcome& o : rep.hits)
           if (hitOnPage(w, o, page)) hits.push_back(&o);
       if (!hits.empty()) {
         {
           ui::Card c({.pad = 12, .icon = "skull", .title = "Заказные убийства", .tone = ui::Tone::Danger});
-          for (const rules::HitOutcome* o : hits) hitRow(a, w, *o);
+          for (const HitOutcome* o : hits) hitRow(a, w, *o);
         }
         a.markUi("turn.report.hits");
       }
-      // Казна фракций
+      // Казна фракций (у игрока — его государства)
       if (lines.empty()) {
-        ui::label(page == kPageMain ? "Основных государств нет" : "Других фракций нет", {.ink = ui::Ink::Muted});
+        ui::label(state ? "Государство не участвовало в ходе" : page == kPageMain ? "Основных государств нет" : "Других фракций нет", {.ink = ui::Ink::Muted});
       } else {
-        ui::caption(page == kPageMain ? "Казна государств" : "Казна фракций");
+        ui::caption(state ? "Казна" : page == kPageMain ? "Казна государств" : "Казна фракций");
         double scale = 1;
         for (auto* l : lines) scale = std::max({scale, l->income, l->expenses});
-        ui::Row r({ui::fr(1), ui::fr(1), ui::fr(1)}, ui::kAuto, 10);
+        const ui::Len cols3[] = {ui::fr(1), ui::fr(1), ui::fr(1)};
+        ui::Row r(std::span<const ui::Len>(cols3, state ? 1 : 3), ui::kAuto, 10);
         for (auto* l : lines)
           if (factionCard(a, w, *l, scale)) pickFaction = l->faction;
       }
@@ -254,26 +264,25 @@ struct ReportDlg : Dialog {
   }
 };
 
+// Итоги последнего хода — из мира (Meta::lastTurn): отмена хода и возврат к другому ходу приводят с собой и его итоги.
+// Игроку — итоги его государства.
 std::unique_ptr<Dialog> makeRegistered(App& a, Id) {
-  const auto& r = a.lastTurnReport();
-  if (!r) {
+  const TurnRecord& r = a.store.world().meta->lastTurn;
+  if (r.turnTo <= 0) {
     a.toast("Ход ещё не завершался", ToastKind::Info, "scroll");
     return nullptr;
   }
-  if (r->turnTo != a.store.world().turn()) {
-    a.toast("Отчёт устарел: ход отменён или мир возвращён к другому ходу", ToastKind::Info, "scroll");
-    return nullptr;
-  }
-  return makeReport(a, *r);
+  return makeReport(a, r, a.player() ? a.ui.playerState : 0);
 }
 
 DialogReg reg({"turn.report", makeRegistered});
 
 }  // namespace
 
-std::unique_ptr<Dialog> makeReport(App&, const rules::TurnReport& rep) {
+std::unique_ptr<Dialog> makeReport(App&, const TurnRecord& rep, Id state) {
   auto d = std::make_unique<ReportDlg>();
   d->rep = rep;
+  d->state = state;
   return d;
 }
 

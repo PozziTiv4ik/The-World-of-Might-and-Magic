@@ -328,6 +328,48 @@ bool canLand(const World& w, Id fleet, Vec2 pos, std::string* why) {
   return nearFleet ? true : no("Слишком далеко от флота");
 }
 
+std::optional<Vec2> landingSpot(const World& w, Id fleet) {
+  const Army* f = w.army(fleet);
+  if (!f || !f->isFleet()) return std::nullopt;
+  auto fs = geo::faces(w);
+  if (!fs || fs->faces.empty()) return std::nullopt;
+  // Флот в морской провинции — суша соседних с ней провинций (неназначенная суша — недалеко от флота); вне морской
+  // провинции — суша недалеко от флота (как canLand).
+  const Id F = fs->provinceAt(f->pos);
+  const bool sea = seaProvince(w, F);
+  const std::vector<Id> nb = sea ? landNeighbors(w, F) : std::vector<Id>{};
+  const Placement pl(w, fs);
+  auto legal = [&](Vec2 p) {
+    if (!fs->bounds.contains(p) || !pl.valid(ArmyKind::Army, p, 0, nullptr)) return false;
+    const bool near = dist(p, f->pos) <= kLandingReach;
+    if (!sea) return near;
+    const Id Q = fs->provinceAt(p);
+    return Q ? contains(nb, Q) : near;
+  };
+  // Спираль от флота: первая законная точка — ближайшая.
+  const double step = schema::kObjectRadius * 0.5, radius = sea ? 1600.0 : kLandingReach + step;
+  for (int k = 1; k * step <= radius; k++) {
+    const double r = k * step;
+    const int n = std::max(6, int(std::ceil(2 * kPi * r / step)));
+    const double phase = (k & 1) ? 0.0 : kPi / n;
+    for (int i = 0; i < n; i++) {
+      const double a = phase + 2 * kPi * i / n;
+      const Vec2 p{f->pos.x + r * std::cos(a), f->pos.y + r * std::sin(a)};
+      if (legal(p)) return p;
+    }
+  }
+  return std::nullopt;
+}
+
+bool fleetOverloaded(const World& w, Id fleet, std::string* why) {
+  const Id c = cargoOf(w, fleet);
+  if (!c) return false;
+  const i64 cap = fleetCapacity(w, fleet), size = armySize(w, c);
+  if (cap >= size) return false;
+  if (why) *why = "Флот " + armyName(w, fleet) + " перегружен: на борту " + fmtInt(size) + ", вместимость " + fmtInt(cap) + " — сначала высадите войско";
+  return true;
+}
+
 Id land(Tx& tx, Id fleet, Vec2 pos) {
   std::string why;
   if (!canLand(tx.w(), fleet, pos, &why)) fail(why);

@@ -17,6 +17,19 @@ param(
     [ValidatePattern('^Q-(?:C\d+|WORLD)-\d{3}$')]
     [string]$Id,
 
+    # Attention queue of context selection; by default from the status: active -> current,
+    # waiting -> awaiting_evidence, later -> background. It never closes the question.
+    [ValidateSet('current', 'awaiting_evidence', 'background')]
+    [string]$Attention,
+
+    [string]$AttentionReason = 'Внимание задано при записи вопроса.',
+
+    # The condition that lets the question move on.
+    [string]$WaitingFor = 'Новое событие или сообщение, отвечающее на сформулированный вопрос',
+
+    # By default the current chapter; a chapter question always opens in it.
+    [int]$OpenedInChapter = 0,
+
     [switch]$SkipCheck
 )
 
@@ -92,6 +105,16 @@ if (@($history | Where-Object { $_.id -eq $Id }).Count -gt 0) {
     throw "Question ID already exists in question history: $Id"
 }
 
+Assert-WmmaSingleLine $AttentionReason 'AttentionReason'
+Assert-WmmaSingleLine $WaitingFor 'WaitingFor'
+if (-not $Attention) {
+    $Attention = switch ($Status) { 'active' { 'current' } 'waiting' { 'awaiting_evidence' } default { 'background' } }
+}
+$currentChapter = [int]$registry.current_chapter
+if ($OpenedInChapter -le 0) { $OpenedInChapter = $currentChapter }
+if ($OpenedInChapter -gt $currentChapter) { throw "A question cannot open in a future chapter: $OpenedInChapter (current $currentChapter)." }
+if ($Scope -eq 'chapter' -and $OpenedInChapter -ne $currentChapter) { throw "A chapter question opens in the current chapter $currentChapter." }
+
 $questions += [pscustomobject][ordered]@{
     id = $Id
     priority = $Priority
@@ -99,6 +122,10 @@ $questions += [pscustomobject][ordered]@{
     owner = $Owner
     scope = $Scope
     status = $Status
+    opened_in_chapter = $OpenedInChapter
+    attention = $Attention
+    attention_reason = $AttentionReason
+    waiting_for = $WaitingFor
 }
 
 $registry.questions = @($questions)

@@ -6,7 +6,11 @@ param(
 
     [string]$FrontId = '-',
 
-    [switch]$Force,
+    # Other names of the same place.
+    [string[]]$Aliases = @(),
+
+    # IDs of existing locations with a similar name that are confirmed to be other places.
+    [string[]]$DistinctFrom = @(),
 
     [switch]$SkipCheck
 )
@@ -20,59 +24,79 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Assert-WmmaSingleLine $Name 'Name'
+Assert-WmmaSingleLine $Summary 'Summary'
+foreach ($alias in $Aliases) { Assert-WmmaSingleLine $alias 'Alias' }
 $fileName = Convert-WmmaFileName -Value $Name
 $relativePath = "04_Локации/$fileName.md"
 $targetPath = Join-Path $root ($relativePath -replace '/', '\')
 
-if ((Test-Path -LiteralPath $targetPath) -and -not $Force) {
-    throw "Location file already exists: $relativePath"
+# An existing card is never replaced: its ID and text stay. Edit it by hand instead.
+if (Test-Path -LiteralPath $targetPath) {
+    throw "Location file already exists: $relativePath. Edit the existing card to keep its ID and text."
 }
 
-$content = @"
-# $Name
+# One place, one card: a title or alias equal to, or contained in, an existing one is refused.
+$graph = Read-WmmaRegistry $root 'Сущности'
+Assert-WmmaEntityIds $graph $DistinctFrom -Type @('location') -Label 'distinct location'
+$similar = @(Find-WmmaSimilarEntities @($graph.entities | Where-Object { $_.type -eq 'location' }) (@($Name) + @($Aliases)) -Except $DistinctFrom)
+if ($similar.Count) {
+    throw ("A location with the same or a contained name already exists:`n" + (($similar | ForEach-Object { "- $($_.id) $($_.name) ($($_.path)), совпадение: $($_.match)" }) -join "`n") +
+        "`nUse the existing card (add an alias there) or, for a different place, repeat with -DistinctFrom <ID> and record the distinction in 03_Персонажи/00_Словарь_имен_и_алиасов.md.")
+}
 
----
-type: location
-status: active
-canon_level: active
-front_id: $FrontId
----
+$id = New-WmmaEntityId -Root $root -Type 'location'
+$meta = @(
+    'type: location'
+    'status: active'
+    'canon_level: active'
+    "front_id: $FrontId"
+    "id: $id"
+    "aliases: $(Format-WmmaMetaArray $Aliases)"
+)
+if ($DistinctFrom.Count) { $meta += "distinct_from: $(Format-WmmaMetaArray $DistinctFrom)" }
 
-## Кратко
+$content = @(
+    "# $Name"
+    ''
+    '---'
+    $meta
+    '---'
+    ''
+    '## Кратко'
+    ''
+    $Summary
+    ''
+    '## География'
+    ''
+    'Уточнить.'
+    ''
+    '## Значение'
+    ''
+    'Уточнить.'
+    ''
+    '## Правитель / силы'
+    ''
+    'Уточнить.'
+    ''
+    '## Ресурсы'
+    ''
+    '- Уточнить.'
+    ''
+    '## История'
+    ''
+    '- Уточнить.'
+    ''
+    '## Текущие события'
+    ''
+    '- Уточнить.'
+    ''
+    '## Связанные персонажи'
+    ''
+    '- Уточнить.'
+) -join "`n"
 
-$Summary
-
-## География
-
-Уточнить.
-
-## Значение
-
-Уточнить.
-
-## Правитель / силы
-
-Уточнить.
-
-## Ресурсы
-
-- Уточнить.
-
-## История
-
-- Уточнить.
-
-## Текущие события
-
-- Уточнить.
-
-## Связанные персонажи
-
-- Уточнить.
-"@
-
-# Bytes as written by Set-Content: the text and one platform line break.
-Write-WmmaText $targetPath ($content + [Environment]::NewLine)
+Write-WmmaText $targetPath ($content + "`n")
 
 $mapPath = Join-Path $root '04_Локации\00_Карта_и_регионы.md'
 $mapText = Read-WmmaText $mapPath
@@ -80,20 +104,15 @@ $row = "- ``$relativePath`` - $Summary"
 
 if ($mapText -notmatch [regex]::Escape($relativePath)) {
     if ($mapText -notmatch '## Локации, добавленные инструментом') {
-        $mapText = $mapText.TrimEnd() + @"
-
-## Локации, добавленные инструментом
-
-$row
-"@
+        $mapText = $mapText.TrimEnd() + "`n`n## Локации, добавленные инструментом`n`n$row"
     } else {
-        $mapText = $mapText.TrimEnd() + "`r`n$row"
+        $mapText = $mapText.TrimEnd() + "`n$row"
     }
 
-    Write-WmmaText $mapPath ($mapText + [Environment]::NewLine)
+    Write-WmmaText $mapPath ($mapText + "`n")
 }
 
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_индекс_локаций' -SkipCheck:$SkipCheck
+Complete-WmmaMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_локаций' -SkipCheck:$SkipCheck
 
-"Created location: $relativePath"
+"Created location: $relativePath ($id)"
 }

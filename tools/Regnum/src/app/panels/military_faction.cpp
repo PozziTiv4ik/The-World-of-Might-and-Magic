@@ -38,11 +38,13 @@ void tradeFleetSection(App& a, Id fid) {
     return;
   }
   const double income = fc ? fc->incTradeFleet : 0, next = fc ? fc->pirateRisk : 0;
+  // Доход торгового галеона — константа мира за каждый корабль в торговле (от содержания не зависит, как в rules::calc).
+  const double each = std::max(0.0, rules::constantOf(w, schema::cst::GalleonIncome).num);
   {
     // Риск пиратов: бросок в конце этого хода (сгенерирован в конце прошлого) и новый — по кораблям в торговле.
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
     ui::stat((income > 0 ? "+" : "") + fmtGold(income), "Прибыль за ход", {.icon = "coins", .tone = ui::Tone::Success,
-                                                                            .tooltip = "Торговые галеоны в торговле: содержание × 2"});
+                                                                            .tooltip = "Торговые галеоны в торговле × «Доход торгового галеона» " + fmtGold(each)});
     const std::string nextText = "→ " + fmtPct(next, 1);
     ui::stat(fmtPct(f->pirateRisk, 1), "Пираты", {.icon = "dice", .tone = f->pirateRisk > 0 ? ui::Tone::Danger : ui::Tone::Neutral,
                                                   .delta = next - f->pirateRisk, .deltaText = nextText, .invertDelta = true,
@@ -50,7 +52,6 @@ void tradeFleetSection(App& a, Id fid) {
                                                              "→ сгенерируется в конце хода: 1 % за каждые 10 галеонов без охраны (5 фрегатов или 1 линкор)"});
     a.markUi("mil.trade.pirates");
   }
-  const double fleetK = fc ? std::max(0.0, 1.0 + fc->fx[Fx::FleetUpkeepPct] / 100.0) : 1.0;
   struct L {
     UnitRow row;
     i64 trade, reserve;
@@ -60,7 +61,7 @@ void tradeFleetSection(App& a, Id fid) {
   for (const UnitRow& r : unitRows(w, fid, true)) {
     const rules::RowCalc* rc = fc ? rowCalc(*c, fid, r.id, true) : nullptr;
     const i64 tr = rc ? rc->trade : 0;
-    const double inc = r.type == int(ShipType::Galleon) ? double(tr) * std::max(0.0, r.upkeep) * fleetK * schema::kFleetTradeIncome : 0;
+    const double inc = r.type == int(ShipType::Galleon) ? double(tr) * each : 0;
     lines.push_back(L{r, tr, rc ? std::max<i64>(0, rc->reserve) : 0, inc});
   }
   const bool ro = !a.canPlay(fid);   // участие флота в торговле — игровое действие
@@ -130,7 +131,8 @@ void objectsOnMap(App& a, Id fid, bool fleet) {
         if (f != fid) names.push_back(w.factionName(f));
       sub = "союз с " + join(names, ", ") + " · " + sub;
     }
-    if (objectItem(w, *ar, a.ui.sel == Selection{SelType::Army, ar->id}, sub)) a.select(SelType::Army, ar->id, true);
+    // Численность чужого объекта у игрока скрыта (туман войны: только «есть войско»).
+    if (objectItem(w, *ar, a.ui.sel == Selection{SelType::Army, ar->id}, sub, !a.knows(fid))) a.select(SelType::Army, ar->id, true);
     a.markUi("mil.object." + std::to_string(ar->id));
   }
   if (ro) return;
@@ -167,6 +169,17 @@ void drawForces(App& a, Id fid, bool fleet, bool fullscreen) {
   const Faction* f = w.faction(fid);
   if (!f) return;
   ui::IdScope scope(fleet ? "fleet" : "army");
+  // Туман войны: у чужой фракции игрок видит только её объекты на карте, без численности; таблицы, резерв, найм,
+  // содержание и торговля флота скрыты.
+  if (!a.knows(fid)) {
+    w::hiddenMark();
+    a.markUi(fleet ? "mil.fleet.hidden" : "mil.army.hidden");
+    if (!fullscreen) {
+      ui::spacer(4);
+      objectsOnMap(a, fid, fleet);
+    }
+    return;
+  }
   auto& st = ui::state<ForcesState>(ui::id("forces"));
   const float aw = ui::avail().w;
   bool wide = aw >= kWide;
@@ -277,7 +290,7 @@ void drawEditor(App& a, Id arg) {
   ui::spacer(4);
   ui::Scroll sc("body");
   ui::IdScope s{i64(cur)};
-  upkeepCard(a, cur, false);   // ТЗ 1.c.ii: содержание из обеих таблиц — из казны каждый ход
+  if (a.knows(cur)) upkeepCard(a, cur, false);   // ТЗ 1.c.ii: содержание из обеих таблиц — из казны каждый ход
   ui::spacer(8);
   ui::label("Войска", {.font = ui::Font::Title, .icon = "army"});
   drawForces(a, cur, false, true);

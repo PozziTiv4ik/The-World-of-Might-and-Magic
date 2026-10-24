@@ -1,7 +1,8 @@
-// Раздел «Решения» правой ленты (ТЗ «Доработки №2», п.1 и п.6): только администратору (игроку скрыт и недоступен
-// клавишами), число ожидающих решений на значке; готовность игроков; приглашения героев в заговоры — «Этот герой
-// согласился» (участник) и «Этот герой отказался» («Угрозы заговору»); заказные убийства на конец хода с вероятностью
-// и «Защитить от убийства» (переключатель: 0 %); после хода — исходы в отчёте и уведомлении.
+// Раздел «Решения» правой ленты (ТЗ «Доработки №2», п.1 и п.6): у игрока — только предложения его государства
+// (сценарии предложений — test_app_proposals.cpp), число ожидающих решений на значке; готовность игроков;
+// приглашения героев в заговоры — «Этот герой согласился» (участник) и «Этот герой отказался» («Угрозы заговору»);
+// заказные убийства на конец хода с вероятностью и «Защитить от убийства» (переключатель: 0 %); после хода — исходы в
+// отчёте и уведомлении.
 #include "app/shell/role.h"
 #include "app/turn/turn_ui.h"
 #include "tests/test_app_util.h"
@@ -52,8 +53,9 @@ std::string key(const Setup& s, const char* what, Id hero) {
 
 }  // namespace
 
-// Раздел — на ленте администратора со счётчиком ожидающих решений; у игрока его нет, Ctrl+0 и openSection — отказ.
-TEST(app_decisions_admin_only) {
+// Раздел — на ленте со счётчиком ожидающих решений: у администратора — готовность, предложения, приглашения и заказы;
+// у игрока (аудит 2026-10-23, 1.1) — только предложения его государства, значок — входящие предложения.
+TEST(app_decisions_roles) {
   Harness h("decisions_role");
   h.demo();
   const Setup s = prepare(h);
@@ -70,26 +72,28 @@ TEST(app_decisions_admin_only) {
   h->toMap();
   h.settle();
 
-  // Игрок: раздела нет на ленте, клавиша и прямое открытие — отказ.
+  // Игрок: раздел есть, но на странице — только предложения его государства (приглашений, заказов и готовности нет);
+  // значка нет — входящих предложений нет.
   role::becomePlayer(h.a(), s.owner);
   h.settle();
-  CHECK(!role::sectionAllowed(h.a(), "decisions"));
+  CHECK(role::sectionAllowed(h.a(), "decisions"));
   CHECK(!role::sectionAllowed(h.a(), "reference"));
   CHECK(role::sectionAllowed(h.a(), "states"));
-  CHECK(h->uiRect("section.decisions") == nullptr);
-  CHECK(h->uiRect("section.states") != nullptr);
+  CHECK(h->uiRect("section.decisions") != nullptr);
+  CHECK(h->uiRect("section.decisions.badge") == nullptr);
   h.key(Key::D0, ctrl());
   h.settle();
-  CHECK(h->view() == app::View::Map);
-  h.dropToasts();
-  h->openSection("decisions");
-  CHECK(hasToast(h, role::kAdminOnly));
+  CHECK(h->view() == app::View::Directory);
+  CHECK(h->uiRect("decisions.incoming") != nullptr);
+  CHECK(h->uiRect("decisions.outgoing") != nullptr);
+  for (const char* m : {"decisions.ready", "decisions.invites", "decisions.hits", "decisions.proposals"}) CHECK_MSG(h->uiRect(m) == nullptr, m);
+  h->toMap();
   h.settle();
-  CHECK(h->view() == app::View::Map);
-  // Администратору — снова есть.
+  // Администратору — снова всё.
   role::becomeAdmin(h.a());
   h.settle();
   CHECK(h->uiRect("section.decisions") != nullptr);
+  CHECK(h->uiRect("section.decisions.badge") != nullptr);
 }
 
 // Приглашения: согласился — участник, отказался — угроза; заказ: «Защитить» — 0 %, повторно — снять, после хода герой
@@ -110,11 +114,13 @@ TEST(app_decisions_invites_and_hits) {
   CHECK(h->uiRect(key(s, "hit", s.threat)) != nullptr);
   shotClean(h, "decisions_page");
 
-  // Вероятность — с разбивкой в подсказке.
+  // Вероятность — с разбивкой в подсказке: 3000 золота — 30 %, остальное — эффекты сторон (засеянные модификаторы).
+  const rules::HitChance hc = rules::hitChance(h->world(), s.plot, s.threat, 3000);
+  CHECK_NEAR(hc.base, 30, 1e-9);
   if (const RectF* r = h->uiRect(key(s, "hit", s.threat) + ".chance")) {
     h.move(r->cx(), r->cy());
     h.frames(40);
-    CHECK_MSG(ui::tooltipText().find("Вероятность успеха: 30") != std::string::npos, ui::tooltipText());
+    CHECK_MSG(ui::tooltipText().find("Вероятность успеха: " + fmtPct(hc.total)) != std::string::npos, ui::tooltipText());
   }
 
   // Приглашения.
@@ -143,6 +149,9 @@ TEST(app_decisions_invites_and_hits) {
   CHECK(h->uiRect("section.decisions.badge") == nullptr);
   CHECK(h->act("Заказ", [&](Tx& tx) { rules::orderHit(tx, s.plot, s.refuse, 5000); }));
   h.settle();
+  // 5000 золота — 50 %, остальное — эффекты сторон (засеянные модификаторы демонстрационного мира).
+  const rules::HitChance refuseChance = rules::hitChance(h->world(), s.plot, s.refuse, 5000);
+  CHECK_NEAR(refuseChance.base, 50, 1e-9);
   CHECK(h->uiRect("section.decisions.badge") != nullptr);
   h.move(100, 600);   // без подсказки под указателем
   shotClean(h, "decisions_page_guarded");
@@ -164,7 +173,7 @@ TEST(app_decisions_invites_and_hits) {
         CHECK_NEAR(o.chance, 0, 1e-9);
       }
       if (o.character == s.refuse) {
-        CHECK_NEAR(o.chance, 50, 1e-9);
+        CHECK_NEAR(o.chance, refuseChance.total, 1e-9);
         killed = o.killed;
         CHECK_EQ(rules::heroAvailable(h->world(), s.refuse), !o.killed);
       }

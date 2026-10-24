@@ -87,6 +87,19 @@ inline World richWorld() {
   c.cultures = {item(1, "Северная", 0x6688aa, "snow"), item(3, "Южная", 0xaa8866, "sun")};
   c.religions = {item(2, "Культ Солнца", 0xffcc33, "sun")};
   c.governments[1].color = Color(10, 20, 30, 128);  // полупрозрачный цвет
+  // Модификаторы базовых записей убраны выше — и ссылки на них в справочниках (формы правления, должности, реликвии,
+  // классы и таланты).
+  for (auto* list : {&c.governments, &c.positions})
+    for (CatalogItem& x : *list) {
+      x.modifiers.clear();
+      x.vacantModifiers.clear();
+    }
+  for (Relic& r : c.relics) r.modifiers.clear();
+  for (HeroClass& k : c.classes) {
+    k.modifiers.clear();
+    for (SubClass& sc : k.subclasses)
+      for (Talent& t : sc.talents) t.modifiers.clear();
+  }
   m.seq[int(Seq::Resource)] = 900;
   m.seq[int(Seq::Race)] = 2;
   m.seq[int(Seq::Culture)] = 3;

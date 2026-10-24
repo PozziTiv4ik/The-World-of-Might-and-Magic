@@ -186,9 +186,12 @@ void raceCombo(App& a, std::string_view id, Id fid, Id row, bool disabled) {
 void keyCombo(App& a, std::string_view id, Id fid, const ArmyRow& r, bool disabled) {
   const World& w = frameWorld(a);
   Id v = r.keyRes;
-  const bool missing = !rules::keyAllowed(w, r.type, r.keyRes);
-  const std::string tip = missing ? "Не указан ключевой ресурс — найм недоступен\n" + keyRuleText(w, r.type) : keyRuleText(w, r.type);
-  const bool changed = w::resourceFrom(id, v, rules::keyResources(w, r.type), "Не выбран", disabled || r.special, tip);
+  // Особый отряд: ключевой ресурс — его собственный из справочника (любой ресурс; «Шантирийские запчасти» големов).
+  const bool missing = r.special ? r.keyRes && !w.resource(r.keyRes) : !rules::keyAllowed(w, r.type, r.keyRes);
+  const std::string rule = r.special ? std::string("Ключевой ресурс особого отряда — из справочника") : keyRuleText(w, r.type);
+  const std::string tip = missing ? "Не указан ключевой ресурс — найм недоступен\n" + rule : rule;
+  const std::vector<Id> keys = r.special ? (r.keyRes ? std::vector<Id>{r.keyRes} : std::vector<Id>{}) : rules::keyResources(w, r.type);
+  const bool changed = w::resourceFrom(id, v, keys, "Не выбран", disabled || r.special, tip);
   if (missing) ui::draw::rectStroke(ui::lastItem().rect.expand(1), ui::theme().danger, 8, 1.5f);
   if (changed && v != r.keyRes) {
     const Id row = r.id;

@@ -50,11 +50,14 @@ int landCount(const World& w, Id state) {
   return n;
 }
 
-// Государство, отдавшее по перемирию последние провинции (ТЗ «Доработки №1», п.18): победителю переходят все его
-// ресурсы и эссенции, кроме группы «Валюты»; если у побеждённого не осталось ни одного войска и флота на карте —
-// и валюты (золото тоже).
-void conquestLoot(Tx& tx, Id loser, Id winner, std::vector<std::string>& parts) {
+}  // namespace
+
+// Государство потеряло последние провинции (перемирие — ТЗ «Доработки №1», п.18; разорение или опустошение последней
+// провинции): победителю переходят все его ресурсы и эссенции, кроме группы «Валюты»; если у побеждённого не осталось
+// ни одного войска и флота на карте — и валюты (золото тоже). Реликвии склада и заключённые тюрем — победителю всегда.
+std::string conquestLoot(Tx& tx, Id loser, Id winner) {
   const World& w = tx.w();
+  if (loser == winner || !w.faction(loser) || !w.faction(winner)) return {};
   bool forces = false;
   w.armies.each([&](const Army& a) {
     for (const ArmyGroup& g : a.groups) forces = forces || g.faction == loser;
@@ -78,15 +81,35 @@ void conquestLoot(Tx& tx, Id loser, Id winner, std::vector<std::string>& parts) 
     tx.faction(winner).ess[e] += v;
     got.push_back(w.essence(e)->name + " " + amount(v));
   }
-  if (got.empty() && !gold) return;
+  // Реликвии склада побеждённого — в инвентарь победителя (уникальная переносится, копируемые — стопкой).
+  std::vector<std::string> relics;
+  for (const RelicStack& s : L.relics) {
+    const Relic* r = w.relic(s.relic);
+    if (!r || s.count <= 0) continue;
+    const std::string name = q(r->name) + (s.count > 1 ? " × " + fmtInt(s.count) : std::string());
+    moveRelic(tx, s.relic, RelicPlace{RelicPlace::State, loser, 0, loser}, RelicPlace{RelicPlace::State, winner, 0, winner}, s.count);
+    relics.push_back(name);
+  }
+  // Заключённые тюрем побеждённого — в тюрьмы победителя (по расам).
+  i64 prisoners = 0;
+  for (const RacePop& r : L.prison) {
+    if (r.pop <= 0) continue;
+    prisoners += r.pop;
+    std::vector<RacePop>& to = tx.faction(winner).prison;
+    auto it = std::find_if(to.begin(), to.end(), [&](const RacePop& x) { return x.race == r.race; });
+    if (it != to.end()) it->pop = std::min(kMaxCount, it->pop + r.pop);
+    else to.push_back(RacePop{r.race, r.pop});
+  }
+  if (!L.prison.empty()) tx.faction(loser).prison.clear();
+  if (got.empty() && !gold && relics.empty() && prisoners <= 0) return {};
   std::string text = facName(w, winner) + " забирает запасы " + facName(w, loser);
   if (gold) text += " (с казной: " + fmtGold(L.treasury()) + ")";
   else if (forces) text += " (валюты остаются: у побеждённого есть войска)";
   if (!got.empty()) text += ": " + join(got, ", ");
-  parts.push_back(text);
+  if (!relics.empty()) text += "; реликвии: " + join(relics, ", ");
+  if (prisoners > 0) text += "; заключённых: " + fmtInt(prisoners);
+  return text;
 }
-
-}  // namespace
 
 i64 truceSlavesMax(const World& w, Id giver) { return i64(std::floor(double(statePopulation(w, giver)) * schema::kTruceSlavesShare)); }
 
@@ -127,6 +150,15 @@ std::vector<std::string> truceProblems(const World& w, const Truce& t) {
 void concludeTruce(Tx& tx, const Truce& t) {
   std::vector<std::string> problems = truceProblems(tx.w(), t);
   if (!problems.empty()) fail(join(problems, "; "));
+  // Мир — сразу: условия (репарации — сделка) исполняются уже не между воюющими. Срок перемирия: войну стороны не
+  // объявят друг другу до хода calm (константа «Мир после перемирия»).
+  int calm = 0;
+  {
+    const double n = constantOf(tx.w(), schema::cst::TruceCalm).num;
+    if (std::isfinite(n) && n >= 1) calm = tx.w().turn() + int(std::lround(std::min(n, 1e6)));
+    const Relation r = tx.w().relation(t.a, t.b);
+    tx.setRelation(t.a, t.b, Relation{r.v, t.status, calm});
+  }
   std::vector<std::string> parts;
   auto apply = [&](Id giver, Id taker, const TruceTerms& terms) {
     const std::string gn = facName(tx.w(), giver), tn = facName(tx.w(), taker);
@@ -182,16 +214,33 @@ void concludeTruce(Tx& tx, const Truce& t) {
   const int landA = landCount(tx.w(), t.a), landB = landCount(tx.w(), t.b);
   apply(t.a, t.b, t.fromA);
   apply(t.b, t.a, t.fromB);
+  // Взаимные оккупации сторон снимаются (уступленная оккупанту провинция уже его — оккупации у неё нет); гарнизоны
+  // оккупантов — в их резерв.
+  {
+    std::vector<std::string> freed;
+    for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
+           return p.occupied && ((p.owner == t.a && p.occupier == t.b) || (p.owner == t.b && p.occupier == t.a));
+         })) {
+      Province& p = tx.province(pid);
+      p.occupied = false;
+      p.occupier = 0;
+      p.occGarrison.clear();
+      p.occIdle = 0;
+      freed.push_back(provName(tx.w(), pid));
+    }
+    if (!freed.empty()) parts.push_back("Оккупация снята: " + join(freed, ", "));
+  }
   // Все земли побеждённого — победителю: и его запасы (без валют, пока у побеждённого есть войска).
-  if (landA > 0 && !t.fromA.provinces.empty() && landCount(tx.w(), t.a) == 0) conquestLoot(tx, t.a, t.b, parts);
-  if (landB > 0 && !t.fromB.provinces.empty() && landCount(tx.w(), t.b) == 0) conquestLoot(tx, t.b, t.a, parts);
-  Relation r = tx.w().relation(t.a, t.b);
-  tx.setRelation(t.a, t.b, Relation{r.v, t.status});
+  if (landA > 0 && !t.fromA.provinces.empty() && landCount(tx.w(), t.a) == 0)
+    if (std::string s = conquestLoot(tx, t.a, t.b); !s.empty()) parts.push_back(s);
+  if (landB > 0 && !t.fromB.provinces.empty() && landCount(tx.w(), t.b) == 0)
+    if (std::string s = conquestLoot(tx, t.b, t.a); !s.empty()) parts.push_back(s);
   addLog(tx, LogKind::Diplomacy,
          "Перемирие " + facName(tx.w(), t.a) + " и " + facName(tx.w(), t.b) + ": " + utf8::lower(schema::relStatus(t.status).name) +
-             (parts.empty() ? std::string() : ". " + join(parts, ". ")),
+             (calm ? ", мир до хода " + std::to_string(calm) : std::string()) + (parts.empty() ? std::string() : ". " + join(parts, ". ")),
          LogRefs{0, 0, {t.a, t.b}});
   splitBrokenAlliances(tx, t.a, t.b);
+  fitProposals(tx);   // предложения перемирия этой пары больше не нужны
 }
 
 // ================================================================ вассалитет

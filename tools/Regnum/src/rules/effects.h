@@ -12,8 +12,10 @@ namespace rg::rules {
 struct EffectSource {
   // Auto — модификатор, который редактор ставит сам (столица, совет, голод, должности); key — его ключ (modifier
   // может быть 0, если записи в мире ещё нет — тогда действует шаблон schema::builtinModifiers()).
-  enum Kind : u8 { Province, Faction, Tech, Building, Guild, Army, Auto } kind = Province;
-  Id id = 0;         // провинция / фракция / технология / постройка / гильдия / войско
+  // Hero — модификатор героя (свой, класса, реликвии, таланта); Trait — раса, культура, религия или форма правления
+  // справочника (key — «race», «culture», «religion», «government»).
+  enum Kind : u8 { Province, Faction, Tech, Building, Guild, Army, Auto, Hero, Trait } kind = Province;
+  Id id = 0;         // провинция / фракция / технология / постройка / гильдия / войско / герой / запись справочника
   Id modifier = 0;
   std::string key;
 };
@@ -72,6 +74,18 @@ bool hasModKey(const World& w, const std::vector<Id>& mods, std::string_view key
 bool characterHas(const World& w, Id character, std::string_view key);
 // Модификаторы изученных талантов героя (без повторов).
 std::vector<Id> talentModifiers(const World& w, Id character);
+// Модификаторы героя с весом: собственные (1), класса (1), реликвий инвентаря (1 за реликвию), изученных талантов
+// (× число изученных рангов); один модификатор из нескольких источников — веса складываются. У лича «Некромант» не
+// действует (лич его заменяет). Действие: эффекты войск — на его войско; локальные — на провинцию, где он лорд;
+// глобальные (кроме эффектов войск) — на его государство, если он правитель или в совете; «Успех заказного убийства» —
+// на него самого.
+struct HeroMod {
+  Id modifier = 0;
+  double scale = 1;
+};
+std::vector<HeroMod> heroModifiers(const World& w, Id character);
+// Подпись источника-справочника (EffectSource::Trait): «культура «…»», «религия «…»», «раса «…»», «форма правления «…»».
+std::string traitName(const World& w, const EffectSource& s);
 // Генерация модификатора за ход (у шаблона встроенного, которого ещё нет в мире, — генерация по умолчанию: некромант,
 // лич — эссенция смерти, ценности археологии — сокровища; по названию записи справочника мира).
 std::map<Id, double> modEssGen(const World& w, const Modifier& m);

@@ -88,8 +88,8 @@ TEST(rules_diplomacy_truce_and_war_lock) {
 TEST(rules_diplomacy_truce_vassal_chain) {
   Fix f;
   f.tx([&](Tx& tx) {
-    setSuzerain(tx, f.B, f.A);   // B — вассал A
     declareWar(tx, f.A, f.B);
+    setSuzerain(tx, f.B, f.A);   // B — вассал A (объявление войны вассалу сняло бы вассалитет — ставится после)
   });
   Truce t;
   t.a = f.A;

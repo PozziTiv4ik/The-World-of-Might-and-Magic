@@ -118,7 +118,7 @@ Color relColor(RelStatus s) {
   return t.textDim;
 }
 
-bool statusPicker(std::string_view id, RelStatus& s, bool disabled) {
+bool statusPicker(std::string_view id, RelStatus& s, bool disabled, std::string_view warWhy) {
   const ui::Theme& t = ui::theme();
   ui::IdScope scope(id);
   bool changed = false;
@@ -143,7 +143,9 @@ bool statusPicker(std::string_view id, RelStatus& s, bool disabled) {
     for (int i = 0; i < 4; i++) {
       RelStatus st = RelStatus(i);
       ui::IdScope s2(i);
-      bool pick = ui::menuItem(relLabel(st));
+      const bool off = st == RelStatus::War && st != s && !warWhy.empty();   // войну объявить нельзя — причина в подсказке
+      bool pick = ui::menuItem(relLabel(st), {.disabled = off});
+      if (off) ui::tooltip(warWhy);
       RectF rr = ui::lastItem().rect;
       if (hasApp()) app().markUi("status.item." + std::to_string(i), rr);
       ui::draw::icon(relIcon(st), RectF{rr.x + 10, rr.cy() - 8, 16, 16}, relColor(st));

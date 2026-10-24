@@ -9,6 +9,7 @@ portrait: null
 portrait_status: missing
 id: CHAR-0126
 aliases: ["Император Никитосиос VI", "Никитосиос VI"]
+distinct_from: ["CHAR-0114"]
 ---
 
 ## Кратко

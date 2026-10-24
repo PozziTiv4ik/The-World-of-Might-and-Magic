@@ -19,6 +19,12 @@ std::optional<std::string> readFile(const std::string& path, std::string* error 
 // Недостающие папки создаются. При ошибке исходный файл не меняется.
 bool writeFileAtomic(const std::string& path, std::string_view data, std::string* error = nullptr);
 bool writeFileAtomic(const std::string& path, std::span<const u8> data, std::string* error = nullptr);
+// Та же запись по шагам (несколько файлов одним целым: сначала все временные файлы, затем замены).
+// writeTemp — временный файл рядом с target, сброшенный на диск (папки создаются): его путь; ошибка — nullopt.
+std::optional<std::string> writeTemp(const std::string& target, std::string_view data, std::string* error = nullptr);
+// Заменить target временным файлом tmp. Занятый файл (антивирус, облачная синхронизация) — несколько попыток, затем
+// false с сообщением «занят другой программой»; tmp при ошибке остаётся (удаляет вызывающий).
+bool replaceFile(const std::string& tmp, const std::string& target, std::string* error = nullptr);
 
 // ---------------------------------------------------------------- сведения
 bool exists(const std::string& path);

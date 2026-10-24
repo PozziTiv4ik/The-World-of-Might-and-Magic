@@ -33,11 +33,24 @@ void confirmPlay(App& a, std::string title, std::string text, std::string ok, st
             [label = std::move(label), fn = std::move(fn)](App& x) { x.play(label, fn); });
 }
 
+// Почему игрок не может сменить класс, подкласс или таланты героя (аудит 2026-10-23, 1.9): мёртвый, пленный,
+// арестованный или не прошло «Ходов между сменами класса» с прошлой смены. Пусто — можно; администратору — всегда.
+std::string respecWhy(App& a, const Character& c) {
+  if (!a.player()) return {};
+  const World& w = a.world();
+  if (rules::characterHas(w, c.id, schema::mod::Dead)) return "Герой мёртв";
+  if (rules::characterHas(w, c.id, schema::mod::Captive)) return "Герой в плену";
+  if (rules::characterHas(w, c.id, schema::mod::Arrested)) return "Герой под арестом";
+  if (const int n = rules::respecWait(w, c.id)) return "Сменить можно через " + nTurns(n);
+  return {};
+}
+
 // Класс героя: с изученными талантами — подтверждение (у другого класса своё дерево).
 void askClass(App& a, const Character& c, Id cls) {
   const Id cid = c.id;
   if (cls == c.heroClass) return;
-  auto fn = [cid, cls](Tx& tx) { rules::setCharacterClass(tx, cid, cls); };
+  const bool player = a.player();   // игроку — не чаще «Ходов между сменами класса» (rules)
+  auto fn = [cid, cls, player](Tx& tx) { rules::setCharacterClass(tx, cid, cls, player); };
   const std::string label = cls ? "Класс героя" : "Снять класс героя";
   if (c.talents.empty()) {
     a.play(label, fn);
@@ -54,7 +67,8 @@ void askClass(App& a, const Character& c, Id cls) {
 void askSub(App& a, const Character& c, Id sub) {
   const Id cid = c.id;
   if (sub == c.subclass) return;
-  auto fn = [cid, sub](Tx& tx) { rules::setCharacterSubclass(tx, cid, sub); };
+  const bool player = a.player();
+  auto fn = [cid, sub, player](Tx& tx) { rules::setCharacterSubclass(tx, cid, sub, player); };
   if (c.talents.empty()) {
     a.play("Подкласс героя", fn);
     return;
@@ -73,7 +87,7 @@ void askReset(App& a, Id cid) {
   confirmPlay(a, "Сбросить таланты?",
               "Все изученные таланты «" + orName(w.characterName(cid), "Без имени") + "» будут сняты, " + std::to_string(spent) + " " +
                   plural(spent, "очко вернётся", "очка вернутся", "очков вернутся") + ".",
-              "Сбросить", "Сбросить таланты", [cid](Tx& tx) { rules::resetTalents(tx, cid); });
+              "Сбросить", "Сбросить таланты", [cid, player = a.player()](Tx& tx) { rules::resetTalents(tx, cid, player); });
 }
 
 // Плитка значка цвета класса.
@@ -182,8 +196,9 @@ void talentsHead(App& a, const HeroClass& hc, const SubClass* sc, const Characte
   }
   if (!btns) return;
   ui::HStack hs(30, ui::Align::Right, 4);
+  const std::string why = respecWhy(a, c);   // игрок: недоступный герой или не прошёл срок с прошлой смены
   if (canSwap) {
-    if (ui::iconButton("repeat", "Сменить подкласс")) ui::openPopup("swap");
+    if (ui::iconButton("repeat", why.empty() ? std::string("Сменить подкласс") : "Сменить подкласс\n" + why, {.disabled = !why.empty()})) ui::openPopup("swap");
     a.markUi("character.talents.swap");
     if (ui::beginPopup("swap", {.side = ui::Side::Below, .width = 260})) {
       ui::caption("Подкласс");
@@ -199,7 +214,9 @@ void talentsHead(App& a, const HeroClass& hc, const SubClass* sc, const Characte
     }
   }
   if (play && sc) {
-    if (ui::iconButton("undo", "Сбросить таланты", {.disabled = c.talents.empty(), .tone = ui::Tone::Danger})) askReset(a, cid);
+    if (ui::iconButton("undo", why.empty() ? std::string("Сбросить таланты") : "Сбросить таланты\n" + why,
+                       {.disabled = c.talents.empty() || !why.empty(), .tone = ui::Tone::Danger}))
+      askReset(a, cid);
     a.markUi("character.talents.reset");
   }
   if (a.admin()) {
@@ -217,6 +234,8 @@ void classFields(App& a, const Character& c, bool /*ro*/) {
   const World w = a.world();
   const Id cid = c.id;
   const bool play = a.canPlay(c.faction);
+  // Игрок: смена (не первый выбор) — не у недоступного героя и не чаще срока; причина — в подсказке.
+  const std::string why = respecWhy(a, c);
   ui::prop("Класс", "hero-class");
   {
     std::vector<const HeroClass*> list;
@@ -228,9 +247,11 @@ void classFields(App& a, const Character& c, bool /*ro*/) {
     int idx = -1;
     for (size_t i = 0; i < list.size(); i++)
       if (list[i]->id == c.heroClass) idx = int(i);
+    const bool locked = c.heroClass && !why.empty();
+    const std::string tip = std::string("Класс героя: подклассы и их деревья талантов") + (locked ? "\n" + why : std::string());
     if (ui::combo("heroClass", idx, std::span<const ui::Option>(opts),
-                  {.placeholder = "Без класса", .noneLabel = "Без класса", .search = 1, .icon = "hero-class", .disabled = !play, .popupWidth = 280,
-                   .tooltip = "Класс героя: подклассы и их деревья талантов"})) {
+                  {.placeholder = "Без класса", .noneLabel = "Без класса", .search = 1, .icon = "hero-class", .disabled = !play || locked, .popupWidth = 280,
+                   .tooltip = tip})) {
       const Id cls = idx >= 0 && idx < int(list.size()) ? list[size_t(idx)]->id : 0;
       askClass(a, c, cls);
     }
@@ -247,9 +268,11 @@ void classFields(App& a, const Character& c, bool /*ro*/) {
       opts.push_back(ui::Option{hc->subclasses[i].name, subIcon(*hc, hc->subclasses[i]), Color(0, 0, 0, 0), hints[i]});
       if (hc->subclasses[i].id == c.subclass) idx = int(i);
     }
+    const bool locked = c.subclass && !why.empty();
+    const std::string tip = std::string("Подкласс: своя ветка талантов") + (locked ? "\n" + why : std::string());
     if (ui::combo("subclass", idx, std::span<const ui::Option>(opts),
                   {.placeholder = hc->subclasses.empty() ? "Нет подклассов" : "Не выбран", .noneLabel = "Не выбран", .search = 1, .icon = "talent",
-                   .disabled = !play || hc->subclasses.empty(), .popupWidth = 280, .tooltip = "Подкласс: своя ветка талантов"})) {
+                   .disabled = !play || hc->subclasses.empty() || locked, .popupWidth = 280, .tooltip = tip})) {
       const Id sub = idx >= 0 && idx < int(hc->subclasses.size()) ? hc->subclasses[size_t(idx)].id : 0;
       askSub(a, c, sub);
     }
@@ -450,8 +473,9 @@ void drawTalents(App& a, Id cid) {
   }
   if (play && ev.rightClicked && talentRank(c->talents, ev.rightClicked) > 0) {
     const Id t = ev.rightClicked;
-    std::string why;
-    if (rules::canUnlearnTalent(w, cid, t, &why)) a.play("Снять ранг таланта", [&](Tx& tx) { rules::unlearnTalent(tx, cid, t); });
+    std::string why = respecWhy(a, *c);   // снятие ранга игроком — как смена талантов (не чаще срока)
+    const bool player = a.player();
+    if (why.empty() && rules::canUnlearnTalent(w, cid, t, &why)) a.play("Снять ранг таланта", [&](Tx& tx) { rules::unlearnTalent(tx, cid, t, player); });
     else a.toast(why, ToastKind::Warning, "lock");
   }
 }

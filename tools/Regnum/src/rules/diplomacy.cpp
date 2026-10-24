@@ -13,7 +13,7 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
   needFinite(value, "Отношения");
   if (int(status) < 0 || int(status) > 3) fail("Неизвестное состояние отношений");
   Relation old = tx.w().relation(a, b);
-  Relation nr{clamp(value, -100.0, 100.0), status};
+  Relation nr{clamp(value, -100.0, 100.0), status, old.calm};   // срок перемирия сохраняется
   if (old == nr) return;
   // Войну государств завершает только перемирие (rules::concludeTruce — только между
   // государствами); война с участием гильдии меняется как прежде.
@@ -26,6 +26,11 @@ void setRelation(Tx& tx, Id a, Id b, double value, RelStatus status) {
            LogRefs{0, 0, {a, b}});
   // Союзное войско существует только между союзниками: конец союза распускает общие объекты.
   if (status != RelStatus::Alliance) splitBrokenAlliances(tx, a, b);
+  // Война расторгает сделки «каждый ход», дань и репарации пары; предложения между воюющими снимаются.
+  if (status == RelStatus::War && old.s != RelStatus::War) {
+    cancelWarDeals(tx, a, b);
+    fitProposals(tx);
+  }
 }
 
 void shiftRelation(Tx& tx, Id a, Id b, double delta) {

@@ -66,11 +66,27 @@ void Norm::catalogs() {
         ch = true;
       }
   }
-  // Должности: модификаторы занятой и пустующей должности — существующие, без повторов.
-  for (auto& it : c.positions) {
-    const std::string where = "positions." + refStr(Seq::Position, it.id);
-    ch |= fixRefList(it.modifiers, Seq::Modifier, F_CATALOGS, where, "modifiers");
-    ch |= fixRefList(it.vacantModifiers, Seq::Modifier, F_CATALOGS, where, "vacantModifiers");
+  // Должности: модификаторы занятой и пустующей должности — существующие, без повторов. Расы, культуры, религии и
+  // формы правления — модификаторы (пустующих — нет); у эссенций модификаторов нет.
+  for (const schema::CatalogListInfo& L : schema::kCatalogLists) {
+    if (L.list == CatalogList::Resources) continue;
+    for (auto& it : c.*L.items) {
+      const std::string where = std::string(L.key) + "." + refStr(L.seq, it.id);
+      if (!schema::catalogHasModifiers(L.list)) {
+        if (!it.modifiers.empty() || !it.vacantModifiers.empty()) {
+          it.modifiers.clear();
+          it.vacantModifiers.clear();
+          ch = true;
+        }
+        continue;
+      }
+      ch |= fixRefList(it.modifiers, Seq::Modifier, F_CATALOGS, where, "modifiers");
+      if (L.list == CatalogList::Positions) ch |= fixRefList(it.vacantModifiers, Seq::Modifier, F_CATALOGS, where, "vacantModifiers");
+      else if (!it.vacantModifiers.empty()) {
+        it.vacantModifiers.clear();
+        ch = true;
+      }
+    }
   }
   // Группа бывает только у ресурса.
   for (const schema::CatalogListInfo& L : schema::kCatalogLists)
@@ -158,6 +174,12 @@ bool Norm::relics(Catalogs& c) {
     if (!r.image.empty() && !isPng(r.image) && !isJpeg(r.image)) {
       warn(F_CATALOGS, where + ".image", "изображение не является PNG или JPEG — удалено");
       r.image.clear();
+      ch = true;
+    }
+    ch |= fixRefList(r.modifiers, Seq::Modifier, F_CATALOGS, where, "modifiers");
+    // Филактерия прежнего мира — по приписке названия (rules::phylacteryName): отметка филактерии.
+    if (!r.phylactery && r.name.find(" (Филактерия «") != std::string::npos) {
+      r.phylactery = true;
       ch = true;
     }
   }
@@ -302,6 +324,7 @@ bool Norm::classes(Catalogs& c) {
   std::unordered_set<Id> usedTalents, usedSubs;
   for (auto& k : c.classes) {
     const std::string where = "classes." + refStr(Seq::HeroClass, k.id);
+    ch |= fixRefList(k.modifiers, Seq::Modifier, F_CATALOGS, where, "modifiers");
     std::vector<std::string> names;
     for (size_t si = 0; si < k.subclasses.size(); si++) {
       SubClass& sc = k.subclasses[si];

@@ -30,14 +30,14 @@ TEST(app_heroes_classes_editor) {
   const Id merc = subId(h->world(), war, "Наемник");
   CHECK(h.clickUi("catalogs.subclass." + sid(merc)));
   ed::quick(h);
-  // Финальный ярус: два ультимейта по 5 очков; пороги ярусов 0…50.
+  // Финальный ярус: два ультимейта по 5 очков; пороги ярусов 0…35 (7 очков на ярус).
   const Id flurry = talentId(h->world(), merc, "Шквал Клинков");
   CHECK(h->uiRect("catalogs.tree.talent." + sid(flurry)) != nullptr);
   CHECK(h->uiRect("catalogs.tree.tier.5") != nullptr);
   CHECK(tt::isUltimate(*talentOf(h->world(), flurry)));
   CHECK(tt::ultimateTier(*subOf(h->world(), merc), 5));
   CHECK(!tt::ultimateTier(*subOf(h->world(), merc), 4));
-  CHECK_EQ(rules::tierThreshold(*subOf(h->world(), merc), 5), 50);
+  CHECK_EQ(rules::tierThreshold(*subOf(h->world(), merc), 5), 35);
   CHECK_EQ(tt::ranksText(*talentOf(h->world(), flurry)), std::string("5 очков"));
   // Карточка таланта: ранги и очки за ранг, итог «до N очков».
   const Id fingers = talentId(h->world(), merc, "Ловкие пальцы");
@@ -169,12 +169,12 @@ TEST(app_heroes_classes_narrow) {
   Harness h("heroes3_catalog_narrow", 1180, 820);
   h.demo();
   h.dropToasts();
-  const Id pal = classId(h->world(), "Палладин");
+  const Id pal = classId(h->world(), "Паладин");
   const Id keeper = subId(h->world(), pal, "Хранитель");
   h->openEditor("catalogs", 10);
   ed::quick(h);
   CHECK(h->uiRect("catalogs.classes") == nullptr);
-  CHECK(ed::pickInCombo(h, "catalogs.classPick", "Палладин"));
+  CHECK(ed::pickInCombo(h, "catalogs.classPick", "Паладин"));
   CHECK(h.clickUi("catalogs.subclass." + sid(keeper)));
   ed::quick(h);
   const Id aura = talentId(h->world(), keeper, "Аура благочестия");

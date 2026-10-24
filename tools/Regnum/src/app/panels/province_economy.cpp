@@ -55,6 +55,10 @@ void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, b
     a.act("Количество ресурса", [&](Tx& tx) { tx.province(pid).resourceAmount = std::max(0.0, amount); }, {.coalesce = prov::key("amount", pid)});
   a.markUi("province.amount");
   ui::prop("Добыча за ход", "factory");
+  if (!a.knows(p.owner)) {   // туман войны: добыча и выход построек чужого владельца скрыты
+    w::hiddenMark();
+    return;
+  }
   {
     ui::HStack hs(30, ui::Align::Left, 6);
     if (p.resource) ui::iconColored(w::resourceIcon(wd, p.resource), w::resourceColor(wd, p.resource), 16);
@@ -64,7 +68,7 @@ void resourceSection(App& a, const Province& p, const rules::ProvinceCalc& pc, b
     // Постройки добычи (шахта): прибавка к добыче ресурса провинции.
     if (p.resource && pc.extractPct > 0) {
       ui::tag(prov::pct(pc.extractPct, true), ui::Tone::Success, "pickaxe");
-      ui::tooltip("Постройки добычи: добыча ресурса провинции больше на " + prov::pct(pc.extractPct));
+      w::tagTip("Постройки добычи: добыча ресурса провинции больше на " + prov::pct(pc.extractPct));
       a.markUi("province.extract");
     }
   }
@@ -120,6 +124,7 @@ void tradeSection(App& a, const Province& p, const rules::ProvinceCalc& pc, bool
 void taxSection(App& a, const Province& p, const rules::ProvinceCalc& pc) {
   const World& wd = prov::frameWorld(a);
   Id pid = p.id;
+  if (w::hiddenFor(a, p.owner)) return;   // туман войны: налоги чужого владельца скрыты
   const bool ro = !(p.owner && a.canPlay(p.owner));   // местный налог задаёт владелец
   ui::prop("Налог государства", "crown");
   {
@@ -288,10 +293,15 @@ void influenceSection(App& a, const Province& p, bool ro) {
 void guildIncome(App& a, const rules::ProvinceCalc& pc) {
   const World& wd = prov::frameWorld(a);
   std::vector<const rules::GuildShare*> rows;
+  int hidden = 0;   // туман войны: доходы чужих гильдий скрыты
   for (const rules::GuildShare& s : pc.guilds)
-    if (s.hq) rows.push_back(&s);
+    if (s.hq) {
+      if (a.knows(s.guild)) rows.push_back(&s);
+      else hidden++;
+    }
   if (rows.empty()) {
-    ui::label("Штабов гильдий нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    if (hidden) w::hiddenMark();
+    else ui::label("Штабов гильдий нет", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   } else {
     // Узкая панель — значки вместо подписей столбцов (подсказки те же).
     bool narrow = ui::avail().w < 300;
@@ -327,6 +337,7 @@ void guildIncome(App& a, const rules::ProvinceCalc& pc) {
       t.text(prov::gold(net), ui::Ink::Success, ui::Font::Strong);
     }
   }
+  if (hidden && !rows.empty()) w::hiddenMark();
 }
 
 void drawEconomy(App& a, Id pid) {
@@ -347,13 +358,15 @@ void drawEconomy(App& a, Id pid) {
              {.icon = "trade-value", .tone = ui::Tone::Info, .delta = std::fabs(d) > 0.05 ? d : 0, .deltaText = std::fabs(d) > 0.05 ? prov::pct(d, true) : std::string(),
               .tooltip = "Текущая торговая ценность"});
     prov::breakdown("Текущая торговая ценность", prov::tradeLines(wd, *p, pc));
-    // Золото провинции за ход: налоги (получателю), рабы на работах и постройки (владельцу), добыча золота.
+    // Золото провинции за ход — получателю дохода провинции: налоги, рабы на работах, постройки, добыча золота.
     auto at = pc.produce.find(kGold);
     const double built = at == pc.produce.end() ? 0.0 : at->second;
     const double mined = p->resource == kGold ? pc.production : 0.0;
     double income = pc.provinceTax + pc.guildTax + pc.slaveIncome + built + mined;
-    ui::stat(prov::gold(income), "Доход государству", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Доход государству"});
-    {
+    if (!a.knows(p->owner)) {   // туман войны: доход чужого владельца скрыт
+      w::hiddenStat("Доход государству");
+    } else {
+      ui::stat(prov::gold(income), "Доход государству", {.icon = "income", .tone = ui::Tone::Success, .tooltip = "Доход государству"});
       std::vector<prov::TipLine> L;
       L.push_back({"Налог с провинции", prov::gold(pc.provinceTax)});
       L.push_back({"Налог гильдий", prov::gold(pc.guildTax)});
@@ -362,7 +375,7 @@ void drawEconomy(App& a, Id pid) {
       if (pc.slaveIncome > 0) L.push_back({"Рабы на работах", prov::gold(pc.slaveIncome), ui::Tone::Success});
       if (built > 0) L.push_back({"Постройки", prov::gold(built), ui::Tone::Success});
       if (pc.recipient != pc.owner)
-        L.push_back({"Получатель налогов", pc.recipient ? wd.factionName(pc.recipient) : std::string("никто (оккупация)"), ui::Tone::Warning});
+        L.push_back({"Получатель дохода", pc.recipient ? wd.factionName(pc.recipient) : std::string("никто (оккупация)"), ui::Tone::Warning});
       L.push_back({"За ход", prov::gold(income), ui::Tone::Neutral, true});
       prov::breakdown("Доход государству", L, 280);
     }
@@ -372,8 +385,8 @@ void drawEconomy(App& a, Id pid) {
   if (pc.tradeBlocked) {
     ui::HStack hs(26, ui::Align::Left, 6);
     ui::tag("Без дохода с ценности", ui::Tone::Warning, "warning");
-    ui::tooltip(rules::provinceHas(wd, pid, schema::mod::UndeadWaste) ? "Пустошь нежити: доход с ценности получает только государство нежити"
-                                                                      : "Осквернённая провинция: доход с ценности получает только государство демонов");
+    w::tagTip(rules::provinceHas(wd, pid, schema::mod::UndeadWaste) ? "Пустошь нежити: доход с ценности получает только государство нежити"
+                                                                    : "Осквернённая провинция: доход с ценности получает только государство демонов");
     a.markUi("province.tradeBlocked");
   }
 

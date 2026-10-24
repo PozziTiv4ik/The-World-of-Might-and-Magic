@@ -3,6 +3,7 @@
 // bars.cpp (верхняя и нижняя строки), side.cpp (ленты и панели), pages.cpp (страницы).
 #include "app/shell/role.h"
 #include "app/shell/shell_internal.h"
+#include "app/turn/turn_ui.h"
 #include "base/fs.h"
 #include "gfx/text.h"
 #include "map/art_scene.h"
@@ -144,6 +145,7 @@ void drawToasts(App& a, RectF area) {
 // ================================================================ основной экран
 void drawEditorScreen(App& a) {
   App::Impl& d = D(a);
+  turnui::playerArrival(a);   // игрок впервые видит мир после смены хода — «Итоги хода N» его государства
   RectF V = ui::viewport();
   float s = ui::uiScale();
   d.toolSlot = RectF{};
@@ -203,6 +205,8 @@ void drawDialogs(App& a) {
   std::vector<Dialog*> closed;
   size_t n = st.size();
   for (size_t i = 0; i < n && i < st.size(); i++) {
+    // Окно закрыло все окна (App::closeDialogs уже вызвал их dismissed): остальные в этом кадре не рисуются.
+    if (D(a).closeAllDialogs) break;
     Dialog* dlg = st[i].get();
     Dialog::Style sty;
     try {
@@ -231,10 +235,12 @@ void drawDialogs(App& a) {
       ui::endModal();
     }
     if (!open) {
-      try {
-        dlg->dismissed(a);
-      } catch (const std::exception& e) {
-        a.error(e);
+      if (!D(a).closeAllDialogs) {
+        try {
+          dlg->dismissed(a);
+        } catch (const std::exception& e) {
+          a.error(e);
+        }
       }
       closed.push_back(dlg);
     } else if (!keep) {
@@ -445,9 +451,28 @@ void mapWheel(App& a) {
 }
 
 // ================================================================ отрисовка карты
+// Режим «Дипломатия»: отношения раскрашены относительно выбранного государства, иначе — своего государства игрока, у
+// администратора — владельца выбранной провинции или лидера выбранного войска.
+static Id diplomacyFocus(App& a) {
+  const World& w = a.world();
+  auto state = [&](Id f) -> Id {
+    const Faction* x = w.faction(f);
+    return x && x->isState() ? f : 0;
+  };
+  if (a.ui.sel.type == SelType::Faction)
+    if (Id f = state(a.ui.sel.id)) return f;
+  if (a.player()) return state(a.ui.playerState);
+  if (a.ui.sel.type == SelType::Province)
+    if (const Province* p = w.province(a.ui.sel.id)) return state(p->owner);
+  if (a.ui.sel.type == SelType::Army)
+    if (const Army* ar = w.army(a.ui.sel.id)) return state(ar->leader());
+  return 0;
+}
+
 map::RenderOptions renderOptions(App& a) {
   map::RenderOptions o;
   o.mode = a.ui.mapMode;
+  if (o.mode == schema::MapMode::Diplomacy) o.focusState = diplomacyFocus(a);
   switch (a.ui.sel.type) {
     case SelType::Province: o.selProvince = a.ui.sel.id; break;
     case SelType::Faction: o.selFaction = a.ui.sel.id; break;
@@ -464,7 +489,7 @@ map::RenderOptions renderOptions(App& a) {
   o.editBorders = a.ui.editBorders;
   o.dimArmies = role::spentArmies(a);   // игрок: объекты без очка действий приглушены
   o.background = ui::theme().bg;
-  const Settings& st = *a.world().settings;
+  const Settings st = role::viewSettings(a);   // у игрока — свой вид карты
   o.labels = st.labelStates || st.labelProvinces || st.labelArmies;
   if (MapTool* t = a.activeTool()) {
     try {
@@ -491,7 +516,7 @@ static u64 hashOf(const map::RenderOptions& o, const map::View& v, u64 gen) {
   mixd(v.viewport.w);
   mixd(v.viewport.h);
   mixd(v.dpi);
-  h = hashMix(h, u64(o.mode));
+  h = hashMix(h, u64(o.mode) | (u64(o.focusState) << 8));
   h = hashMix(h, (u64(o.selProvince) << 32) | o.selFaction);
   h = hashMix(h, (u64(o.selArmy) << 32) | o.selRoute);
   h = hashMix(h, (u64(o.hoverProvince) << 32) | o.hoverArmy);
@@ -536,5 +561,12 @@ void renderMap(App& a, gfx::Canvas& c) {
 }
 
 const char* bordersToggleIcon(bool on) { return on ? "unlock" : "lock"; }
+
+// Режимы карты после девяти первых (клавиши 1–9 — commands.cpp): «Дипломатия» — клавиша 0, «Чума и пустоши» — палитра.
+static bool modeOnMap(App& a) { return a.mapShown(); }
+static CommandReg cModeDiplomacy({"map.mode10", "Режим карты: Дипломатия", schema::kMapModes[int(schema::MapMode::Diplomacy)].icon, "0",
+                                  [](App& a) { a.setMapMode(schema::MapMode::Diplomacy); }, modeOnMap, false, "Режимы карты", 101});
+static CommandReg cModePlague({"map.mode11", "Режим карты: Чума и пустоши", schema::kMapModes[int(schema::MapMode::Plague)].icon, nullptr,
+                               [](App& a) { a.setMapMode(schema::MapMode::Plague); }, modeOnMap, false, "Режимы карты", 101});
 
 }  // namespace rg::app::detail

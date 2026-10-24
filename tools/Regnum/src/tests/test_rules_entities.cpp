@@ -70,7 +70,8 @@ TEST(rules_entities_new_world_content) {
   const Id parts = w.catalogs->resourceId(schema::kResMechParts);
   CHECK(parts && w.resource(parts)->name == "Запчасти механизмов" && w.catalogs->resourceIn(parts, w.catalogs->groupId(schema::grp::MatIndustrial)));
   // «Драконы Бездны» и «Цитадель Бездны» (общее дерево).
-  CHECK_EQ(w.catalogs->specials.size(), size_t(10));   // «Драконы Бездны» и 9 особых отрядов ТЗ «Доработки №4»
+  // «Драконы Бездны», 9 особых отрядов ТЗ «Доработки №4» и 16 версии 6 (стрелки, бронированная пехота, элементали).
+  CHECK_EQ(w.catalogs->specials.size(), size_t(26));
   const SpecialUnit& d = w.catalogs->specials[0];
   CHECK_EQ(d.name, std::string("Драконы Бездны"));
   CHECK(d.type == UnitType::Monsters);
@@ -263,6 +264,40 @@ TEST(rules_entities_remove_modifier_tech_cleanup) {
   CHECK(f.w().tech(t2)->prereqs.empty());
   CHECK(f.w().tech(t3)->prereqs == std::vector<Id>({t2}));
   CHECK(has(errorOf([&] { f.tx([&](Tx& tx) { removeModifier(tx, m); }); }), "не найден"));
+}
+
+// Удалённый модификатор уходит из списков рас, культур, религий, форм правления, реликвий и классов (аудит 7.5).
+TEST(rules_entities_remove_modifier_catalog_cleanup) {
+  Fix f;
+  Id m = 0, keep = 0, race = 0, cult = 0, rel = 0, gov = 0, relic = 0, cls = 0;
+  f.tx([&](Tx& tx) {
+    m = makeMod(tx, {{Fx::TradePct, 5}});
+    keep = makeMod(tx, {{Fx::TradePct, 1}});
+    race = addCatalogItem(tx, CatalogList::Races, "Раса снятия");
+    cult = addCatalogItem(tx, CatalogList::Cultures, "Культура снятия");
+    rel = addCatalogItem(tx, CatalogList::Religions, "Вера снятия");
+    gov = addCatalogItem(tx, CatalogList::Governments, "Правление снятия");
+    relic = addRelic(tx, "Реликвия снятия");
+    cls = addHeroClass(tx, "Класс снятия");
+    Catalogs& c = tx.catalogs();
+    for (Id id : {race, cult, rel, gov})
+      for (CatalogList l : {CatalogList::Races, CatalogList::Cultures, CatalogList::Religions, CatalogList::Governments})
+        for (CatalogItem& it : schema::catalogList(c, l))
+          if (it.id == id) it.modifiers = {m, keep};
+    for (Relic& r : c.relics)
+      if (r.id == relic) r.modifiers = {keep, m};
+    for (HeroClass& k : c.classes)
+      if (k.id == cls) k.modifiers = {m};
+  });
+  f.tx([&](Tx& tx) { removeModifier(tx, m); });
+  const Catalogs& c = *f.w().catalogs;
+  auto in = [](const std::vector<Id>& v, Id x) { return std::find(v.begin(), v.end(), x) != v.end(); };
+  for (CatalogList l : {CatalogList::Races, CatalogList::Cultures, CatalogList::Religions, CatalogList::Governments})
+    for (const CatalogItem& it : schema::catalogList(c, l)) CHECK(!in(it.modifiers, m));
+  CHECK(Catalogs::find(c.races, race)->modifiers == std::vector<Id>({keep}));
+  CHECK(Catalogs::find(c.governments, gov)->modifiers == std::vector<Id>({keep}));
+  for (const Relic& r : c.relics) CHECK(!in(r.modifiers, m));
+  for (const HeroClass& k : c.classes) CHECK(!in(k.modifiers, m));
 }
 
 TEST(rules_entities_remove_building_cleanup_refund) {
@@ -472,10 +507,14 @@ TEST(rules_entities_occupation_lifts_without_garrison) {
   f.tx([&](Tx& tx) {
     tx.province(f.p[0]).owner = f.A;
     tx.province(f.p[1]).owner = f.A;
+    declareWar(tx, f.B, f.A);   // вне войны оккупация снимается в конце хода сразу
     setOccupied(tx, f.p[0], f.B);
     setOccupied(tx, f.p[1], f.B);
     row = addArmyRow(tx, f.B, UnitType::LightInf, "", 50, 1);
+    // Гарнизон пополняется, пока в провинции стоит войско оккупанта; затем войско уходит.
+    const Id x = createArmy(tx, ArmyKind::Army, f.B, center(1));
     setOccupationGarrison(tx, f.p[1], row, 20);
+    disband(tx, x);
   });
   CHECK_EQ(reserveOf(f.w(), f.B, row), 30);
   for (int i = 0; i < 4; i++) f.tx([&](Tx& tx) { endTurn(tx); });

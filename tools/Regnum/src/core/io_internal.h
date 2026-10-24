@@ -9,7 +9,7 @@ namespace rg::io::detail {
 // Файлы проекта (порядок записи: данные, затем world.json).
 enum FileId : int {
   F_CATALOGS, F_GEO, F_MAP, F_PROVINCES, F_FACTIONS, F_CHARACTERS, F_RELATIONS, F_MODIFIERS,
-  F_BUILDINGS, F_TECHS, F_ARMIES, F_ROUTES, F_DEALS, F_LOG, F_CONSTANTS, F_PLOTS, F_WORLD, F_COUNT
+  F_BUILDINGS, F_TECHS, F_ARMIES, F_ROUTES, F_DEALS, F_LOG, F_CONSTANTS, F_PLOTS, F_PROPOSALS, F_WORLD, F_COUNT
 };
 struct FileDef {
   const char* path;  // относительный путь
@@ -62,7 +62,7 @@ struct Enum {
 template <size_t N> Enum en(const schema::EnumInfo (&a)[N]) { return {a, int(N)}; }
 // Перечисления без таблиц в schema (только идентификаторы для JSON).
 extern const schema::EnumInfo kTerrainE[3], kEdgeKindE[3], kArmyKindE[2], kDealSideE[2], kDealStatusE[3], kSymbolKindE[4],
-    kShapeKindE[4], kRarityE[5];
+    kShapeKindE[4], kRarityE[5], kTurnEventE[3];
 std::string enumChoices(Enum e);   // «a, b, c» — для сообщений о неизвестном значении
 
 }  // namespace rg::io::detail

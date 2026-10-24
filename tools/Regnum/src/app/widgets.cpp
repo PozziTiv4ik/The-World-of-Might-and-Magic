@@ -253,16 +253,19 @@ bool catalogPicker(std::string_view id, rules::CatalogList list, Id& value, std:
 }
 
 bool modifierInert(const Modifier& m, ModScope where) {
-  if (where == ModScope::Any || where == ModScope::Faction) return false;
+  // У героя действуют все эффекты (RULES.md §22): войск — на его войско, локальные — на провинцию, где он лорд,
+  // глобальные — на государство правителя и советника, успех заказного убийства — на него самого.
+  if (where == ModScope::Any || where == ModScope::Faction || where == ModScope::Hero) return false;
   bool any = false, used = false;
   for (int f = 0; f < kFxCount; f++) {
     if (!m.has(Fx(f))) continue;
     any = true;
     if (where == ModScope::Local && schema::kEffects[f].local) used = true;
+    if (where == ModScope::Province && (schema::kEffects[f].local || !schema::kEffects[f].hero)) used = true;
     if (where == ModScope::Army && schema::kEffects[f].army) used = true;
     if (where == ModScope::ArchGroup && schema::kEffects[f].arch) used = true;
   }
-  return any && !used;   // у героя эффекты не действуют вовсе
+  return any && !used;
 }
 
 bool modifierFits(const Modifier& m, ModScope where) {
@@ -271,7 +274,8 @@ bool modifierFits(const Modifier& m, ModScope where) {
   if (m.kind == ModKind::Any) return true;
   switch (where) {
     case ModScope::Any: return m.kind == ModKind::Province || m.kind == ModKind::Faction;
-    case ModScope::Local: return m.kind == ModKind::Province;
+    case ModScope::Local:
+    case ModScope::Province: return m.kind == ModKind::Province;
     case ModScope::Faction: return m.kind == ModKind::Faction;
     case ModScope::Army: return m.kind == ModKind::Army;
     case ModScope::Hero: return m.kind == ModKind::Hero;
@@ -288,6 +292,7 @@ const char* inertTip(ModScope where) {
     case ModScope::Local:
       return "Не действует в провинции: у модификатора только глобальные эффекты, они применяются к государству. "
              "Добавьте его государству (вкладка «Модификаторы»).";
+    case ModScope::Province: return "Не действует в провинции: у модификатора только эффекты героя.";
     case ModScope::Army: return "Не действует на войско: у модификатора нет эффектов войск.";
     case ModScope::Hero: return "Эффекты модификатора на героя не действуют.";
     case ModScope::ArchGroup: return "Не действует на группу: у модификатора нет эффектов археологических групп.";
@@ -374,9 +379,13 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
   if (!disabled) {
     IdOptions o;
     int hidden = 0;   // не действующие здесь (в провинции — только с глобальными эффектами) не предлагаются
+    // Плен и арест героя — только с государством (карточка героя: «В плен к…», «Под арест к…»), не модификатором.
+    auto keyed = [&](const Modifier& m) {
+      return where == ModScope::Hero && (m.key == schema::mod::Captive || m.key == schema::mod::Arrested);
+    };
     w.modifiers.each([&](const Modifier& m) {
       if (std::find(ids.begin(), ids.end(), m.id) != ids.end()) return;
-      if (!modifierFits(m, where)) return;
+      if (!modifierFits(m, where) || keyed(m)) return;
       if (modifierInert(m, where)) {
         hidden++;
         return;
@@ -389,7 +398,7 @@ bool modifierList(std::string_view id, std::vector<Id>& ids, bool disabled, ModS
       const auto& tpl = schema::builtinModifiers();
       for (size_t k = 0; k < tpl.size(); k++) {
         const Modifier& t = tpl[k];
-        if (rules::builtinModId(w, t.key) || !modifierFits(t, where) || modifierInert(t, where)) continue;
+        if (rules::builtinModId(w, t.key) || !modifierFits(t, where) || modifierInert(t, where) || keyed(t)) continue;
         o.add(kTpl + Id(k), t.name, t.icon.empty() || !gfx::hasIcon(t.icon) ? "sparkles" : t.icon.c_str(), t.color,
               t.duration > 0 ? nTurns(t.duration) : std::string());
       }
@@ -435,6 +444,26 @@ bool checkPlay(App& a, Id faction) {
   else a.toast("Только за своё государство", ToastKind::Warning, "lock");
   return false;
 }
+
+void hiddenMark() { ui::label(kHidden, {.font = ui::Font::Small, .ink = ui::Ink::Muted, .icon = "lock"}); }
+
+void hiddenStat(std::string_view label) { ui::stat(kHidden, label, {.icon = "lock", .tone = ui::Tone::Neutral}); }
+
+bool hiddenFor(App& a, Id faction) {
+  if (a.knows(faction)) return false;
+  hiddenMark();
+  a.markUi("fog.hidden");
+  return true;
+}
+
+std::string fogText(App& a, const World& w, std::string text, Id faction) {
+  if (a.knows(faction)) return text;
+  const size_t at = text.find(", есть ");
+  if (at != std::string::npos && text.find(w.factionName(faction)) != std::string::npos) text.erase(at);
+  return text;
+}
+
+void tagTip(std::string_view text) { ui::hoverTip(std::string("##tag ") + std::string(text), ui::lastItem().rect, text); }
 
 std::string heroState(const World& w, const Character& c) {
   if (rules::hasModKey(w, c.modifiers, schema::mod::Dead)) return c.burial ? "Мертв · " + w.provinceName(c.burial) : std::string("Мертв");

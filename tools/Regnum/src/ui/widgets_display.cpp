@@ -72,8 +72,11 @@ void tag(std::string_view txt, Tone tone, const char* icon) {
     x += 18;
   }
   textIn(s, RectF{x, r.y, r.right() - x - 6, r.h}, st, tone == Tone::Neutral ? t.text : tc);
+  // ID наведения без захвата (как у fullTextTip): ui::tooltip и beginTooltip сразу после метки показывают подсказку.
   c.last = Item{};
+  c.last.id = hashMix(id(txt), 0x7a91ull);
   c.last.rect = r;
+  c.last.hovered = c.win && !c.win->hidden && c.win == c.hoveredWin && r.contains(c.m.x, c.m.y) && currentClip().contains(c.m.x, c.m.y);
 }
 
 ChipAction chip(std::string_view lbl, const ChipOpt& o) {

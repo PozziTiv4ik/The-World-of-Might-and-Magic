@@ -126,7 +126,8 @@ void givePopulation(Tx& tx, Id state, i64 n, Id onlyProvince, const std::map<Id,
     for (Id pid : ownedProvinces(w0, state))
       if (!provinceHas(w0, pid, schema::mod::UndeadWaste)) provs.push_back(pid);   // в пустошь нежити не селятся
   if (provs.empty()) return;
-  // Раса для пустой провинции: самая многочисленная у государства, иначе первая в справочнике.
+  // Раса для пустой провинции: самая многочисленная у государства, иначе «Люди», иначе первая в справочнике (аудит 7.5:
+  // первой по алфавиту были «Ангелы»).
   Id fallback = 0;
   {
     std::map<Id, i64> all;
@@ -137,6 +138,8 @@ void givePopulation(Tx& tx, Id state, i64 n, Id onlyProvince, const std::map<Id,
     i64 best = -1;
     for (auto& [r, c] : all)
       if (c > best) { best = c; fallback = r; }
+    for (const CatalogItem& r : w0.catalogs->races)
+      if (!fallback && utf8::searchKey(r.name) == utf8::searchKey("Люди")) fallback = r.id;
     if (!fallback && !w0.catalogs->races.empty()) fallback = w0.catalogs->races.front().id;
   }
   std::vector<i64> share = splitEven(n, std::vector<i64>(provs.size(), -1));
@@ -212,6 +215,31 @@ i64 slaveWorkLimit(const World& w, Id province) {
   if (!p) return 0;
   return i64(std::floor(double(provincePop(*p)) * schema::kSlaveWorkShare));
 }
+
+namespace detail {
+void trimSlaveWork(Tx& tx) {
+  // Население могло упасть (чума, голод, набор войск, восстание): лишние рабы снимаются с работ с конца списка.
+  for (Id pid : idsWhere(tx.w().provinces, [](const Province& p) { return !p.sea && !p.slaves.empty(); })) {
+    const Province& p = *tx.w().province(pid);
+    i64 total = 0;
+    for (const SlaveWork& s : p.slaves) total += std::max<i64>(0, s.count);
+    const i64 limit = slaveWorkLimit(tx.w(), pid);
+    if (total <= limit) continue;
+    const Id owner = p.owner;
+    i64 excess = total - limit;
+    auto& list = tx.province(pid).slaves;
+    for (size_t i = list.size(); i-- > 0 && excess > 0;) {
+      const i64 take = std::min(excess, std::max<i64>(0, list[i].count));
+      list[i].count -= take;
+      excess -= take;
+    }
+    list.erase(std::remove_if(list.begin(), list.end(), [](const SlaveWork& s) { return s.count <= 0; }), list.end());
+    addLog(tx, LogKind::Population,
+           "Провинция " + provName(tx.w(), pid) + ": рабов на работах больше 10 % населения — с работ снято " + fmtInt(total - limit),
+           LogRefs{pid, 0, owner ? std::vector<Id>{owner} : std::vector<Id>{}});
+  }
+}
+}  // namespace detail
 
 void setSlaveWork(Tx& tx, Id province, Id race, i64 count) {
   const Province& p = needProvince(tx.w(), province);

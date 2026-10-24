@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "type": "character_status_dictionary",
+  "status": "active",
+  "canon_level": "support",
+  "updated_real_date": "2026-10-24",
+  "description": "Допустимые значения поля status в карточках персонажей. alive: true — жив или существует, false — погиб или уничтожен, null — не применимо или не установлено. Синоним записывается основным значением.",
+  "statuses": [
+    {
+      "value": "active",
+      "alive": true,
+      "meaning": "Жив и действует в сюжете."
+    },
+    {
+      "value": "active_threat",
+      "alive": true,
+      "meaning": "Существует и представляет действующую угрозу."
+    },
+    {
+      "value": "captured",
+      "alive": true,
+      "meaning": "Жив и взят в плен."
+    },
+    {
+      "value": "abducted_prisoner",
+      "alive": true,
+      "meaning": "Жив, похищен и удерживается пленником."
+    },
+    {
+      "value": "under_protection",
+      "alive": true,
+      "meaning": "Жив и находится под защитой или надзором."
+    },
+    {
+      "value": "fugitive_antagonist",
+      "alive": true,
+      "meaning": "Жив и скрывается как противник."
+    },
+    {
+      "value": "stripped_serving_penance_lieutenant",
+      "alive": true,
+      "meaning": "Жив, лишён титулов и земель и служит во искупление."
+    },
+    {
+      "value": "missing",
+      "alive": null,
+      "meaning": "Пропал; жив ли он, не установлено."
+    },
+    {
+      "value": "dead",
+      "alive": false,
+      "meaning": "Погиб или умер."
+    },
+    {
+      "value": "executed",
+      "alive": false,
+      "meaning": "Казнён."
+    },
+    {
+      "value": "historical",
+      "alive": null,
+      "meaning": "Историческая фигура прошлого; текущее состояние не применяется."
+    },
+    {
+      "value": "historical_dead",
+      "alive": false,
+      "meaning": "Историческая фигура, гибель которой зафиксирована."
+    },
+    {
+      "value": "historical_legacy",
+      "alive": null,
+      "meaning": "Историческая фигура, чьё наследие (пророчество, учение) действует в сюжете."
+    },
+    {
+      "value": "divine_legacy",
+      "alive": null,
+      "meaning": "Вознёсшаяся или божественная фигура прошлого, чьё наследие действует в сюжете."
+    },
+    {
+      "value": "defeated_legacy",
+      "alive": null,
+      "meaning": "Древний враг, поверженный в прошлом; его наследие сохраняется."
+    },
+    {
+      "value": "destroyed_legacy",
+      "alive": false,
+      "meaning": "Окончательно уничтожен в прошлом; его наследие сохраняется."
+    },
+    {
+      "value": "merged",
+      "alive": null,
+      "meaning": "Карточка объединена с другой (поле merged_into); её ID — перенаправление."
+    }
+  ],
+  "synonyms": {
+    "deceased": "dead"
+  }
+}

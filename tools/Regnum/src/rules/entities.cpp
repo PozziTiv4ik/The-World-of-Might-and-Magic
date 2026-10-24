@@ -84,10 +84,33 @@ Id createFaction(Tx& tx, FactionKind kind, const std::string& name) {
   return id;
 }
 
-void removeFaction(Tx& tx, Id faction) {
+void removeFaction(Tx& tx, Id faction, const std::string& why) {
   const Faction& f0 = needFaction(tx.w(), faction);
   const bool state = f0.isState();
   const std::string name = facName(tx.w(), faction);
+  const std::vector<RacePop> prison = f0.prison;
+  const std::vector<RelicStack> relics = f0.relics;
+
+  // Заключённые тюрем — в население провинций государства (поровну, по расам, целыми), пока владение не снято;
+  // провинций нет — заключённые рассеиваются.
+  if (state) {
+    i64 total = 0;
+    for (const RacePop& r : prison) total += std::max<i64>(0, r.pop);
+    if (total > 0) {
+      const bool land = tx.w().provinces.findIf([&](const Province& p) { return p.owner == faction && !p.sea; }) != nullptr;
+      if (land)
+        for (const RacePop& r : prison)
+          if (r.pop > 0) givePopulation(tx, faction, r.pop, 0, std::map<Id, i64>{{r.race, r.pop}});
+      tx.faction(faction).prison.clear();
+      addLog(tx, LogKind::Population, "Заключённые тюрем " + name + (land ? " освобождены в провинции государства: " : " рассеялись: ") + fmtInt(total),
+             LogRefs{0, 0, {faction}});
+    }
+    // Уникальные реликвии склада (легендарные и эпохальные) снова свободны; копируемые исчезают вместе со складом.
+    std::vector<std::string> freed;
+    for (const RelicStack& s : relics)
+      if (const Relic* r = tx.w().relic(s.relic); r && r->unique() && s.count > 0) freed.push_back(q(r->name));
+    if (!freed.empty()) addLog(tx, LogKind::Note, "Реликвии " + name + " снова свободны: " + join(freed, ", "), LogRefs{0, 0, {faction}});
+  }
 
   // Провинции: владение, гарнизон, оккупация, влияние, штабы.
   for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
@@ -166,7 +189,9 @@ void removeFaction(Tx& tx, Id faction) {
   }
   tx.eraseFaction(faction);
   fitPlots(tx);   // заговоры против упразднённого государства и его заговоры удаляются
-  addLog(tx, LogKind::Note, std::string(state ? "Государство " : "Гильдия ") + name + (state ? " упразднено" : " упразднена"),
+  fitProposals(tx);
+  addLog(tx, LogKind::Note,
+         std::string(state ? "Государство " : "Гильдия ") + name + (state ? " упразднено" : " упразднена") + (why.empty() ? std::string() : ": " + why),
          LogRefs{0, 0, {faction}});
 }
 
@@ -307,6 +332,18 @@ void removeModifier(Tx& tx, Id modifier) {
         eraseValue(c.modifiers, modifier);
         eraseValue(c.vacantModifiers, modifier);
       }
+  }
+  // Модификаторы рас, культур, религий и форм правления, реликвий и классов героев.
+  {
+    const Catalogs& cat = *tx.w().catalogs;
+    auto has = [&](const auto& list) { return std::any_of(list.begin(), list.end(), [&](const auto& x) { return contains(x.modifiers, modifier); }); };
+    auto drop = [&](auto& list) {
+      for (auto& x : list) eraseValue(x.modifiers, modifier);
+    };
+    for (CatalogList l : {CatalogList::Races, CatalogList::Cultures, CatalogList::Religions, CatalogList::Governments})
+      if (has(schema::catalogList(cat, l))) drop(schema::catalogList(tx.catalogs(), l));
+    if (has(cat.relics)) drop(tx.catalogs().relics);
+    if (has(cat.classes)) drop(tx.catalogs().classes);
   }
   for (Id bid : idsWhere(tx.w().buildings, [&](const Building& b) {
          return std::any_of(b.levels.begin(), b.levels.end(), [&](const BuildingLevel& l) { return contains(l.modifiers, modifier); });

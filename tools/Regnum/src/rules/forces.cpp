@@ -125,6 +125,90 @@ std::vector<Id> neighborsOf(const Tx& tx, Id province) {
   return out;
 }
 
+namespace {
+
+constexpr double kElementalDecay = 0.10;   // долг эссенции: элементали теряют ⌈10 %⌉ численности строки за ход
+
+// Гибель n отрядов строки армии: сначала из резерва, затем из гарнизонов и оккупационных гарнизонов провинций и из
+// войск (по ID). Группа войска без отрядов уходит с поля (её герои остаются у фракции), войско без групп исчезает.
+// Возвращает погибших.
+i64 loseRowUnits(Tx& tx, Id faction, Id row, i64 n) {
+  const Faction* f = tx.w().faction(faction);
+  const ArmyRow* r = f ? f->armyRow(row) : nullptr;
+  if (!r) return 0;
+  n = std::min(n, std::max<i64>(0, r->total));
+  if (n <= 0) return 0;
+  i64 left = n - std::min(n, std::max<i64>(0, reserveOf(tx.w(), faction, row)));
+  auto takeFrom = [&](std::vector<GarrisonEntry>& gs) {
+    for (GarrisonEntry& g : gs)
+      if (g.row == row && left > 0) {
+        const i64 t = std::min(left, std::max<i64>(0, g.count));
+        g.count -= t;
+        left -= t;
+      }
+    gs.erase(std::remove_if(gs.begin(), gs.end(), [](const GarrisonEntry& g) { return g.count <= 0; }), gs.end());
+  };
+  auto hasRow = [&](const std::vector<GarrisonEntry>& gs) { return std::any_of(gs.begin(), gs.end(), [&](const GarrisonEntry& g) { return g.row == row; }); };
+  if (left > 0)
+    for (Id pid : idsWhere(tx.w().provinces, [&](const Province& p) {
+           return (p.owner == faction && hasRow(p.garrison)) || (p.occupied && p.occupier == faction && hasRow(p.occGarrison));
+         })) {
+      if (left <= 0) break;
+      const Province& p = *tx.w().province(pid);
+      if (p.owner == faction && hasRow(p.garrison)) takeFrom(tx.province(pid).garrison);
+      if (left > 0 && p.occupied && p.occupier == faction && hasRow(p.occGarrison)) takeFrom(tx.province(pid).occGarrison);
+    }
+  if (left > 0)
+    for (Id aid : idsWhere(tx.w().armies, [&](const Army& a) {
+           if (a.isFleet()) return false;
+           for (const ArmyGroup& g : a.groups)
+             if (g.faction == faction && std::any_of(g.units.begin(), g.units.end(), [&](const ArmyUnit& u) { return u.row == row; })) return true;
+           return false;
+         })) {
+      if (left <= 0) break;
+      Army& a = tx.army(aid);
+      for (ArmyGroup& g : a.groups) {
+        if (g.faction != faction) continue;
+        for (ArmyUnit& u : g.units)
+          if (u.row == row && left > 0) {
+            const i64 t = std::min(left, std::max<i64>(0, u.count));
+            u.count -= t;
+            left -= t;
+          }
+        g.units.erase(std::remove_if(g.units.begin(), g.units.end(), [](const ArmyUnit& u) { return u.count <= 0; }), g.units.end());
+      }
+      for (const ArmyGroup& g : a.groups)
+        if (g.units.empty() && a.commander && contains(g.heroes, a.commander)) a.commander = 0;
+      a.groups.erase(std::remove_if(a.groups.begin(), a.groups.end(), [](const ArmyGroup& g) { return g.units.empty(); }), a.groups.end());
+      if (a.groups.empty()) eraseObject(tx, aid);
+    }
+  const i64 lost = n - left;
+  if (ArmyRow* m = findById(tx.faction(faction).army, row)) m->total = std::max<i64>(0, m->total - lost);
+  return lost;
+}
+
+}  // namespace
+
+void elementalDecay(Tx& tx, Id faction) {
+  const Faction* f = tx.w().faction(faction);
+  if (!f) return;
+  // Строки элементалей, которые содержатся хотя бы одной эссенцией в долгу: ⌈10 %⌉ численности за ход.
+  std::vector<std::pair<Id, i64>> decay;
+  for (const ArmyRow& r : f->army) {
+    if (!schema::isElemental(r.type) || r.total <= 0) continue;
+    bool debt = false;
+    for (auto& [e, v] : r.essUpkeep) debt = debt || (v > 0 && tx.w().essence(e) && f->essence(e) < -1e-9);
+    if (debt) decay.push_back({r.id, i64(std::ceil(double(r.total) * kElementalDecay - 1e-9))});
+  }
+  std::vector<std::string> parts;
+  for (auto& [row, n] : decay) {
+    const std::string name = tx.w().faction(faction)->armyRow(row)->name;
+    if (const i64 lost = loseRowUnits(tx, faction, row, n); lost > 0) parts.push_back(q(nameOr(name)) + " −" + fmtInt(lost));
+  }
+  if (!parts.empty())
+    addLog(tx, LogKind::Economy, facName(tx.w(), faction) + ": долг эссенции — распад элементалей: " + join(parts, ", "), LogRefs{0, 0, {faction}});
+}
+
 }  // namespace detail
 
 // ================================================================ формирование
@@ -408,6 +492,14 @@ void setOccupationGarrison(Tx& tx, Id province, Id row, i64 count) {
   for (const GarrisonEntry& g : p.occGarrison)
     if (g.row == row) cur += g.count;
   if (count > cur) {
+    // Пополнить оккупационный гарнизон можно, только когда в провинции стоит войско оккупанта (вывести — всегда).
+    auto fs = facesFor(tx);
+    const Id occ = p.occupier;
+    const bool here = fs && tx.w().armies.findIf([&](const Army& a) {
+      return !a.isFleet() && !aboard(tx.w(), a) && fs->provinceAt(a.pos) == province &&
+             std::any_of(a.groups.begin(), a.groups.end(), [&](const ArmyGroup& g) { return g.faction == occ; });
+    }) != nullptr;
+    if (!here) fail("Оккупационный гарнизон пополняется, только когда в провинции стоит войско " + facName(tx.w(), occ));
     const i64 reserve = reserveOf(tx.w(), p.occupier, row);
     if (count - cur > reserve) fail("В резерве недостаточно: нужно " + fmtInt(count - cur) + ", в резерве " + fmtInt(std::max<i64>(0, reserve)));
   }

@@ -2,6 +2,7 @@
 #include "base/fs.h"
 
 #include <atomic>
+#include <cerrno>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -101,15 +102,15 @@ std::string tmpSuffix() {
   return strf(".tmp-%016llx", (unsigned long long)hashMix(hashMix(t, tid), k));
 }
 
-bool writeAtomicImpl(const std::string& target, const void* data, size_t size, std::string* error) {
-  if (target.empty()) { setErr(error, "Пустой путь файла"); return false; }
-  stdfs::path tp = path(target);
+// Временный файл рядом с target, сброшенный на диск; пусто — ошибка (сообщение в error).
+std::string writeTempImpl(const std::string& target, const void* data, size_t size, std::string* error) {
+  if (target.empty()) { setErr(error, "Пустой путь файла"); return {}; }
   std::string dir = parent(target);
-  if (!dir.empty() && !makeDirs(dir, error)) return false;
+  if (!dir.empty() && !makeDirs(dir, error)) return {};
   std::string tmp = target + tmpSuffix();
   stdfs::path tmpP = path(tmp);
   FILE* f = openFile(tmpP, true);
-  if (!f) { setErr(error, "Не удалось создать файл «" + tmp + "»"); return false; }
+  if (!f) { setErr(error, "Не удалось создать файл «" + tmp + "»"); return {}; }
   bool ok = size == 0 || std::fwrite(data, 1, size, f) == size;
   ok = flushToDisk(f) && ok;
   ok = std::fclose(f) == 0 && ok;
@@ -117,38 +118,56 @@ bool writeAtomicImpl(const std::string& target, const void* data, size_t size, s
     std::error_code ec;
     stdfs::remove(tmpP, ec);
     setErr(error, "Не удалось записать файл «" + target + "» (нет места или доступа)");
-    return false;
+    return {};
   }
+  return tmp;
+}
+
+// Замена target готовым временным файлом (tmp при ошибке остаётся).
+bool replaceImpl(const std::string& tmp, const std::string& target, std::string* error) {
+  stdfs::path tmpP = path(tmp), tp = path(target);
 #ifdef _WIN32
-  // Замену может временно блокировать антивирус или индексатор — несколько попыток.
-  bool moved = false;
+  // Замену может временно блокировать антивирус, индексатор или облачная синхронизация — несколько попыток.
   DWORD lastErr = 0;
-  for (int attempt = 0; attempt < 40 && !moved; attempt++) {
-    if (MoveFileExW(tmpP.c_str(), tp.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) { moved = true; break; }
+  for (int attempt = 0; attempt < 40; attempt++) {
+    if (MoveFileExW(tmpP.c_str(), tp.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
     lastErr = GetLastError();
     if (lastErr != ERROR_ACCESS_DENIED && lastErr != ERROR_SHARING_VIOLATION && lastErr != ERROR_LOCK_VIOLATION) break;
     std::this_thread::sleep_for(std::chrono::milliseconds(attempt < 10 ? 5 : 25));
   }
-  if (!moved) {
-    DeleteFileW(tmpP.c_str());
+  if (lastErr == ERROR_SHARING_VIOLATION || lastErr == ERROR_LOCK_VIOLATION || lastErr == ERROR_ACCESS_DENIED)
+    setErr(error, strf("Файл «%s» занят другой программой или защищён от записи (код %lu)", target.c_str(), (unsigned long)lastErr));
+  else
     setErr(error, strf("Не удалось заменить файл «%s» (код %lu)", target.c_str(), (unsigned long)lastErr));
-    return false;
-  }
+  return false;
 #else
   if (::rename(tmpP.c_str(), tp.c_str()) != 0) {
-    ::unlink(tmpP.c_str());
-    setErr(error, "Не удалось заменить файл «" + target + "»");
+    const int e = errno;
+    if (e == EBUSY || e == ETXTBSY || e == EACCES || e == EPERM)
+      setErr(error, strf("Файл «%s» занят другой программой или защищён от записи (код %d)", target.c_str(), e));
+    else
+      setErr(error, strf("Не удалось заменить файл «%s» (код %d)", target.c_str(), e));
     return false;
   }
   // Сохранить запись каталога.
+  std::string dir = parent(target);
   std::string d = dir.empty() ? std::string(".") : dir;
   int fd = ::open(path(d).c_str(), O_RDONLY);
   if (fd >= 0) {
     ::fsync(fd);
     ::close(fd);
   }
-#endif
   return true;
+#endif
+}
+
+bool writeAtomicImpl(const std::string& target, const void* data, size_t size, std::string* error) {
+  std::string tmp = writeTempImpl(target, data, size, error);
+  if (tmp.empty()) return false;
+  if (replaceImpl(tmp, target, error)) return true;
+  std::error_code ec;
+  stdfs::remove(path(tmp), ec);
+  return false;
 }
 
 }  // namespace
@@ -235,6 +254,17 @@ bool writeFileAtomic(const std::string& p, std::string_view data, std::string* e
 
 bool writeFileAtomic(const std::string& p, std::span<const u8> data, std::string* error) {
   return writeAtomicImpl(p, data.data(), data.size(), error);
+}
+
+std::optional<std::string> writeTemp(const std::string& target, std::string_view data, std::string* error) {
+  std::string tmp = writeTempImpl(target, data.data(), data.size(), error);
+  if (tmp.empty()) return std::nullopt;
+  return tmp;
+}
+
+bool replaceFile(const std::string& tmp, const std::string& target, std::string* error) {
+  if (tmp.empty() || target.empty()) { setErr(error, "Пустой путь файла"); return false; }
+  return replaceImpl(tmp, target, error);
 }
 
 // ================================================================ сведения

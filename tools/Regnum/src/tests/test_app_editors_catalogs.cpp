@@ -38,6 +38,9 @@ TEST(app_editors_positions_modifiers) {
     c.kind = ModKind::Army;
     c.fxMask = 1u << int(Fx::LoyaltyPerTurn);
     c.fx[size_t(Fx::LoyaltyPerTurn)] = 3;
+    // Модификаторы должности из базовых записей убираются: сценарий задаёт свои.
+    tx.catalogs().positions.front().modifiers.clear();
+    tx.catalogs().positions.front().vacantModifiers.clear();
   }));
   const CatalogItem pos = h->world().catalogs->positions.front();
   // Государство, где должность занята, и государство, где её нет.

@@ -13,11 +13,14 @@ using namespace detail;
 
 namespace {
 
-// Строительство в провинции, которая удаляется: уплаченное возвращается плательщикам. Возвращает число возвратов.
+// Строительство в провинции, которая удаляется: уплаченное возвращается плательщикам, вход идущих циклов
+// преобразования — владельцу. Возвращает число возвратов за строительство.
 int refundProvinceConstruction(Tx& tx, const Province& p) {
   int n = 0;
-  for (const ProvBuilding& pb : p.buildings)
+  for (const ProvBuilding& pb : p.buildings) {
     if (pb.constructing && refundPaid(tx, pb)) n++;
+    refundCycle(tx, p.owner, pb);
+  }
   return n;
 }
 
@@ -132,11 +135,15 @@ void setProvinceOwner(Tx& tx, Id province, Id faction) {
   }
   const Id old = p0.owner;
   if (old == faction) return;
-  // Уникальные постройки прежнего владельца сносятся (уплаченное за стройку — плательщику).
-  std::vector<ProvBuilding> unique;
-  for (const ProvBuilding& pb : p0.buildings)
+  // Уникальные постройки прежнего владельца сносятся (уплаченное за стройку — плательщику). Идущие циклы
+  // преобразования прерываются: вход цикла (рецепт × множитель) возвращается прежнему владельцу.
+  std::vector<ProvBuilding> unique, cycles;
+  for (const ProvBuilding& pb : p0.buildings) {
     if (const Building* b = tx.w().building(pb.building); b && old && b->owner == old) unique.push_back(pb);
+    if (pb.cycle > 0) cycles.push_back(pb);
+  }
   Province& p = tx.province(province);
+  for (ProvBuilding& pb : p.buildings) pb.cycle = 0;
   p.owner = faction;
   p.garrison.clear();  // гарнизон распускается в резерв прежнего владельца
   p.garrisonHeroes.clear();
@@ -161,11 +168,13 @@ void setProvinceOwner(Tx& tx, Id province, Id faction) {
     if (pb.constructing) refundPaid(tx, pb);
     releaseBuildingRelics(tx, old, pb);
   }
+  for (const ProvBuilding& pb : cycles) refundCycle(tx, old, pb);
   if (const Faction* of = tx.w().faction(old); of && of->capital == province) tx.faction(old).capital = 0;
   std::string text = faction ? "Провинция " + provName(tx.w(), province) + " перешла к " + facName(tx.w(), faction)
                              : "Провинция " + provName(tx.w(), province) + " осталась без владельца";
   if (old && tx.w().faction(old)) text += " (прежний владелец — " + facName(tx.w(), old) + ")";
   if (!lost.empty()) text += ". Снесены уникальные постройки прежнего владельца: " + join(lost, ", ");
+  if (!cycles.empty()) text += ". Циклы преобразования прерваны, ресурсы на входе возвращены прежнему владельцу";
   LogRefs refs{province, 0, {}};
   if (old) refs.factions.push_back(old);
   if (faction) refs.factions.push_back(faction);
@@ -321,18 +330,25 @@ void mergeProvinces(Tx& tx, Id target, Id source) {
   int slots = slotsOf(t, provinceFx(tx.w(), SourceIndex(tx.w()), t));
   std::vector<std::string> lostDup, lostSlots;
   std::vector<ProvBuilding> lostStarted;  // снесённые недостроенные: уплаченное возвращается плательщику
+  std::vector<ProvBuilding> lostCycles;   // прерванные циклы преобразования: вход — прежнему владельцу
   for (const ProvBuilding& b : src.buildings) {
     if (std::any_of(t.buildings.begin(), t.buildings.end(), [&](const ProvBuilding& x) { return x.building == b.building; })) {
       lostDup.push_back(buildingName(tx.w(), b.building));
       if (b.constructing) lostStarted.push_back(b);
+      if (b.cycle > 0) lostCycles.push_back(b);
       continue;
     }
     if (int(t.buildings.size()) >= slots) {
       lostSlots.push_back(buildingName(tx.w(), b.building));
       if (b.constructing) lostStarted.push_back(b);
+      if (b.cycle > 0) lostCycles.push_back(b);
       continue;
     }
     t.buildings.push_back(b);
+    if (b.cycle > 0 && src.owner != t.owner) {   // постройка сменила владельца: цикл прерывается
+      lostCycles.push_back(b);
+      t.buildings.back().cycle = 0;
+    }
   }
   // Ссылки на исходную провинцию.
   for (Id fid : idsWhere(tx.w().factions, [&](const Faction& f) { return f.capital == source; }))
@@ -353,6 +369,7 @@ void mergeProvinces(Tx& tx, Id target, Id source) {
   int refunds = 0;
   for (const ProvBuilding& b : lostStarted)
     if (refundPaid(tx, b)) refunds++;
+  for (const ProvBuilding& b : lostCycles) refundCycle(tx, src.owner, b);
   fitPlots(tx);
 
   std::string text = "Провинция " + srcName + " присоединена к " + provName(tx.w(), target);

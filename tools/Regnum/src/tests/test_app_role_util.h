@@ -7,6 +7,15 @@
 
 namespace rg::apptest {
 
+// Завершить ход за администратора, не меняя роли сеанса (у игрока App::endTurnNow отказывает — аудит 2026-10-23, 1.4).
+inline bool adminEndTurn(Harness& h) {
+  const app::Role was = h->ui.role;
+  h->ui.role = app::Role::Admin;
+  const bool ok = h->endTurnNow();
+  h->ui.role = was;
+  return ok;
+}
+
 // Сухопутные (land) или морские соседи провинции по общим границам, по возрастанию ID.
 inline std::vector<Id> neighborsOf(const World& w, Id prov, bool sea = false) {
   std::vector<Id> out;

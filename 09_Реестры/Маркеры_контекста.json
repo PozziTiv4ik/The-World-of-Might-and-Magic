@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "type": "stale_context_markers",
+  "status": "active",
+  "canon_level": "support",
+  "updated_real_date": "2026-10-24",
+  "description": "Формулировки закрытых развилок, которые не должны вернуться в живой контекст (текущий контекст, сводка, активная глава, вопросы, фронты, панель, профили веток). Шаблон — регулярное выражение без учёта регистра; точка совпадает и с переводом строки.",
+  "markers": [
+    {
+      "id": "hector-liner-destination",
+      "name": "Hector liner destination",
+      "pattern": "куда\\s+отправить\\s+захваченн\\w*\\s+линкор|захваченн\\w*\\s+линкор.{0,120}Бел\\w*\\s+Гаван\\w*.{0,120}Порт-Вингард|линкор.{0,80}готов.{0,80}отправк\\w*.{0,80}изучен",
+      "message": "The Hector liner destination is already resolved: the captured liner is in Port-Wingard.",
+      "basis_ids": [
+        "DEC-028"
+      ]
+    }
+  ]
+}

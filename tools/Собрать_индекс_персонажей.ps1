@@ -15,13 +15,14 @@ $characterRoot = Join-Path $root '03_Персонажи'
 $targetPath = Join-Path $characterRoot '00_Индекс_персонажей.md'
 $visualSection = 'Визуальные материалы'
 $toolGroup = 'Добавлено инструментом'
+$mergedGroup = 'Объединённые карточки'
 
 # Sections of the previous index are navigation groups: they keep their order and rows.
 $existingIndex = Get-WmmaIndexRows -Text (Read-WmmaText $targetPath -AllowMissing) -FileColumn 3 -HeaderCell 'Персонаж'
 $existingRows = $existingIndex.Rows
 $groupOrder = New-Object 'System.Collections.Generic.List[string]'
 foreach ($group in @($existingIndex.Sections) + @($toolGroup)) {
-    if ($group -ne $visualSection -and $groupOrder -notcontains $group) {
+    if ($group -ne $visualSection -and $group -ne $mergedGroup -and $groupOrder -notcontains $group) {
         $groupOrder.Add($group) | Out-Null
     }
 }
@@ -67,6 +68,13 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
         $portraitFallback = $existing.Cells[2]
     }
 
+    # A merged card is a redirect: it stays in the index (its ID is kept) in its own group.
+    $portrait = Get-WmmaPortraitStatusWord -Status (Get-WmmaMeta -Text $text -Field 'portrait_status') -Fallback $portraitFallback
+    if (Get-WmmaMeta -Text $text -Field 'merged_into') {
+        $group = $mergedGroup
+        $portrait = '-'
+    }
+
     if ($groupOrder -notcontains $group) {
         $groupOrder.Add($group) | Out-Null
     }
@@ -74,7 +82,7 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
     $characterRows.Add([pscustomobject]@{
         Name = Get-WmmaTitle -Text $text
         Role = $role
-        Portrait = Get-WmmaPortraitStatusWord -Status (Get-WmmaMeta -Text $text -Field 'portrait_status') -Fallback $portraitFallback
+        Portrait = $portrait
         File = $relativePath
         Group = $group
         Order = $order

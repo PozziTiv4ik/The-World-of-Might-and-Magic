@@ -344,3 +344,225 @@ function Save-WmmaReceipt {
     $registry.receipts=@($registry.receipts|Where-Object {$_.request_id -ne $Receipt.request_id})+@($Receipt)
     Write-WmmaJson $path $registry
 }
+
+# --- Entity IDs, names, merges and protected canon -------------------------------------
+
+# ID of a document: the prefix of its type and a number of at least four digits or a GUID.
+# Returns a problem message or $null.
+function Test-WmmaEntityIdFormat {
+    param([string]$Id,[string]$Type)
+    $match=[regex]::Match([string]$Id,'^(CHAR|LOC|ASSET|SCENE|SRC|LORE)-(?:\d{4,}|[0-9a-f]{32})$')
+    if(-not $match.Success){return "Invalid entity ID format: '$Id'"}
+    $expected=Get-WmmaIdPrefix $Type
+    if($match.Groups[1].Value -cne $expected){return "Entity ID prefix does not fit type ${Type} (expected $expected-): $Id"}
+    return $null
+}
+
+# Next free number for a document type: the maximum over the entity registry and the id
+# lines of the canon folders, plus one.
+function New-WmmaEntityId {
+    param([string]$Root,[string]$Type)
+    $prefix=Get-WmmaIdPrefix $Type
+    $max=0
+    $graphPath=Join-Path $Root '09_Реестры/Сущности.json'
+    if(Test-Path -LiteralPath $graphPath){
+        foreach($entity in @((Read-WmmaJson $graphPath).entities)){
+            $match=[regex]::Match([string]$entity.id,'^'+$prefix+'-(\d+)$')
+            if($match.Success){$max=[Math]::Max($max,[int]$match.Groups[1].Value)}
+        }
+    }
+    foreach($directory in @('01_Кампания/Ветки','02_Лор','03_Персонажи','04_Локации','05_Активы_персонажей','08_Источники')){
+        $folder=Join-Path $Root $directory
+        if(-not (Test-Path -LiteralPath $folder)){continue}
+        foreach($file in Get-ChildItem -LiteralPath $folder -Recurse -File -Filter '*.md'){
+            foreach($match in [regex]::Matches((Read-WmmaText $file.FullName),'(?m)^id:[ \t]*'+$prefix+'-(\d+)[ \t]*\r?$')){$max=[Math]::Max($max,[int]$match.Groups[1].Value)}
+        }
+    }
+    return '{0}-{1:D4}' -f $prefix,($max+1)
+}
+
+# One-line JSON array of metadata values in the project style: ["A", "B"].
+function Format-WmmaMetaArray {
+    param([AllowEmptyCollection()][string[]]$Values)
+    $items=@($Values|Where-Object {-not [string]::IsNullOrWhiteSpace($_)}|ForEach-Object {ConvertTo-Json -InputObject ([string]$_) -Compress})
+    return '['+($items -join ', ')+']'
+}
+
+# Values with one ID replaced by another; duplicates removed, order kept.
+function Get-WmmaReplacedIds {
+    param([object[]]$Values,[string]$From,[string]$To)
+    $result=[Collections.Generic.List[string]]::new()
+    foreach($value in @($Values)){
+        if($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)){continue}
+        $next=if([string]$value -ceq $From){$To}else{[string]$value}
+        if(-not $result.Contains($next)){$result.Add($next)}
+    }
+    return $result
+}
+
+# Throws unless every ID names an existing entity that is not a merged redirect and, with
+# -Type, has one of the given document types.
+function Assert-WmmaEntityIds {
+    param([object]$Graph,[object[]]$Ids,[string[]]$Type=@(),[string]$Label='entity')
+    $byId=@{};foreach($entity in $Graph.entities){$byId[$entity.id]=$entity}
+    foreach($id in @($Ids)){
+        if([string]::IsNullOrWhiteSpace([string]$id) -or -not $byId.ContainsKey([string]$id)){throw "Unknown $Label ID: $id"}
+        $entity=$byId[[string]$id]
+        if($entity.merged_into){throw "$Label ID $id is merged into $($entity.merged_into); use the main ID."}
+        if($Type.Count -and $Type -notcontains $entity.type){throw "$Label ID $id is a $($entity.type); expected: $($Type -join ', ')."}
+    }
+}
+
+# Comparison key of a title or alias: lower case, ё as е, words separated by one space.
+function ConvertTo-WmmaNameKey {
+    param([AllowNull()][string]$Value)
+    if([string]::IsNullOrWhiteSpace($Value)){return ''}
+    return ([regex]::Replace($Value.ToLowerInvariant().Replace('ё','е'),'[^\p{L}\p{Nd}]+',' ')).Trim()
+}
+
+# Two keys may name one entity when they are equal or every word of the shorter key occurs
+# in the longer one («закхерон» and «закхерон багровый»).
+function Test-WmmaSimilarNameKeys {
+    param([string]$Left,[string]$Right)
+    if(-not $Left -or -not $Right){return $false}
+    if($Left -ceq $Right){return $true}
+    $short=@($Left -split ' ');$long=@($Right -split ' ')
+    if($short.Count -gt $long.Count){$swap=$short;$short=$long;$long=$swap}
+    foreach($word in $short){if($long -notcontains $word){return $false}}
+    return $true
+}
+
+# Graph entities whose title or alias is similar to one of the names. Merged redirect
+# cards and the IDs in -Except (confirmed different entities) are skipped.
+function Find-WmmaSimilarEntities {
+    param([object[]]$Entities,[string[]]$Names,[string[]]$Except=@())
+    $keys=@($Names|ForEach-Object {ConvertTo-WmmaNameKey $_}|Where-Object {$_}|Sort-Object -Unique)
+    foreach($entity in $Entities){
+        if($entity.merged_into -or $Except -contains $entity.id){continue}
+        $hit=$null
+        foreach($candidate in @(@($entity.name)+@($entity.aliases)|ForEach-Object {ConvertTo-WmmaNameKey $_}|Where-Object {$_}|Sort-Object -Unique)){
+            foreach($key in $keys){if(Test-WmmaSimilarNameKeys $key $candidate){$hit=$candidate;break}}
+            if($hit){break}
+        }
+        if($hit){[pscustomobject]@{id=$entity.id;name=$entity.name;path=$entity.path;match=$hit}}
+    }
+}
+
+# Pairs of entities with similar titles or aliases (see Test-WmmaSimilarNameKeys) among the
+# given entities. Merged cards and pairs confirmed by distinct_from on either side are skipped.
+function Get-WmmaSimilarNamePairs {
+    param([object[]]$Entities)
+    $names=[Collections.Generic.List[object]]::new();$byWord=@{}
+    foreach($entity in @($Entities|Where-Object {-not $_.merged_into})){
+        foreach($key in @(@($entity.name)+@($entity.aliases)|ForEach-Object {ConvertTo-WmmaNameKey $_}|Where-Object {$_}|Sort-Object -Unique)){
+            $item=[pscustomobject]@{entity=$entity;key=$key;words=@($key -split ' '|Sort-Object -Unique)}
+            $names.Add($item)
+            foreach($word in $item.words){
+                if(-not $byWord.ContainsKey($word)){$byWord[$word]=[Collections.Generic.List[object]]::new()}
+                $byWord[$word].Add($item)
+            }
+        }
+    }
+    $pairs=@{}
+    foreach($item in $names){
+        $candidates=$null
+        foreach($word in $item.words){if($null -eq $candidates -or $byWord[$word].Count -lt $candidates.Count){$candidates=$byWord[$word]}}
+        foreach($other in @($candidates)){
+            if($other.entity.id -ceq $item.entity.id -or $other.words.Count -lt $item.words.Count){continue}
+            $contained=$true
+            foreach($word in $item.words){if($other.words -notcontains $word){$contained=$false;break}}
+            if(-not $contained){continue}
+            $a=$item.entity;$b=$other.entity
+            if(@($a.distinct_from) -contains $b.id -or @($b.distinct_from) -contains $a.id){continue}
+            $ids=@($a.id,$b.id|Sort-Object)
+            $key=$ids -join '|'
+            if(-not $pairs.ContainsKey($key)){$pairs[$key]=[pscustomobject]@{ids=$ids;left=$item.key;right=$other.key}}
+        }
+    }
+    return @($pairs.Keys|Sort-Object|ForEach-Object {$pairs[$_]})
+}
+
+function Get-WmmaProtectionManifestPath {
+    param([string]$Root)
+    return Join-Path $Root '10_Обслуживание/Миграция_v2.json'
+}
+
+# Accepts new bytes of protected canon and records the date, the previous and the new hash
+# and the reason in the manifest's amendments journal. With -Add a file that is not protected
+# yet joins the manifest with the date and the reason of its protection. Returns the number
+# of changed entries.
+function Update-WmmaProtectedFiles {
+    param([string]$Root,[string[]]$Paths,[string]$Reason,[switch]$Add)
+    if([string]::IsNullOrWhiteSpace($Reason)){throw 'Protected canon changes need a recorded reason: a typo, formatting, a merge of duplicate IDs, a chapter close or an accepted retcon.'}
+    $manifestPath=Get-WmmaProtectionManifestPath $Root
+    $manifest=Read-WmmaJson $manifestPath
+    $files=[Collections.Generic.List[object]]::new();foreach($item in @($manifest.protected_files|Where-Object {$_})){$files.Add($item)}
+    $journal=[Collections.Generic.List[object]]::new();foreach($item in @($manifest.amendments|Where-Object {$_})){$journal.Add($item)}
+    $today=Get-Date -Format 'yyyy-MM-dd';$changed=0
+    foreach($path in @($Paths|Where-Object {$_})){
+        $full=Resolve-WmmaPath $Root $path
+        $relative=Get-WmmaRelativePath $Root $full
+        if(-not (Test-Path -LiteralPath $full -PathType Leaf)){throw "Protected file is missing: $relative"}
+        $hash=(Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant()
+        $entry=@($files|Where-Object {$_.path -ceq $relative})|Select-Object -First 1
+        if(-not $entry){
+            if(-not $Add){throw "Not a protected file: $relative. Use -Add to protect a new file."}
+            $files.Add([pscustomobject][ordered]@{path=$relative;sha256=$hash;protected_real_date=$today;reason=$Reason});$changed++
+        }elseif($entry.sha256 -cne $hash){
+            $journal.Add([pscustomobject][ordered]@{date=$today;path=$relative;before=$entry.sha256;after=$hash;reason=$Reason})
+            $entry.sha256=$hash;$changed++
+        }
+    }
+    if($changed){
+        $manifest.protected_files=@($files)
+        $manifest|Add-Member -NotePropertyName amendments -NotePropertyValue @($journal) -Force
+        Write-WmmaJson $manifestPath $manifest
+    }
+    return $changed
+}
+
+# Keeps the full text of a replaced document as protected history of another card; the
+# check compares the text hash after normalizing line endings.
+function Add-WmmaHistoryRecord {
+    param([string]$Root,[string]$OriginalPath,[string]$HistoryPath,[string]$Text,[string]$Note)
+    $full=Resolve-WmmaPath $Root $HistoryPath
+    if(Test-Path -LiteralPath $full){throw "History record already exists: $HistoryPath"}
+    $body=$Text.Replace("`r`n","`n").TrimEnd()
+    $title=[IO.Path]::GetFileNameWithoutExtension($OriginalPath)
+    $document=(@("# История: $title",'','---','type: history_record','status: active','canon_level: support',"original_path: $OriginalPath",'---','',$Note,'','<!-- ORIGINAL DOCUMENT -->',$body) -join "`n")+"`n"
+    Write-WmmaText $full $document
+    $manifestPath=Get-WmmaProtectionManifestPath $Root
+    $manifest=Read-WmmaJson $manifestPath
+    $manifest.history=@($manifest.history)+@([pscustomobject][ordered]@{original_path=$OriginalPath;history_path=$HistoryPath;text_sha256=(Get-WmmaHash $body)})
+    Write-WmmaJson $manifestPath $manifest
+}
+
+# Marks a fact as replaced by a newer one. The old record keeps its text, evidence and
+# knowers; context pointers move to the newer fact.
+function Set-WmmaFactSuperseded {
+    param([string]$Root,[string]$FactId,[string]$ReplacedBy,[string]$Note='')
+    if($FactId -ceq $ReplacedBy){throw 'A fact cannot replace itself.'}
+    $knowledge=Read-WmmaRegistry $Root 'Знания'
+    $byId=@{};foreach($fact in $knowledge.facts){$byId[$fact.id]=$fact}
+    foreach($id in @($FactId,$ReplacedBy)){if(-not $byId.ContainsKey($id)){throw "Unknown fact: $id"}}
+    $old=$byId[$FactId]
+    if($old.superseded_by -and $old.superseded_by -cne $ReplacedBy){throw "$FactId is already replaced by $($old.superseded_by)."}
+    $cursor=$ReplacedBy;$seen=@{}
+    while($cursor -and -not $seen.ContainsKey($cursor)){
+        if($cursor -ceq $FactId){throw "Replacing $FactId by $ReplacedBy would make a cycle."}
+        $seen[$cursor]=$true;$cursor=$byId[$cursor].superseded_by
+    }
+    $changed=$false
+    if($old.superseded_by -cne $ReplacedBy){
+        $old|Add-Member -NotePropertyName superseded_by -NotePropertyValue $ReplacedBy -Force
+        $old|Add-Member -NotePropertyName superseded_on -NotePropertyValue (Get-Date -Format 'yyyy-MM-dd') -Force
+        if($Note){$old|Add-Member -NotePropertyName superseded_note -NotePropertyValue $Note -Force}
+        Write-WmmaRegistry $Root 'Знания' $knowledge;$changed=$true
+    }
+    $state=Read-WmmaRegistry $Root 'Контекст';$moved=0
+    foreach($holder in @($state)+@($state.branches)){
+        if(@($holder.fact_ids) -ccontains $FactId){$holder.fact_ids=@(Get-WmmaReplacedIds $holder.fact_ids $FactId $ReplacedBy);$moved++}
+    }
+    if($moved){Write-WmmaRegistry $Root 'Контекст' $state;$changed=$true}
+    return [pscustomobject]@{changed=$changed;moved_pointers=$moved}
+}

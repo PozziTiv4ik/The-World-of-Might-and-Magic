@@ -1,8 +1,54 @@
 // Regnum — окна и уведомления приложения: стек модальных окон, окна по реестру, уведомления, ошибки, подтверждения,
 // выбор, запрос строки, сообщения.
 #include "app/app_internal.h"
+#include "app/shell/role.h"
 
 namespace rg::app {
+
+namespace {
+u64 gDialogEpoch = 1;   // поколение closeDialogs (detail::dialogEpoch)
+
+// Окна узнают о закрытии без решения (dismissed: своя уборка). Продолжения цепочек окон, отложенные ими
+// (detail::later), отбрасываются: закрытие всех окон прерывает очереди окон; неразобранные события хода остаются в мире.
+void dismissAll(App& a, const std::vector<Dialog*>& list) {
+  App::Impl& d = a.impl();
+  const size_t mark = d.later.size();
+  for (auto it = list.rbegin(); it != list.rend(); ++it) {
+    try {
+      (*it)->dismissed(a);
+    } catch (const std::exception& e) {
+      a.error(e);
+    }
+  }
+  if (d.later.size() > mark) d.later.resize(mark);
+}
+}  // namespace
+
+u64 detail::dialogEpoch() { return gDialogEpoch; }
+
+void detail::closeDialog(App& a, std::string_view id) {
+  App::Impl& d = a.impl();
+  if (d.drawingDialogs) {   // стек окон сейчас рисуется — после кадра
+    later(a, [key = std::string(id)](App& x) { closeDialog(x, key); });
+    return;
+  }
+  auto take = [&](std::vector<std::unique_ptr<Dialog>>& v) {
+    for (auto it = v.begin(); it != v.end(); ++it)
+      if (id == (*it)->id()) {
+        std::unique_ptr<Dialog> dlg = std::move(*it);
+        v.erase(it);
+        try {
+          dlg->dismissed(a);
+        } catch (const std::exception& e) {
+          a.error(e);
+        }
+        return true;
+      }
+    return false;
+  };
+  if (!take(a.dialogStack())) take(d.pendingDialogs);
+  a.requestRedraw();
+}
 
 void App::openDialog(std::unique_ptr<Dialog> dlg) {
   if (!dlg) return;
@@ -43,6 +89,14 @@ bool App::openDialog(std::string_view id, Id arg) {
 
 void App::closeDialogs() {
   Impl& f = *d_;
+  gDialogEpoch++;
+  // Закрываемые окна (и ждущие открытия) получают dismissed(); окна, открытые из dismissed(), тоже закрываются.
+  std::vector<Dialog*> list;
+  for (auto& x : dialogs_) list.push_back(x.get());
+  for (auto& x : f.pendingDialogs) list.push_back(x.get());
+  if (!f.closeAllDialogs) dismissAll(*this, list);
+  // Встреча войск игрока не завершилась решением — очко действий её объектов не тратится.
+  detail::role::spendDone();
   if (f.drawingDialogs) f.closeAllDialogs = true;
   else dialogs_.clear();
   f.pendingDialogs.clear();

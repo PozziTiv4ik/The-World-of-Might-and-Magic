@@ -183,8 +183,9 @@ TEST(app_trees_buildings_edit) {
   const RectF* cv = h->uiRect("bt.canvas");
   CHECK(cv != nullptr);
   BuildingCat c0 = h->world().building(b)->cat;
-  float dy = c0 == BuildingCat::Residential ? -nb.h * 2.2f : nb.h * 2.2f;
-  h.drag(nb.x + nb.w * 0.5f, nb.y + nb.h * 0.25f, nb.x + nb.w * 0.5f, nb.y + nb.h * 0.25f + dy);
+  CHECK(c0 == BuildingCat::Industrial);
+  // К нижнему краю холста — последняя дорожка («Инфраструктурные»), какой бы высоты ни были дорожки выше.
+  h.drag(nb.x + nb.w * 0.5f, nb.y + nb.h * 0.25f, nb.x + nb.w * 0.5f, cv->bottom() - nb.h * 0.75f);
   h.settle();
   CHECK(h->world().building(b)->cat != c0);
   undo(h);

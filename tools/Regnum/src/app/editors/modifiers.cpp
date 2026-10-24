@@ -447,30 +447,27 @@ void drawDetail(App& a, EdState& st, const Modifier& m, Id next, const std::map<
       ui::stat(fmtInt(i64(u.techs.size() + u.levels.size())), "Технологии и постройки", {.icon = "tech", .tone = ui::Tone::Success});
     }
   }
-  // Эффекты (ТЗ 1.g.ii): на широком экране локальные и глобальные — рядом, эффекты войск — ниже. Модификатор
-  // археологических групп — только эффекты групп; у глобального и «везде» они тоже есть (действуют на все группы
-  // государства). Генерация за ход — у видов «Везде», «Для провинций», «Глобальный», «Для героев».
-  if (m.kind == ModKind::ArchGroup) {
-    effectGroup(a, m, FxGroup::Arch, ro);
-  } else {
-    if (ui::avail().w >= 1180) {
-      ui::Row r({ui::fr(1), ui::fr(1)}, ui::kAuto, 12);
-      {
-        ui::Group g;
-        effectGroup(a, m, FxGroup::Local, ro);
-      }
-      {
-        ui::Group g;
-        effectGroup(a, m, FxGroup::Global, ro);
-      }
-    } else {
+  // Эффекты (ТЗ 1.g.ii): на широком экране локальные и глобальные — рядом, эффекты войск — ниже. Видны группы, которые
+  // действуют у вида модификатора (groupShown): у войска — только эффекты войск, у археологической группы — только
+  // эффекты групп, у провинции и государства — все, кроме эффектов героя. Генерация за ход — у видов «Везде», «Для
+  // провинций», «Глобальный», «Для героев».
+  const bool local = groupShown(m, FxGroup::Local), global = groupShown(m, FxGroup::Global);
+  if (local && global && ui::avail().w >= 1180) {
+    ui::Row r({ui::fr(1), ui::fr(1)}, ui::kAuto, 12);
+    {
+      ui::Group g;
       effectGroup(a, m, FxGroup::Local, ro);
+    }
+    {
+      ui::Group g;
       effectGroup(a, m, FxGroup::Global, ro);
     }
-    effectGroup(a, m, FxGroup::Army, ro);
-    if (m.kind == ModKind::Any || m.kind == ModKind::Hero || (m.fxMask & heroMask())) effectGroup(a, m, FxGroup::Hero, ro);
-    if (m.kind == ModKind::Any || m.kind == ModKind::Faction || (m.fxMask & archMask())) effectGroup(a, m, FxGroup::Arch, ro);
+  } else {
+    if (local) effectGroup(a, m, FxGroup::Local, ro);
+    if (global) effectGroup(a, m, FxGroup::Global, ro);
   }
+  for (FxGroup g : {FxGroup::Army, FxGroup::Hero, FxGroup::Arch})
+    if (groupShown(m, g)) effectGroup(a, m, g, ro);
   if (genKind(m.kind)) genSection(a, m, ro);
   usageSection(a, m, autos, ro);
   ui::spacer(8);

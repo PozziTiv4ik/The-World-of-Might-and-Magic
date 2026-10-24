@@ -140,6 +140,48 @@ Value encMeta(const Meta& m) {
   o.set("content", m.content);
   o.set("rng", m.rng);
   o.set("notes", m.notes);
+  // Итоги последнего хода и неразобранные события хода.
+  if (m.lastTurn.turnTo) {
+    const TurnRecord& t = m.lastTurn;
+    Value x = Value::object();
+    x.set("turnFrom", t.turnFrom);
+    x.set("turnTo", t.turnTo);
+    x.set("factions", arrayOf(t.factions, [](const TurnFactionLine& l) {
+      Value e = Value::object();
+      e.set("faction", ref(Seq::Faction, l.faction));
+      e.set("treasuryBefore", fin(l.treasuryBefore));
+      e.set("treasuryAfter", fin(l.treasuryAfter));
+      e.set("income", fin(l.income));
+      e.set("expenses", fin(l.expenses));
+      e.set("resources", resV(l.resources));
+      e.set("essences", essV(l.essences));
+      e.set("provisionDebt", fin(l.provisionDebt));
+      return e;
+    }));
+    x.set("log", refs(Seq::Log, t.logIds));
+    x.set("rebellions", refs(Seq::Province, t.rebellions));
+    x.set("hits", arrayOf(t.hits, [](const HitOutcome& h) {
+      Value e = Value::object();
+      e.set("plot", ref(Seq::Plot, h.plot));
+      e.set("character", ref(Seq::Character, h.character));
+      e.set("chance", fin(h.chance));
+      e.set("roll", fin(h.roll));
+      e.set("killed", h.killed);
+      return e;
+    }));
+    o.set("lastTurn", std::move(x));
+  }
+  if (!m.turnEvents.empty())
+    o.set("turnEvents", arrayOf(m.turnEvents, [](const TurnEvent& t) {
+      Value e = Value::object();
+      e.set("kind", enumV(en(kTurnEventE), int(t.kind)));
+      e.set("army", ref(Seq::Army, t.army));
+      e.set("province", ref(Seq::Province, t.province));
+      e.set("origin", ref(Seq::Faction, t.origin));
+      e.set("rebelState", ref(Seq::Faction, t.rebelState));
+      e.set("heroes", refs(Seq::Character, t.heroes));
+      return e;
+    }));
   return o;
 }
 
@@ -156,6 +198,7 @@ Value encSettings(const Settings& s) {
   o.set("autosaveFolder", s.autosaveFolder);
   o.set("autosaveSec", s.autosaveSec);
   o.set("freeFleets", s.freeFleets);
+  if (!s.adminKey.empty()) o.set("adminKey", s.adminKey);
   return o;
 }
 
@@ -177,6 +220,8 @@ Value encCatalogs(const Catalogs& c) {
         e.set("modifiers", refs(Seq::Modifier, it.modifiers));
         e.set("vacantModifiers", refs(Seq::Modifier, it.vacantModifiers));
       }
+      if (schema::catalogHasModifiers(L.list) && L.list != CatalogList::Positions && !it.modifiers.empty())
+        e.set("modifiers", refs(Seq::Modifier, it.modifiers));   // раса, культура, религия, форма правления
       return e;
     }));
   o.set("resGroups", groupsV(c.resGroups, Seq::ResGroup));
@@ -189,6 +234,8 @@ Value encCatalogs(const Catalogs& c) {
     e.set("group", ref(Seq::RelicGroup, r.group));
     e.set("entity", r.entity);
     e.set("image", bytesV(r.image));
+    if (!r.modifiers.empty()) e.set("modifiers", refs(Seq::Modifier, r.modifiers));
+    if (r.phylactery) e.set("phylactery", true);
     return e;
   }));
   o.set("relicGroups", groupsV(c.relicGroups, Seq::RelicGroup));
@@ -209,6 +256,7 @@ Value encCatalogs(const Catalogs& c) {
       x.set("talents", arrayOf(sc.talents, [](const Talent& t) { return talentV(t); }));
       return x;
     }));
+    if (!k.modifiers.empty()) e.set("modifiers", refs(Seq::Modifier, k.modifiers));
     return e;
   }));
   o.set("archSites", arrayOf(c.archSites, [](const ArchSite& s) {
@@ -584,6 +632,7 @@ Value encFaction(const Faction& f) {
       return x;
     }));
   if (f.conspiracy) o.set("conspiracy", true);
+  if (f.landless) o.set("landless", f.landless);
   o.set("notes", f.notes);
   o.set("entity", f.entity);
   return o;
@@ -608,6 +657,7 @@ Value encCharacter(const Character& c) {
   o.set("subclass", ref(Seq::SubClass, c.subclass));
   o.set("talents", refs(Seq::Talent, c.talents));
   if (c.jailer) o.set("jailer", ref(Seq::Faction, c.jailer));
+  if (c.respecTurn) o.set("respecTurn", c.respecTurn);
   o.set("notes", c.notes);
   o.set("entity", c.entity);
   return o;
@@ -766,9 +816,10 @@ Value encRoute(const Route& r) {
   return o;
 }
 
-Value encDeal(const Deal& d) {
+// Сделка: id — только у записи таблицы (у сделки внутри предложения его нет).
+Value dealV(const Deal& d, bool withId) {
   Value o = Value::object();
-  o.set("id", ref(Seq::Deal, d.id));
+  if (withId) o.set("id", ref(Seq::Deal, d.id));
   o.set("kind", enumV(en(schema::kDealKinds), int(d.kind)));
   o.set("a", ref(Seq::Faction, d.a));
   o.set("b", ref(Seq::Faction, d.b));
@@ -787,6 +838,41 @@ Value encDeal(const Deal& d) {
   o.set("turn", d.turn);
   o.set("status", enumV(en(kDealStatusE), int(d.status)));
   o.set("note", d.note);
+  return o;
+}
+Value encDeal(const Deal& d) { return dealV(d, true); }
+
+Value truceTermsV(const TruceTerms& t) {
+  Value o = Value::object();
+  o.set("provinces", refs(Seq::Province, t.provinces));
+  o.set("reparations", fin(t.reparations));
+  o.set("reparationsTurns", t.reparationsTurns);
+  o.set("resources", resV(t.resources));
+  o.set("slaves", t.slaves);
+  o.set("heroes", refs(Seq::Character, t.heroes));
+  o.set("vassal", t.vassal);
+  return o;
+}
+
+Value encProposal(const Proposal& p) {
+  Value o = Value::object();
+  o.set("id", ref(Seq::Proposal, p.id));
+  o.set("kind", enumV(en(schema::kProposalKinds), int(p.kind)));
+  o.set("from", ref(Seq::Faction, p.from));
+  o.set("to", ref(Seq::Faction, p.to));
+  if (p.other) o.set("other", ref(Seq::Faction, p.other));
+  o.set("turn", p.turn);
+  if (p.kind == ProposalKind::Deal) o.set("deal", dealV(p.deal, false));
+  if (p.kind == ProposalKind::Truce) {
+    Value t = Value::object();
+    t.set("a", ref(Seq::Faction, p.truce.a));
+    t.set("b", ref(Seq::Faction, p.truce.b));
+    t.set("fromA", truceTermsV(p.truce.fromA));
+    t.set("fromB", truceTermsV(p.truce.fromB));
+    t.set("status", enumV(en(schema::kRelStatus), int(p.truce.status)));
+    o.set("truce", std::move(t));
+  }
+  o.set("note", p.note);
   return o;
 }
 
@@ -828,6 +914,7 @@ Value encPlot(const Plot& p) {
     v.set("gold", fin(h.gold));
     v.set("turn", h.turn);
     if (h.guarded) v.set("guarded", true);
+    if (h.reviewed) v.set("reviewed", true);
     return v;
   }));
   o.set("created", p.created);
@@ -873,6 +960,7 @@ Value encode(const World& w, FileId f) {
         Value x = Value::object();
         x.set("v", fin(r.v));
         x.set("s", enumV(en(schema::kRelStatus), int(r.s)));
+        if (r.calm) x.set("calm", r.calm);
         rel.set(refStr(Seq::Faction, a) + "|" + refStr(Seq::Faction, b), std::move(x));
       }
       Value o = Value::object();
@@ -888,6 +976,7 @@ Value encode(const World& w, FileId f) {
     case F_LOG: return encTable(w.log, "log", encLog);
     case F_CONSTANTS: return encConstants(*w.constants);
     case F_PLOTS: return encTable(w.plots, "plots", encPlot);
+    case F_PROPOSALS: return encTable(w.proposals, "proposals", encProposal);
     default: return Value::object();
   }
 }

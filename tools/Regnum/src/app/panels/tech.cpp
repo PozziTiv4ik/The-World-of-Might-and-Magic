@@ -170,7 +170,7 @@ void commonSection(App& a, Id fid) {
 void drawTech(App& a, Id fid) {
   const World& w = a.world();
   const Faction* f = w.faction(fid);
-  if (!f) return;
+  if (!f || w::hiddenFor(a, fid)) return;   // туман войны: изученное и исследования чужой фракции скрыты
   const bool ro = !a.canPlay(fid);   // исследование — игровое действие фракции
   std::vector<T> ts = techsOf(w, fid, 0);
   if (ts.empty()) {
@@ -190,7 +190,10 @@ void drawTech(App& a, Id fid) {
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
     ui::stat(std::to_string(studied) + " / " + std::to_string(ts.size()), "Изучено", {.icon = "check-circle", .tone = ui::Tone::Success});
-    ui::stat(std::to_string(research), "Исследуется", {.icon = "hourglass", .tone = ui::Tone::Info});
+    // Свои и общие исследования вместе — из лимита «Одновременных исследований».
+    ui::stat(std::to_string(rules::researchCount(w, fid)) + " из " + std::to_string(rules::researchSlots(w)), "Исследуется",
+             {.icon = "hourglass", .tone = ui::Tone::Info});
+    a.markUi("faction.tech.slots");
   }
   ui::progress(double(studied) / double(ts.size()), {.tone = ui::Tone::Success, .height = 5, .label = true});
   if (ui::button("Открыть дерево технологий", {.variant = ui::Variant::Primary, .icon = "tech-tree", .fill = true})) openTechTree(a, fid);
@@ -248,6 +251,7 @@ void drawTech(App& a, Id fid) {
 
 // Исследуются: своё дерево и общие технологии этой фракции.
 int badgeTech(App& a, Id fid) {
+  if (!a.knows(fid)) return 0;   // туман войны
   int n = 0;
   a.world().techs.each([&](const Tech& t) { n += t.faction == fid && t.research && !t.studied; });
   if (const Faction* f = a.world().faction(fid))

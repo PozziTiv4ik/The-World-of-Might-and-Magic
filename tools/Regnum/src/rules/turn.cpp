@@ -62,8 +62,9 @@ TurnReport endTurn(Tx& tx) {
   // Снимок на начало процедуры — до первой правки транзакции: таблица, уже изменённая в транзакции, делит блоки
   // с её копией, и копия перестала бы быть снимком.
   const World start = tx.w();
-  // Ссылки заговоров приводятся в порядок до расчёта (провинции и герои, сменившие государство).
+  // Ссылки заговоров и предложений приводятся в порядок до расчёта (провинции и герои, сменившие государство).
   fitPlots(tx);
+  fitProposals(tx);
   // Расчёт по состоянию на начало процедуры.
   const std::shared_ptr<const Calc> c = calc(tx);
   const std::vector<Id> factionIds = tx.w().factions.ids();
@@ -93,8 +94,8 @@ TurnReport endTurn(Tx& tx) {
           LogRefs{0, 0, {id}});
   }
 
-  // 2а. Провизия государств живых: 0,001 на жителя и недостача прошлых ходов —
-  // поровну со всех ресурсов группы «Провизия»; чего не хватило — недостача («Голод», пока она не покрыта).
+  // 2а. Провизия государств живых: 0,001 на жителя и живого воина армии — поровну со всех ресурсов группы «Провизия»;
+  // чего не хватило — недостача этого хода (не копится): «Голод», гибель «Гибель от голода» % голодающих.
   for (Id id : factionIds) {
     const FactionCalc* fc = c->faction(id);
     const Faction* f0 = tx.w().faction(id);
@@ -107,8 +108,14 @@ TurnReport endTurn(Tx& tx) {
       if (flow.consumption > 0) addStock(tx.faction(id), r, -flow.consumption);
     const double was = f0->provisionDebt, now = fc->provisionDebtNext;
     if (now != was) tx.faction(id).provisionDebt = now;
-    if (now > 1e-9 && was <= 1e-9)
-      log(LogKind::Economy, facName(tx.w(), id) + ": провизия закончилась (недостача " + fmtNum(now, 2) + ") — голод", LogRefs{0, 0, {id}});
+    // Гибель от голода — поровну по провинциям государства (внутри провинции — по расам), целыми.
+    const i64 dead = fc->famineDeaths > 0 ? std::min(fc->famineDeaths, statePopulation(tx.w(), id)) : 0;
+    if (dead > 0) takePopulation(tx, id, dead);
+    if (now > 1e-9 && (was <= 1e-9 || dead > 0))
+      log(LogKind::Economy,
+          facName(tx.w(), id) + ": провизия закончилась (недостача " + fmtNum(now, 2) + ") — голод" +
+              (dead > 0 ? ", погибло жителей: " + fmtInt(dead) : std::string()),
+          LogRefs{0, 0, {id}});
     else if (now <= 1e-9 && was > 1e-9)
       log(LogKind::Economy, facName(tx.w(), id) + ": недостача провизии покрыта — голод закончился", LogRefs{0, 0, {id}});
   }
@@ -156,6 +163,7 @@ TurnReport endTurn(Tx& tx) {
     }
     if (!debts.empty())
       log(LogKind::Economy, facName(tx.w(), id) + ": не хватает эссенций на содержание элементалей — " + join(debts, ", "), LogRefs{0, 0, {id}});
+    elementalDecay(tx, id);   // эссенция в долгу: её элементали теряют ⌈10 %⌉ численности строки
   }
 
   // 2г. Постройки иссушения: у выбранной расы провинции отнимаются жители (эссенции получены в шаге 2в).
@@ -300,15 +308,18 @@ TurnReport endTurn(Tx& tx) {
     }
   }
 
-  // 6–7. Население и довольство (эффекты — на начало хода). В пустоши нежити население не растёт выше 0.
+  // 6–7. Население и довольство (расчёт на начало хода): прирост — естественный и модификаторы (положительный убывает к
+  // пределу населения провинции и не переходит его, при голоде владельца — 0), довольство — модификаторы и налог сверх
+  // нормы. В пустоши нежити население не растёт выше 0.
   for (Id pid : tx.w().provinces.ids()) {
     const ProvinceCalc* pc = c->province(pid);
     if (!pc || pc->sea) continue;
     const Province& p = *tx.w().province(pid);
     const bool waste = hasModKey(tx.w(), p.modifiers, schema::mod::UndeadWaste);
-    const double growth = pc->fx[Fx::PopGrowthPct];
+    const double growth = pc->growthPct;
     const double k = 1.0 + growth / 100.0;
     std::vector<RacePop> races = p.races;
+    i64 room = growth > 0 ? std::max<i64>(0, pc->popCap - provincePop(p)) : 0;   // до предела населения
     bool ch = false;
     for (RacePop& r : races) {
       const i64 was = std::max<i64>(0, r.pop);
@@ -319,13 +330,17 @@ TurnReport endTurn(Tx& tx) {
         if (growth > 0 && was < kMaxCount) n = was + 1;
         else if (growth < 0) n = was - 1;
       }
+      if (growth > 0 && n > was) {
+        n = was + std::min(n - was, room);
+        room -= n - was;
+      }
       if (waste) n = 0;
       if (n != r.pop) {
         r.pop = n;
         ch = true;
       }
     }
-    double cont = clamp(p.contentment + pc->fx[Fx::ContentmentPerTurn], -100.0, 100.0);
+    double cont = clamp(p.contentment + pc->contentDelta, -100.0, 100.0);
     if (!ch && cont == p.contentment) continue;
     Province& m = tx.province(pid);
     m.races = std::move(races);
@@ -511,7 +526,7 @@ TurnReport endTurn(Tx& tx) {
     if (tx.w().faction(id)->pirateRisk != next) tx.faction(id).pirateRisk = next;
   }
 
-  // 13. Оккупация без гарнизона и войск оккупанта 5 ходов подряд снимается.
+  // 13. Оккупация снимается, если оккупант и владелец не в войне, или без гарнизона и войск оккупанта 5 ходов подряд.
   {
     std::unordered_map<Id, std::vector<Id>> armiesIn;   // провинция → фракции, чьи войска в ней
     auto fs = facesFor(tx);
@@ -525,6 +540,14 @@ TurnReport endTurn(Tx& tx) {
       });
     for (Id pid : idsWhere(tx.w().provinces, [](const Province& p) { return p.occupied && p.occupier; })) {
       const Province& p = *tx.w().province(pid);
+      // Оккупант и владелец не в войне (мир, перемирие, владелец упразднён) — оккупация снимается.
+      if (tx.w().relation(p.occupier, p.owner).s != RelStatus::War) {
+        const Id occ = p.occupier, own = p.owner;
+        setOccupied(tx, pid, 0);
+        log(LogKind::War, "Оккупация провинции " + provName(tx.w(), pid) + " снята: " + facName(tx.w(), occ) + (own ? " и " + facName(tx.w(), own) + " не в войне" : " — у провинции нет владельца"),
+            LogRefs{pid, 0, own ? std::vector<Id>{occ, own} : std::vector<Id>{occ}});
+        continue;
+      }
       bool present = !p.occGarrison.empty() || contains(armiesIn[pid], p.occupier);
       if (present) {
         if (p.occIdle) tx.province(pid).occIdle = 0;
@@ -576,11 +599,18 @@ TurnReport endTurn(Tx& tx) {
           expire(ModTarget::Province, pid, p.modTurns, " в провинции " + provName(tx.w(), pid), LogRefs{pid, 0, p.owner ? std::vector<Id>{p.owner} : std::vector<Id>{}});
       if (std::find(keys.begin(), keys.end(), schema::mod::Plague) != keys.end()) plagueEnded.push_back(pid);
     }
+    // Распространение: каждый сосед заражается с вероятностью «Распространение чумы» (зерно «ход + источник + сосед»);
+    // из провинции на карантине чума не уходит, в безлюдную и карантинную не приходит (canPlague).
+    const double spread = clamp(constantOf(tx.w(), schema::cst::PlagueSpread).num, 0.0, 100.0);
     for (Id pid : plagueEnded) {
       std::vector<std::string> hit;
+      const Province* src = tx.w().province(pid);
+      if (src && hasModKey(tx.w(), src->modifiers, schema::mod::Quarantine)) continue;
       for (Id n : neighborsOf(tx, pid)) {
         const Province* np = tx.w().province(n);
         if (!np || np->sea) continue;
+        Rng rng(hashMix(hashMix(hashMix(0x504C414755455350ull, u64(u32(turn))), u64(pid)), u64(n)));
+        if (rng.uniform() * 100.0 >= spread) continue;
         if (infectPlague(tx, n)) hit.push_back(provName(tx.w(), n));
       }
       const Province* p = tx.w().province(pid);
@@ -626,15 +656,38 @@ TurnReport endTurn(Tx& tx) {
     const std::vector<SlotLoss> loss = slotLosses(start, tx.w());
     if (!loss.empty()) trimExcessBuildings(tx, &loss);
   }
+  // 15а. Рабы на работах сверх 10 % населения (оно могло упасть за ход) снимаются с работ с конца списка.
+  trimSlaveWork(tx);
 
-  // 16. Мятежное государство без армий и провинций упраздняется.
-  for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) { return f.rebelOf != 0; })) {
-    bool any = false;
-    tx.w().armies.each([&](const Army& a) {
-      for (const ArmyGroup& g : a.groups) any = any || g.faction == fid;
-    });
-    tx.w().provinces.each([&](const Province& p) { any = any || p.owner == fid || (p.occupied && p.occupier == fid); });
-    if (!any) removeFaction(tx, fid);
+  // 16. Мятежное государство без армий и провинций упраздняется сразу. Прочее государство без провинций, войск и флота,
+  // которое воюет хотя бы с одним государством (разгромленная сторона войны), — после «Ходов без земель и войск»
+  // (константа) таких ходов подряд; вне войны счётчик сбрасывается (заготовки государств администратора не упраздняются).
+  {
+    const double lt = constantOf(tx.w(), schema::cst::LandlessTurns).num;
+    const int landlessMax = std::isfinite(lt) && lt > 1 ? int(std::lround(std::min(lt, 1e6))) : 1;
+    for (Id fid : idsWhere(tx.w().factions, [](const Faction& f) { return f.isState(); })) {
+      const Faction* f = tx.w().faction(fid);
+      if (!f) continue;
+      bool any = false;
+      tx.w().armies.each([&](const Army& a) {
+        for (const ArmyGroup& g : a.groups) any = any || g.faction == fid;
+      });
+      tx.w().provinces.each([&](const Province& p) { any = any || (p.owner == fid && !p.sea) || (p.occupied && p.occupier == fid); });
+      if (f->rebelOf) {
+        if (!any) removeFaction(tx, fid);
+        continue;
+      }
+      const bool atWar = !any && tx.w().factions.findIf([&](const Faction& o) {
+        return o.id != fid && o.isState() && tx.w().relation(fid, o.id).s == RelStatus::War;
+      }) != nullptr;
+      if (!atWar) {
+        if (f->landless) tx.faction(fid).landless = 0;
+        continue;
+      }
+      const int n = f->landless + 1;
+      if (n >= landlessMax) removeFaction(tx, fid, "нет земель и войск " + nTurns(n));
+      else tx.faction(fid).landless = n;
+    }
   }
 
   // Итог по фракциям.
@@ -677,6 +730,10 @@ TurnReport endTurn(Tx& tx) {
   tx.meta().turn = turn + 1;
   for (Id id = logFrom + 1; id <= tx.w().meta->seq[int(Seq::Log)]; id++)
     if (tx.w().logEntry(id)) rep.logIds.push_back(id);
+  // Итоги хода и неразобранные события хода — в мире: отчёт видят игроки, события переживают перезапуск.
+  Meta& m = tx.meta();
+  m.lastTurn = rep;
+  m.turnEvents = rep.events;
   return rep;
 }
 

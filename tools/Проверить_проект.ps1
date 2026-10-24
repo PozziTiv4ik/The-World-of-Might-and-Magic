@@ -123,7 +123,7 @@ $folders.Push($root)
 while($folders.Count){
     foreach($item in Get-ChildItem -LiteralPath $folders.Pop() -Force){
         if($item.PSIsContainer){
-            if($item.Name -in @('.git','.wmma','.build') -or $item.Name -match '_MD_' -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){continue}
+            if($item.Name -in @('.git','.wmma','.build','.regnum-backup') -or $item.Name -match '_MD_' -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){continue}
             $folders.Push($item.FullName)
         }else{$projectFiles.Add($item)}
     }
@@ -150,6 +150,9 @@ foreach ($requiredPath in @(
     '09_Реестры/Решения_незакрытые.json',
     '09_Реестры/Решения_закрытые.json',
     '09_Реестры/Фронты.json',
+    '09_Реестры/Статусы_персонажей.json',
+    '09_Реестры/Маркеры_контекста.json',
+    '09_Реестры/Схемы/Справочники.schema.json',
     'tools/_lib.ps1',
     'tools/Завершить_ход.ps1',
     'tools/Закрыть_вопрос.ps1',
@@ -179,6 +182,13 @@ foreach ($requiredPath in @(
     'tools/Сцена_из_входящего.ps1',
     'tools/Новый_фронт.ps1',
     'tools/Закрыть_решение.ps1',
+    'tools/Объединить_сущности.ps1',
+    'tools/Список_ходов.ps1',
+    'tools/Закрыть_главу.ps1',
+    'tools/Обновить_защиту_канона.ps1',
+    'tools/Новая_связь_времени.ps1',
+    'tools/Заменить_факт.ps1',
+    'tools/Сверить_мир_Regnum.ps1',
     'tools/Проверить_портреты.ps1',
     'tools/README.md',
     '08_Источники/00_Индекс_источников.md',
@@ -432,6 +442,24 @@ if (-not $assetIndex) {
     }
 
     $assetCardRefs = Get-TypePaths 'character_asset'
+    $ownerEntities = @{}
+    try {
+        foreach ($entity in @((Read-WmmaRegistry $root 'Сущности').entities)) { $ownerEntities[$entity.id] = $entity }
+    } catch {
+        Add-Problem Error "Cannot read the entity registry for asset owners: $($_.Exception.Message)"
+    }
+
+    # Owner indexes are generated from the cards (owner_id); a stale one is an error.
+    try {
+        foreach ($view in @(Get-WmmaOwnerAssetIndexViews -Root $root -Cards @(Get-WmmaAssetCards $root))) {
+            if ((Read-WmmaText (Join-Path $root $view.Path) -AllowMissing) -cne $view.Text) {
+                Add-Problem Error "Owner asset index is stale or missing: $($view.Path). Rebuild it with tools/Собрать_индекс_активов.ps1."
+            }
+        }
+    } catch {
+        Add-Problem Error "Cannot build owner asset indexes: $($_.Exception.Message)"
+    }
+
     foreach ($ref in $assetIndexRowsByRef.Keys) {
         if ($assetCardRefs -notcontains $ref) {
             Add-Problem Error "Character asset index row has no matching character_asset card: $ref"
@@ -462,6 +490,17 @@ if (-not $assetIndex) {
             if ([string]::IsNullOrWhiteSpace($required.Value)) {
                 Add-Problem Error "Character asset card has empty field '$($required.Name)': $relativeAsset"
             }
+        }
+
+        $ownerId = Get-WmmaMeta -Text $assetText -Field 'owner_id'
+        if ([string]::IsNullOrWhiteSpace($ownerId)) {
+            Add-Problem Error "Character asset card has empty field 'owner_id': $relativeAsset"
+        } elseif ($ownerEntities.Count -and -not $ownerEntities.ContainsKey($ownerId)) {
+            Add-Problem Error "Character asset owner_id points to an unknown card: $relativeAsset -> $ownerId"
+        } elseif ($ownerEntities.Count -and $ownerEntities[$ownerId].merged_into) {
+            Add-Problem Error "Character asset owner_id points to a merged card: $relativeAsset -> $ownerId (use $($ownerEntities[$ownerId].merged_into))"
+        } elseif ($ownerEntities.Count -and $owner -and @(@($ownerEntities[$ownerId].name) + @($ownerEntities[$ownerId].aliases)) -notcontains $owner) {
+            Add-Problem Warning "Character asset owner name differs from its owner_id card: $relativeAsset ('$owner' vs $ownerId $($ownerEntities[$ownerId].name))"
         }
 
         if ($assetKind -and $assetKind -notin @('army', 'unit', 'item', 'fleet', 'organization', 'retinue', 'other')) {
@@ -565,7 +604,8 @@ if (-not $characterIndex) {
         }
 
         $characterPath = Resolve-WmmaReference $root $characterRef -FromFile $characterIndex.Path
-        if (-not $characterPath -or (Read-WmmaText $characterPath) -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
+        # A merged card is a redirect: its index row shows no portrait status.
+        if (-not $characterPath -or (Get-WmmaMeta (Read-WmmaText $characterPath) 'merged_into') -or (Read-WmmaText $characterPath) -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
             continue
         }
 
@@ -811,11 +851,10 @@ foreach ($file in $filesByType['scene']) {
     $sceneStatusByRef[(Get-WmmaRelativePath $root $file.FullName)] = Get-WmmaMeta -Text (Read-WmmaText $file.FullName) -Field 'status'
 }
 
+# Formulations of closed forks live in data: 09_Реестры/Маркеры_контекста.json.
 $staleActiveMarkers = @(
-    [pscustomobject]@{
-        Name = 'Hector liner destination'
-        Pattern = 'куда\s+отправить\s+захваченн\w*\s+линкор|захваченн\w*\s+линкор.{0,120}Бел\w*\s+Гаван\w*.{0,120}Порт-Вингард|линкор.{0,80}готов.{0,80}отправк\w*.{0,80}изучен'
-        Message = 'The Hector liner destination is already resolved: the captured liner is in Port-Wingard.'
+    Get-WmmaStaleContextMarkers $root | ForEach-Object {
+        [pscustomobject]@{ Name = $_.name; Pattern = $_.pattern; Message = $_.message }
     }
 )
 
@@ -1017,6 +1056,32 @@ foreach ($file in $filesByType['scene']) {
     if ($declaredFrontIdSet.Count -gt 0 -and $declaredFrontIdSet -notcontains $frontId) {
         Add-Problem Error "Scene uses undeclared FRONT-ID: $relativeFile -> $frontId"
     }
+}
+
+# --- Turns, character statuses, duplicate names, closed scenes, Regnum links ----------
+
+# A half-applied or half-restored turn is an error; an unapplied copy is a warning.
+foreach ($problem in @(Get-WmmaTurnProblems -Root $root)) {
+    Add-Problem $problem.kind $problem.message
+}
+
+try {
+    $graphForChecks = Read-WmmaRegistry $root 'Сущности'
+    foreach ($problem in @(Get-WmmaCharacterStatusProblems -Root $root -Graph $graphForChecks) + @(Get-WmmaDuplicateNameProblems -Graph $graphForChecks) + @(Get-WmmaClosedSceneProblems -Root $root -Graph $graphForChecks)) {
+        Add-Problem $problem.kind $problem.message
+    }
+
+    # Optional reconciliation of Regnum worlds with the canon: the world is the game master's
+    # working model, so its findings are warnings (tools/Сверить_мир_Regnum.ps1 fails on them).
+    try {
+        foreach ($problem in @((Test-WmmaRegnumLinks -Root $root -Graph $graphForChecks).problems)) {
+            Add-Problem Warning "Regnum: $($problem.message)"
+        }
+    } catch {
+        Add-Problem Warning "Regnum reconciliation could not run: $($_.Exception.Message)"
+    }
+} catch {
+    Add-Problem Error "Cannot run canon checks: $($_.Exception.Message)"
 }
 
 # --- Context, memory and history (Проверить_контекст) ---------------------------------

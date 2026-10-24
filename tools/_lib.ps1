@@ -170,7 +170,10 @@ function Invoke-WmmaTool {
 }
 
 # Common tail of a write command: rebuild the affected views without checks, then run
-# the full Завершить_ход unless the caller deferred validation with -SkipCheck.
+# the full Завершить_ход unless the caller deferred validation with -SkipCheck. With
+# -SkipCheck the documents the command created or changed are registered in Сущности.json
+# at once (-FullGraph rebuilds the whole graph instead), so the next command of a batch
+# sees their IDs; the full graph is rebuilt by Завершить_ход or Подготовить_ход.
 function Complete-WmmaMutation {
     param(
         [Parameter(Mandatory = $true)]
@@ -178,8 +181,18 @@ function Complete-WmmaMutation {
 
         [string[]]$Rebuild = @(),
 
+        [string[]]$Documents = @(),
+
+        [switch]$FullGraph,
+
         [switch]$SkipCheck
     )
+
+    if ($SkipCheck -and $FullGraph) {
+        Invoke-WmmaTool -Root $Root -Name 'Собрать_связи' -Arguments @{ AssignMissingIds = $true; SkipCheck = $true }
+    } elseif ($SkipCheck -and @($Documents | Where-Object { $_ }).Count) {
+        Register-WmmaDocuments -Root $Root -Paths @($Documents | Where-Object { $_ })
+    }
 
     foreach ($name in $Rebuild) {
         Invoke-WmmaTool -Root $Root -Name $name -Arguments @{ SkipCheck = $true }

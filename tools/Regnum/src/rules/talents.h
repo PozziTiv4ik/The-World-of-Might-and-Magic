@@ -55,15 +55,19 @@ bool canLearnTalent(const World& w, Id character, Id talent, std::string* why = 
 void learnTalent(Tx& tx, Id character, Id talent);
 // Снять последний ранг нельзя, если от него зависят другие изученные (условие или порог ярусов).
 bool canUnlearnTalent(const World& w, Id character, Id talent, std::string* why = nullptr);
-void unlearnTalent(Tx& tx, Id character, Id talent);
-void resetTalents(Tx& tx, Id character);
+// player — действие игрока: снятие ранга, сброс талантов, смена класса или подкласса (кроме первого выбора) — не чаще
+// «Ходов между сменами класса» (константа) и не у мёртвого, пленного или арестованного героя; отметка — respecTurn.
+void unlearnTalent(Tx& tx, Id character, Id talent, bool player = false);
+void resetTalents(Tx& tx, Id character, bool player = false);
+// Сколько ходов игроку ждать смены класса, подкласса или талантов героя (0 — можно).
+int respecWait(const World& w, Id character);
 // Уровень героя 1…60. Ниже вложенных очков — отказ с причиной; resetTalents = true — сначала таланты сбрасываются.
 void setHeroLevel(Tx& tx, Id character, int level, bool resetTalents = false);
 // Класс героя (0 — без класса): смена класса снимает подкласс и таланты; у класса с единственным подклассом он
 // выбирается сразу.
-void setCharacterClass(Tx& tx, Id character, Id cls);
+void setCharacterClass(Tx& tx, Id character, Id cls, bool player = false);
 // Подкласс класса героя (0 — не выбран): смена подкласса сбрасывает таланты.
-void setCharacterSubclass(Tx& tx, Id character, Id sub);
+void setCharacterSubclass(Tx& tx, Id character, Id sub, bool player = false);
 
 // ---- «Возвысить до Лича»: герой с «Некромантом» отдаёт 20 000 трупов и 5000 эссенции
 // смерти своего государства и реликвию инвентаря не ниже эпической; «Некромант» сменяется «Личем», реликвия остаётся

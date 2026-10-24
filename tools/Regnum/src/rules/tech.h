@@ -13,6 +13,11 @@ namespace rg::rules {
 struct ResearchCheck { bool ok = false; std::vector<Id> missing; std::vector<std::string> problems; };
 TechProgress techState(const World& w, Id tech, Id faction = 0);
 bool techStudied(const World& w, Id tech, Id faction = 0);
+// Одновременных исследований фракции — не больше константы «Одновременных исследований» (не меньше 1): свои и общие
+// технологии вместе. researchCount — сколько исследований фракции идёт сейчас. Сверх лимита canResearch даёт причину в
+// problems (у идущего исследования — нет), startResearch отказывает.
+int researchSlots(const World& w);
+int researchCount(const World& w, Id faction);
 ResearchCheck canResearch(const World& w, Id tech, Id faction = 0);
 void setStudied(Tx& tx, Id tech, bool studied, Id faction = 0);
 void startResearch(Tx& tx, Id tech, Id faction = 0);

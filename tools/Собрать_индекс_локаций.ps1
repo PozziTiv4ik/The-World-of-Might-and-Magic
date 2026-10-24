@@ -39,9 +39,16 @@ foreach ($file in Get-ChildItem -LiteralPath $locationRoot -File -Filter '*.md')
         Status = Get-WmmaMeta -Text $text -Field 'status'
         FrontId = $frontId
         File = $relativePath
+        MergedInto = Get-WmmaMeta -Text $text -Field 'merged_into'
         Order = if ($existingRows.ContainsKey($relativePath)) { $existingRows[$relativePath].Order } else { 100000 }
     }) | Out-Null
 }
+
+# A merged card is a redirect: it is listed apart with the card it joined.
+$mergedRows = @($locationRows | Where-Object { $_.MergedInto })
+$liveRows = @($locationRows | Where-Object { -not $_.MergedInto })
+$pathById = @{}
+foreach ($row in $liveRows) { $pathById[(Get-WmmaMeta -Text (Read-WmmaText (Join-Path $root $row.File)) -Field 'id')] = $row.File }
 
 $lines = New-WmmaGeneratedHeader -Title 'Индекс локаций' -Type 'location_index' -CanonLevel 'active' -Script 'Собрать_индекс_локаций' `
     -Intro 'Этот файл генерируется автоматически из карточек локаций. Поле `front_id` хранится в front matter каждой карточки локации.'
@@ -57,8 +64,19 @@ $lines.Add('')
 $lines.Add('## Локации')
 $lines.Add('')
 Add-WmmaMarkdownTable $lines @('Локация', 'Статус', 'FRONT-ID', 'Файл') @(
-    $locationRows | Sort-Object Order, Name, File | ForEach-Object { ,@($_.Name, $_.Status, $_.FrontId, "``$($_.File)``") }
+    $liveRows | Sort-Object Order, Name, File | ForEach-Object { ,@($_.Name, $_.Status, $_.FrontId, "``$($_.File)``") }
 ) -Escape { param($Value) Format-WmmaTableCell -Empty '-' $Value }
+if ($mergedRows.Count) {
+    $lines.Add('')
+    $lines.Add('## Объединённые карточки')
+    $lines.Add('')
+    Add-WmmaMarkdownTable $lines @('Локация', 'Объединена с', 'Файл') @(
+        $mergedRows | Sort-Object Name, File | ForEach-Object {
+            $target = if ($pathById.ContainsKey($_.MergedInto)) { "$($_.MergedInto), ``$($pathById[$_.MergedInto])``" } else { $_.MergedInto }
+            ,@($_.Name, $target, "``$($_.File)``")
+        }
+    ) -Escape { param($Value) Format-WmmaTableCell -Empty '-' $Value }
+}
 
 Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'location index' -SkipCheck:$SkipCheck
 }

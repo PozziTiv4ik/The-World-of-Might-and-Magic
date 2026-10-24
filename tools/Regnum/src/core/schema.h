@@ -35,6 +35,11 @@ extern const EnumInfo kRarities[int(Rarity::Count)];
 // Виды заговоров (PlotKind).
 extern const EnumInfo kPlotKinds[int(PlotKind::Count)];
 inline const EnumInfo& plotKind(PlotKind k) { return kPlotKinds[int(k) >= 0 && int(k) < int(PlotKind::Count) ? int(k) : 0]; }
+// Виды предложений (ProposalKind).
+extern const EnumInfo kProposalKinds[int(ProposalKind::Count)];
+inline const EnumInfo& proposalKind(ProposalKind k) {
+  return kProposalKinds[int(k) >= 0 && int(k) < int(ProposalKind::Count) ? int(k) : 0];
+}
 inline const EnumInfo& rarity(Rarity r) { return kRarities[int(r) >= 0 && int(r) < int(Rarity::Count) ? int(r) : 0]; }
 inline const EnumInfo& stateKind(StateKind k) { return kStateKinds[int(k) >= 0 && int(k) < int(StateKind::Count) ? int(k) : 0]; }
 inline const EnumInfo& modKind(ModKind k) { return kModKinds[int(k) >= 0 && int(k) < int(ModKind::Count) ? int(k) : 0]; }
@@ -81,8 +86,9 @@ struct EffectInfo {
 extern const EffectInfo kEffects[kFxCount];
 inline const EffectInfo& effect(Fx f) { return kEffects[int(f)]; }
 
-// Режимы карты.
-enum class MapMode : u8 { Political, Guilds, Contentment, Rebellion, Trade, Resources, Religion, Culture, Terrain, Count };
+// Режимы карты. Diplomacy — война, союз, вассалы и сюзерен относительно выбранного или своего государства; Plague —
+// чума, иммунитет, карантин, пустошь нежити и осквернение.
+enum class MapMode : u8 { Political, Guilds, Contentment, Rebellion, Trade, Resources, Religion, Culture, Terrain, Diplomacy, Plague, Count };
 extern const EnumInfo kMapModes[int(MapMode::Count)];
 
 // Последовательности ID: имя счётчика (world.json, meta.seq), префикс ID в JSON (p12, f3…; узлы, дуги, знаки и фигуры
@@ -112,6 +118,11 @@ extern const CatalogListInfo kCatalogLists[kCatalogListCount];
 const CatalogListInfo& catalogListInfo(CatalogList l);   // неизвестный список — UserError
 inline std::vector<CatalogItem>& catalogList(Catalogs& c, CatalogList l) { return c.*catalogListInfo(l).items; }
 inline const std::vector<CatalogItem>& catalogList(const Catalogs& c, CatalogList l) { return c.*catalogListInfo(l).items; }
+// У записей списка есть модификаторы: должности (занятая и пустующая), расы, культуры, религии, формы правления.
+inline bool catalogHasModifiers(CatalogList l) {
+  return l == CatalogList::Positions || l == CatalogList::Races || l == CatalogList::Cultures || l == CatalogList::Religions ||
+         l == CatalogList::Governments;
+}
 
 // Константы правил (формулы — docs/RULES.md).
 constexpr int kMaxHqPerProvince = 5;          // штабов гильдий в провинции — не больше
@@ -273,6 +284,9 @@ constexpr const char* Decentralization = "decentralization";
 constexpr const char* WeakControl = "weakControl";
 constexpr const char* Centralized = "centralized";
 constexpr const char* Famine = "famine";
+constexpr const char* Unpaid = "unpaid";                  // Невыплата жалованья: казна в долгу (ставится сама)
+constexpr const char* Quarantine = "quarantine";          // Карантин: чума не входит в провинцию и не выходит из неё
+constexpr const char* ForeignFaith = "foreignFaith";      // Чужая вера: религия провинции — не религия государства (ставится сама)
 constexpr const char* UndeadWaste = "undeadWaste";        // Пустошь нежити
 constexpr const char* Desecrated = "desecrated";          // Оскверненная провинция
 constexpr const char* Necromancer = "necromancer";        // Некромант
@@ -335,6 +349,17 @@ constexpr const char* MercPerGuild = "mercPerGuild";           // число: л
 constexpr const char* MercHire = "mercHire";                   // число: золото за найм одного наёмника (новые строки)
 constexpr const char* ArchGroupPeople = "archGroupPeople";     // число: населения (трупов) на археологическую группу
 constexpr const char* ArchGroupGold = "archGroupGold";         // число: золота на археологическую группу
+constexpr const char* TaxNorm = "taxNorm";                     // число: налог, %, выше которого падает довольство
+constexpr const char* TaxUnrest = "taxUnrest";                 // число: довольство за ход за процент налога сверх нормы
+constexpr const char* FamineDeaths = "famineDeaths";           // число: % голодающих, гибнущих за ход
+constexpr const char* PopGrowthBase = "popGrowthBase";         // число: естественный прирост населения, % за ход
+constexpr const char* PlagueSpread = "plagueSpread";           // число: вероятность заражения соседа, %
+constexpr const char* GalleonIncome = "galleonIncome";         // число: золото за ход от торгового галеона
+constexpr const char* ResearchSlots = "researchSlots";         // число: одновременных исследований фракции
+constexpr const char* DealBreak = "dealBreak";                 // число: отношения при расторжении сделки
+constexpr const char* LandlessTurns = "landlessTurns";         // число: ходов без земель и войск до упразднения
+constexpr const char* RespecTurns = "respecTurns";             // число: ходов между сменами класса героя игроком
+constexpr const char* TruceCalm = "truceCalm";                 // число: ходов после перемирия без права объявить войну
 }  // namespace cst
 const std::vector<Constant>& builtinConstants();
 const char* shipCostKey(ShipType t);
@@ -417,7 +442,8 @@ constexpr i64 kPirateFlatLoss = 20;               // пираты: при мен
 constexpr i64 kPirateFlatBelow = 100;
 constexpr int kMaxCouncilSeats = 10;              // совет — не больше 10 должностей
 constexpr double kCouncilInfluencePerSeat = -2;   // «Влияние совета»: −2 % времени исследования за должность
-constexpr int kPlagueTurns = 4, kImmunityTurns = 6;   // «Чума» (и «Заражение чумой» группы) и «Временный иммунитет»
+constexpr int kPlagueTurns = 4, kImmunityTurns = 6;
+constexpr int kQuarantineTurns = 5;                 // «Карантин»   // «Чума» (и «Заражение чумой» группы) и «Временный иммунитет»
 constexpr int kWoundTurns = 2;                    // «Ранение в ходе исследования» археологической группы
 constexpr double kPlagueBuildingGrowth = 2.5;     // чума в провинции со «Зданием чумы»: прирост +2,5 %
 constexpr double kHealCost = 500;                 // «Вылечить провинцию»: эссенции любого вида

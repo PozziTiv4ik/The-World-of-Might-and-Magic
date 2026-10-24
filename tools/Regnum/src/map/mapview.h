@@ -54,6 +54,7 @@ struct RenderOptions {
   bool darkUi = true;                // для цвета рамки за краем карты и фона без background
   Color background{0, 0, 0, 0};      // фон окна за краем карты (a = 0 — по darkUi); у палитр цветокора — продолжение моря
   bool edgeLine = true;              // тонкая линия по краю карты (экспорт в изображение — без неё)
+  Id focusState = 0;                 // режим «Дипломатия»: государство, относительно которого раскрашены отношения
 };
 
 struct LegendItem { Color color; std::string label; std::string icon; };

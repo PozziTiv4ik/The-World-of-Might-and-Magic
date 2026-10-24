@@ -163,8 +163,8 @@ TEST(rules_tech_cost_and_buildings) {
   f.tx([&](Tx& tx) { endTurn(tx); });
   CHECK(techStudied(f.w(), basics, f.A));
   CHECK(f.w().faction(f.A)->techs.at(basics).paid.empty());
-  // Глобальный модификатор технологии: сокровища групп +1 %.
-  CHECK_NEAR(factionEffects(f.w(), f.A)[Fx::ArchTreasurePct], 1, 1e-9);
+  // Глобальный модификатор технологии: сокровища групп +10 %.
+  CHECK_NEAR(factionEffects(f.w(), f.A)[Fx::ArchTreasurePct], 10, 1e-9);
 }
 
 // Остановка исследования в конце хода (нет нужной постройки или снята предшествующая) и удаление исследуемой

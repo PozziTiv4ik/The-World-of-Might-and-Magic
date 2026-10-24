@@ -35,6 +35,7 @@ struct TileStyle {
   float fillOpacity = 0.5f;
   float dpi = 1;
   Palette palette = Palette::Source;
+  Id focus = 0;   // режим «Дипломатия»: государство, относительно которого раскрашены отношения (в других режимах — 0)
   bool operator==(const TileStyle&) const = default;
   u64 key() const;
 };

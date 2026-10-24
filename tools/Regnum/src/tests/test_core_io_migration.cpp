@@ -251,7 +251,7 @@ TEST(core_io_migration_content_migration_once) {
   CHECK_EQ(w.catalogs->religions.size(), size_t(70));
   CHECK(w.catalogs->resourceId(schema::kResCorpses) != 0 && w.catalogs->resourceId(schema::kResEnergy) != 0);
   CHECK(w.catalogs->resourceId(schema::kResMechParts) != 0);
-  CHECK_EQ(w.catalogs->specials.size(), size_t(10));
+  CHECK_EQ(w.catalogs->specials.size(), size_t(26));   // 10 особых отрядов версий 1–2 и 16 версии 6
   // Версия 2: валюты, сундуки, археологические места, классы героев, «Гильдия Археологов» у государства.
   const Id cur = w.catalogs->groupId(schema::grp::Currencies);
   CHECK(cur != 0);

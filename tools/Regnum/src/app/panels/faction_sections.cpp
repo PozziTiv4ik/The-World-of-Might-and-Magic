@@ -96,7 +96,10 @@ void drawList(App& a, FactionKind kind) {
   if (!narrow) col(CNet, {"", "trend-up", ui::px(84), ui::Align::Right, true, "Чистый доход за ход"});
   if (!narrow) col(CForces, {"", "army", ui::px(76), ui::Align::Right, true, "Войска и флот: общая численность"});
 
+  // Туман войны: казна, доход и войска чужих фракций у игрока скрыты (в сортировке — после известных).
+  auto secret = [&](const Faction* f, Col k) { return (k == CTreasury || k == CNet || k == CForces) && !a.knows(f->id); };
   auto num = [&](const Faction* f, Col k) -> double {
+    if (secret(f, k)) return -1e300;
     const rules::FactionCalc* fc = calc->faction(f->id);
     switch (k) {
       case CLands: return fc ? double(fc->provinces.size()) : 0;
@@ -106,6 +109,13 @@ void drawList(App& a, FactionKind kind) {
       case CForces: return fc ? double(fc->armyTotal + fc->fleetTotal) : 0;
       default: return 0;
     }
+  };
+  // Скрытое значение в ячейке: замок справа.
+  auto lockCell = [&](ui::Table& t, std::string_view key) {
+    const RectF c = t.cell();
+    const RectF ic{c.right() - 16, c.cy() - 7, 14, 14};
+    ui::draw::icon("lock", ic, ui::theme().textMuted);
+    ui::hoverTip(key, ic, w::kHidden);
   };
   int sel = -1;
   for (size_t i = 0; i < list.size(); i++)
@@ -128,11 +138,20 @@ void drawList(App& a, FactionKind kind) {
     const rules::FactionCalc* fc = calc->faction(f.id);
     t.text(fmtInt(i64(num(&f, CLands))));
     if (states && !narrow) t.text(fmtShort(double(fc ? fc->population : 0)));
-    t.text(fmtGoldShort(f.treasury()), f.treasury() < 0 ? ui::Ink::Danger : ui::Ink::Normal);
+    const bool hide = !a.knows(f.id);
+    if (hide) a.markUi(pre + ".hidden." + std::to_string(f.id), t.rowRect());
+    if (hide) lockCell(t, "##hid.treasury");
+    else t.text(fmtGoldShort(f.treasury()), f.treasury() < 0 ? ui::Ink::Danger : ui::Ink::Normal);
     if (!narrow) {
       double net = fc ? fc->net : 0;
-      t.text(std::fabs(net) < 0.0005 ? std::string("—") : (net > 0 ? "+" : "") + fmtGoldShort(net), net > 0.0005 ? ui::Ink::Success : net < -0.0005 ? ui::Ink::Danger : ui::Ink::Muted);
-      t.text(fmtShort(num(&f, CForces)), ui::Ink::Dim);
+      if (hide) {
+        lockCell(t, "##hid.net");
+        lockCell(t, "##hid.forces");
+      } else {
+        t.text(std::fabs(net) < 0.0005 ? std::string("—") : (net > 0 ? "+" : "") + fmtGoldShort(net),
+               net > 0.0005 ? ui::Ink::Success : net < -0.0005 ? ui::Ink::Danger : ui::Ink::Muted);
+        t.text(fmtShort(num(&f, CForces)), ui::Ink::Dim);
+      }
     }
     a.markUi(pre + ".row." + std::to_string(f.id), t.rowRect());
   }

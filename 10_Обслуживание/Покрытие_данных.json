@@ -5,16 +5,16 @@
   "interpretation": "Отсутствие прямого источника, текущего положения или манеры речи означает незаполненную связь или незаданный факт. Это не доказательство сюжетной ошибки. Граф показывает ссылки, а не истинность всех утверждений.",
   "summary": {
     "entities": 776,
-    "edges": 1001,
-    "references": 4001,
+    "edges": 991,
+    "references": 4006,
     "original_sources": 246,
     "linked_to_sources": 170,
     "historical_provenance": 0,
     "unresolved_provenance": 360,
-    "characters": 175,
+    "characters": 174,
     "characters_with_historical_sections": 28,
     "current_position_not_recorded": 69,
-    "voice_not_established": 175,
+    "voice_not_established": 174,
     "facts": 17
   },
   "entities": [
@@ -2824,7 +2824,9 @@
       "provenance": "unresolved",
       "source_ids": [],
       "historical_source_ids": [],
-      "history_paths": [],
+      "history_paths": [
+        "03_Персонажи/История/Закхерон_Багровый/Объединено_Закхерон.md"
+      ],
       "historical_sections": null,
       "current_position_status": "recorded",
       "voice_status": "not_established"
@@ -2838,8 +2840,8 @@
       "historical_source_ids": [],
       "history_paths": [],
       "historical_sections": null,
-      "current_position_status": "recorded",
-      "voice_status": "not_established"
+      "current_position_status": null,
+      "voice_status": null
     },
     {
       "id": "CHAR-0059",
@@ -5882,7 +5884,8 @@
       "source_ids": [],
       "historical_source_ids": [],
       "history_paths": [
-        "04_Локации/История/Цитадель_Вечного_Света_до_v2.md"
+        "04_Локации/История/Цитадель_Вечного_Света_до_v2.md",
+        "04_Локации/История/Цитадель_Вечного_Света/Объединено_Цитадель_Света.md"
       ],
       "historical_sections": null,
       "current_position_status": null,

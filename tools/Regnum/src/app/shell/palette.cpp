@@ -241,6 +241,7 @@ struct Help : Dialog {
       std::string g = c.group ? c.group : "Общие";
       if (c.shortcut && *c.shortcut && role::commandAllowed(a, c.id) && std::find(groups.begin(), groups.end(), g) == groups.end()) groups.push_back(g);
     }
+    const bool admin = a.admin();
     ui::Scroll sc("body", std::min(560.f, ui::viewport().h - 180));
     ui::Row cols({ui::fr(1), ui::fr(1)}, ui::kAuto, 28);
     {
@@ -254,6 +255,29 @@ struct Help : Dialog {
           ui::IdScope cs(c.id);
           row(c.title, c.shortcut);
         }
+        if (gname == "Правка") row("Повторить", "Ctrl+Shift+Z");   // второе сочетание повтора (оболочка)
+        ui::spacer(6);
+      }
+      // Клавиши страниц и редакторов (обрабатываются на месте, не командами).
+      ui::caption("Страницы");
+      row("Переименовать государство, провинцию, войско", "F2");
+      row("Поиск в каталоге", "Ctrl+F");
+      row("Соседняя строка таблицы", "↑ ↓");
+      row("Соседняя вкладка", "← →");
+      ui::spacer(6);
+      ui::caption("Деревья технологий и построек");
+      row("Показать всё дерево", "F");
+      row("Приблизить", "+");
+      row("Отдалить", "-");
+      row("Соседняя технология", "Стрелки");
+      if (admin) row("Удалить выбранное", "Delete");
+      ui::spacer(6);
+      if (admin) {
+        ui::caption("Справочники и модификаторы");
+        row("Поиск", "Ctrl+F");
+        row("Соседняя запись", "↑ ↓");
+        row("Удалить запись", "Delete");
+        row("Переименовать группу или реликвию", "F2");
         ui::spacer(6);
       }
     }
@@ -265,6 +289,7 @@ struct Help : Dialog {
       row("Перемещение", "Средняя кнопка");
       row("Показать объект", "Двойной щелчок");
       row("Снять выделение", "Esc");
+      row("Расформировать выделенное войско", "Delete");
       ui::spacer(6);
       ui::caption("Инструменты");
       for (auto& t : toolDefs()) {
@@ -273,6 +298,20 @@ struct Help : Dialog {
         row(t.editMode ? std::string(t.title) + " · правка границ" : t.mapMode ? std::string(t.title) + " · правка карты" : std::string(t.title), t.shortcut);
       }
       ui::spacer(6);
+      if (admin) {
+        ui::caption("Правка границ и карты");
+        row("Готово: контур или линия", "Enter");
+        row("Отменить построение", "Esc");
+        row("Удалить точку или выбранное", "Delete");
+        row("Новая точка границы или берега", "Двойной щелчок");
+        row("Удалить точку", "Правая кнопка");
+        row("Заливка: добавить к выбранной", "Shift+щелчок");
+        row("Объекты карты: добавить к выбору", "Shift+щелчок");
+        row("Объекты карты: сдвиг", "Стрелки");
+        row("Объекты карты: сдвиг на 10", "Shift+Стрелки");
+        row("Новое войско: поставить ещё", "Shift+щелчок");
+        ui::spacer(6);
+      }
       ui::caption("Разделы и панели");
       for (auto& sec : sections()) {
         if (!sec.shortcut || !role::sectionAllowed(a, sec.id)) continue;
@@ -286,7 +325,9 @@ struct Help : Dialog {
       }
       row("Назад, к карте", "Esc");
       row("Поле ввода: отменить правку", "Esc");
+      row("Поле ввода: отменить и повторить ввод", "Ctrl+Z, Ctrl+Y");
       row("Следующее поле", "Tab");
+      row("Окно: основная кнопка", "Enter");
     }
     return true;
   }

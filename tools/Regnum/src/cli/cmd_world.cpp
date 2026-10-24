@@ -52,7 +52,7 @@ FileReport fileReport(const io::LoadResult& r) {
       rep.rewrite.push_back(f.path);
     } else if (folder) {
       auto text = fs::readFile(fs::join(r.files.folder, f.path));
-      if (text && *text != io::fileText(r.world, f.path)) rep.reformat.push_back(f.path);
+      if (text && io::withoutGeneration(*text) != io::fileText(r.world, f.path)) rep.reformat.push_back(f.path);
     }
   }
   return rep;

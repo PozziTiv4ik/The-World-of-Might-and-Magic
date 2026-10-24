@@ -108,6 +108,7 @@ TEST(app_economy_province_plague_building) {
   CHECK(st && pid && lab);
   CHECK(h->act("Чума и чумная лаборатория", [&](Tx& tx) {
     tx.province(pid).buildings.clear();
+    if (tx.w().province(pid)->occupied) rules::setOccupied(tx, pid, 0);   // в оккупированной провинции владелец не строит
     rules::placeBuilding(tx, pid, lab, 1);
     CHECK(rules::infectPlague(tx, pid));
   }));

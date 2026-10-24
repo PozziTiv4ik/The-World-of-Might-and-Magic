@@ -267,13 +267,18 @@ TEST(rules_military_encounter_types) {
   CHECK_EQ(e.target, b1);
   CHECK_EQ(e.us, f.A);
   CHECK_EQ(e.them, f.B);
-  // Союзное войско {A, C}: войско A складывается в свою группу (не новый союз), враг — битва.
+  // Союзное войско {C, A}: войско A складывается в свою группу (не новый союз); враг — битва, только если он воюет с
+  // каждой фракцией объекта (иначе невоюющая фракция втянулась бы в бой — сначала распустить союз).
   f.tx([&](Tx& tx) { formAllied(tx, c1, a2); });
   CHECK(encounter(f.w(), a1, center(3)).type == EncounterType::Merge);
   e = encounter(f.w(), b1, center(3));
+  CHECK(e.type == EncounterType::Blocked);
+  CHECK(has(e.reason, "«Бельмар» и «Церис» не в войне — сначала распустите союз"));
+  f.tx([&](Tx& tx) { declareWar(tx, f.B, f.C); });
+  e = encounter(f.w(), b1, center(3));
   CHECK(e.type == EncounterType::Battle);
   CHECK_EQ(e.us, f.B);
-  CHECK_EQ(e.them, f.A);
+  CHECK_EQ(e.them, f.C);
 }
 
 TEST(rules_military_wild_armies) {
@@ -626,8 +631,10 @@ TEST(rules_military_battle_allied) {
     formAllied(tx, al, ac);
     bB = createArmy(tx, ArmyKind::Army, f.B, center(1));
     setUnits(tx, bB, f.B, rB, 30);
-    declareWar(tx, f.B, f.C);  // война с одним из союзников — уже битва
+    declareWar(tx, f.B, f.C);  // война с одним из союзников — ещё не битва (A не воюет)
   });
+  CHECK(encounter(f.w(), bB, center(5)).type == EncounterType::Blocked);
+  f.tx([&](Tx& tx) { declareWar(tx, f.B, f.A); });
   CHECK(encounter(f.w(), bB, center(5)).type == EncounterType::Battle);
   BattleResult r;
   r.attacker = bB;

@@ -327,6 +327,18 @@ void drawGarrison(App& a, Id pid) {
     return;
   }
   const Faction& owner = *w.faction(p->owner);
+  // Туман войны: у чужого владельца игрок видит только, есть ли гарнизон.
+  if (!a.knows(p->owner)) {
+    {
+      ui::prop("Владелец", "crown");
+      w::factionChip(p->owner);
+    }
+    const bool any = garrisonTotal(*p) > 0 || !p->garrisonHeroes.empty();
+    ui::label(any ? "Есть гарнизон" : "Гарнизона нет", {.ink = any ? ui::Ink::Normal : ui::Ink::Muted, .icon = "castle"});
+    a.markUi("garrison.exists");
+    w::hiddenMark();
+    return;
+  }
   std::vector<UnitRow> rows = unitRows(w, p->owner, false);
   auto c = rules::calc(w);
   i64 reserve = 0;
@@ -365,7 +377,7 @@ bool visibleGarrison(App& a, Id pid) {
 // Точка на вкладке: гарнизон с отрядами при отрицательной верности (возможен мятеж).
 int garrisonBadge(App& a, Id pid) {
   const Province* p = a.world().province(pid);
-  return p && !p->sea && p->owner && !p->garrison.empty() && p->garrisonLoyalty < 0 ? -1 : 0;
+  return p && !p->sea && p->owner && a.knows(p->owner) && !p->garrison.empty() && p->garrisonLoyalty < 0 ? -1 : 0;
 }
 
 TabReg garrisonTab({"province.garrison", "castle", "Гарнизон", 35, SelType::Province, visibleGarrison, drawGarrison, garrisonBadge});

@@ -63,6 +63,7 @@ void resetProject(App::Impl& d) {
   d.fixedTables = d.forceTables = 0;
   d.overwriteExternal = false;
   d.ackExternal.clear();
+  d.seenExternal.clear();
   d.savedAt.clear();
   d.autosavedAt.clear();
   d.folderAutosaveBlocked = false;
@@ -75,6 +76,205 @@ void resetProject(App::Impl& d) {
   d.diskHist.reset();
   d.bundleStamp = io::FileStamp{};
   d.autoFiles.clear();
+  d.base = World{};
+  d.lock.clear();
+}
+
+// Таблицы, упомянутые в предупреждениях.
+u32 tablesOf(const io::Warnings& warnings) {
+  u32 m = 0;
+  for (const io::Warning& w : warnings) m |= io::tablesOfFile(w.file);
+  return m;
+}
+
+std::vector<std::string> warningLines(const io::Warnings& warnings, size_t limit = 200) {
+  std::vector<std::string> lines;
+  for (size_t i = 0; i < warnings.size() && i < limit; i++) lines.push_back(warnings[i].text());
+  if (warnings.size() > limit) lines.push_back("… и ещё " + std::to_string(warnings.size() - limit));
+  return lines;
+}
+
+// Строки окна в прокручиваемой карточке.
+void linesCard(const std::vector<std::string>& lines) {
+  if (lines.empty()) return;
+  float h = std::min(260.f, float(lines.size()) * 22 + 16);
+  ui::Card c({.pad = 8});
+  ui::Scroll sc("lines", h);
+  for (size_t i = 0; i < lines.size(); i++) {
+    ui::IdScope s{int(i)};
+    ui::label(lines[i], {.font = ui::Font::Small, .ink = ui::Ink::Dim, .wrap = true});
+  }
+}
+
+// Восстановить файлы мира из последних целых резервных копий и перечитать мир.
+void restoreFromBackups(App& a, const std::string& path, const std::vector<std::string>& files, u64 maxGen) {
+  std::vector<std::string> done, none;
+  try {
+    done = io::restoreBackups(path, files, maxGen, &none);
+  } catch (const std::exception& e) {
+    a.error(e);
+    return;
+  }
+  if (done.empty()) {
+    a.toast("Целых резервных копий нет: " + join(none, ", "), ToastKind::Warning, "warning");
+    return;
+  }
+  if (a.loadProject(path)) a.toast("Восстановлено из резервных копий: " + join(done, ", "), ToastKind::Success, "history");
+}
+
+// Окно после чтения мира: «только для чтения» (причина), смешанное сохранение и исправления нормализации.
+// «Восстановить из копии» — пропавшие и смешанные файлы из .regnum-backup; «Сохранить исправления» — согласие записать
+// исправления (до него автосохранение их не пишет).
+struct LoadReport : Dialog {
+  std::string path, lock;
+  std::vector<std::string> lines, restore;
+  u64 maxGen = 0;
+  bool canSave = false;
+  const char* id() const override { return "world.fixes"; }
+  Style style(App&) override {
+    return {lock.empty() ? "Мир открыт с исправлениями" : "Мир открыт только для чтения", lock.empty() ? "warning" : "lock", ui::Tone::Warning,
+            lines.empty() ? 460.f : 600.f};
+  }
+  bool draw(App& a) override {
+    if (!lock.empty()) ui::text(lock, ui::Font::Body, ui::Ink::Dim);
+    linesCard(lines);
+    ui::ModalFooter f;
+    if (!lines.empty() && ui::button("Скопировать", {.icon = "copy"})) {
+      platform::setClipboardText(join(lines, "\n"));
+      a.toast("Скопировано", ToastKind::Success, "copy");
+    }
+    if (!restore.empty()) {
+      if (ui::button("Восстановить из копии", {.icon = "history", .tooltip = "Последние целые версии из " + std::string(io::kBackupDir) + ": " +
+                                                                        join(restore, ", ")})) {
+        later(a, [p = path, files = restore, g = maxGen](App& x) { restoreFromBackups(x, p, files, g); });
+        return false;
+      }
+      a.markUi("fixes.restore");
+    }
+    if (canSave) {
+      if (ui::button("Позже")) return false;
+      a.markUi("fixes.later");
+      if (ui::button("Сохранить исправления", {.variant = ui::Variant::Primary, .icon = "save", .isDefault = true})) {
+        later(a, [p = path](App& x) {
+          if (x.projectPath() == p) x.saveTo(p);
+        });
+        return false;
+      }
+      a.markUi("fixes.save");
+      return true;
+    }
+    if (ui::button("Понятно", {.variant = ui::Variant::Primary, .isDefault = true})) return false;
+    a.markUi("dialog.ok");
+    return true;
+  }
+};
+
+// Окно после чтения: restore — файлы, у которых есть целая резервная копия (поколение не новее maxGen).
+void openLoadReport(App& a, const io::Warnings& warnings, std::vector<std::string> restore, u64 maxGen) {
+  App::Impl& d = a.impl();
+  auto dlg = std::make_unique<LoadReport>();
+  dlg->path = d.path;
+  dlg->lock = d.lock;
+  dlg->lines = warningLines(warnings);
+  dlg->restore = std::move(restore);
+  dlg->maxGen = maxGen;
+  dlg->canSave = !d.path.empty() && d.lock.empty() && d.fixedTables != 0;
+  a.openDialog(std::move(dlg));
+}
+
+// ---------------------------------------------------------------- слияние с изменениями на диске
+struct MergeReport : Dialog {
+  std::string summary;
+  std::vector<std::string> lines;
+  bool conflicts = false;
+  const char* id() const override { return "merge"; }
+  Style style(App&) override { return {"Мир объединён с изменениями на диске", "merge", conflicts ? ui::Tone::Warning : ui::Tone::Success, 600}; }
+  bool draw(App& a) override {
+    ui::label(summary, {.font = ui::Font::Strong});
+    a.markUi("merge.summary");
+    linesCard(lines);
+    ui::ModalFooter f;
+    if (!lines.empty() && ui::button("Скопировать", {.icon = "copy"})) {
+      platform::setClipboardText(join(lines, "\n"));
+      a.toast("Скопировано", ToastKind::Success, "copy");
+    }
+    if (ui::button("Понятно", {.variant = ui::Variant::Primary, .isDefault = true})) return false;
+    a.markUi("dialog.ok");
+    return true;
+  }
+};
+
+void openMergeReport(App& a, const io::MergeResult& m) {
+  auto dlg = std::make_unique<MergeReport>();
+  std::vector<std::string> parts{"С диска — " + std::to_string(m.taken.size())};
+  if (!m.conflicts.empty()) parts.push_back("конфликтов — " + std::to_string(m.conflicts.size()));
+  if (!m.renamed.empty()) parts.push_back("новых ID — " + std::to_string(m.renamed.size()));
+  if (!m.fixes.empty()) parts.push_back("исправлений — " + std::to_string(m.fixes.size()));
+  dlg->summary = join(parts, " · ");
+  dlg->conflicts = !m.conflicts.empty();
+  // Сначала конфликты (оставлена наша версия), затем новые ID, принятое с диска и исправления.
+  io::Warnings all = m.conflicts;
+  all.insert(all.end(), m.renamed.begin(), m.renamed.end());
+  all.insert(all.end(), m.taken.begin(), m.taken.end());
+  all.insert(all.end(), m.fixes.begin(), m.fixes.end());
+  dlg->lines = warningLines(all, 300);
+  a.openDialog(std::move(dlg));
+}
+
+// Выделение на записи, получившей при слиянии новый ID, — на новый ID.
+void remapSelection(App& a, const std::vector<std::pair<std::string, std::string>>& ids) {
+  if (ids.empty() || !a.ui.sel) return;
+  Seq s;
+  switch (a.ui.sel.type) {
+    case SelType::Province: s = Seq::Province; break;
+    case SelType::Faction: s = Seq::Faction; break;
+    case SelType::Army: s = Seq::Army; break;
+    case SelType::Route: s = Seq::Route; break;
+    case SelType::Character: s = Seq::Character; break;
+    default: return;
+  }
+  const std::string prefix = schema::idPrefix(s);
+  const std::string ref = prefix + std::to_string(a.ui.sel.id);
+  for (const auto& [from, to] : ids)
+    if (from == ref && startsWith(to, prefix)) {
+      a.ui.sel.id = Id(std::strtoul(to.c_str() + prefix.size(), nullptr, 10));
+      return;
+    }
+}
+
+// Слить мир на диске с текущим (база — мир при открытии или последнем сохранении): изменения другой сессии входят в
+// мир одной транзакцией, отпечатки файлов и база — от прочитанной версии, итог — окном. false — слияние невозможно:
+// файлы на диске не читаются или мир на диске только для чтения (смешан, нет файлов, новее программы).
+bool mergeDisk(App& a) {
+  App::Impl& d = a.impl();
+  if (d.path.empty()) return false;
+  io::FileStamp stamp = d.bundle ? io::stampFile(d.path) : io::FileStamp{};
+  io::LoadResult theirs;
+  io::MergeResult m;
+  try {
+    theirs = io::load(d.path);
+    if (!theirs.readOnly.empty() || !theirs.mixed.empty()) return false;
+    m = io::merge3(d.base, a.store.world(), theirs.world);
+  } catch (const std::exception& e) {
+    logWarn("Слияние с миром на диске невозможно: %s", e.what());
+    return false;
+  }
+  a.store.transact("Слияние с изменениями на диске", [&](Tx& tx) { tx.replaceWorld(m.world); });
+  d.base = theirs.world;
+  if (d.bundle) d.bundleStamp = stamp;
+  else d.files = std::move(theirs.files);
+  // Мир на диске цел (иначе слияния нет): запрет записи из-за пропавших файлов снимается; исправления нормализации
+  // слитого мира без согласия автосохранение не пишет.
+  d.lock.clear();
+  d.fixedTables |= tablesOf(m.fixes);
+  d.ackExternal.clear();
+  d.seenExternal.clear();
+  d.forceTables = 0;
+  d.overwriteExternal = false;
+  d.diskHist.reset();   // история на диске могла пополниться (другая сессия завершила ход)
+  remapSelection(a, m.ids);
+  openMergeReport(a, m);
+  return true;
 }
 
 // Автосохранение (данные пользователя) новее последнего сохранения мира на диске (meta.updatedAt; если его
@@ -91,7 +291,9 @@ bool autosaveNewer(const io::AutosaveInfo& info, const std::string& savedIso, co
 // Внешние изменения, о которых пользователь ещё не решал: файлы папки или сам архив .regnum.
 std::string changedPath(const App::Impl& d, const io::ExternalChange& c) { return d.bundle ? d.path : fs::join(d.path, c.file); }
 
-std::vector<io::ExternalChange> freshChanges(App& a) {
+// forSave — для сохранения: изменения, о которых спросили и окно закрыли без решения (seenExternal), тоже в счёт —
+// они сливаются с миром; при возврате фокуса о них не спрашивают снова.
+std::vector<io::ExternalChange> freshChanges(App& a, bool forSave = false) {
   App::Impl& d = a.impl();
   std::vector<io::ExternalChange> ch, fresh;
   if (d.path.empty()) return fresh;
@@ -115,6 +317,8 @@ std::vector<io::ExternalChange> freshChanges(App& a) {
     i64 mt = fs::mtime(changedPath(d, c)).value_or(-1);
     auto it = d.ackExternal.find(c.file);
     if (it != d.ackExternal.end() && it->second == mt) continue;
+    auto seen = d.seenExternal.find(c.file);
+    if (!forSave && seen != d.seenExternal.end() && seen->second == mt) continue;
     fresh.push_back(c);
   }
   return fresh;
@@ -194,18 +398,27 @@ std::string uniqueFolder(const std::string& parent, const std::string& name) {
 
 // Сохранение: мир, затем история ходов — несохранённые снимки из памяти (время создания сохраняется) и ветвь.
 // В другое место (не текущий мир): история — только прежнего пути этого мира, чужая история места удаляется.
-// quiet — автосохранение в папку мира: внешние изменения не затираются, а показываются.
-bool saveImpl(App& a, const std::string& target, bool quiet) {
+// quiet — автосохранение в папку мира: внешние изменения не затираются, а показываются. Ручное сохранение при
+// изменениях на диске сначала сливает их с миром (mergeFirst; совместная работа сессий), слить нельзя — выбор.
+bool saveImpl(App& a, const std::string& target, bool quiet, bool mergeFirst = true) {
   App::Impl& d = a.impl();
   std::string path = fs::absolute(target);
   bool bundle = io::isBundlePath(path);
   bool same = path == d.path && bundle == d.bundle;
   std::string prevPath = d.path;
+  if (same && !d.lock.empty()) {   // мир только для чтения: на место не пишется (копия — «Сохранить как»)
+    if (!quiet) a.toast("Мир открыт только для чтения: " + d.lock, ToastKind::Warning, "lock");
+    return false;
+  }
   if (same) {
-    std::vector<io::ExternalChange> conflicts = freshChanges(a);
+    std::vector<io::ExternalChange> conflicts = freshChanges(a, true);
     if (!conflicts.empty()) {
-      if (quiet) a.checkExternalChanges();
-      else askSaveConflict(a, std::move(conflicts));
+      if (quiet) {
+        a.checkExternalChanges();
+        return false;
+      }
+      if (mergeFirst && mergeDisk(a)) return saveImpl(a, target, quiet, false);
+      askSaveConflict(a, std::move(conflicts));
       return false;
     }
   }
@@ -260,12 +473,15 @@ bool saveImpl(App& a, const std::string& target, bool quiet) {
     return false;
   }
   a.store.markSaved();
+  d.base = a.store.world();   // база слияния — записанный мир
+  if (!same) d.lock.clear();  // копия мира только для чтения — уже свой мир в новом месте
   bool wasNew = prevPath.empty();
   d.path = path;
   d.bundle = bundle;
   d.fixedTables = d.forceTables = 0;
   d.overwriteExternal = false;
   d.ackExternal.clear();
+  d.seenExternal.clear();
   d.folderAutosaveBlocked = false;
   (quiet ? d.autosavedAt : d.savedAt) = a.store.world().meta->updatedAt;
   d.autosaveVersion = a.store.version();
@@ -310,6 +526,8 @@ bool App::loadProject(const std::string& pathIn) {
   d.files = std::move(r.files);
   d.fixedTables = r.fixedTables;
   d.savedAt = r.world.meta->updatedAt;
+  d.base = r.world;
+  d.lock = r.readOnly;
   lastReport_.reset();
   closeDialogs();
   ui.viewTurn.reset();
@@ -320,13 +538,14 @@ bool App::loadProject(const std::string& pathIn) {
   turnui::syncHistory(*this);
   io::addRecent(path, worldTitle(), d.dataDir);
   d.recentDirty = true;
-  if (!r.warnings.empty()) {
-    std::vector<std::string> lines;
-    for (size_t i = 0; i < r.warnings.size() && i < 200; i++) lines.push_back(r.warnings[i].text());
-    if (r.warnings.size() > 200) lines.push_back("… и ещё " + std::to_string(r.warnings.size() - 200));
-    message("Мир открыт с исправлениями",
-            "Некоторые значения были вне допустимых пределов или ссылались на удалённые записи. Исправления попадут в файлы при сохранении.",
-            std::move(lines), ToastKind::Warning);
+  if (!r.warnings.empty() || !d.lock.empty()) {
+    // Пропавшие и смешанные файлы, у которых есть целая резервная копия (не новее world.json).
+    std::vector<std::string> restore;
+    if (!d.bundle)
+      for (const std::vector<std::string>* list : {&r.missing, &r.mixed})
+        for (const std::string& f : *list)
+          if (io::latestBackup(path, f, r.generation)) restore.push_back(f);
+    openLoadReport(*this, r.warnings, std::move(restore), r.generation);
   }
   // Автосохранение этого проекта новее последнего сохранения мира — предложить восстановить.
   for (const io::AutosaveInfo& info : io::listAutosaves(d.dataDir)) {
@@ -426,9 +645,15 @@ bool App::save() {
     saveAs();
     return false;
   }
-  // Мир не изменён, но есть несохранённые снимки ходов (например, возврат к сохранённому ходу) — записать и их.
+  if (!d.lock.empty()) {   // мир только для чтения: вместо записи на место — копия
+    toast("Мир открыт только для чтения — сохраните копию", ToastKind::Warning, "lock");
+    saveAs();
+    return false;
+  }
+  // Мир не изменён, но есть несохранённые снимки ходов (например, возврат к сохранённому ходу) — записать и их;
+  // исправления нормализации при чтении — тоже (обычное сохранение — согласие их записать).
   bool pendingHistory = std::any_of(d.memSnaps.begin(), d.memSnaps.end(), [](const MemSnapshot& m) { return m.kind != io::kSnapStart; });
-  if (!dirty() && io::isProject(d.path) && !pendingHistory) {
+  if (!dirty() && d.fixedTables == 0 && io::isProject(d.path) && !pendingHistory) {
     toast("Всё уже сохранено", ToastKind::Info, "check");
     if (d.afterSave) {
       auto fn = std::move(d.afterSave);
@@ -504,21 +729,38 @@ void App::checkExternalChanges() {
     bool draw(App& a) override {
       ui::text(text, ui::Font::Body, ui::Ink::Dim);
       ui::ModalFooter f;
+      // Несохранённая работа есть — изменения с диска можно слить с ней (совместная работа сессий).
+      const bool canMerge = a.dirty() && a.projectPath() == path;
       if (ui::button("Оставить мои")) {
         keep(a);
         a.toast("При сохранении файлы на диске будут заменены вашей версией", ToastKind::Info, "save");
         return false;
       }
       a.markUi("external.keep");
-      if (ui::button("Перечитать с диска", {.variant = ui::Variant::Primary, .icon = "refresh", .isDefault = true})) {
+      if (ui::button("Перечитать с диска", {.variant = canMerge ? ui::Variant::Secondary : ui::Variant::Primary, .icon = "refresh",
+                                            .isDefault = !canMerge})) {
         std::string p = path;
         later(a, [p](App& x) { x.loadProject(p); });
         return false;
       }
       a.markUi("external.reload");
+      if (canMerge && ui::button("Объединить", {.variant = ui::Variant::Primary, .icon = "merge", .isDefault = true,
+                                                .tooltip = "Изменения с диска — в ваш мир; записи, изменённые обеими сторонами, — ваши"})) {
+        std::string p = path;
+        later(a, [p](App& x) {
+          if (x.projectPath() == p && !mergeDisk(x)) x.toast("Объединить нельзя: файлы мира на диске не читаются", ToastKind::Warning, "warning");
+        });
+        return false;
+      }
+      if (canMerge) a.markUi("external.merge");
       return true;
     }
-    void dismissed(App& a) override { keep(a); }
+    // Закрыто без решения: о тех же изменениях не спрашивать снова, а при сохранении — слить их с миром.
+    void dismissed(App& a) override {
+      if (a.projectPath() != path) return;
+      App::Impl& d = a.impl();
+      for (auto& c : changes) d.seenExternal[c.file] = fs::mtime(changedPath(d, c)).value_or(-1);
+    }
   };
   auto dlg = std::make_unique<Ext>();
   dlg->text = std::move(text);
@@ -533,10 +775,14 @@ void App::autosaveNow() {
   if (ui.screen != Screen::Editor) return;
   d.lastAutosave = time_;
   d.autosaveVersion = store.version();
+  if (!d.lock.empty()) return;   // мир только для чтения: ни папка мира, ни копия для восстановления
   // Автосохранение в папку мира — обычное сохранение (с историей ходов): копия в данных пользователя не нужна.
-  // Не вышло (ошибка записи, внешние изменения) — копия для восстановления после сбоя.
+  // Не вышло (ошибка записи, внешние изменения) — копия для восстановления после сбоя. Исправления нормализации
+  // (fixedTables) без согласия пользователя в папку мира не пишутся — только копия.
   const Settings& s = *store.world().settings;
-  if (s.autosaveFolder && !d.path.empty() && !d.folderAutosaveBlocked && store.dirty() && !readOnly() && saveImpl(*this, d.path, true)) return;
+  if (s.autosaveFolder && !d.path.empty() && !d.folderAutosaveBlocked && d.fixedTables == 0 && store.dirty() && !readOnly() &&
+      saveImpl(*this, d.path, true))
+    return;
   if (!d.autosaveJob.valid()) {
     World w = store.world();
     std::string proj = d.path, dir = d.dataDir;
@@ -713,6 +959,9 @@ void restoreAutosave(App& a, const io::AutosaveInfo& info) {
     // Файлы проекта — сохранённое состояние, автосохранение — несохранённые изменения поверх него.
     a.closeDialogs();
     a.store.replace(std::move(as->world), "Восстановить автосохранение", false);
+    // Восстановленный мир целый: запрет записи из-за пропавших файлов снимается (они запишутся заново); мир новее
+    // этой версии программы остаётся только для чтения.
+    d.lock = as->readOnly;
     d.fitPending = true;
     // Ветвь и начало хода — для восстановленного мира (его ход может быть новее сохранённого).
     d.memSnaps.clear();
@@ -723,7 +972,14 @@ void restoreAutosave(App& a, const io::AutosaveInfo& info) {
   }
   d.recoveryDirty = true;
   a.toast("Несохранённая работа восстановлена", ToastKind::Success, "history");
+  // Исправления нормализации автосохранения — тем же окном; без согласия автосохранение их не пишет.
+  if (!as->warnings.empty()) {
+    d.fixedTables |= tablesOf(as->warnings);
+    showFixes(a, as->warnings);
+  }
 }
+
+void showFixes(App& a, const io::Warnings& warnings) { openLoadReport(a, warnings, {}, 0); }
 
 // ================================================================ выбор пути
 void pickPath(App& a, BrowseMode mode, std::string title, std::string startDir, std::function<void(App&, const std::string&)> onPick,

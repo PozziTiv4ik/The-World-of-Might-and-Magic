@@ -84,6 +84,7 @@ DealCheck validateDeal(const World& w, const Deal& d) {
   if (d.a == 0 || d.b == 0) bad("Не выбрана сторона сделки");
   else if (!w.faction(d.a) || !w.faction(d.b)) bad("Сторона сделки не найдена");
   else if (d.a == d.b) bad("Стороны сделки совпадают");
+  else if (w.relation(d.a, d.b).s == RelStatus::War) bad(facName(w, d.a) + " и " + facName(w, d.b) + " в войне: сделки невозможны");
   if (d.items.empty()) bad("В сделке нет ни одной позиции");
   std::map<std::pair<Id, Id>, double> once;  // (плательщик, ресурс) -> сумма разовых позиций
   std::vector<Id> seenRefs;
@@ -143,17 +144,28 @@ DealCheck validateDeal(const World& w, const Deal& d) {
 
 Id concludeDeal(Tx& tx, Deal d) { return conclude(tx, std::move(d), true); }
 
-void cancelDeal(Tx& tx, Id deal) {
+void cancelDeal(Tx& tx, Id deal, Id by) {
   const Deal* d = tx.w().deal(deal);
   if (!d) fail(deal ? "Сделка не найдена" : "Не выбрана сделка");
   if (d->status == DealStatus::Done) fail("Сделка уже выполнена");
   if (d->status == DealStatus::Cancelled) fail("Сделка уже расторгнута");
   DealKind kind = d->kind;
   Id a = d->a, b = d->b;
+  if (by) {
+    if (by != a && by != b) fail(facName(tx.w(), by) + " — не сторона сделки");
+    if (kind != DealKind::Trade && by != a)
+      fail(std::string(kind == DealKind::Tribute ? "Дань" : "Репарации") + " отменяет только получатель — " + facName(tx.w(), a));
+  }
   tx.deal(deal).status = DealStatus::Cancelled;
   std::string text = kind == DealKind::Trade ? "Расторгнута сделка " + facName(tx.w(), a) + " и " + facName(tx.w(), b)
                                              : std::string(kind == DealKind::Tribute ? "Отменена дань: " : "Отменены репарации: ") +
                                                    facName(tx.w(), b) + " больше не платит " + facName(tx.w(), a);
+  // Сторона, расторгнувшая сделку, теряет доверие другой стороны.
+  if (by && kind == DealKind::Trade) {
+    const double d = constantOf(tx.w(), schema::cst::DealBreak).num;
+    if (std::isfinite(d) && d != 0) shiftRelation(tx, a, b, d);
+    text += " (расторгло " + facName(tx.w(), by) + ")";
+  }
   addLog(tx, kind == DealKind::Trade ? LogKind::Trade : LogKind::Diplomacy, text, LogRefs{0, 0, {a, b}});
 }
 
@@ -176,6 +188,23 @@ Id imposeTribute(Tx& tx, DealKind kind, Id receiver, Id payer, double amountPerT
              amount(amountPerTurn) + " тыс. золота за ход, " + nTurns(turns),
          LogRefs{0, 0, {receiver, payer}});
   return id;
+}
+
+void cancelWarDeals(Tx& tx, Id a, Id b) {
+  std::vector<std::string> parts;
+  for (Id did : idsWhere(tx.w().deals, [&](const Deal& d) {
+         return d.status == DealStatus::Active && ((d.a == a && d.b == b) || (d.a == b && d.b == a));
+       })) {
+    const Deal& d = *tx.w().deal(did);
+    switch (d.kind) {
+      case DealKind::Tribute: parts.push_back("дань (" + facName(tx.w(), d.b) + " платит " + facName(tx.w(), d.a) + ")"); break;
+      case DealKind::Reparations: parts.push_back("репарации (" + facName(tx.w(), d.b) + " платит " + facName(tx.w(), d.a) + ")"); break;
+      case DealKind::Trade: parts.push_back("сделка «каждый ход»"); break;
+    }
+    tx.deal(did).status = DealStatus::Cancelled;
+  }
+  if (parts.empty()) return;
+  addLog(tx, LogKind::Diplomacy, "Война " + facName(tx.w(), a) + " и " + facName(tx.w(), b) + " расторгла: " + join(parts, ", "), LogRefs{0, 0, {a, b}});
 }
 
 }  // namespace rg::rules

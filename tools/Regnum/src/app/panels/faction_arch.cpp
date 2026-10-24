@@ -9,6 +9,7 @@
 // правка мира (canEdit).
 #include "app/common/relics.h"
 #include "app/panels/arch_common.h"
+#include "app/panels/decisions.h"
 #include "app/panels/faction_common.h"
 
 namespace rg::app {
@@ -349,7 +350,7 @@ void provincesSection(App& a, const World& w, const Faction& f, bool ro, bool wi
 void drawArch(App& a, Id fid) {
   const World& w = fac::frameWorld(a);
   const Faction* f = w.faction(fid);
-  if (!f || !f->isState()) return;
+  if (!f || !f->isState() || w::hiddenFor(a, fid)) return;   // туман войны: группы, реликвии и раскопки чужого скрыты
   ui::IdScope scope("arch");
   const bool ro = !a.canPlay(fid);   // задания и группы — игровые действия за государство
   const float aw = ui::avail().w;
@@ -374,7 +375,7 @@ void drawArch(App& a, Id fid) {
   }
 }
 
-TabReg tab({kTabFaction, "pickaxe", "Археология", 62, SelType::Faction, fac::isState, drawArch, nullptr, true});
+TabReg tab({kTabFaction, "pickaxe", "Археология", 62, SelType::Faction, fac::isState, drawArch, decisions::archDangerBadge, true});
 
 }  // namespace
 }  // namespace rg::app

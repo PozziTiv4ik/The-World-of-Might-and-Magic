@@ -26,7 +26,9 @@ void newHero(App& a, Id id) {
   a.toast("Добавлен новый герой", ToastKind::Success, "hero", "Открыть", [cid](App& x) { x.select(SelType::Character, cid); });
 }
 
-// Пленники государства (ТЗ «Механика героев», п.1.3): чужие герои, взятые в плен, и их государства.
+// Пленники государства (ТЗ «Механика героев», п.1.3): чужие герои, взятые в плен, и их государства; «Отпустить»
+// (rules::releaseCaptive) и «Казнить» с подтверждением (rules::executeCaptive, захоронение — столица пленившего) —
+// игровые действия пленившего государства; обмен пленными — сделкой.
 void captivesSection(App& a, const World& w, Id id) {
   std::vector<Id> list = rules::captivesOf(w, id);
   if (list.empty()) return;
@@ -34,15 +36,30 @@ void captivesSection(App& a, const World& w, Id id) {
   ui::Section sec("Пленники", "shackles", {.badge = std::to_string(list.size())});
   a.markUi("captives.section");
   if (!sec) return;
+  const bool play = a.canPlay(id);
+  const Faction* f = w.faction(id);
+  const Id burial = f && w.province(f->capital) ? f->capital : 0;
   for (Id cid : list) {
     const Character* c = w.character(cid);
     if (!c) continue;
     ui::IdScope sc{i64(cid)};
-    ui::Row row({ui::px(32), ui::fr(1), ui::fr(1), ui::px(26)}, 36, 8);
+    const ui::Len cols[] = {ui::px(32), ui::fr(1), ui::fr(1), ui::px(26), ui::px(26), ui::px(26)};
+    ui::Row row(std::span<const ui::Len>(cols, play ? 6 : 4), 36, 8);
     ui::avatar(charName(*c), {.image = portraitOf(*c), .size = 28});
     ui::label(charName(*c), {.font = ui::Font::Strong, .tooltip = c->title.empty() ? std::string_view("Пленник") : std::string_view(c->title)});
     if (c->faction) w::factionChip(c->faction);
     else ui::label("Без фракции", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
+    if (play) {
+      const std::string nm = charName(*c);
+      if (ui::iconButton("unlock", "Отпустить", {.size = ui::Size::Small})) {
+        if (a.play("Отпустить пленника", [&](Tx& tx) { rules::releaseCaptive(tx, cid); })) a.toast("«" + nm + "» отпущен", ToastKind::Info, "unlock");
+      }
+      a.markUi("captives.release." + std::to_string(cid));
+      if (ui::iconButton("skull", "Казнить", {.size = ui::Size::Small, .tone = ui::Tone::Danger}))
+        a.confirmPlay("Казнить «" + nm + "»?", c->faction ? "Отношения с «" + w.factionName(c->faction) + "» ухудшатся." : std::string(), "Казнить",
+                      "Казнить пленника", [cid, burial](Tx& tx) { rules::executeCaptive(tx, cid, burial); });
+      a.markUi("captives.execute." + std::to_string(cid));
+    }
     if (ui::iconButton("arrow-right", "Открыть персонажа", {.size = ui::Size::Small})) a.select(SelType::Character, cid);
     a.markUi("captives.row." + std::to_string(cid));
   }
@@ -54,6 +71,7 @@ void drawHeroes(App& a, Id id) {
   if (!f) return;
   const ui::Theme& th = ui::theme();
   const bool ro = !a.canEdit(), play = a.canPlay(id);   // состав героев и содержание — правка мира; воскрешение — игра
+  const bool known = a.knows(id);   // туман войны: содержание и инвентари героев чужого государства скрыты
   std::vector<const Character*> heroes, candidates;
   w.characters.each([&](const Character& c) {
     if (c.faction == id && c.hero) heroes.push_back(&c);
@@ -80,7 +98,8 @@ void drawHeroes(App& a, Id id) {
     if (captive) tip += "\nВ плену: " + std::to_string(captive);
     if (arrested) tip += "\nПод арестом: " + std::to_string(arrested);
     ui::stat(fmtInt(i64(heroes.size())), plural(i64(heroes.size()), "герой", "героя", "героев"), {.icon = "hero", .tone = ui::Tone::Accent, .tooltip = tip});
-    ui::stat(fmtGold(upkeep), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Входит в расход «специалисты»"});
+    if (known) ui::stat(fmtGold(upkeep), "Содержание за ход", {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Входит в расход «специалисты»"});
+    else w::hiddenStat("Содержание за ход");
   }
   ui::spacer(2);
   {
@@ -101,6 +120,7 @@ void drawHeroes(App& a, Id id) {
         t.sort([&](int x, int y, int col) {
           const Character& A = *heroes[size_t(x)];
           const Character& B = *heroes[size_t(y)];
+          if (!known && (col == 1 || col == 3)) return compareRu(A.name, B.name);   // скрытое не упорядочивает
           if (col == 1) return A.upkeep < B.upkeep ? -1 : A.upkeep > B.upkeep ? 1 : 0;
           if (col == 2) return int(armyOfCharacter(w, A.id) != 0 || rules::heroGarrison(w, A.id) != 0) - int(armyOfCharacter(w, B.id) != 0 || rules::heroGarrison(w, B.id) != 0);
           if (col == 3) return relicsOf(A) < relicsOf(B) ? -1 : relicsOf(A) > relicsOf(B) ? 1 : 0;
@@ -130,10 +150,14 @@ void drawHeroes(App& a, Id id) {
             else
               ui::label(c.title.empty() ? std::string("Без титула") : c.title, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
           }
-          t.cell();
-          double up = c.upkeep;
-          if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = "тыс.", .disabled = ro, .tooltip = "Содержание за ход"}))
-            a.act("Содержание героя", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "hero.upkeep:" + std::to_string(cid)});
+          if (known) {
+            t.cell();
+            double up = c.upkeep;
+            if (ui::numberField("upkeep", up, {.min = 0, .max = 1e9, .step = 1, .digits = 3, .unit = "тыс.", .disabled = ro, .tooltip = "Содержание за ход"}))
+              a.act("Содержание героя", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "hero.upkeep:" + std::to_string(cid)});
+          } else {
+            t.text(w::kHidden, ui::Ink::Muted, ui::Font::Small);
+          }
           if (Id army = armyOfCharacter(w, cid)) {
             t.cell();
             const Army* ar = w.army(army);
@@ -155,7 +179,9 @@ void drawHeroes(App& a, Id id) {
           }
           // Реликвии инвентаря: значки до трёх старших стопок и число штук; в подсказке — стопки «× N» с редкостью;
           // щелчок — персонаж (инвентарь).
-          if (const i64 nr = relicsOf(c)) {
+          if (!known) {
+            t.text(w::kHidden, ui::Ink::Muted, ui::Font::Small);
+          } else if (const i64 nr = relicsOf(c)) {
             const RectF cell = t.cell();
             const std::vector<RelicStack> stacks = relics::sorted(w, c.inventory);
             std::vector<std::string> names;
@@ -195,7 +221,7 @@ void drawHeroes(App& a, Id id) {
             a.markUi("heroes.remove." + std::to_string(i));
           }
         }
-        if (t.footer()) {
+        if (known && t.footer()) {
           i64 pieces = 0;
           for (const Character* c : heroes) pieces += relicsOf(*c);
           t.text("Итого");

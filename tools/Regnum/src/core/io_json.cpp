@@ -26,6 +26,7 @@ const FileDef kFiles[F_COUNT] = {
   {"data/log.json", "log", TB_LOG},
   {"data/constants.json", "constants", TB_CONSTANTS, true},
   {"data/plots.json", "plots", TB_PLOTS, true},
+  {"data/proposals.json", "proposals", TB_PROPOSALS, true},
   {"world.json", "", TB_META | TB_SETTINGS},
 };
 
@@ -50,6 +51,7 @@ const EnumInfo kDealStatusE[3] = {{"active", "", ""}, {"done", "", ""}, {"cancel
 const EnumInfo kSymbolKindE[4] = {{"mountain", "", ""}, {"peak", "", ""}, {"castle", "", ""}, {"tower", "", ""}};
 const EnumInfo kShapeKindE[4] = {{"water", "", ""}, {"islet", "", ""}, {"wall", "", ""}, {"river", "", ""}};
 const EnumInfo kRarityE[5] = {{"common", "", ""}, {"rare", "", ""}, {"epic", "", ""}, {"legendary", "", ""}, {"epochal", "", ""}};
+const EnumInfo kTurnEventE[3] = {{"uprising", "", ""}, {"mutiny", "", ""}, {"rebelWar", "", ""}};
 
 std::string enumChoices(Enum e) {
   std::string s;

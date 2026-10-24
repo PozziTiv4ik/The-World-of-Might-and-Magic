@@ -294,6 +294,20 @@ function Read-RegistryJson {
 }
 
 $validPriorities = @('критический', 'высокий', 'средний', 'низкий')
+$validAttention = @('current', 'awaiting_evidence', 'background')
+
+# Scene IDs of the entity registry: decisions point at existing, not merged scenes.
+$sceneIdSet = $null
+$graphPath = Join-Path $root '09_Реестры\Сущности.json'
+if (Test-Path -LiteralPath $graphPath) {
+    try {
+        $sceneIdSet = @{}
+        foreach ($entity in @((Read-WmmaJson $graphPath).entities | Where-Object { $_.type -eq 'scene' -and -not $_.merged_into })) { $sceneIdSet[$entity.id] = $true }
+    } catch {
+        Add-Problem Error "Entity registry is not valid JSON: $($_.Exception.Message)"
+        $sceneIdSet = $null
+    }
+}
 
 $decisionCount = 0
 $questionCount = 0
@@ -358,6 +372,22 @@ if ($null -ne $decisionRegistry) {
             Assert-AllowedValue -Object $decision -Field 'panel_status' -Allowed @('active', 'waiting', 'later') -Context $context
         }
 
+        # Every decision keeps scene_ids; a pending decision names at least one scene.
+        if (-not (Test-HasProperty -Object $decision -Name 'scene_ids')) {
+            Add-Problem Error "$context has no required array: scene_ids"
+        } else {
+            $decisionScenes = @((Get-PropertyValue -Object $decision -Name 'scene_ids') | Where-Object { -not (Test-IsBlank $_) })
+            if ($state -eq 'pending' -and $decisionScenes.Count -eq 0) {
+                Add-Problem Error "$context is pending but has no scene_ids."
+            }
+
+            foreach ($sceneId in $decisionScenes) {
+                if ($null -ne $sceneIdSet -and -not $sceneIdSet.ContainsKey([string]$sceneId)) {
+                    Add-Problem Error "$context points to an unknown or merged scene: $sceneId"
+                }
+            }
+        }
+
         Assert-LinkText -Object $decision -Field 'links' -Context $context
     }
 
@@ -405,6 +435,30 @@ if ($null -ne $questionRegistry) {
 
         if ($status -eq 'resolved') {
             $resolvedQuestionIds += $id
+        }
+
+        # The chapter of opening is kept on every question (null only for old world questions);
+        # an open question carries its attention queue and the condition it waits for.
+        if (-not (Test-HasProperty -Object $question -Name 'opened_in_chapter')) {
+            Add-Problem Error "$context has no required field: opened_in_chapter"
+        } else {
+            $opened = Get-PropertyValue -Object $question -Name 'opened_in_chapter'
+            if ($null -ne $opened) {
+                if ([string]$opened -notmatch '^[1-9]\d*$') {
+                    Add-Problem Error "$context has invalid opened_in_chapter: $opened"
+                } elseif ($id -match '^Q-C(\d+)-' -and [int]$Matches[1] -ne [int]$opened) {
+                    Add-Problem Error "$context opened_in_chapter $opened does not match its chapter ID."
+                }
+            } elseif ($id -match '^Q-C\d+-') {
+                Add-Problem Error "$context has empty opened_in_chapter."
+            }
+        }
+
+        if ($status -ne 'resolved') {
+            Assert-AllowedValue -Object $question -Field 'attention' -Allowed $validAttention -Context $context
+            foreach ($field in @('attention_reason', 'waiting_for')) {
+                Assert-RequiredTextField -Object $question -Field $field -Context $context
+            }
         }
     }
 
@@ -612,6 +666,43 @@ if ($null -ne $frontRegistry) {
     }
 
     Assert-UniqueValues -Values $timerKeys -Context 'Front registry timer keys'
+}
+
+# Check dictionaries: character statuses and stale context markers (schema and meaning).
+$dictionarySchema = Join-Path $root '09_Реестры\Схемы\Справочники.schema.json'
+foreach ($dictionaryName in @('Статусы_персонажей', 'Маркеры_контекста')) {
+    $dictionaryPath = Join-Path $root "09_Реестры\$dictionaryName.json"
+    if (-not (Test-Path -LiteralPath $dictionaryPath)) {
+        Add-Problem Error "Registry file is missing: 09_Реестры/$dictionaryName.json"
+        continue
+    }
+
+    try {
+        [void](Test-Json -Json (Read-WmmaText $dictionaryPath) -SchemaFile $dictionarySchema -ErrorAction Stop)
+    } catch {
+        Add-Problem Error "Schema mismatch: $dictionaryName — $($_.Exception.Message)"
+        continue
+    }
+
+    $dictionary = Read-WmmaJson $dictionaryPath
+    if ($dictionary.type -eq 'character_status_dictionary') {
+        $values = @($dictionary.statuses | ForEach-Object { [string]$_.value })
+        Assert-UniqueValues -Values $values -Context 'Character status dictionary'
+        foreach ($synonym in @($dictionary.synonyms.PSObject.Properties)) {
+            if ($values -contains $synonym.Name) { Add-Problem Error "Character status synonym is also a status: $($synonym.Name)" }
+            if ($values -notcontains [string]$synonym.Value) { Add-Problem Error "Character status synonym points to an unknown status: $($synonym.Name) -> $($synonym.Value)" }
+        }
+    } else {
+        Assert-UniqueValues -Values @($dictionary.markers | ForEach-Object { [string]$_.id }) -Context 'Stale context markers'
+        foreach ($marker in @($dictionary.markers)) {
+            try { [void][regex]::new([string]$marker.pattern) } catch { Add-Problem Error "Stale context marker has an invalid pattern: $($marker.id)" }
+            foreach ($basis in @($marker.basis_ids | Where-Object { $_ })) {
+                if ($null -ne $decisionRegistry -and @($decisionRegistry.decisions | Where-Object { $_.id -eq $basis }).Count -eq 0) {
+                    Add-Problem Error "Stale context marker $($marker.id) names an unknown decision: $basis"
+                }
+            }
+        }
+    }
 }
 
 $summary = [pscustomobject]@{

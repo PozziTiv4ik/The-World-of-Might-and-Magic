@@ -25,7 +25,12 @@ void drawTab(App& a, Id fid) {
   const rules::FactionCalc* fc = c->faction(fid);
   double trade = fc ? fc->incTrade - fc->expTrade : 0;
   double trib = fc ? fc->incTribute - fc->expTribute : 0;
-  {
+  const bool known = a.knows(fid);   // туман войны: доходы чужой фракции скрыты
+  if (!known) {
+    ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
+    w::hiddenStat("Торговля за ход");
+    w::hiddenStat("Дань за ход");
+  } else {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
     // Золото: 1 единица = 1 тыс. золотых.
     std::string tt = fc ? "Поступления " + turnui::money(fc->incTrade) + " тыс., выплаты " + turnui::money(fc->expTrade) + " тыс." : std::string();
@@ -43,6 +48,8 @@ void drawTab(App& a, Id fid) {
     a.markUi("faction.trade.tribute");
   }
   std::vector<const Deal*> all = trade::dealsOf(w, fid);
+  // Туман войны: сделки, в которых игрок не знает ни одной стороны, скрыты.
+  std::erase_if(all, [&](const Deal* d) { return !a.knows(d->a) && !a.knows(d->b); });
   std::vector<const Deal*> active, done;
   for (const Deal* d : all) (d->status == DealStatus::Active ? active : done).push_back(d);
   if (all.empty()) {
@@ -66,7 +73,7 @@ void drawTab(App& a, Id fid) {
 int tabBadge(App& a, Id fid) {
   int n = 0;
   a.world().deals.each([&](const Deal& d) {
-    if (d.status == DealStatus::Active && (d.a == fid || d.b == fid)) n++;
+    if (d.status == DealStatus::Active && (d.a == fid || d.b == fid) && (a.knows(d.a) || a.knows(d.b))) n++;
   });
   return n;
 }

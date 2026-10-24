@@ -125,8 +125,11 @@ void portraitBlock(App& a, const Character& c, const chars::Roles& roles, bool r
         a.markUi("character.clearPortrait");
       }
     }
-    ui::stat(fmtGold(c.upkeep), "Содержание за ход",
-             {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Платит фракция, которой персонаж служит: правитель, советник или герой — расход «специалисты»"});
+    if (a.knows(c.faction))
+      ui::stat(fmtGold(c.upkeep), "Содержание за ход",
+               {.icon = "coins", .tone = ui::Tone::Warning, .tooltip = "Платит фракция, которой персонаж служит: правитель, советник или герой — расход «специалисты»"});
+    else
+      w::hiddenStat("Содержание за ход");   // туман войны
     ui::stat(fmtInt(i64(roles.total())), plural(i64(roles.total()), "Роль", "Роли", "Ролей"),
              {.icon = "council", .tone = ui::Tone::Info, .tooltip = roles.total() ? chars::rolesText(a.world(), roles) : std::string_view("Пока без ролей")});
   }
@@ -172,6 +175,26 @@ void modifiersSection(App& a, const World& w, const Character& c) {
       a.act("Пленившее государство", [&](Tx& tx) { tx.character(cid).captor = who; });
     a.markUi("character.captor");
   }
+  // Плен и арест вручную — только с государством (аудит 2026-10-23, 6.10): правка мира.
+  if (!dead && !captive && a.canEdit()) {
+    w::IdOptions captors, jailers;
+    std::vector<const Faction*> states;
+    w.factions.each([&](const Faction& f) {
+      if (f.isState()) states.push_back(&f);
+    });
+    std::sort(states.begin(), states.end(), [](const Faction* x, const Faction* y) { return compareRu(x->name, y->name) < 0; });
+    for (const Faction* f : states) {
+      if (f->id != c.faction) captors.add(f->id, orName(f->name), "crown", f->color);
+      jailers.add(f->id, orName(f->name), "crown", f->color);
+    }
+    ui::Row row({ui::fr(1), ui::fr(1)}, 30, 8);
+    if (const Id st = w::addCombo("toCaptor", captors, {.placeholder = "В плен к…", .search = 1, .icon = "shackles", .disabled = captors.ids.empty()}))
+      a.act("Взят в плен", [&](Tx& tx) { rules::heroFate(tx, cid, rules::Fate::Captured, st, 0); });
+    a.markUi("character.toCaptor");
+    if (const Id st = w::addCombo("toJailer", jailers, {.placeholder = "Под арест к…", .search = 1, .icon = "lock", .disabled = jailers.ids.empty()}))
+      a.act("Под арестом", [&](Tx& tx) { rules::arrestCharacter(tx, cid, st); });
+    a.markUi("character.toJailer");
+  }
 }
 
 // Инвентарь героя (ТЗ «Доработки», п.10; «Доработки №1», п.14; «№4», п.3–4): реликвии стопками по главенству
@@ -196,8 +219,12 @@ void inventorySection(App& a, const World& w, const Character& c) {
     if (admin) a.markUi("character.relicsCatalog", RectF{hr.right() - (th.padCard - 4) - 26, hr.cy() - 13, 26, 26});
   }
   if (s.action()) relics::openCatalog(a, mine.empty() ? 0 : mine.front().relic);
-  if (!s) return;
+  if (!s || w::hiddenFor(a, c.faction)) return;   // туман войны: инвентарь героя чужой фракции скрыт
   const rules::RelicPlace here{rules::RelicPlace::Hero, cid, 0, c.faction};
+  // Пленный или арестованный: инвентарь недоступен его государству (аудит 2026-10-23, 1.8) — кнопки с причиной.
+  std::string takeWhy, giveWhy;
+  rules::inventoryReachable(w, cid, false, &takeWhy);
+  rules::inventoryReachable(w, cid, true, &giveWhy);
   if (mine.empty()) ui::label("Пусто", {.font = ui::Font::Small, .ink = ui::Ink::Muted});
   for (const RelicStack& st : mine) {
     const Relic& r = *w.relic(st.relic);
@@ -216,8 +243,9 @@ void inventorySection(App& a, const World& w, const Character& c) {
     if (canReturn) {
       x -= 28;
       ui::at(RectF{x, rr.cy() - 13, 26, 26});
-      const std::string tip = state ? "Вернуть одну в инвентарь государства «" + orName(own->name) + "»" : std::string("Убрать из инвентаря");
-      if (ui::iconButton(state ? "undo" : "close", tip, {.size = ui::Size::Small})) {
+      std::string tip = state ? "Вернуть одну в инвентарь государства «" + orName(own->name) + "»" : std::string("Убрать из инвентаря");
+      if (!takeWhy.empty()) tip += "\n" + takeWhy;
+      if (ui::iconButton(state ? "undo" : "close", tip, {.size = ui::Size::Small, .disabled = !takeWhy.empty()})) {
         if (state) a.play("Вернуть реликвию государству", [&](Tx& tx) { rules::takeRelic(tx, cid, rid); });
         else a.act("Убрать реликвию", [&](Tx& tx) { rules::takeRelic(tx, cid, rid); });
       }
@@ -238,7 +266,9 @@ void inventorySection(App& a, const World& w, const Character& c) {
   const relics::Places pl(w);
   const std::vector<relics::Source> src = relics::sources(w, pl, state, here, relics::Target::Hero, edit);
   const std::string_view ph = !src.empty() ? std::string_view("Выдать реликвию") : state ? std::string_view("У государства нет реликвий") : std::string_view("Нет реликвий");
-  const int idx = relics::sourceCombo("addRelic", w, state, src, ph, "Выдать герою одну реликвию");
+  // Пленному, арестованному или мёртвому выдать нельзя — поле выключено, причина в подсказке.
+  const int idx = relics::sourceCombo("addRelic", w, state, src, ph, giveWhy.empty() ? std::string_view("Выдать герою одну реликвию") : std::string_view(giveWhy),
+                                      !giveWhy.empty());
   a.markUi("character.addRelic");
   if (idx < 0) return;
   const relics::Source pick = src[size_t(idx)];
@@ -292,11 +322,15 @@ void drawInfo(App& a, Id cid) {
     a.markUi("character.hero");
     ui::prop("Содержание", "coins");
     double up = c.upkeep;
-    if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 3, .unit = "тыс. за ход", .disabled = ro,
-                                       .tooltip = "Начисляется, пока персонаж правитель, советник или герой фракции"}))
-      a.act("Содержание персонажа", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "upkeep:" + std::to_string(cid)});
-    a.markUi("character.upkeep");
-    if (c.faction) {
+    if (!a.knows(c.faction)) {   // туман войны
+      w::hiddenMark();
+    } else {
+      if (ui::numberField("upkeep", up, {.min = 0, .max = 1e12, .step = 1, .digits = 3, .unit = "тыс. за ход", .disabled = ro,
+                                         .tooltip = "Начисляется, пока персонаж правитель, советник или герой фракции"}))
+        a.act("Содержание персонажа", [&](Tx& tx) { tx.character(cid).upkeep = std::max(0.0, up); }, {.coalesce = "upkeep:" + std::to_string(cid)});
+      a.markUi("character.upkeep");
+    }
+    if (c.faction && a.knows(c.faction)) {   // расходы чужой фракции — туман войны
       // Содержание входит в расход «специалисты», только пока персонаж служит фракции (правило RULES.md §3).
       const Faction* f = w.faction(c.faction);
       bool serves = f && (f->ruler == cid || (c.hero && c.faction == f->id));

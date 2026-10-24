@@ -26,6 +26,11 @@ foreach ($file in $characterFiles) {
     }
 
     $relativeFile = Get-WmmaRelativePath $root $file.FullName
+    # A merged card is a redirect; the portrait belongs to the main card.
+    if (Get-WmmaMeta -Text $text -Field 'merged_into') {
+        continue
+    }
+
     if ($text -notmatch '(?m)^portrait_status:\s*(available|missing|planned)\s*$') {
         Add-Problem Error "Invalid or missing portrait_status: $relativeFile"
         continue

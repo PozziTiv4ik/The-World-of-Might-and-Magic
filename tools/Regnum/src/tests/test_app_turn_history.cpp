@@ -161,21 +161,25 @@ TEST(app_turn_history_flow_and_rollback) {
   CHECK_EQ(h->store.world().log.size(), cur.log.size());
 }
 
-TEST(app_turn_history_memory_rollback_and_stale_report) {
+TEST(app_turn_history_memory_rollback_and_report_follows_world) {
   Harness h("turn2_memory");
   h.demo();
   int t0 = h->store.world().turn();
   CHECK(h->endTurnNow());
   CHECK(h->endTurnNow());
   CHECK_EQ(h->snapshots().size(), size_t(3));   // ходы t0, t0 + 1 и начало текущего
-  // Отчёт отменённого хода не открывается.
+  // Итоги — из мира (Meta::lastTurn): после отмены хода открываются итоги предыдущего хода.
   h.key(Key::Z, ctrl());
   CHECK_EQ(h->store.world().turn(), t0 + 1);
+  CHECK_EQ(h->store.world().meta->lastTurn.turnFrom, t0);
   h->openDialog("turn.report");
   h.settle();
-  CHECK(!h->hasDialog("turn.report"));
+  CHECK(h->hasDialog("turn.report"));
+  h.key(Key::Escape);
+  h.settle();
   h.key(Key::Y, ctrl());
   CHECK_EQ(h->store.world().turn(), t0 + 2);
+  CHECK_EQ(h->store.world().meta->lastTurn.turnFrom, t0 + 1);
   h->openDialog("turn.report");
   h.settle();
   CHECK(h->hasDialog("turn.report"));
@@ -533,4 +537,42 @@ TEST(app_turn_history_reset_on_world_change) {
   h.settle();
   CHECK(h->ui.screen == app::Screen::Start);
   CHECK(h->snapshots().empty());
+}
+
+// Снимок хода на диске с висячей ссылкой: возврат к нему исправляет её нормализацией и показывает то же окно, что при
+// открытии мира, — «Мир открыт с исправлениями» (аудит 2026-10-23, 3.6); исправленные таблицы перепишутся при сохранении.
+TEST(app_turn_history_rollback_shows_fixes) {
+  Harness h("turn2_rollback_fixes");
+  h.demo();
+  const std::string dir = fs::join(h.root, "Мир");
+  CHECK(h->saveTo(dir));
+  const int t0 = h->world().turn();
+  CHECK(h->endTurnNow());
+  h.settle();
+  h->closeDialogs();
+  CHECK(h->save());
+  std::string file;
+  for (const app::TurnSnapshot& s : h->snapshots())
+    if (s.turn == t0 && s.kind == io::kSnapEnd && !s.memory) file = s.key;
+  CHECK(!file.empty());
+  if (file.empty()) return;
+  World bad = io::loadSnapshotFile(dir, file).world;
+  Id pid = 0;
+  bad.provinces.each([&](const Province& p) {
+    if (!pid && !p.sea && p.owner) pid = p.id;
+  });
+  CHECK(pid != 0);
+  {
+    Tx tx(bad);
+    tx.province(pid).owner = 999999;   // владельца с таким ID нет
+    bad = std::move(tx).finish();
+  }
+  const std::vector<u8> gz = io::pack(bad, 6);
+  CHECK(fs::writeFileAtomic(fs::join(dir, file), std::span<const u8>(gz)));
+  CHECK(app::turnui::rollbackToTurn(h.a(), t0));
+  h.settle();
+  CHECK_EQ(h->store.world().turn(), t0);
+  CHECK(h->hasDialog("world.fixes"));
+  CHECK(h->store.world().province(pid)->owner != 999999);
+  CHECK((h->impl().fixedTables & TB_PROVINCES) != 0);
 }

@@ -171,9 +171,9 @@ TEST(app_province_modifiers_tab) {
   CHECK_EQ(prov(h, pid)->modifiers.size(), n0);
 }
 
-// ТЗ 1.g.ii.2: глобальные эффекты «применяются только к государству». Список модификаторов провинции предлагает
-// любые модификаторы (app/widgets.cpp modifierList — без фильтра по локальным эффектам), и глобальный модификатор,
-// добавленный провинции, молча ничего не делает, хотя его фишка и подсказка («+6 % дохода в казну») видны в списке.
+// ТЗ 1.g.ii.2: глобальные эффекты «применяются только к государству». Глобальные эффекты модификатора провинции
+// действуют на её владельца (RULES.md §1), поэтому такой модификатор в списке провинции не помечается «не действует»;
+// у рас (ModScope::Local) по-прежнему действуют только локальные эффекты.
 TEST(app_province_modifiers_global_only_marked) {
   Harness h("audit_tbmt_global_on_province");
   h.demo();
@@ -189,25 +189,25 @@ TEST(app_province_modifiers_global_only_marked) {
   CHECK(global != 0);
   BuildPick pk = pickBuild(h->world());
   CHECK(pk.pid != 0);
-  auto fBefore = rules::calc(h->world())->faction(pk.owner);
-  const double netBefore = fBefore->net;
+  const rules::Effects fxBefore = rules::factionEffects(h->world(), pk.owner);
   CHECK(h->act("Модификатор провинции", [&](Tx& tx) {
     auto& v = tx.province(pk.pid).modifiers;
     if (std::find(v.begin(), v.end(), global) == v.end()) v.push_back(global);
   }));
-  auto fAfter = rules::calc(h->world())->faction(pk.owner);
-  // Эффект не действует (так задумано правилами), но интерфейс не предупреждает и не мешает добавить.
-  CHECK_NEAR(fAfter->net, netBefore, 1e-6);
+  // Глобальные эффекты модификатора провинции действуют на её владельца.
+  const rules::Effects fxAfter = rules::factionEffects(h->world(), pk.owner);
+  const Modifier& gm = *h->world().modifier(global);
+  for (int f = 0; f < kFxCount; f++)
+    if (gm.has(Fx(f)) && !schema::kEffects[f].hero) CHECK_NEAR(fxAfter[Fx(f)] - fxBefore[Fx(f)], gm.get(Fx(f)), 1e-6);
   h->ui.tabOf[app::SelType::Province] = "province.modifiers";
   h->select(app::SelType::Province, pk.pid);
   h.dropToasts();
   h.settle();
   CHECK(h.shot("audit_tbmt_global_mod_on_province"));
-  // Регрессия: фишка такого модификатора в провинции помечена предупреждением, а выбор «Добавить модификатор» его
-  // не предлагает (w::modifierList с ModScope::Local).
-  CHECK(app::w::modifierInert(*h->world().modifier(global), app::w::ModScope::Local));
-  CHECK(!app::w::modifierInert(*h->world().modifier(global), app::w::ModScope::Any));
-  CHECK_MSG(h->uiRect("mods.warn." + std::to_string(global)) != nullptr,
-            std::string("модификатор «") + h->world().modifier(global)->name +
-                "» только с глобальными эффектами добавлен в список провинции без предупреждения и ни на что не влияет");
+  // Фишка такого модификатора в провинции без предупреждения; у рас (только локальные эффекты) он не действует.
+  CHECK(!app::w::modifierInert(gm, app::w::ModScope::Province));
+  CHECK(app::w::modifierInert(gm, app::w::ModScope::Local));
+  CHECK(!app::w::modifierInert(gm, app::w::ModScope::Any));
+  CHECK_MSG(h->uiRect("mods.warn." + std::to_string(global)) == nullptr,
+            std::string("модификатор «") + gm.name + "» с глобальными эффектами помечен в провинции как недействующий");
 }

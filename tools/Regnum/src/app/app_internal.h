@@ -49,6 +49,7 @@ struct App::Impl {
   u32 forceTables = 0;                     // «оставить мои» при внешнем изменении — переписать с заменой
   bool overwriteExternal = false;
   std::map<std::string, i64> ackExternal;  // файл -> время, о котором уже спросили
+  std::map<std::string, i64> seenExternal; // файл -> время: окно закрыто без решения (не спрашивать снова; Ctrl+S сольёт)
   std::string savedAt, autosavedAt;        // ISO
   double lastAutosave = 0;                 // platform::time()
   u64 autosaveVersion = 0;                 // версия хранилища при последнем автосохранении
@@ -72,6 +73,8 @@ struct App::Impl {
   std::optional<io::History> diskHist;     // история на диске (кеш до следующего сохранения или открытия)
   io::FileStamp bundleStamp;               // отпечаток архива .regnum (внешние изменения)
   std::vector<std::string> autoFiles;      // файлы папки, версия которых на диске записана автосохранением
+  World base;                              // мир на диске при открытии или последнем сохранении — база слияния
+  std::string lock;                        // мир открыт только для чтения: причина (пусто — запись разрешена)
   std::function<void(App&)> afterSave;     // продолжение после «Сохранить как»
   // ---- кадр
   gfx::Image frameImg, mapImg;
@@ -141,6 +144,9 @@ void writeThumbnail(App& a);               // миниатюра политич�
 std::string thumbPath(const std::string& dataDir, const std::string& project);
 void refreshStartData(App& a);             // недавние и автосохранения для экрана запуска
 void restoreAutosave(App& a, const io::AutosaveInfo& info);
+// Окно «Мир открыт с исправлениями» (чтение мира, восстановление автосохранения или снимка хода): исправления
+// нормализации; таблицы с ними автосохранение не пишет, пока пользователь не сохранит мир («Сохранить исправления»).
+void showFixes(App& a, const io::Warnings& warnings);
 
 // ---- диалоги (project/common_dialogs.cpp, project/browser.cpp, shell/settings.cpp, shell/palette.cpp)
 std::unique_ptr<Dialog> confirmDialog(std::string title, std::string text, std::string ok, bool danger, std::function<void(App&)> onYes,
@@ -155,6 +161,13 @@ std::unique_ptr<Dialog> saveAsDialog(App& a);
 std::unique_ptr<Dialog> settingsDialog();
 std::unique_ptr<Dialog> paletteDialog();
 std::unique_ptr<Dialog> helpDialog();
+// Закрыть одно окно стека (и ждущее открытия) по ID с вызовом dismissed(): F1 и Ctrl+K закрывают только свои окна.
+void closeDialog(App& a, std::string_view id);
+// Поколение App::closeDialogs(): растёт при каждом закрытии всех окон — очереди окон (события хода) после него не
+// продолжаются (app_dialogs.cpp).
+u64 dialogEpoch();
+// Журнал действий игроков (app/turn/journal.cpp): игровое действие игрока (App::play) — строка журнала мира.
+void journalPlay(App& a, std::string_view label);
 
 enum class BrowseMode : u8 { OpenWorld, OpenBundle, SaveBundle, PickFolder };
 std::unique_ptr<Dialog> browserDialog(BrowseMode mode, std::string title, std::string startDir,

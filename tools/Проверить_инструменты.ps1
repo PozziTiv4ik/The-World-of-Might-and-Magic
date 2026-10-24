@@ -97,6 +97,7 @@ function Ensure-ToolTestPendingDecision {
         -Owner 'Инструменты' `
         -PlayerCharacter 'Тест / Инструменты' `
         -Scene 'Проверка инструментов' `
+        -SceneIds 'SCENE-0062' `
         -StoryDate 'тест инструментов' `
         -Choice 'ожидает решения' `
         -PlayerAddition 'временная запись, созданная только в копии проекта для проверки инструментов.' `
@@ -247,17 +248,34 @@ try {
 
         Assert-TextContains -Path $openQuestionsPath -Expected 'Тестовый вопрос инструментов'
         $questionRegistryAfter = Read-WmmaJson $questionRegistryPath
-        if (@($questionRegistryAfter.questions | Where-Object { $_.text -eq 'Тестовый вопрос инструментов' }).Count -ne 1) {
+        $createdQuestion = @($questionRegistryAfter.questions | Where-Object { $_.text -eq 'Тестовый вопрос инструментов' })
+        if ($createdQuestion.Count -ne 1) {
             throw 'Новый_вопрос.ps1 did not add the test question to the question registry.'
+        }
+
+        if ($createdQuestion[0].attention -ne 'awaiting_evidence' -or -not $createdQuestion[0].waiting_for -or $createdQuestion[0].opened_in_chapter -ne $questionRegistryAfter.current_chapter) {
+            throw 'Новый_вопрос.ps1 did not record attention, waiting_for and opened_in_chapter.'
         }
     }
 
+    $currentContextBefore = Read-WmmaText $currentContextPath
     $toolTestPendingId = Ensure-ToolTestPendingDecision `
         -DecisionRegistryPath $decisionRegistryPath `
         -ToolsRoot $toolsRoot
 
     Assert-TextContains -Path $decisionLogPath -Expected 'временная запись, созданная только в копии проекта для проверки инструментов.'
     Assert-TextContains -Path $openQuestionsPath -Expected 'Тестовое pending-решение для проверки инструментов'
+    # The current context is generated: the write command leaves it to Собрать_контекст.
+    if ((Read-WmmaText $currentContextPath) -cne $currentContextBefore) {
+        throw 'Новое_решение.ps1 edited the generated current context.'
+    }
+
+    $pendingRecord = @((Read-WmmaJson $decisionRegistryPath).decisions | Where-Object { $_.id -eq $toolTestPendingId })[0]
+    if (@($pendingRecord.scene_ids) -notcontains 'SCENE-0062') {
+        throw 'Новое_решение.ps1 did not record scene_ids.'
+    }
+
+    & (Join-Path $toolsRoot 'Собрать_контекст.ps1') -SkipCheck | Out-Null
     Assert-TextContains -Path $currentContextPath -Expected 'Тестовое pending-решение для проверки инструментов'
 
     Invoke-Step 'Закрыть pending-решение не портит файлы при неизвестном ID' {
@@ -318,6 +336,7 @@ try {
             -Effect $effect `
             -SkipCheck
 
+        & (Join-Path $toolsRoot 'Собрать_контекст.ps1') -SkipCheck | Out-Null
         $decisionLogAfter = Read-WmmaText $decisionLogPath
         $openQuestionsAfter = Read-WmmaText $openQuestionsPath
         $currentContextAfter = Read-WmmaText $currentContextPath
@@ -559,6 +578,108 @@ try {
         Assert-TextContains -Path (Join-Path $copyRoot '11_Медиа\Портреты_персонажей\Индекс_портретов.md') -Expected 'Тестовый Персонаж Инструментов'
     }
 
+    Invoke-Step 'Новые ID видны следующим командам пакета' {
+        $characterPath = Join-Path $copyRoot '03_Персонажи\Тестовый_Персонаж_Инструментов.md'
+        $script:toolCharacterId = Get-WmmaMeta (Read-WmmaText $characterPath) 'id'
+        if ($script:toolCharacterId -notmatch '^CHAR-\d{4}$') { throw "New character has no numeric ID: $script:toolCharacterId" }
+        $graph = Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Сущности.json')
+        if (@($graph.entities | Where-Object { $_.id -eq $script:toolCharacterId }).Count -ne 1) { throw 'New character is missing from the entity registry after -SkipCheck.' }
+        $sceneOutput = & (Join-Path $toolsRoot 'Новая_сцена.ps1') -Branch 'Тестовая_ветка_инструментов' -Title 'Участник из того же пакета' -Status active -FrontId FRONT-TOOL-TEST -ParticipantIds $script:toolCharacterId -SkipCheck
+        $script:toolScenePath = ([regex]::Match(($sceneOutput -join "`n"), '(?m)^Created scene:\s*(.+?)\s*$')).Groups[1].Value
+        $script:toolSceneId = Get-WmmaMeta (Read-WmmaText (Join-Path $copyRoot $script:toolScenePath)) 'id'
+        & (Join-Path $toolsRoot 'Новое_знание.ps1') -Text 'Тестовый факт инструментов.' -Truth confirmed -EvidenceIds $script:toolSceneId -SubjectIds $script:toolCharacterId -KnownTo $script:toolCharacterId -KnowledgeEvidence "$($script:toolCharacterId)|$($script:toolSceneId)|Присутствовал в тестовой сцене." -SkipCheck | Out-Null
+        $fact = @((Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Знания.json')).facts | Where-Object { $_.text -eq 'Тестовый факт инструментов.' })[0]
+        if ($fact.knowledge_evidence[0].basis -ne 'Присутствовал в тестовой сцене.') { throw 'Per-holder knowledge basis was not stored.' }
+    }
+
+    Invoke-Step 'Знание требует своё основание для каждого знающего' {
+        $knowledgePath = Join-Path $copyRoot '09_Реестры\Знания.json'
+        $before = Read-WmmaText $knowledgePath
+        Expect-Failure -Message 'Knowledge holder without a basis accepted' -Action {
+            & (Join-Path $toolsRoot 'Новое_знание.ps1') -Text 'Без основания.' -Truth reported -EvidenceIds $script:toolSceneId -KnownTo @($script:toolCharacterId, 'CHAR-0059') -KnowledgeEvidence "$($script:toolCharacterId)|$($script:toolSceneId)|Присутствовал." -SkipCheck
+        }
+        if ((Read-WmmaText $knowledgePath) -cne $before) { throw 'Rejected knowledge changed the registry.' }
+    }
+
+    Invoke-Step 'Дубли названий отклоняются, повтор не стирает карточку' {
+        $characterPath = Join-Path $copyRoot '03_Персонажи\Тестовый_Персонаж_Инструментов.md'
+        $before = Read-WmmaText $characterPath
+        $message = Expect-Failure -PassThru -Message 'Contained name was accepted' -Action {
+            & (Join-Path $toolsRoot 'Новый_персонаж.ps1') -Name 'Тестовый Персонаж' -SkipCheck
+        }
+        if (-not $message.Contains($script:toolCharacterId)) { throw "Duplicate refusal does not name the existing card: $message" }
+        Expect-Failure -Message 'Repeated name replaced the card' -Action { & (Join-Path $toolsRoot 'Новый_персонаж.ps1') -Name 'Тестовый Персонаж Инструментов' -SkipCheck }
+        Expect-Failure -Message 'Removed -Force was accepted' -Action { & (Join-Path $toolsRoot 'Новый_персонаж.ps1') -Name 'Тестовый Персонаж Инструментов' -Force -SkipCheck }
+        Expect-Failure -Message 'Repeated location replaced the card' -Action { & (Join-Path $toolsRoot 'Новая_локация.ps1') -Name 'Тестовая Локация Инструментов' -SkipCheck }
+        if ((Read-WmmaText $characterPath) -cne $before) { throw 'Refused creation changed the existing card.' }
+        $output = & (Join-Path $toolsRoot 'Новый_персонаж.ps1') -Name 'Тестовый Персонаж' -DistinctFrom $script:toolCharacterId -SkipCheck
+        $distinct = Read-WmmaText (Join-Path $copyRoot '03_Персонажи\Тестовый_Персонаж.md')
+        if (@(Get-WmmaArrayMeta $distinct 'distinct_from') -notcontains $script:toolCharacterId) { throw 'Confirmed distinction was not recorded.' }
+    }
+
+    Invoke-Step 'Сцена из входящего связывает участников и фронты' {
+        & (Join-Path $toolsRoot 'Сцена_из_входящего.ps1') `
+            -Branch 'Тестовая_ветка_инструментов' `
+            -Title 'Входящее с участниками' `
+            -Text 'Текст входящего с участниками.' `
+            -ParticipantIds CHAR-0059 `
+            -FrontIds FRONT-TOOL-TEST `
+            -SkipCheck | Out-Null
+        $scene = @(Get-ChildItem -LiteralPath (Join-Path $copyRoot '01_Кампания\Ветки\Тестовая_ветка_инструментов') -Filter '*.md' | Where-Object { (Read-WmmaText $_.FullName).Contains('# Сцена') -and (Get-WmmaTitle (Read-WmmaText $_.FullName)) -like '*Входящее с участниками*' })
+        if ($scene.Count -ne 1) { throw 'Scene from the inbox was not created.' }
+        $text = Read-WmmaText $scene[0].FullName
+        if (@(Get-WmmaArrayMeta $text 'participant_ids') -notcontains 'CHAR-0059' -or @(Get-WmmaArrayMeta $text 'front_ids') -notcontains 'FRONT-TOOL-TEST') { throw 'Participants or fronts were not passed to the scene.' }
+    }
+
+    Invoke-Step 'Ветка, общая точка, время и замена факта' {
+        & (Join-Path $toolsRoot 'Обновить_контекст_ветки.ps1') -Branch 'Тестовая_ветка_инструментов' -Create -CharacterId $script:toolCharacterId -SceneIds $script:toolSceneId -Situation 'Техническая ветка проверки инструментов.' -SkipCheck | Out-Null
+        $state = Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Контекст.json')
+        if (@($state.branches | Where-Object { $_.name -eq 'Тестовая_ветка_инструментов' -and $_.character_id -eq $script:toolCharacterId }).Count -ne 1) { throw 'Branch was not created.' }
+        Expect-Failure -Message 'Second branch for one character accepted' -Action {
+            & (Join-Path $toolsRoot 'Обновить_контекст_ветки.ps1') -Branch 'Вторая_тестовая_ветка' -Create -CharacterId $script:toolCharacterId -SceneIds $script:toolSceneId -Situation 'Дубль.' -SkipCheck
+        }
+        $fact = @((Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Знания.json')).facts | Where-Object { $_.text -eq 'Тестовый факт инструментов.' })[0]
+        & (Join-Path $toolsRoot 'Обновить_контекст_ветки.ps1') -Global -FactIds (@($state.fact_ids) + @($fact.id)) -SkipCheck | Out-Null
+        & (Join-Path $toolsRoot 'Новое_знание.ps1') -Text 'Уточнённый тестовый факт инструментов.' -Truth confirmed -EvidenceIds $script:toolSceneId -Supersedes $fact.id -SkipCheck | Out-Null
+        $knowledge = Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Знания.json')
+        $newFact = @($knowledge.facts | Where-Object { $_.text -eq 'Уточнённый тестовый факт инструментов.' })[0]
+        $oldFact = @($knowledge.facts | Where-Object { $_.id -eq $fact.id })[0]
+        if ($oldFact.superseded_by -ne $newFact.id) { throw 'Old fact is not marked as replaced.' }
+        $global = @((Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Контекст.json')).fact_ids)
+        if ($global -contains $fact.id -or $global -notcontains $newFact.id) { throw 'Global context still points at the replaced fact.' }
+        Expect-Failure -Message 'Fact replacement cycle accepted' -Action {
+            & (Join-Path $toolsRoot 'Заменить_факт.ps1') -FactId $newFact.id -ReplacedBy $fact.id -SkipCheck
+        }
+        $turnList = & (Join-Path $toolsRoot 'Список_ходов.ps1') -Json
+        if (@(($turnList -join "`n") | ConvertFrom-Json).Count -ne 0) { throw 'The copy without .wmma reported turn journals.' }
+        $sceneIds = @((Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Сущности.json')).entities | Where-Object { $_.path -like '01_Кампания/Ветки/Тестовая_ветка_инструментов/*' } | ForEach-Object { $_.id })
+        $other = @($sceneIds | Where-Object { $_ -ne $script:toolSceneId })[0]
+        & (Join-Path $toolsRoot 'Новая_связь_времени.ps1') -From $script:toolSceneId -To $other -Relation after -EvidenceIds $script:toolSceneId -SkipCheck | Out-Null
+        Expect-Failure -Message 'Cyclic event order accepted' -Action {
+            & (Join-Path $toolsRoot 'Новая_связь_времени.ps1') -From $other -To $script:toolSceneId -Relation after -EvidenceIds $script:toolSceneId -SkipCheck
+        }
+        $relations = @((Read-WmmaJson (Join-Path $copyRoot '09_Реестры\Хронология_связей.json')).relations | Where-Object { $_.from -eq $script:toolSceneId })
+        if ($relations.Count -ne 1) { throw 'Temporal relation was not recorded once.' }
+    }
+
+    Invoke-Step 'Индексы активов владельцев собираются из карточек' {
+        & (Join-Path $toolsRoot 'Собрать_индекс_активов.ps1') -SkipCheck | Out-Null
+        Assert-TextContains -Path (Join-Path $copyRoot '05_Активы_персонажей\Крэг-Хак\00_Индекс_активов.md') -Expected 'Титанический топор'
+        Assert-TextContains -Path (Join-Path $copyRoot '05_Активы_персонажей\Лорд_Никитосиос\00_Индекс_активов.md') -Expected 'Багровая гидра'
+        Assert-TextContains -Path (Join-Path $copyRoot '05_Активы_персонажей\Принц_Михаэль\00_Индекс_активов.md') -Expected 'Склады гильдии в Феликии'
+        Assert-TextContains -Path (Join-Path $copyRoot '05_Активы_персонажей\Принц_Михаэль\00_Индекс_активов.md') -Expected '## Важное ограничение'
+    }
+
+    Invoke-Step 'Закрытый канон меняется только с записанной причиной' {
+        $chapter = '01_Кампания/Главы/Глава_01_Две_недели_до_Дня_Единения.md'
+        $path = Join-Path $copyRoot $chapter
+        Write-WmmaText $path ((Read-WmmaText $path) + "`n")
+        $context = & (Join-Path $toolsRoot 'Проверить_контекст.ps1') -AsObject
+        if (@($context.Errors | Where-Object { $_ -like "*Closed canon changed*$chapter*" }).Count -ne 1) { throw 'Changed closed chapter passed the check.' }
+        & (Join-Path $toolsRoot 'Обновить_защиту_канона.ps1') -Path $chapter -Reason 'Тест: перевод строки в конце файла' -SkipCheck | Out-Null
+        $manifest = Read-WmmaJson (Join-Path $copyRoot '10_Обслуживание\Миграция_v2.json')
+        if (@($manifest.amendments | Where-Object { $_.path -eq $chapter -and $_.reason -like 'Тест:*' }).Count -ne 1) { throw 'Amendment was not recorded.' }
+    }
     Invoke-Step 'Собрать индекс источников' {
         & (Join-Path $toolsRoot 'Собрать_индекс_источников.ps1') -SkipCheck
         Assert-TextContains -Path $sourceIndexPath -Expected 'Тестовое входящее инструментов'

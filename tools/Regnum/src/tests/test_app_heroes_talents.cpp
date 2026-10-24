@@ -63,15 +63,15 @@ TEST(app_heroes_talents_hero_tree) {
   // Ранги: три щелчка — «3/5».
   for (int i = 0; i < 3; i++) CHECK(clickTalent(h, t1));
   CHECK_EQ(rankOf(h, hero, t1), 3);
-  // Ярус 2 закрыт: вложено 3 из 10.
+  // Ярус 2 закрыт: вложено 3 из 7 (порог базовых деревьев — 7 очков на ярус).
   h.dropToasts();
   CHECK(clickTalent(h, t3));
   CHECK(hasToast(h, "Ярус 2"));
   CHECK_EQ(rankOf(h, hero, t3), 0);
-  // Ярус 1 полностью (10 очков) — ярус 2 открыт.
+  // В ярусе 1 — 7 очков из 10 — ярус 2 открыт.
   for (int i = 0; i < 2; i++) CHECK(clickTalent(h, t1));
-  for (int i = 0; i < 5; i++) CHECK(clickTalent(h, t2));
-  CHECK(rankOf(h, hero, t1) == 5 && rankOf(h, hero, t2) == 5);
+  for (int i = 0; i < 2; i++) CHECK(clickTalent(h, t2));
+  CHECK(rankOf(h, hero, t1) == 5 && rankOf(h, hero, t2) == 2);
   h.dropToasts();
   CHECK(clickTalent(h, t1));
   CHECK(hasToast(h, "изучен полностью"));
@@ -112,8 +112,8 @@ TEST(app_heroes_talents_hero_tree) {
       CHECK(h.shot("heroes3_talents_tip"));
     }
   }
-  // Очки: вложено 12 из 14.
-  CHECK_EQ(rules::talentPointsSpent(h->world(), hero), 12);
+  // Очки: вложено 9 из 14.
+  CHECK_EQ(rules::talentPointsSpent(h->world(), hero), 9);
   // Сброс — с подтверждением.
   CHECK(fc::clickIn(h, "character.talents.reset"));
   CHECK(ed::confirmDialog(h));
@@ -226,7 +226,7 @@ TEST(app_heroes_talents_player_role) {
   const auto [own, foreign] = test::twoStates(h->world());
   const Id mine = availableHero(h->world(), own), theirs = availableHero(h->world(), foreign);
   CHECK(mine && theirs);
-  const Id war = classId(h->world(), "Воин"), pal = classId(h->world(), "Палладин");
+  const Id war = classId(h->world(), "Воин"), pal = classId(h->world(), "Паладин");
   const Id knight = subId(h->world(), war, "Рыцарь");
   const Id t1 = talentId(h->world(), knight, "Тяжелая атлетика");
   CHECK(h->act("Классы", [&](Tx& tx) {

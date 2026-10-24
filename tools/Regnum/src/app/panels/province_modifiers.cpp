@@ -50,7 +50,7 @@ void modifierRows(App& a, const Province& p, bool ro) {
   std::vector<Id> ids = p.modifiers;
   w::ModEdit ed;
   ed.province = pid;   // подсказки фишек — с действующими в провинции эффектами
-  if (w::modifierList("mods", ids, ro, w::ModScope::Local, &p.modTurns, &ed))
+  if (w::modifierList("mods", ids, ro, w::ModScope::Province, &p.modTurns, &ed))
     a.act("Модификаторы провинции", [&](Tx& tx) {
       if (!ed.addKey.empty()) ids.push_back(rules::ensureBuiltinMod(tx, ed.addKey));
       rules::setModifiers(tx, rules::ModTarget::Province, pid, ids);

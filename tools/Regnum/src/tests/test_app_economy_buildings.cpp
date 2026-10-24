@@ -14,7 +14,8 @@ TEST(app_economy_building_produce) {
   Harness h("economy_building_produce", 1600, 1100);
   h.demo();
   h.dropToasts();
-  // Постройка общего дерева, достроенная в провинции государства (не улучшается сейчас).
+  // Постройка общего дерева, достроенная в провинции государства (не улучшается сейчас), уровень которой ещё не даёт
+  // золота (порт базовых записей уже даёт золото за ход).
   Id bid = 0, pid = 0, owner = 0;
   int lvl = 0;
   h->world().provinces.each([&](const Province& p) {
@@ -22,7 +23,8 @@ TEST(app_economy_building_produce) {
     if (bid || p.sea || !f || !f->isState()) return;
     for (const ProvBuilding& pb : p.buildings)
       if (!bid && pb.builtLevel() > 0 && !pb.constructing)
-        if (const Building* b = h->world().building(pb.building); b && b->owner == 0) {
+        if (const Building* b = h->world().building(pb.building);
+            b && b->owner == 0 && !b->levels[size_t(pb.builtLevel() - 1)].produce.count(kGold)) {
           bid = b->id;
           pid = p.id;
           owner = p.owner;

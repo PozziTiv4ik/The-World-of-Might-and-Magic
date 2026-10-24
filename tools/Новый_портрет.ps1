@@ -93,6 +93,16 @@ if (-not (Test-Path -LiteralPath $characterPath)) {
 }
 
 $characterText = Read-WmmaText $characterPath
+# A merged card is a redirect: the portrait belongs to the card it joined.
+$mergedInto = Get-WmmaMeta $characterText 'merged_into'
+if ($mergedInto) {
+    $mainCard = @((Read-WmmaRegistry $root 'Сущности').entities | Where-Object { $_.id -eq $mergedInto })
+    if ($mainCard.Count -ne 1) { throw "Card '$Character' is merged into $mergedInto, which is missing from the entity registry." }
+    $characterPath = Join-Path $root $mainCard[0].path
+    $slug = [System.IO.Path]::GetFileNameWithoutExtension($characterPath)
+    $characterText = Read-WmmaText $characterPath
+    "Card '$Character' is merged into ${mergedInto}; the portrait goes to $($mainCard[0].path)."
+}
 $displayName = $Character.Trim()
 if ($characterText -match '(?m)^#\s+(.+?)\s*$') {
     $displayName = $Matches[1].Trim()

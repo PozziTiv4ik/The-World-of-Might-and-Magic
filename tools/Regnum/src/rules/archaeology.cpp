@@ -34,7 +34,8 @@ ArchGroup& groupMut(Tx& tx, Id state, Id group) {
   fail("Археологическая группа не найдена");
 }
 
-// Бросок события: зерно — счётчик мира и участники.
+// Бросок события: зерно — счётчик мира и участники. Рост счётчика — отметка «действие со случайным исходом»: игроку
+// его не отменить (app/app.cpp), иначе неудачный бросок можно было бы переиграть.
 Rng eventRng(Tx& tx, Id a, Id b) {
   const u32 n = ++tx.meta().rng;
   return Rng(hashMix(hashMix(hashMix(0x4152434841454F4Cull, u64(n)), u64(a)), u64(b)));
@@ -675,7 +676,9 @@ bool canUnearth(const World& w, Id province, std::string* why) {
   const Province* p = w.province(province);
   std::string s;
   if (!p || !p->hiddenRelic) s = "В провинции нет спрятанной реликвии";
-  else if (!p->owner || p->owner != p->hiddenBy) s = "Откопать реликвию может только спрятавшее её государство, пока владеет провинцией";
+  // Тайник без живого хозяина (спрятавшее государство упразднено) откапывает владелец провинции.
+  else if (!p->owner || (p->hiddenBy && w.faction(p->hiddenBy) && p->owner != p->hiddenBy))
+    s = "Откопать реликвию может только спрятавшее её государство, пока владеет провинцией";
   if (s.empty()) return true;
   if (why) *why = s;
   return false;

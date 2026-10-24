@@ -5,8 +5,9 @@ function Get-WmmaFileInventory {
     while($folders.Count){foreach($file in Get-ChildItem -LiteralPath $folders.Pop() -Force){
         $relative=Get-WmmaRelativePath $Root $file.FullName
         if($relative -match '^(\.git|\.wmma|Все_MD_файлы)(/|$)' -or $relative -match '(^|/)desktop\.ini$|\.(tmp|bak|orig)$'){continue}
-        # Локальные сборки вне Git (кэш компиляции Regnum, тестовые программы) в снимки не входят.
-        if($relative -match '(^|/)(\.build|\.wmma|__pycache__)(/|$)|^tools/Regnum/bin/[^/]+/(regnum-test|platform-demo)'){continue}
+        # Локальные сборки вне Git (кэш компиляции Regnum, тестовые программы) и резервные
+        # копии мира Regnum (.regnum-backup) в снимки не входят.
+        if($relative -match '(^|/)(\.build|\.wmma|__pycache__|\.regnum-backup)(/|$)|^tools/Regnum/bin/[^/]+/(regnum-test|platform-demo)'){continue}
         if($file.Attributes -band [IO.FileAttributes]::ReparsePoint){throw "Reparse point cannot be copied into a turn: $relative"}
         if($file.PSIsContainer){$folders.Push($file.FullName);continue}
         $result[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -196,4 +197,107 @@ function Undo-WmmaTurn {
         }else{[IO.File]::Delete($target)}
     }
     $m.status='restored';Write-WmmaJson $mp $m;return $m
+}
+
+# Moves an unapplied turn onto the current project files. Outside edits (for example a
+# Regnum autosave) are copied into the stage when they touch other files than the turn;
+# the turn then needs Подготовить_ход again. Overlapping edits are refused with the list.
+function Rebase-WmmaTurn {
+    param([string]$Root,[string]$Id)
+    $turn=Get-WmmaTurnPath $Root $Id
+    $manifestPath=Join-Path $turn 'transaction.json';$m=Read-WmmaJson $manifestPath
+    if($m.status -notin @('editing','prepared')){throw "Only an unapplied turn (editing or prepared) moves to a new base; turn $Id is $($m.status). Use -Mode resume or -Mode restore."}
+    $stage=Join-Path $turn 'stage'
+    $current=Get-WmmaFileInventory $Root
+    $staged=Get-WmmaFileInventory $stage
+    $base=@{};foreach($p in $m.base.PSObject.Properties){$base[$p.Name]=$p.Value}
+    $paths=@(@($base.Keys)+@($current.Keys)+@($staged.Keys)|Sort-Object -Unique)
+    $outside=@($paths|Where-Object {$base[$_] -cne $current[$_]})
+    $own=@($paths|Where-Object {$base[$_] -cne $staged[$_]})
+    $conflicts=@($outside|Where-Object {$own -contains $_ -and $current[$_] -cne $staged[$_]})
+    if($conflicts.Count){
+        throw ("The turn and outside edits changed the same files. Keep one version of each (or restore the outside edit), then retry:`n"+(($conflicts|ForEach-Object {"- $_"}) -join "`n"))
+    }
+    foreach($path in $outside){
+        if($own -contains $path){continue}
+        $target=Resolve-WmmaPath $stage $path
+        if($null -ne $current[$path]){
+            [IO.Directory]::CreateDirectory((Split-Path -Parent $target))|Out-Null
+            $temp=$target+'.'+[guid]::NewGuid().ToString('N')+'.tmp'
+            [IO.File]::Copy((Resolve-WmmaPath $Root $path),$temp)
+            if((Get-FileHash -LiteralPath $temp).Hash.ToLowerInvariant() -cne $current[$path]){[IO.File]::Delete($temp);throw "Outside file changed during the rebase: $path"}
+            if(Test-Path -LiteralPath $target){[IO.File]::Replace($temp,$target,[NullString]::Value)}else{[IO.File]::Move($temp,$target)}
+        }elseif(Test-Path -LiteralPath $target){[IO.File]::Delete($target)}
+    }
+    $after=Get-WmmaFileInventory $Root
+    if($after.Count -ne $current.Count){throw 'Project file list changed during the rebase; retry.'}
+    foreach($key in $current.Keys){if($after[$key] -cne $current[$key]){throw "Project changed during the rebase: $key; retry."}}
+    $newBase=[ordered]@{};foreach($key in @($after.Keys|Sort-Object)){$newBase[$key]=$after[$key]}
+    $m.base=[pscustomobject]$newBase
+    $m.changes=@();$m.applied=@();$m.prepared_digest=$null;$m.status='editing'
+    $m|Add-Member -NotePropertyName rebased_real_date -NotePropertyValue (Get-Date -Format 'yyyy-MM-dd') -Force
+    $m|Add-Member -NotePropertyName rebased_files -NotePropertyValue @($outside|Where-Object {$own -notcontains $_}) -Force
+    Write-WmmaJson $manifestPath $m
+    return $m
+}
+
+# Journals of turns in .wmma/turns: status, start and last journal write; -Size adds the
+# size of the copy (stage and backups) in megabytes.
+function Get-WmmaTurns {
+    param([string]$Root,[switch]$Size)
+    $folder=Join-Path $Root '.wmma/turns'
+    if(-not (Test-Path -LiteralPath $folder)){return}
+    foreach($directory in @(Get-ChildItem -LiteralPath $folder -Directory|Sort-Object Name)){
+        $manifestPath=Join-Path $directory.FullName 'transaction.json'
+        $manifest=$null
+        if(Test-Path -LiteralPath $manifestPath){try{$manifest=Read-WmmaJson $manifestPath}catch{$manifest=$null}}
+        $bytes=$null
+        if($Size){$bytes=[double](Get-ChildItem -LiteralPath $directory.FullName -Recurse -File -Force -ErrorAction SilentlyContinue|Measure-Object -Property Length -Sum).Sum}
+        [pscustomobject][ordered]@{
+            id=$directory.Name
+            title=$(if($manifest){$manifest.title}else{$null})
+            status=$(if($manifest -and $manifest.status){[string]$manifest.status}else{'unreadable'})
+            started=$directory.CreationTime.ToString('yyyy-MM-dd HH:mm')
+            updated=$(if(Test-Path -LiteralPath $manifestPath){(Get-Item -LiteralPath $manifestPath).LastWriteTime.ToString('yyyy-MM-dd HH:mm')}else{$null})
+            size_mb=$(if($null -ne $bytes){[Math]::Round($bytes/1MB,1)}else{$null})
+            path=(Get-WmmaRelativePath $Root $directory.FullName)
+        }
+    }
+}
+
+# Unfinished turns: a half-applied or half-restored turn is an error (finish it with
+# Восстановить_ход before committing or rebuilding); an unapplied copy is a warning.
+function Get-WmmaTurnProblems {
+    param([string]$Root)
+    foreach($turn in @(Get-WmmaTurns -Root $Root)){
+        $id=$turn.id
+        switch($turn.status){
+            'applying' {[pscustomobject]@{kind='Error';message="Turn $id is half applied: run tools/Восстановить_ход.ps1 -Id $id with -Mode resume (finish) or -Mode restore (undo) before committing or rebuilding."}}
+            'restoring' {[pscustomobject]@{kind='Error';message="Turn $id is half restored: run tools/Восстановить_ход.ps1 -Id $id -Mode restore before committing or rebuilding."}}
+            'unreadable' {[pscustomobject]@{kind='Error';message="Turn journal is missing or unreadable: $($turn.path)/transaction.json."}}
+            {$_ -in @('copying','editing','prepared')} {[pscustomobject]@{kind='Warning';message="Unfinished turn $id ($($turn.status)): continue with Подготовить_ход and Применить_ход, move it onto outside edits with Восстановить_ход -Mode rebase, or discard the copy with Список_ходов -Discard -Id $id."}}
+        }
+    }
+}
+
+# Deletes a turn copy: a finished turn (committed or restored) or, with -Unapplied, a copy
+# that never touched the project (copying, editing, prepared). Returns the removed status.
+function Remove-WmmaTurn {
+    param([string]$Root,[string]$Id,[switch]$Unapplied)
+    $turn=Get-WmmaTurnPath $Root $Id
+    if(-not (Test-Path -LiteralPath $turn)){throw "Unknown turn: $Id"}
+    $manifestPath=Join-Path $turn 'transaction.json'
+    $status=if(Test-Path -LiteralPath $manifestPath){[string](Read-WmmaJson $manifestPath).status}else{'unreadable'}
+    $allowed=if($Unapplied){@('copying','editing','prepared')}else{@('committed','restored')}
+    if($allowed -notcontains $status){throw "Turn $Id is $status; this removal accepts only: $($allowed -join ', ')."}
+    Remove-Item -LiteralPath $turn -Recurse -Force
+    return $status
+}
+
+function Remove-WmmaFinishedTurns {
+    param([string]$Root,[string]$Id='')
+    foreach($turn in @(Get-WmmaTurns -Root $Root -Size|Where-Object {(-not $Id -or $_.id -eq $Id) -and $_.status -in @('committed','restored')})){
+        [void](Remove-WmmaTurn -Root $Root -Id $turn.id)
+        $turn
+    }
 }

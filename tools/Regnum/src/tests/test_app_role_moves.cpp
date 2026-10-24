@@ -109,7 +109,7 @@ TEST(app_role_player_moves) {
   }
 
   // Следующий ход — снова можно.
-  CHECK(h->endTurnNow());
+  CHECK(adminEndTurn(h));   // ход завершает администратор
   h->closeDialogs();
   h.settle();
   CHECK(rules::hasAction(h->world(), x));
@@ -175,7 +175,7 @@ TEST(app_role_player_embark_landing) {
   CHECK(hasToast(h, "уже ходило"));
 
   // Следующий ход: высадка — щелчком по суше у флота, тратит очко войска.
-  CHECK(h->endTurnNow());
+  CHECK(adminEndTurn(h));   // ход завершает администратор
   h->closeDialogs();
   h.settle();
   h.dropToasts();

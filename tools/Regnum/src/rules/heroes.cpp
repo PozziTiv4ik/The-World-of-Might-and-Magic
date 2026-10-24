@@ -71,6 +71,48 @@ void resurrect(Tx& tx, Id character, std::string_view natureKey, Id faction) {
          refs);
 }
 
+void releaseCaptive(Tx& tx, Id character) {
+  const Character& c = needCharacter(tx.w(), character);
+  const Id captor = c.captor, own = c.faction;
+  const Id m = modOf(tx.w(), character, schema::mod::Captive);
+  if (!m || !captor) fail(q(tx.w().characterName(character)) + " не в плену");
+  dropModifier(tx, ModTarget::Character, character, m);
+  tx.character(character).captor = 0;
+  if (own && own != captor && tx.w().faction(own)) shiftRelation(tx, captor, own, 5);
+  LogRefs refs{0, 0, {captor}};
+  if (own) refs.factions.push_back(own);
+  addLog(tx, LogKind::Note, q(tx.w().characterName(character)) + " отпущен из плена: " + facName(tx.w(), captor), refs);
+}
+
+void executeCaptive(Tx& tx, Id character, Id burial) {
+  const Character& c = needCharacter(tx.w(), character);
+  const Id holder = c.captor ? c.captor : c.jailer, own = c.faction;
+  if (!holder || (!modOf(tx.w(), character, schema::mod::Captive) && !modOf(tx.w(), character, schema::mod::Arrested)))
+    fail(q(tx.w().characterName(character)) + " не в плену и не под арестом");
+  if (burial) needProvince(tx.w(), burial);
+  const std::string name = q(tx.w().characterName(character));
+  addModifier(tx, ModTarget::Character, character, ensureBuiltinMod(tx, schema::mod::Dead), 0);   // снимает плен и арест
+  Character& m = tx.character(character);
+  m.burial = burial;
+  m.captor = 0;
+  m.jailer = 0;
+  if (own && own != holder && tx.w().faction(own)) shiftRelation(tx, holder, own, -20);
+  LogRefs refs{burial, 0, {holder}};
+  if (own && own != holder) refs.factions.push_back(own);
+  addLog(tx, LogKind::Note, name + " казнён: " + facName(tx.w(), holder), refs);
+}
+
+void arrestCharacter(Tx& tx, Id character, Id state) {
+  needCharacter(tx.w(), character);
+  needState(tx.w(), state);
+  const std::string name = q(tx.w().characterName(character));
+  if (modOf(tx.w(), character, schema::mod::Dead)) fail(name + " мёртв");
+  if (modOf(tx.w(), character, schema::mod::Captive)) fail(name + " в плену");
+  if (!modOf(tx.w(), character, schema::mod::Arrested)) addModifier(tx, ModTarget::Character, character, ensureBuiltinMod(tx, schema::mod::Arrested), 0);
+  tx.character(character).jailer = state;
+  addLog(tx, LogKind::Note, name + " под арестом: " + facName(tx.w(), state), LogRefs{0, 0, {state}});
+}
+
 std::vector<Id> captivesOf(const World& w, Id state) {
   std::vector<Id> out;
   w.characters.each([&](const Character& c) {

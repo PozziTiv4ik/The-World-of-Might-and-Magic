@@ -12,29 +12,14 @@ namespace rg::rules {
 struct LogRefs { Id province = 0, army = 0; std::vector<Id> factions; };
 Id addLog(Tx& tx, LogKind kind, const std::string& text, const LogRefs& refs = {});
 
-struct TurnFactionLine {
-  Id faction = 0;
-  double treasuryBefore = 0, treasuryAfter = 0, income = 0, expenses = 0;
-  std::map<Id, double> resources;     // изменение запасов ресурсов (кроме золота)
-  std::map<Id, double> essences;      // изменение запасов эссенций элементов
-  double provisionDebt = 0;           // недостача провизии после хода (голод, если больше нуля)
-};
-// События хода, которые требуют решения после него: восстание провинции (армия мятежников — битва с войском,
-// гарнизоном или захват) и мятеж войска с верностью −100 % (верные герои — «Судьба героя»).
-struct TurnEvent {
-  enum Kind : u8 { Uprising, Mutiny } kind = Uprising;
-  Id army = 0;                        // армия мятежников
-  Id province = 0;
-  Id origin = 0, rebelState = 0;
-  std::vector<Id> heroes;
-};
-struct TurnReport {
-  int turnFrom = 0, turnTo = 0;
-  std::vector<TurnFactionLine> factions;
-  std::vector<Id> logIds;            // записи хроники, созданные при завершении хода
-  std::vector<Id> rebellions;        // провинции, где вспыхнуло восстание
+// Строки итогов, события и исходы заказов — core/world.h (TurnFactionLine, TurnEvent, HitOutcome, TurnRecord):
+// итоги хранятся в мире (Meta::lastTurn), неразобранные события — Meta::turnEvents.
+using rg::HitOutcome;
+using rg::TurnEvent;
+using rg::TurnFactionLine;
+using rg::TurnRecord;
+struct TurnReport : TurnRecord {
   std::vector<TurnEvent> events;
-  std::vector<HitOutcome> hits;      // исходы заказных убийств заговоров
 };
 // Игрок отметил готовность завершить ход за государство (ход завершает администратор; отметка действует до конца
 // текущего хода — Faction::readyTurn).

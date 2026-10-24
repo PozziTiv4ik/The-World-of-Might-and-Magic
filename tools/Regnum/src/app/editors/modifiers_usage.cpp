@@ -1,5 +1,7 @@
 // Regnum — окно модификаторов: где используется модификатор (провинции, фракции, войска, герои, технологии, постройки,
-// гильдии, археологические группы) — подсчёт, подпись и раздел карточки со ссылками и добавлением.
+// гильдии, археологические группы, записи справочников — расы, культуры, религии, формы правления, реликвии, классы
+// героев и таланты) — подсчёт, подпись и раздел карточки со ссылками и добавлением.
+#include "app/common/relics.h"
 #include "app/editors/modifiers_internal.h"
 
 namespace rg::app::modedit {
@@ -29,8 +31,21 @@ ModUse usageOf(const World& w, Id mod) {
   w.characters.each([&](const Character& c) {
     if (has(c.modifiers, mod)) u.heroes.push_back(c.id);
   });
-  for (const CatalogItem& p : w.catalogs->positions)
+  const Catalogs& c = *w.catalogs;
+  for (const CatalogItem& p : c.positions)
     if (has(p.modifiers, mod) || has(p.vacantModifiers, mod)) u.positions.push_back(p.id);
+  for (auto [list, out] : {std::pair{&c.races, &u.races}, std::pair{&c.cultures, &u.cultures}, std::pair{&c.religions, &u.religions},
+                           std::pair{&c.governments, &u.governments}})
+    for (const CatalogItem& x : *list)
+      if (has(x.modifiers, mod)) out->push_back(x.id);
+  for (const Relic& r : c.relics)
+    if (has(r.modifiers, mod)) u.relics.push_back(r.id);
+  for (const HeroClass& k : c.classes) {
+    if (has(k.modifiers, mod)) u.classes.push_back(k.id);
+    for (const SubClass& s : k.subclasses)
+      for (const Talent& t : s.talents)
+        if (has(t.modifiers, mod)) u.talents.push_back({s.id, t.id});
+  }
   std::sort(u.provinces.begin(), u.provinces.end(), [&](Id x, Id y) { return compareRu(w.provinceName(x), w.provinceName(y)) < 0; });
   std::sort(u.states.begin(), u.states.end(), [&](Id x, Id y) { return compareRu(w.factionName(x), w.factionName(y)) < 0; });
   std::sort(u.guilds.begin(), u.guilds.end(), [&](Id x, Id y) { return compareRu(w.factionName(x), w.factionName(y)) < 0; });
@@ -62,10 +77,22 @@ std::unordered_map<Id, int> usageCounts(const World& w) {
   w.characters.each([&](const Character& c) {
     for (Id m : c.modifiers) n[m]++;
   });
-  for (const CatalogItem& p : w.catalogs->positions) {
+  const Catalogs& c = *w.catalogs;
+  for (const CatalogItem& p : c.positions) {
     for (Id m : p.modifiers) n[m]++;
     for (Id m : p.vacantModifiers)
       if (!has(p.modifiers, m)) n[m]++;
+  }
+  for (const std::vector<CatalogItem>* list : {&c.races, &c.cultures, &c.religions, &c.governments})
+    for (const CatalogItem& x : *list)
+      for (Id m : x.modifiers) n[m]++;
+  for (const Relic& r : c.relics)
+    for (Id m : r.modifiers) n[m]++;
+  for (const HeroClass& k : c.classes) {
+    for (Id m : k.modifiers) n[m]++;
+    for (const SubClass& s : k.subclasses)
+      for (const Talent& t : s.talents)
+        for (Id m : t.modifiers) n[m]++;
   }
   return n;
 }
@@ -101,6 +128,13 @@ std::string usageText(const ModUse& u) {
   add(u.groups.size(), "археологическая группа", "археологические группы", "археологических групп");
   add(u.techs.size(), "технология", "технологии", "технологий");
   add(u.levels.size(), "уровень постройки", "уровня построек", "уровней построек");
+  add(u.races.size(), "раса", "расы", "рас");
+  add(u.cultures.size(), "культура", "культуры", "культур");
+  add(u.religions.size(), "религия", "религии", "религий");
+  add(u.governments.size(), "форма правления", "формы правления", "форм правления");
+  add(u.relics.size(), "реликвия", "реликвии", "реликвий");
+  add(u.classes.size(), "класс героя", "класса героев", "классов героев");
+  add(u.talents.size(), "талант", "таланта", "талантов");
   std::string s;
   for (size_t i = 0; i < parts.size(); i++) s += (i ? ", " : "") + parts[i];
   return s;
@@ -229,7 +263,6 @@ void usageSection(App& a, const Modifier& m, const std::map<std::string, std::ve
     }
   }
   if (group("Провинции", u.provinces.size())) {
-    if (!hasLocal(m) && hasGlobal(m)) ui::tag("Глобальные эффекты в провинции не действуют", ui::Tone::Warning, "warning");
     ui::ChipFlow cf;
     for (Id pid : u.provinces) {
       const Province* p = w.province(pid);
@@ -298,6 +331,92 @@ void usageSection(App& a, const Modifier& m, const std::map<std::string, std::ve
               c.vacantModifiers.erase(std::remove(c.vacantModifiers.begin(), c.vacantModifiers.end(), mid), c.vacantModifiers.end());
             }
         });
+    }
+  }
+  // Записи справочников: расы, культуры, религии, формы правления (вкладка справочника по щелчку, крестик — убрать).
+  struct CatGroup {
+    const char* title;
+    const char* mark;
+    const char* icon;
+    rules::CatalogList list;
+    const std::vector<Id>& ids;
+    Id tab;
+  };
+  for (const CatGroup& g : {CatGroup{"Расы", "races", "race", rules::CatalogList::Races, u.races, 2},
+                            CatGroup{"Культуры", "cultures", "culture", rules::CatalogList::Cultures, u.cultures, 3},
+                            CatGroup{"Религии", "religions", "religion", rules::CatalogList::Religions, u.religions, 4},
+                            CatGroup{"Формы правления", "governments", "crown", rules::CatalogList::Governments, u.governments, 5}}) {
+    if (!group(g.title, g.ids.size())) continue;
+    a.markUi(std::string("modifiers.usage.") + g.mark);
+    ui::ChipFlow cf;
+    for (Id id : g.ids) {
+      const CatalogItem* it = Catalogs::find(rules::catalogList(*w.catalogs, g.list), id);
+      if (!it) continue;
+      ui::IdScope s{i64(id) + 0xA00000LL * i64(int(g.list) + 1)};
+      const Id tab = g.tab;
+      const rules::CatalogList list = g.list;
+      auto act = useChip(orName(it->name, "Без названия"), g.icon, g.list == rules::CatalogList::Governments ? Color(0, 0, 0, 0) : it->color,
+                         "Открыть справочник", !ro);
+      if (act == ui::ChipAction::Click) later(a, [tab](App& x) { x.openEditor("catalogs", tab); });
+      if (act == ui::ChipAction::Remove)
+        a.act("Убрать модификатор записи справочника", [&](Tx& tx) {
+          for (CatalogItem& x : rules::catalogList(tx.catalogs(), list))
+            if (x.id == id) x.modifiers.erase(std::remove(x.modifiers.begin(), x.modifiers.end(), mid), x.modifiers.end());
+        });
+    }
+  }
+  if (group("Реликвии", u.relics.size())) {
+    a.markUi("modifiers.usage.relics");
+    ui::ChipFlow cf;
+    for (Id rid : u.relics) {
+      const Relic* r = w.relic(rid);
+      if (!r) continue;
+      ui::IdScope s{i64(rid) + 0xB00000LL};
+      auto act = useChip(orName(r->name, "Реликвия"), "relic", w::rarityColor(r->rarity), "Открыть справочник реликвий", !ro);
+      if (act == ui::ChipAction::Click) later(a, [rid](App& x) { relics::openCatalog(x, rid); });
+      if (act == ui::ChipAction::Remove)
+        a.act("Убрать модификатор реликвии", [&](Tx& tx) {
+          for (Relic& x : tx.catalogs().relics)
+            if (x.id == rid) x.modifiers.erase(std::remove(x.modifiers.begin(), x.modifiers.end(), mid), x.modifiers.end());
+        });
+    }
+  }
+  if (group("Классы героев", u.classes.size())) {
+    a.markUi("modifiers.usage.classes");
+    ui::ChipFlow cf;
+    for (Id cid : u.classes) {
+      const HeroClass* k = w.heroClass(cid);
+      if (!k) continue;
+      ui::IdScope s{i64(cid) + 0xC00000LL};
+      auto act = useChip(orName(k->name, "Класс"), "hero-class", k->color, "Открыть справочник классов героев", !ro);
+      if (act == ui::ChipAction::Click) later(a, [](App& x) { x.openEditor("catalogs", 10); });
+      if (act == ui::ChipAction::Remove)
+        a.act("Убрать модификатор класса героя", [&](Tx& tx) {
+          for (HeroClass& x : tx.catalogs().classes)
+            if (x.id == cid) x.modifiers.erase(std::remove(x.modifiers.begin(), x.modifiers.end(), mid), x.modifiers.end());
+        });
+    }
+  }
+  // Таланты — фишкой на подкласс (число талантов, названия — в подсказке); убрать — в карточке таланта.
+  if (group("Таланты", u.talents.size())) {
+    a.markUi("modifiers.usage.talents");
+    ui::ChipFlow cf;
+    std::vector<std::pair<Id, std::vector<Id>>> bySub;
+    for (auto [sub, t] : u.talents) {
+      if (bySub.empty() || bySub.back().first != sub) bySub.push_back({sub, {}});
+      bySub.back().second.push_back(t);
+    }
+    for (auto& [sub, ts] : bySub) {
+      const SubClass* sc = w.catalogs->subclass(sub);
+      const HeroClass* k = w.catalogs->classOfSubclass(sub);
+      if (!sc || !k) continue;
+      std::vector<std::string> names;
+      for (Id t : ts)
+        if (const Talent* x = sc->talent(t)) names.push_back(orName(x->name, "Талант"));
+      ui::IdScope s{i64(sub) + 0xD00000LL};
+      if (useChip(orName(sc->name, "Подкласс") + " · " + std::to_string(ts.size()), "talent", k->color, orName(k->name, "Класс") + "\n" + join(names, "\n"),
+                  false) == ui::ChipAction::Click)
+        later(a, [](App& x) { x.openEditor("catalogs", 10); });
     }
   }
   if (group("Археологические группы", u.groups.size())) {

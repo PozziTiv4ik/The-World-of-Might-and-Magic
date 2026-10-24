@@ -58,6 +58,9 @@ enum class PlotKind : u8 { External = 0, Internal = 1, Count };
 enum class ConstType : u8 { Number = 0, Resources = 1, Values = 2, Count };
 // Поле сундука сокровищ: археологическая награда, золото, ресурс, артефакт, эссенция, вложенный сундук.
 enum class ChestItemKind : u8 { Treasure = 0, Gold = 1, Resource = 2, Relic = 3, Essence = 4, Chest = 5, Count };
+// Предложение другой стороне или ожидающее решение государства (core/world.h, Proposal): сделка (обмен, дань,
+// репарации), перемирие, союз; вопросы вассалитета — сюзерен вступает в войну за вассала, вассал отвечает на призыв.
+enum class ProposalKind : u8 { Deal = 0, Truce = 1, Alliance = 2, Defend = 3, Call = 4, Count };
 
 // Эффекты модификаторов. Пределы и подписи — schema.h (kEffects).
 enum class Fx : u8 {
@@ -81,7 +84,7 @@ constexpr int kFxCount = int(Fx::Count);
 enum class Seq : u8 {
   Province, Faction, Character, Modifier, Building, Tech, Army, Route, Deal, Log, Row, Council,
   Node, Edge, Resource, Race, Culture, Religion, Government, Position, Symbol, Shape,
-  Essence, Relic, Special, ResGroup, HeroClass, Talent, RelicGroup, ArchSite, Chest, ArchGroup, SubClass, Plot, Count
+  Essence, Relic, Special, ResGroup, HeroClass, Talent, RelicGroup, ArchSite, Chest, ArchGroup, SubClass, Plot, Proposal, Count
 };
 constexpr int kSeqCount = int(Seq::Count);
 

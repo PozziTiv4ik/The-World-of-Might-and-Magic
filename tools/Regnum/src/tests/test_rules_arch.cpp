@@ -696,11 +696,11 @@ TEST(rules_arch_tech_branch_effects) {
   CHECK_EQ(archStats(f.w(), f.A, g).level, 2);
   // «Старательные искатели»: +10 % к обнаружению (50 % + 5 % второго уровня + 10 %).
   CHECK_NEAR(discoveryChance(f.w(), f.A, g), 65, 1e-9);
-  // «Основы археологии» и «Продвинутые инструменты»: +1 % + 1 % сокровищ от всех действий групп.
+  // «Основы археологии» и «Продвинутые инструменты»: +10 % и +20 % сокровищ от всех действий групп.
   const ArchStats st = archStats(f.w(), f.A, g);
-  CHECK_NEAR(st.treasurePct, 2, 1e-9);
+  CHECK_NEAR(st.treasurePct, 30, 1e-9);
   std::vector<ArchGain> got;
   Rng rng(3);
   f.tx([&](Tx& tx) { got = openChest(tx, f.A, test::chestKey(tx.w(), "small"), rng, st.treasurePct); });
-  CHECK_NEAR(treasure(f.w(), f.A), 51, 1e-9);
+  CHECK_NEAR(treasure(f.w(), f.A), 65, 1e-9);
 }

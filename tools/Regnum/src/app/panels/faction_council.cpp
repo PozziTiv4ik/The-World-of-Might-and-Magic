@@ -84,7 +84,7 @@ void positionPicker(App& a, const World& w, Id faction, const CouncilSeat& seat,
 void drawCouncil(App& a, Id id) {
   const World& w = frameWorld(a);
   const Faction* f = w.faction(id);
-  if (!f) return;
+  if (!f || w::hiddenFor(a, id)) return;   // туман войны: совет чужого государства скрыт
   const bool ro = !a.canPlay(id);   // назначения и места — игровые действия за это государство
   const bool edit = a.canEdit();     // содержание советника — правка мира
   const int n = int(f->council.size());

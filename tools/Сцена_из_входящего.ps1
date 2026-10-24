@@ -23,6 +23,11 @@ param(
 
     [string]$FrontId = '-',
 
+    # Characters of the scene and the fronts it moves; passed to Новая_сцена.
+    [string[]]$ParticipantIds = @(),
+
+    [string[]]$FrontIds = @(),
+
     [string]$SceneSummary = '',
 
     [string]$ProcessSummary = '',
@@ -94,6 +99,10 @@ function Select-InboxHeading {
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+# Links are checked before the message is written, so a wrong ID leaves no partial intake.
+Assert-WmmaEntityIds (Read-WmmaRegistry $root 'Сущности') @($ParticipantIds|Where-Object {$_}) -Type @('character') -Label 'participant character'
+$declaredFronts=@((Read-WmmaRegistry $root 'Фронты').fronts|ForEach-Object {$_.id})
+foreach($id in @(@($FrontIds)+@($FrontId)|Where-Object {$_ -and $_ -ne '-'})){if($declaredFronts -notcontains $id){throw "Unknown FRONT-ID: $id. Create it with tools/Новый_фронт.ps1 first."}}
 $hasInlineMessage = -not [string]::IsNullOrWhiteSpace($Text) -or -not [string]::IsNullOrWhiteSpace($TextPath)
 if($TextPath){$Text=Read-WmmaText ((Resolve-Path -LiteralPath $TextPath).Path)}
 if($hasInlineMessage -and -not $RequestId){$RequestId='MSG-'+(Get-WmmaMessageHash $Text).Substring(0,24)}
@@ -180,6 +189,8 @@ $sceneArgs = @{
 }
 if($RequestId){$sceneArgs.RequestId=$RequestId}
 $sceneArgs.SourceIds=$sourceIds
+$sceneArgs.ParticipantIds=@($ParticipantIds|Where-Object {$_})
+$sceneArgs.FrontIds=@($FrontIds|Where-Object {$_})
 
 $sceneOutput = Invoke-WmmaTool -Root $root -Name 'Новая_сцена' -Arguments $sceneArgs
 

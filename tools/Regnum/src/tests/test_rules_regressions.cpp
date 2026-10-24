@@ -104,6 +104,7 @@ TEST(rules_regression_small_population_grows) {
   f.tx([&](Tx& tx) {
     race = addCatalogItem(tx, CatalogList::Races, "Люди");
     m = makeMod(tx, {{Fx::PopGrowthPct, 1}});
+    tx.faction(f.A).res[provisionResources(tx.w()).front()] = 1000;   // провизии хватает: при голоде прироста нет
     Province& p = tx.province(f.p[0]);
     p.owner = f.A;
     p.races = {RacePop{race, 40}};
@@ -139,8 +140,8 @@ TEST(rules_regression_sea_province_pauses_and_clears) {
     row = addArmyRow(tx, f.A, UnitType::LightInf, "", 100, 1);
     setGarrison(tx, f.p[0], row, 40);
     setCapital(tx, f.A, f.p[0]);
+    startBuilding(tx, f.p[0], s.b);   // в оккупированной провинции владелец стройку не начинает — до оккупации
     setOccupied(tx, f.p[0], f.B);
-    startBuilding(tx, f.p[0], s.b);
   });
   f.tx([&](Tx& tx) { setProvinceSea(tx, f.p[0], true); });
   const Province* p = f.w().province(f.p[0]);
@@ -375,7 +376,11 @@ TEST(rules_regression_war_dissolves_allied_army) {
     formAllied(tx, al, other);
   });
   CHECK(f.w().army(al)->allied());
-  f.tx([&](Tx& tx) { declareWar(tx, f.B, f.A); });
+  // Войну объявляют после срока перемирия (Relation::calm).
+  f.tx([&](Tx& tx) {
+    tx.meta().turn = tx.w().relation(f.A, f.B).calm;
+    declareWar(tx, f.B, f.A);
+  });
   CHECK(!f.w().army(al)->allied());
 }
 

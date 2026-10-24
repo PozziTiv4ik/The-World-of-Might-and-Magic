@@ -1,4 +1,6 @@
 // Regnum — цвета режимов карты, вид провинций в тайлах, легенды.
+#include <unordered_set>
+
 #include "map/map_internal.h"
 
 namespace rg::map::detail {
@@ -14,6 +16,7 @@ u64 TileStyle::key() const {
   h = hashMix(h, op);
   h = hashMix(h, dp);
   h = hashMix(h, 0x7a1e00u + u32(palette));
+  if (focus) h = hashMix(h, 0xd1f0000000ull + focus);
   return h ? h : 1;
 }
 
@@ -55,6 +58,55 @@ double maxTrade(const World& w, const rules::Calc& calc) {
   return m;
 }
 
+// ---------------------------------------------------------------- «Дипломатия»: отношения владельца к государству
+const Color kDipFocus = Color::hex(0xd9a441), kDipAlly = Color::hex(0x3f9a54), kDipWar = Color::hex(0xc2412f),
+            kDipSuzerain = Color::hex(0x8a62c9), kDipVassal = Color::hex(0x5fb0d8), kDipOther = Color::hex(0xb3ab9c);
+
+Color diplomacyColor(const World& w, Id focus, Id owner) {
+  const Faction* f = w.faction(focus);
+  const Faction* o = w.faction(owner);
+  if (!f || !f->isState() || !o) return kDipOther;
+  if (owner == focus) return kDipFocus;
+  const RelStatus s = w.relation(focus, owner).s;
+  if (s == RelStatus::War) return kDipWar;
+  if (f->suzerain == owner) return kDipSuzerain;
+  if (o->suzerain == focus) return kDipVassal;
+  if (s == RelStatus::Alliance) return kDipAlly;
+  return kDipOther;
+}
+
+// ---------------------------------------------------------------- «Чума и пустоши»
+const Color kPlague = Color::hex(0x7f8f2a), kPlagueRisk = Color::hex(0xd2d39a), kImmunity = Color::hex(0x4fb09a),
+            kQuarantine = Color::hex(0x4f8a9b), kQuarantineHatch = Color::hex(0x1f4a56), kWaste = Color::hex(0x676b76),
+            kDesecrated = Color::hex(0x8e2a22);
+
+bool hasModKey(const World& w, const Province& p, std::string_view key) {
+  for (Id m : p.modifiers)
+    if (const Modifier* x = w.modifier(m); x && x->key == key) return true;
+  return false;
+}
+
+// Провинции, соседние с чумой, куда она может прийти (без чумы, иммунитета, карантина и пустоши).
+std::unordered_set<Id> plagueRisk(const World& w) {
+  std::unordered_set<Id> sick, out;
+  w.provinces.each([&](const Province& p) {
+    if (!p.sea && hasModKey(w, p, schema::mod::Plague) && !hasModKey(w, p, schema::mod::Quarantine)) sick.insert(p.id);
+  });
+  if (sick.empty()) return out;
+  auto fs = geo::faces(w);
+  if (!fs) return out;
+  for (const auto& [x, y] : fs->neighbors()) {
+    for (const auto& [from, to] : {std::pair{x, y}, std::pair{y, x}}) {
+      if (!sick.count(from) || sick.count(to)) continue;
+      const Province* p = w.province(to);
+      if (p && !p->sea && !hasModKey(w, *p, schema::mod::Plague) && !hasModKey(w, *p, schema::mod::PlagueImmunity) &&
+          !hasModKey(w, *p, schema::mod::Quarantine) && !hasModKey(w, *p, schema::mod::UndeadWaste))
+        out.insert(to);
+    }
+  }
+  return out;
+}
+
 }  // namespace
 
 std::shared_ptr<const Looks> computeLooks(const World& w, const TileStyle& s) {
@@ -62,9 +114,10 @@ std::shared_ptr<const Looks> computeLooks(const World& w, const TileStyle& s) {
   const MapMode m = s.mode;
   const float op = clamp(s.fillOpacity, 0.f, 1.f);
   const bool data = m == MapMode::Contentment || m == MapMode::Rebellion || m == MapMode::Trade || m == MapMode::Resources ||
-                    m == MapMode::Religion || m == MapMode::Culture;
+                    m == MapMode::Religion || m == MapMode::Culture || m == MapMode::Diplomacy || m == MapMode::Plague;
   L->fillAlpha = m == MapMode::Guilds ? op * 0.42f : data ? clamp(0.22f + op, 0.4f, 0.9f) : op;
-  L->hatch = m == MapMode::Political || m == MapMode::Guilds;
+  // Штриховка: оккупация (политическая карта, гильдии, дипломатия), карантин (чума и пустоши).
+  L->hatch = m == MapMode::Political || m == MapMode::Guilds || m == MapMode::Diplomacy || m == MapMode::Plague;
   L->stateDark = data || m == MapMode::Terrain ? 1.f : 0.f;
   if (m == MapMode::Terrain) {
     L->provLineAlpha = 0.16f;
@@ -86,6 +139,7 @@ std::shared_ptr<const Looks> computeLooks(const World& w, const TileStyle& s) {
   if (m == MapMode::Rebellion || m == MapMode::Trade) calc = rules::calc(w);
   const double tmax = calc && m == MapMode::Trade ? maxTrade(w, *calc) : 0;
   const Catalogs& cat = *w.catalogs;
+  const std::unordered_set<Id> risk = m == MapMode::Plague ? plagueRisk(w) : std::unordered_set<Id>{};
 
   w.provinces.each([&](const Province& p) {
     ProvLook look;
@@ -119,11 +173,25 @@ std::shared_ptr<const Looks> computeLooks(const World& w, const TileStyle& s) {
         break;
       case MapMode::Religion: c = catalogColor(cat.religions, p.religion); break;
       case MapMode::Culture: c = catalogColor(cat.cultures, p.culture); break;
+      case MapMode::Diplomacy:
+        if (look.state) c = diplomacyColor(w, s.focus, p.owner);
+        break;
+      case MapMode::Plague: {
+        const bool quarantine = hasModKey(w, p, schema::mod::Quarantine);
+        if (hasModKey(w, p, schema::mod::Plague)) c = kPlague;
+        else if (hasModKey(w, p, schema::mod::PlagueImmunity)) c = kImmunity;
+        else if (hasModKey(w, p, schema::mod::UndeadWaste)) c = kWaste;
+        else if (hasModKey(w, p, schema::mod::Desecrated)) c = kDesecrated;
+        else if (quarantine) c = kQuarantine;
+        else if (risk.count(p.id)) c = kPlagueRisk;
+        if (quarantine) look.hatch = kQuarantineHatch;
+        break;
+      }
       case MapMode::Terrain:
       case MapMode::Count: break;
     }
     look.fill = c.a ? c.withA(255) : Color(0, 0, 0, 0);
-    if (L->hatch && p.occupied && p.occupier && p.occupier != p.owner) look.hatch = factionColor(w, p.occupier);
+    if (L->hatch && m != MapMode::Plague && p.occupied && p.occupier && p.occupier != p.owner) look.hatch = factionColor(w, p.occupier);
     L->prov[p.id] = look;
   });
 
@@ -205,6 +273,23 @@ std::vector<LegendItem> legendFor(const World& w, MapMode mode, const art::Style
       out.push_back({colors.land, "Суша", "land"});
       out.push_back({colors.sea, "Море, реки и озёра", "sea"});
       out.push_back({colors.tone(0x8c), "Горы, замки и башни", "mountain"});
+      break;
+    case MapMode::Diplomacy:
+      out.push_back({kDipFocus, "Выбранное государство", "star-filled"});
+      out.push_back({kDipAlly, "Союз", "handshake"});
+      out.push_back({kDipWar, "Война", "war"});
+      out.push_back({kDipSuzerain, "Сюзерен", "crown"});
+      out.push_back({kDipVassal, "Вассал", "banner"});
+      out.push_back({kDipOther, "Прочие государства", "flag"});
+      out.push_back({colors.land, "Без владельца", "land"});
+      break;
+    case MapMode::Plague:
+      out.push_back({kPlague, "Чума", "plague"});
+      out.push_back({kPlagueRisk, "Соседство с чумой", "plague"});
+      out.push_back({kImmunity, "Временный иммунитет", "heal"});
+      out.push_back({kQuarantine, "Карантин", "shield"});
+      out.push_back({kWaste, "Пустошь нежити", "skull"});
+      out.push_back({kDesecrated, "Осквернена", "flame"});
       break;
     case MapMode::Count: break;
   }

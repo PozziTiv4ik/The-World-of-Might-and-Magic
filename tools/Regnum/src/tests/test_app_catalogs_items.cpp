@@ -517,7 +517,9 @@ TEST(app_catalogs_items_specials) {
   CHECK_EQ(h->world().special(fresh)->name, std::string("Стражи Рассвета"));
   // Удаление драконов: строка армии станет обычной, постройка потеряет доступ; Ctrl+Z возвращает.
   {
-    const RectF* r = h->uiRect("catalogs.special." + std::to_string(dragons));   // щелчок по названию — выбор строки
+    // Строка драконов — в начале таблицы (26 базовых отрядов): прокрутка к ней; щелчок по названию — выбор строки.
+    CHECK(scrollFind(h, "catalogs.special." + std::to_string(dragons)));
+    const RectF* r = h->uiRect("catalogs.special." + std::to_string(dragons));
     CHECK(r != nullptr);
     if (r) h.click(r->x + 90, r->cy());
     quick(h);

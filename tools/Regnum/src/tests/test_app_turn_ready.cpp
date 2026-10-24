@@ -42,10 +42,20 @@ TEST(app_turn_ready_player_marks_admin_ends) {
   h.dropToasts();
   h.settle();
   CHECK(cropShot("turn_ready_player_idle", endTurnArea(h), 2));
+  // «Завершить ход» сначала показывает предпросмотр хода только своего государства (окно «turn.ready», аудит
+  // 2026-10-23, 2.4); «Готов» ставит отметку.
   CHECK(h.clickUi("topbar.endturn"));
-  CHECK(hasToast(h, "Готов завершить ход"));
   h.settle();
+  CHECK(h->hasDialog("turn.ready"));
   CHECK(!h->hasDialog("turn.confirm"));
+  CHECK(h->uiRect("turn.ready.row." + std::to_string(hel)) != nullptr);
+  CHECK(h->uiRect("turn.ready.row." + std::to_string(sol)) == nullptr);
+  CHECK(!rules::turnReady(h->world(), hel));
+  h.dropToasts();
+  h.settle();
+  CHECK(h.shot("turn_ready_preview"));
+  CHECK(h.clickUi("dialog.ok"));   // уведомление «Готов завершить ход» — над закрывающимся окном
+  h.settle();
   CHECK(!h->hasDialog());
   CHECK_EQ(h->world().turn(), t0);
   CHECK(rules::turnReady(h->world(), hel));
@@ -71,6 +81,9 @@ TEST(app_turn_ready_player_marks_admin_ends) {
   h.settle();
   CHECK(!rules::turnReady(h->world(), hel));
   CHECK(app::runCommand(h.a(), "turn.end"));
+  h.settle();
+  CHECK(h->hasDialog("turn.ready"));
+  CHECK(h.clickUi("dialog.ok"));
   h.settle();
   CHECK(rules::turnReady(h->world(), hel));
   CHECK(!h->hasDialog());
@@ -104,7 +117,11 @@ TEST(app_turn_ready_player_marks_admin_ends) {
     h.move(r->cx(), r->y - 200);
   }
 
-  // Окно завершения хода: вкладка «Готовность» — готовое государство и основное без отметки.
+  // Окно завершения хода: вкладка «Готовность» — готовое государство и основное без отметки; готовы не все основные
+  // государства — «Готовность 1/2» с отметкой предупреждения (аудит 2026-10-23, 2.8).
+  CHECK_EQ(tu::mainReady(h->world()).ready, 1);
+  CHECK_EQ(tu::mainReady(h->world()).total, 2);
+  CHECK(!tu::mainReady(h->world()).all());
   CHECK(h.clickUi("topbar.endturn"));
   h.settle();
   CHECK(h->hasDialog("turn.confirm"));
@@ -127,7 +144,8 @@ TEST(app_turn_ready_player_marks_admin_ends) {
   CHECK(h->world().faction(hel)->readyTurn == t0);   // отметка прошлого хода — уже не действует
 }
 
-// Игрок не открывает окно завершения хода ни кнопкой, ни App::endTurn; на прошлом ходу отметка недоступна.
+// Игрок не открывает окно завершения хода ни кнопкой, ни App::endTurn — только предпросмотр своего государства;
+// «Отмена» отметку не ставит; на прошлом ходу отметка недоступна.
 TEST(app_turn_ready_player_never_confirms) {
   Harness h("turn_ready_player");
   h.demo();
@@ -139,6 +157,15 @@ TEST(app_turn_ready_player_never_confirms) {
   h->endTurn();
   h.settle();
   CHECK(!h->hasDialog("turn.confirm"));
+  CHECK(h->hasDialog("turn.ready"));
+  CHECK(h.clickUi("dialog.cancel"));
+  h.settle();
+  CHECK(!h->hasDialog());
+  CHECK(!rules::turnReady(h->world(), kor));
+  h->endTurn();
+  h.settle();
+  CHECK(h.clickUi("dialog.ok"));
+  h.settle();
   CHECK(rules::turnReady(h->world(), kor));
   // Чужая отметка игроку недоступна: только своё государство.
   const Id other = factionByName(h->world(), "Хельдвиг");

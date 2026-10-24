@@ -159,6 +159,11 @@ void amountGlyph(const char* icon, Color color, double amount, std::string_view 
 void usageSection(App& a, State& st, const World& w, rules::CatalogList list, const CatalogItem& c, const Use& u);
 // Строки армий: перейти к войскам фракции.
 void openArmy(App& a, Id faction);
+// Модификаторы героя у записи справочника (реликвия — герою-носителю, класс — героям класса; RULES.md §22): фишки и
+// выбор (виды «Для героев» и «Везде», встроенные — с созданием записи), метка списка mark. Состояния героя («Мертв»,
+// «Взят в плен», «Под арестом»), природа героя и автоматические модификаторы не принимаются. set — записать состав.
+void heroModList(App& a, const std::string& mark, const std::vector<Id>& cur, bool ro, std::string_view label,
+                 const std::function<void(Tx&, const std::vector<Id>&)>& set);
 // Перейти к записи другой вкладки окна.
 void selectInTab(State& st, int tab, Id id);
 // Дерево построек на постройке (после кадра).

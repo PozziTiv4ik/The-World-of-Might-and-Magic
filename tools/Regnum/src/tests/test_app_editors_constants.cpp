@@ -14,6 +14,7 @@ namespace {
 
 const char* kArea = "editor";
 constexpr float kTop = 8;
+constexpr float kListTop = 64;   // строки списка: ниже заголовка «N констант» с кнопкой «+» (список прокручивается сам)
 
 // Окно констант открыто, константа key выбрана в списке (её карточка — справа).
 bool sel(Harness& h, const std::string& key) {
@@ -21,7 +22,7 @@ bool sel(Harness& h, const std::string& key) {
     h->openEditor("constants");
     quick(h);
   }
-  if (!clickRevealed(h, "constants.list." + key, kArea, kTop)) return false;
+  if (!clickRevealed(h, "constants.list." + key, kArea, kListTop)) return false;
   quick(h);
   return true;
 }
@@ -189,14 +190,14 @@ TEST(app_editors_constants_user_and_window) {
   CHECK(h->world().constants->find("user1") != nullptr);
   // Окно констант: список и карточка.
   CHECK_EQ(h->ui.editor, std::string("constants"));
-  CHECK(h.clickUi("constants.list.frigateCost"));
+  CHECK(clickRevealed(h, "constants.list.frigateCost", kArea, kListTop));   // встроенных констант больше, чем видно в списке
   quick(h);
   // Стоимость фрегата: 4 базовых ресурса (древесина, золото, ткань, железо) и добавленный уголь.
   CHECK_EQ(rules::constantOf(h->world(), schema::cst::FrigateCost).res.size(), size_t(4));
   CHECK(pickInCombo(h, "constants.frigateCost.addres", "Уголь"));
   CHECK_EQ(rules::constantOf(h->world(), schema::cst::FrigateCost).res.size(), size_t(5));
   shotClean(h, "editors_constants_window");
-  CHECK(clickRevealed(h, "constants.list.user2", kArea, kTop));   // свои — ниже 14 встроенных: список прокручивается
+  CHECK(clickRevealed(h, "constants.list.user2", kArea, kListTop));   // свои — ниже встроенных: список прокручивается
   quick(h);
   CHECK(h->uiRect("constants.user2.delete") != nullptr);
   shotClean(h, "editors_constants_window_values");
@@ -205,6 +206,8 @@ TEST(app_editors_constants_user_and_window) {
   quick(h);
   CHECK(h->endTurnNow());
   h->toasts().clear();
+  h->closeDialogs();   // окна событий хода демонстрационного мира (остаются в очереди «Решений»)
+  quick(h);
   CHECK(h->viewTurn(1));
   quick(h);
   CHECK(sel(h, schema::cst::ColonizationCost));

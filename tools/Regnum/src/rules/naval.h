@@ -33,6 +33,10 @@ bool canBoardExchange(const World& w, Id army, Id fleet, std::string* why = null
 std::vector<Id> landingProvinces(const World& w, Id fleet);
 bool canLand(const World& w, Id fleet, Vec2 pos, std::string* why = nullptr);
 Id land(Tx& tx, Id fleet, Vec2 pos);
+// Ближайшее к флоту свободное место на суше по правилам высадки (canLand); nullopt — высадиться некуда.
+std::optional<Vec2> landingSpot(const World& w, Id fleet);
+// Перегруз: вместимость флота меньше войска на борту (потери кораблей в бою) — флот не плывёт, только высаживает войско.
+bool fleetOverloaded(const World& w, Id fleet, std::string* why = nullptr);
 // Обмен отрядами двух объектов одного вида и одной фракции (и подошедшего войска с войском на борту): first — итоговая
 // численность первого объекта по (фракция, строка) (не указанные строки не меняются), heroesFirst — все герои первого
 // после обмена (остальные герои обоих — у второго). Сумма по строкам сохраняется; отряды и герои фракции переходят

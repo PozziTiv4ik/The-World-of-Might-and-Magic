@@ -78,13 +78,18 @@ if ($FrontId -ne '-' -and $declaredFrontIds -notcontains $FrontId) {
     throw "Unknown FRONT-ID: $FrontId. Create it with tools/Новый_фронт.ps1 first."
 }
 foreach($id in $FrontIds){if($declaredFrontIds -notcontains $id){throw "Unknown front: $id"}}
+# Scenes of a closed chapter are protected canon; a new scene belongs to an open chapter.
+foreach($chapterFile in @(Get-ChildItem -LiteralPath (Join-Path $root '01_Кампания/Главы') -File -Filter '*.md')){
+    $chapterText=Read-WmmaText $chapterFile.FullName
+    if((Get-WmmaMeta $chapterText 'chapter') -eq [string]$Chapter -and (Get-WmmaMeta $chapterText 'status') -eq 'closed'){throw "Chapter $Chapter is closed; its scenes are protected canon."}
+}
 $entityGraph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
 $sources=@($entityGraph.entities|Where-Object {$_.type -like 'source*'}|ForEach-Object {$_.id})
 # A source may have just been accepted before the next graph build.
 $sources+=@(Get-ChildItem -LiteralPath (Join-Path $root '08_Источники') -Filter '*.md'|ForEach-Object {Get-WmmaMeta (Read-WmmaText $_.FullName) 'id'})
-$characters=@($entityGraph.entities|Where-Object type -eq 'character'|ForEach-Object {$_.id})
 foreach($id in $SourceIds){if(-not $id -or $sources -notcontains $id){throw "Unknown source ID: $id"}}
-foreach($id in $ParticipantIds){if(-not $id -or $characters -notcontains $id){throw "Unknown character ID: $id"}}
+# Participants are existing characters; a merged card is a redirect, not a participant.
+Assert-WmmaEntityIds $entityGraph $ParticipantIds -Type @('character') -Label 'participant character'
 
 $branchRoot = Join-Path $root (Join-Path '01_Кампания\Ветки' $Branch)
 if (-not (Test-Path -LiteralPath $branchRoot)) {
@@ -184,14 +189,13 @@ $Summary
 - Новые вопросы: уточнить.
 - Сдвинутые фронты / таймеры: уточнить.
 
-## Файлы для обновления
+## Обновление реестров
 
-- ``01_Кампания/02_Журнал_решений.md``, если принято решение.
-- ``01_Кампания/03_Нерешенные_вопросы.md``, если появился новый открытый вопрос.
-- ``01_Кампания/03_Закрытые_вопросы.md``, если вопрос закрыт.
-- ``01_Кампания/06_Фронты_и_таймеры.md``, если изменился ``FRONT-*``.
-- ``01_Кампания/00_Индекс_сцен.md``, пересобрать через ``.\tools\Собрать_индекс_сцен.ps1``.
-- ``01_Кампания/07_Следующий_ход.md``, пересобрать через ``.\tools\Собрать_панель_хода.ps1``.
+- Решение: ``tools/Новое_решение.ps1`` (со ``-SceneIds`` этой сцены), выбор игрока — ``tools/Закрыть_решение.ps1``.
+- Вопрос: ``tools/Новый_вопрос.ps1``, ответ — ``tools/Закрыть_вопрос.ps1``.
+- Фронт или таймер: ``tools/Новый_фронт.ps1``, ``tools/Обновить_фронт.ps1``.
+- Факт и круг знающих: ``tools/Новое_знание.ps1``; положение ветки — ``tools/Обновить_контекст_ветки.ps1``; порядок событий — ``tools/Новая_связь_времени.ps1``.
+- Журнал, вопросы, фронты, индексы, панель и контекст собираются из реестров (``tools/Завершить_ход.ps1``, в ходе — ``Подготовить_ход``); вручную их не правят.
 
 ## Статус
 
@@ -200,7 +204,7 @@ $Summary
 
 Write-WmmaText $targetPath $content
 
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_индекс_сцен' -SkipCheck:$SkipCheck
+Complete-WmmaMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_сцен' -SkipCheck:$SkipCheck
 
 "Created scene: $relativePath"
 }

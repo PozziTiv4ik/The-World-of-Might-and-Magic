@@ -152,6 +152,14 @@ Id builtinModifierRecord(Tx& tx, const std::string& key) {
   if (!t) return 0;
   Modifier m = *t;
   m.id = 0;
+  // Генерация по умолчанию (некромант, лич — эссенция смерти, ценности археологии — сокровища) — по названию записи
+  // справочника, как у rules::ensureBuiltinMod.
+  for (const schema::BuiltinGen& g : schema::builtinGens()) {
+    if (key != g.key) continue;
+    const std::string k = utf8::searchKey(g.name);
+    for (const CatalogItem& c : g.essence ? tx.w().catalogs->essences : tx.w().catalogs->resources)
+      if (utf8::searchKey(c.name) == k) (g.essence ? m.essGen : m.resGen)[c.id] = g.perTurn;
+  }
   return tx.add(std::move(m)).id;
 }
 
@@ -169,6 +177,7 @@ void addIntelBuildings(Tx& tx, Id state) {
           if (utf8::searchKey(c.name) == k) l.cost[c.id] = v;
       }
       l.cost[kGold] = 50;
+      l.turns = detail::buildTurnsOf(l);
       if (Id m = builtinModifierRecord(tx, schema::levelModKey(modPrefix, i))) l.modifiers.push_back(m);
       b.levels.push_back(std::move(l));
     }
@@ -210,6 +219,7 @@ std::vector<std::string> seed(Tx& tx) {
   if (from < 3) s.v3();
   if (from < 4) s.v4();
   if (from < 5) s.v5();
+  if (from < 6) s.v6();
   tx.meta().content = kVersion;
   std::vector<std::string> parts;
   if (s.positions) parts.push_back(count(s.positions, "должности"));

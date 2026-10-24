@@ -103,11 +103,11 @@ TEST(app_production_mult_card) {
   CHECK(!h->act("Множитель", [&](Tx& tx) { rules::setPbMult(tx, sp.province, pit, 2); }));
   CHECK(hasToast(h, "Стимуляция промышленности", app::ToastKind::Warning));
   h.dropToasts();
-  // Изучены «Стимуляция промышленности 1…3» — открыт ×4: выбор ×3.
+  // Изучены ступени ×2 и ×5 — открыт ×5: выбор ×3.
   CHECK(h->act("Изучить", [&](Tx& tx) {
-    for (int m = 2; m <= 4; m++) rules::setStudied(tx, industryTech(tx.w(), m), true, sp.state);
+    for (int m : {2, 5}) rules::setStudied(tx, industryTech(tx.w(), m), true, sp.state);
   }));
-  CHECK_EQ(rules::maxProductionMult(h->world(), sp.state), 4);
+  CHECK_EQ(rules::maxProductionMult(h->world(), sp.state), 5);
   h.settle(40);
   CHECK(revealIn(h, mark));
   clickQuick(h, mark);
@@ -385,8 +385,8 @@ TEST(app_production_industry_tree) {
   Harness h("production_industry", 1600, 1000);
   h.demo();
   h.dropToasts();
-  const Id t1 = industryTech(h->world(), 2), t99 = industryTech(h->world(), 100), t50 = industryTech(h->world(), 51);
-  CHECK(t1 && t99 && t50);
+  const Id t1 = industryTech(h->world(), 2), t100 = industryTech(h->world(), 100), t60 = industryTech(h->world(), 60);
+  CHECK(t1 && t100 && t60);
   Id state = 0;
   h->world().factions.each([&](const Faction& f) {
     if (!state && f.isState()) state = f.id;
@@ -396,9 +396,9 @@ TEST(app_production_industry_tree) {
   h.key(Key::F);
   h.settle(60);
   CHECK(h.shot("production_industry_tree"));
-  // Поиск: «Стимуляция промышленности 5» — 11 совпадений (5, 50…59); «Следующая найденная» идёт по ним.
+  // Поиск: «Стимуляция промышленности» — семь ступеней; «Следующая найденная» идёт по ним.
   CHECK(h.clickUi("tt.search"));
-  h.type("Стимуляция промышленности 5");
+  h.type("Стимуляция промышленности");
   h.settle(40);
   CHECK(h->uiRect("tt.searchNext") != nullptr);
   CHECK(h.clickUi("tt.searchNext"));
@@ -406,36 +406,23 @@ TEST(app_production_industry_tree) {
   CHECK(h.clickUi("tt.searchNext"));
   h.settle(60);
   CHECK(h.shot("production_industry_search"));
-  // Связи «змейкой»: ряд справа налево — из левого края в правый, переход в следующий ряд — сверху вниз.
-  const Tech* a = h->world().tech(industryTech(h->world(), 12));   // второй ряд, справа налево
-  const Tech* b = h->world().tech(industryTech(h->world(), 13));
-  CHECK(a && b);
-  if (a && b) {
-    CHECK(b->pos.x < a->pos.x);
-    const app::tree::Curve k = app::tree::linkCurve(Box2{a->pos.x, a->pos.y, a->pos.x + 232, a->pos.y + 96}, Box2{b->pos.x, b->pos.y, b->pos.x + 232, b->pos.y + 96});
-    CHECK_NEAR(k.p0.x, a->pos.x, 1e-9);
-    CHECK_NEAR(k.p1.x, b->pos.x + 232, 1e-9);
+  // Ступени ×2, ×5, ×10, ×20, ×35, ×60, ×100 — одним рядом слева направо, каждая требует предыдущую.
+  const int steps[] = {2, 5, 10, 20, 35, 60, 100};
+  for (size_t i = 1; i < std::size(steps); i++) {
+    const Tech* a = h->world().tech(industryTech(h->world(), steps[i - 1]));
+    const Tech* b = h->world().tech(industryTech(h->world(), steps[i]));
+    CHECK(a && b && b->pos.x > a->pos.x && b->pos.y == a->pos.y && b->prereqs == std::vector<Id>{a->id});
   }
-  const Tech* e = h->world().tech(industryTech(h->world(), 11));   // конец первого ряда
-  const Tech* f = h->world().tech(industryTech(h->world(), 12));
-  CHECK(e && f);
-  if (e && f) {
-    CHECK_NEAR(e->pos.x, f->pos.x, 1e-9);
-    const app::tree::Curve k = app::tree::linkCurve(Box2{e->pos.x, e->pos.y, e->pos.x + 232, e->pos.y + 96}, Box2{f->pos.x, f->pos.y, f->pos.x + 232, f->pos.y + 96});
-    CHECK_NEAR(k.p0.y, e->pos.y + 96, 1e-9);
-    CHECK_NEAR(k.p1.y, f->pos.y, 1e-9);
-  }
-  // Ближе: ряды ветки со связями.
-  // Ближе: поиск снят, приближение к концу первого ряда ветки — связи вправо, вниз и влево.
+  // Ближе: поиск снят, приближение к ступени ×35 — связи ветки влево и вправо.
   CHECK(h.clickUi("tt.search"));
   h.key(Key::A, ctrl());
   h.key(Key::Backspace);
   h.settle(40);
   CHECK(h->uiRect("tt.searchNext") == nullptr);
-  app::openTechTree(h.a(), 0, industryTech(h->world(), 11), state);
+  app::openTechTree(h.a(), 0, industryTech(h->world(), 35), state);
   h.settle(60);
   {
-    const RectF nr = rectOf(h.a(), "tt.node." + std::to_string(industryTech(h->world(), 11)));
+    const RectF nr = rectOf(h.a(), "tt.node." + std::to_string(industryTech(h->world(), 35)));
     h.wheel(nr.cx(), nr.bottom() + 20, 7);
     h.settle(60);
   }
@@ -448,10 +435,10 @@ TEST(app_production_industry_tree) {
   h.settle(60);
   CHECK(revealIn(h, "faction.ctech.more"));
   CHECK(h->uiRect("faction.ctech.row." + std::to_string(t1)) != nullptr);
-  CHECK(h->uiRect("faction.ctech.row." + std::to_string(t50)) == nullptr);
+  CHECK(h->uiRect("faction.ctech.row." + std::to_string(t60)) == nullptr);
   CHECK(h.shot("production_industry_tab"));
   clickQuick(h, "faction.ctech.more");
-  CHECK(revealIn(h, "faction.ctech.row." + std::to_string(t50)));
+  CHECK(revealIn(h, "faction.ctech.row." + std::to_string(t60)));
 }
 
 // ---------------------------------------------------------------- новые постройки

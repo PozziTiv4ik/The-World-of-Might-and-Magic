@@ -111,6 +111,12 @@ void slavesSection(App& a, const Province& p, const rules::ProvinceCalc& pc) {
   const World& wd = prov::frameWorld(a);
   const Faction* o = wd.faction(p.owner);
   if (!o || !o->isState()) return;
+  if (!a.knows(o->id)) {   // туман войны: рабы и доход чужого государства скрыты
+    ui::Section s("Рабы на работах", "shackles");
+    a.markUi("province.slaves");
+    if (s) w::hiddenMark();
+    return;
+  }
   const bool ro = !a.canPlay(o->id);   // рабов на работы ставит владелец
   const Id pid = p.id;
   const i64 limit = rules::slaveWorkLimit(wd, pid);
@@ -178,7 +184,7 @@ void slavesSection(App& a, const Province& p, const rules::ProvinceCalc& pc) {
     ui::HStack hs(30, ui::Align::Left, 6);
     ui::iconColored(w::resourceIcon(wd, kGold), w::resourceColor(wd, kGold), 16);
     ui::label(prov::goldSigned(pc.slaveIncome), {.font = ui::Font::Strong, .ink = pc.slaveIncome > 0 ? ui::Ink::Success : ui::Ink::Muted,
-                                                 .tooltip = "0,002 золота за раба на работах в ход — владельцу"});
+                                                 .tooltip = "0,002 золота за раба на работах в ход — получателю дохода провинции"});
     a.markUi("province.slaveIncome");
   }
 }
@@ -194,23 +200,26 @@ void drawPopulation(App& a, Id pid) {
   const rules::ProvinceCalc* pcp = calc->province(pid);
   const rules::ProvinceCalc& pc = pcp ? *pcp : none;
 
+  // Прирост за ход (rules::calc): естественный прирост, модификаторы, предел населения, голод владельца. Есть источники
+  // прироста, а итог 0 (предел, голод) — отметка тоже видна, с разбивкой.
+  const double growth = pc.growthPct, rawGrowth = pc.growthBase + pc.fx[Fx::PopGrowthPct];
+  const bool showGrowth = growth != 0 || rawGrowth != 0;
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
-    double growth = pc.fx[Fx::PopGrowthPct];
     ui::stat(prov::popText(double(pc.population)), "Население",
-             {.icon = "population", .deltaText = growth != 0 ? prov::pct(growth, true) : std::string(), .tooltip = "Сумма численности рас"});
-    if (growth != 0) prov::breakdown("Прирост населения", prov::growthLines(wd, pc), 300);
+             {.icon = "population", .deltaText = growth != 0 ? prov::growthPct(growth, true) : std::string(), .tooltip = "Сумма численности рас"});
+    if (showGrowth) prov::breakdown("Прирост населения", prov::growthLines(wd, pc), 300);
     a.markUi("province.population");
     ui::stat(prov::pct(pc.rebellion), "Восстание", {.icon = "rebellion", .tone = ui::Tone::Danger, .tooltip = "Вероятность восстания"});
     prov::breakdown("Вероятность восстания", prov::rebellionLines(wd, *p, pc));
     a.markUi("province.rebellion");
   }
   // Прирост за ход по источникам (в узкой панели отметка у числа населения не помещается).
-  if (const double growth = pc.fx[Fx::PopGrowthPct]; growth != 0) {
+  if (showGrowth) {
     ui::HStack hs(26, ui::Align::Left, 6);
-    ui::tag("Прирост " + prov::pct(growth, true) + " за ход", growth > 0 ? ui::Tone::Success : ui::Tone::Danger, growth > 0 ? "trend-up" : "trend-down");
-    ui::tooltip("Прирост населения");
-    prov::breakdown("Прирост населения", prov::growthLines(wd, pc), 300);
+    ui::tag("Прирост " + prov::growthPct(growth, true) + " за ход", growth > 0 ? ui::Tone::Success : growth < 0 ? ui::Tone::Danger : ui::Tone::Neutral,
+            growth < 0 ? "trend-down" : "trend-up");
+    prov::breakdownOver("Прирост населения", prov::growthLines(wd, pc), 300);
     a.markUi("province.growth");
   }
 
@@ -221,13 +230,14 @@ void drawPopulation(App& a, Id pid) {
     if (prov::bipolarSlider("contentment", c, -100, 100, ro, &sr))
       a.act("Довольство населения", [&](Tx& tx) { tx.province(pid).contentment = clamp(c, -100.0, 100.0); }, {.coalesce = prov::key("content", pid)});
     a.markUi("province.contentment", sr);
-    double per = pc.fx[Fx::ContentmentPerTurn];
+    const double per = pc.contentDelta;   // модификаторы и налог сверх нормы (rules::calc)
     {
       ui::HStack hs(26, ui::Align::Left, 6);
       ui::tag("2 довольства = 1 % восстания", ui::Tone::Neutral, "scales");
       if (per != 0) {
         ui::tag(prov::signedNum(per) + " за ход", per > 0 ? ui::Tone::Success : ui::Tone::Danger, "repeat");
-        ui::tooltip("Изменение довольства каждый ход от модификаторов");
+        prov::breakdownOver("Довольство за ход", prov::contentLines(wd, pc), 300);
+        a.markUi("province.contentDelta");
       }
     }
   }

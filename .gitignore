@@ -17,6 +17,9 @@ desktop.ini
 # Local transaction journals and test workspaces (never campaign canon).
 .wmma/
 
+# Regnum: backup copies written next to a world on save (never canon, never part of a turn).
+.regnum-backup/
+
 # Regnum: local build cache and test executables (the editor and CLI binaries are committed).
 tools/Regnum/.build/
 tools/Regnum/bin/*/regnum-test*

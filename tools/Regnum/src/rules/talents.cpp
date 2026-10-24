@@ -432,16 +432,39 @@ bool canUnlearnTalent(const World& w, Id character, Id talent, std::string* why)
   return no("Без этого ранга " + talName(*t) + " другие изученные таланты станут незаконными");
 }
 
-void unlearnTalent(Tx& tx, Id character, Id talent) {
+int respecWait(const World& w, Id character) {
+  const Character* c = w.character(character);
+  if (!c || !c->respecTurn) return 0;
+  const int per = std::max(0, int(constantOf(w, schema::cst::RespecTurns).num));
+  return std::max(0, c->respecTurn + per - w.turn());
+}
+
+namespace {
+// Смена класса, подкласса или талантов игроком: доступный герой и не чаще константы; отметка хода смены.
+void needRespec(Tx& tx, Id character, bool player) {
+  if (!player) return;
+  const std::string name = q(tx.w().characterName(character));
+  if (characterHas(tx.w(), character, schema::mod::Dead)) fail(name + " мёртв");
+  if (characterHas(tx.w(), character, schema::mod::Captive)) fail(name + " в плену");
+  if (characterHas(tx.w(), character, schema::mod::Arrested)) fail(name + " под арестом");
+  if (const int n = respecWait(tx.w(), character)) fail("Сменить класс, подкласс или таланты " + name + " можно через " + nTurns(n));
+  tx.character(character).respecTurn = tx.w().turn();
+}
+}  // namespace
+
+void unlearnTalent(Tx& tx, Id character, Id talent, bool player) {
   needHero(tx.w(), character);
   std::string why;
   if (!canUnlearnTalent(tx.w(), character, talent, &why)) fail(why);
+  needRespec(tx, character, player);
   eraseLast(tx.character(character).talents, talent);
 }
 
-void resetTalents(Tx& tx, Id character) {
+void resetTalents(Tx& tx, Id character, bool player) {
   needHero(tx.w(), character);
-  if (!tx.w().character(character)->talents.empty()) tx.character(character).talents.clear();
+  if (tx.w().character(character)->talents.empty()) return;
+  needRespec(tx, character, player);
+  tx.character(character).talents.clear();
 }
 
 void setHeroLevel(Tx& tx, Id character, int level, bool reset) {
@@ -457,10 +480,11 @@ void setHeroLevel(Tx& tx, Id character, int level, bool reset) {
   if (tx.w().character(character)->level != level) tx.character(character).level = level;
 }
 
-void setCharacterClass(Tx& tx, Id character, Id cls) {
+void setCharacterClass(Tx& tx, Id character, Id cls, bool player) {
   const Character& c = needHero(tx.w(), character);
   const HeroClass* hc = cls ? &needClass(tx.w(), cls) : nullptr;
   if (c.heroClass == cls) return;
+  if (c.heroClass) needRespec(tx, character, player);   // первый выбор класса — без ограничений
   const Id only = hc && hc->subclasses.size() == 1 ? hc->subclasses[0].id : 0;
   Character& m = tx.character(character);
   m.heroClass = cls;
@@ -468,7 +492,7 @@ void setCharacterClass(Tx& tx, Id character, Id cls) {
   m.talents.clear();   // другое дерево — изучение заново
 }
 
-void setCharacterSubclass(Tx& tx, Id character, Id sub) {
+void setCharacterSubclass(Tx& tx, Id character, Id sub, bool player) {
   const Character& c = needHero(tx.w(), character);
   if (sub) {
     const HeroClass* hc = tx.w().heroClass(c.heroClass);
@@ -476,6 +500,7 @@ void setCharacterSubclass(Tx& tx, Id character, Id sub) {
     if (!hc->subclass(sub)) fail("Подкласс не из класса " + clsName(*hc));
   }
   if (c.subclass == sub) return;
+  if (c.subclass) needRespec(tx, character, player);   // первый выбор подкласса — без ограничений
   Character& m = tx.character(character);
   m.subclass = sub;
   m.talents.clear();
@@ -506,7 +531,7 @@ std::string phylacteryName(const std::string& relic, const std::string& hero) {
   return relic + kPhylactery + nameOr(hero, kNameless) + "»)";
 }
 
-bool isPhylactery(const Relic& r) { return r.name.find(kPhylactery) != std::string::npos; }
+bool isPhylactery(const Relic& r) { return r.phylactery || r.name.find(kPhylactery) != std::string::npos; }
 
 std::vector<Id> phylacteryRelics(const World& w, Id character) {
   std::vector<Id> out;
@@ -579,13 +604,20 @@ void ascendLich(Tx& tx, Id character, Id relic) {
   for (Id m : c.modifiers)
     if (const Modifier* x = tx.w().modifier(m); x && x->key == schema::mod::Necromancer) dropModifier(tx, ModTarget::Character, character, m);
   addModifier(tx, ModTarget::Character, character, ensureBuiltinMod(tx, schema::mod::Lich), 0);
+  // Лич — нежить (природа героя одна: «Живой» сменяется «Нежитью»).
+  addModifier(tx, ModTarget::Character, character, ensureBuiltinMod(tx, schema::mod::Undead), 0);
   // Уникальная реликвия переименовывается; от стопки копируемой одна штука становится отдельной реликвией-филактерией.
+  // Филактерия уникальна при любой редкости: не выпадает из сундуков и раскопок, не продаётся.
   if (r.unique()) {
-    if (Relic* x = findById(tx.catalogs().relics, relic)) x->name = newName;
+    if (Relic* x = findById(tx.catalogs().relics, relic)) {
+      x->name = newName;
+      x->phylactery = true;
+    }
   } else {
     Relic ph = r;
     ph.id = tx.nextId(Seq::Relic);
     ph.name = newName;
+    ph.phylactery = true;
     tx.catalogs().relics.push_back(ph);
     const RelicPlace at{RelicPlace::Hero, character, 0, c.faction};
     moveRelic(tx, relic, at, RelicPlace{}, 1);

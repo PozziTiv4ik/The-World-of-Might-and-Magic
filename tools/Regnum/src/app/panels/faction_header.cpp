@@ -162,11 +162,12 @@ void drawHeader(App& a, Id id) {
     if (li.clicked && !ro) startRename(rs, id);
   }
 
-  // Ряд 3: правитель с титулом и казна.
+  // Ряд 3: правитель с титулом и казна (чужая казна у игрока скрыта — туман войны).
   {
     const Character* ruler = w.character(f->ruler);
+    const bool known = a.knows(id);
     double net = fc ? fc->net : 0;
-    std::string tre = fmtGold(f->treasury()), delta = std::fabs(net) >= 0.0005 ? fmtGoldSigned(net) : std::string();
+    std::string tre = known ? fmtGold(f->treasury()) : std::string(w::kHidden), delta = known && std::fabs(net) >= 0.0005 ? fmtGoldSigned(net) : std::string();
     float pillW = 9 + 22 + ui::measure(tre, ui::Font::Strong) + (delta.empty() ? 4 : 6 + ui::measure(delta, ui::Font::Caption)) + 12;
     ui::Row row({ui::px(42), ui::fr(1), ui::px(std::ceil(pillW))}, 40, 8);
     std::string rulerName = ruler ? (ruler->name.empty() ? std::string("Без имени") : ruler->name) : std::string("?");
@@ -193,7 +194,14 @@ void drawHeader(App& a, Id id) {
                 {.font = ui::Font::Strong, .ink = ruler ? ui::Ink::Normal : ui::Ink::Muted});
       ui::label(title, {.font = ui::Font::Small, .ink = ui::Ink::Muted});
     }
-    treasuryPill(a, f->treasury(), fc ? fc->net : 0, pillW);
+    if (known) {
+      treasuryPill(a, f->treasury(), fc ? fc->net : 0, pillW);
+    } else {
+      ui::Group g(0, 0);
+      ui::spacer(9);
+      w::hiddenMark();
+      a.markUi("faction.treasury.hidden");
+    }
   }
 }
 

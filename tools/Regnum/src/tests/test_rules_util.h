@@ -69,19 +69,36 @@ inline const Base& base() {
       r.H = rules::createFaction(tx, FactionKind::Guild, "Дом Хорна");
       // Модификаторы совета («Децентрализация» и др.) действуют на каждое государство; в базовом мире тестов они
       // без эффектов, чтобы расчёты прочих правил были прежними (тесты совета задают эффекты сами — neutralCouncil).
-      for (const char* key : {schema::mod::Decentralization, schema::mod::WeakControl, schema::mod::Centralized, schema::mod::Famine}) {
+      for (const char* key : {schema::mod::Decentralization, schema::mod::WeakControl, schema::mod::Centralized, schema::mod::Famine,
+                              schema::mod::Unpaid}) {
         Modifier m = *schema::builtinModifier(key);
         m.id = 0;
         m.fx = {};
         m.fxMask = 0;
         tx.add(std::move(m));
       }
+      // Естественный прирост и гибель от голода меняют население каждый ход, а провизии у государств тестов нет: в
+      // базовом мире они выключены (тесты этих правил задают константы сами — test_rules_econ_loops.cpp).
+      rules::ensureConstant(tx, schema::cst::PopGrowthBase).num = 0;
+      rules::ensureConstant(tx, schema::cst::FamineDeaths).num = 0;
       // Постройки базового набора (общая «Цитадель Бездны») убираются: тесты строят свои деревья с нуля. Базовые
       // расы, культуры и реликвии тоже: тесты заводят свои (и проверяют пустой пул находок).
       for (Id b : tx.w().buildings.ids()) tx.eraseBuilding(b);
       tx.catalogs().races.clear();
       tx.catalogs().cultures.clear();
       tx.catalogs().relics.clear();
+      // Модификаторы базовых записей (должности — занятые и пустующие, религии, формы правления, классы героев и
+      // таланты) действуют на каждое государство и героя; в базовом мире тестов их нет — тесты задают свои.
+      for (auto* list : {&tx.catalogs().positions, &tx.catalogs().religions, &tx.catalogs().governments})
+        for (CatalogItem& c : *list) {
+          c.modifiers.clear();
+          c.vacantModifiers.clear();
+        }
+      for (HeroClass& k : tx.catalogs().classes) {
+        k.modifiers.clear();
+        for (SubClass& sc : k.subclasses)
+          for (Talent& t : sc.talents) t.modifiers.clear();
+      }
       // Тесты называют ресурс rs5 «Железо» (как в мире до базовых групп ресурсов): названия rs4 и rs5 меняются местами.
       for (CatalogItem& c : tx.catalogs().resources) {
         if (c.id == 4) c.name = "Титан";

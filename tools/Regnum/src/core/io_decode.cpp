@@ -454,6 +454,44 @@ void decMeta(Rec& r, Meta& m) {
   m.content = r.intv("content", 0);
   m.rng = u32(std::clamp<i64>(r.integer("rng", 0), 0, i64(0xFFFFFFFFu)));
   m.notes = r.str("notes");
+  r.sub("lastTurn", [&](Rec& x) {
+    TurnRecord& t = m.lastTurn;
+    t.turnFrom = x.intv("turnFrom", 0);
+    t.turnTo = x.intv("turnTo", 0);
+    x.list("factions", [&](Rec& e) {
+      TurnFactionLine l;
+      l.faction = e.ref("faction", Seq::Faction);
+      l.treasuryBefore = e.num("treasuryBefore", 0);
+      l.treasuryAfter = e.num("treasuryAfter", 0);
+      l.income = e.num("income", 0);
+      l.expenses = e.num("expenses", 0);
+      l.resources = e.resMap("resources");
+      l.essences = e.resMap("essences", Seq::Essence);
+      l.provisionDebt = e.num("provisionDebt", 0);
+      t.factions.push_back(std::move(l));
+    });
+    t.logIds = x.refs("log", Seq::Log);
+    t.rebellions = x.refs("rebellions", Seq::Province);
+    x.list("hits", [&](Rec& e) {
+      HitOutcome h;
+      h.plot = e.ref("plot", Seq::Plot);
+      h.character = e.ref("character", Seq::Character);
+      h.chance = e.num("chance", 0);
+      h.roll = e.num("roll", 0);
+      h.killed = e.flag("killed", false);
+      t.hits.push_back(h);
+    });
+  });
+  r.list("turnEvents", [&](Rec& e) {
+    TurnEvent t;
+    t.kind = TurnEvent::Kind(e.enumv("kind", en(kTurnEventE), 0));
+    t.army = e.ref("army", Seq::Army);
+    t.province = e.ref("province", Seq::Province);
+    t.origin = e.ref("origin", Seq::Faction);
+    t.rebelState = e.ref("rebelState", Seq::Faction);
+    t.heroes = e.refs("heroes", Seq::Character);
+    m.turnEvents.push_back(std::move(t));
+  });
 }
 
 void decSettings(Rec& r, Settings& s) {
@@ -468,6 +506,7 @@ void decSettings(Rec& r, Settings& s) {
   s.autosaveFolder = r.flag("autosaveFolder", s.autosaveFolder);
   s.autosaveSec = r.intv("autosaveSec", s.autosaveSec);
   s.freeFleets = r.flag("freeFleets", s.freeFleets);
+  s.adminKey = r.str("adminKey");
 }
 
 void decCatalogs(Rec& r, Catalogs& c) {
@@ -488,6 +527,8 @@ void decCatalogs(Rec& r, Catalogs& c) {
       if (L.list == CatalogList::Positions) {
         it.modifiers = e.refs("modifiers", Seq::Modifier);
         it.vacantModifiers = e.refs("vacantModifiers", Seq::Modifier);
+      } else if (schema::catalogHasModifiers(L.list)) {
+        it.modifiers = e.refs("modifiers", Seq::Modifier);
       }
       list.push_back(std::move(it));
     });
@@ -503,6 +544,8 @@ void decCatalogs(Rec& r, Catalogs& c) {
     x.group = e.ref("group", Seq::RelicGroup);
     x.entity = e.str("entity");
     x.image = e.bytes("image");
+    x.modifiers = e.refs("modifiers", Seq::Modifier);
+    x.phylactery = e.flag("phylactery", false);
     c.relics.push_back(std::move(x));
   });
   decGroups(r, "relicGroups", Seq::RelicGroup, c.relicGroups);
@@ -530,6 +573,7 @@ void decCatalogs(Rec& r, Catalogs& c) {
         out.push_back(std::move(t));
       });
     };
+    k.modifiers = e.refs("modifiers", Seq::Modifier);
     e.list("subclasses", [&](Rec& q) {
       SubClass sc;
       sc.id = q.ref("id", Seq::SubClass);
@@ -1005,6 +1049,7 @@ void decFaction(Rec& r, Faction& f) {
     f.prison.push_back(x);
   });
   f.conspiracy = r.flag("conspiracy", false);
+  f.landless = r.intv("landless", 0);
   f.notes = r.str("notes");
   f.entity = r.str("entity");
 }
@@ -1026,6 +1071,7 @@ void decCharacter(Rec& r, Character& c) {
   c.subclass = r.ref("subclass", Seq::SubClass);
   c.talents = r.refs("talents", Seq::Talent);
   c.jailer = r.ref("jailer", Seq::Faction);
+  c.respecTurn = r.intv("respecTurn", 0);
   c.notes = r.str("notes");
   c.entity = r.str("entity");
 }
@@ -1246,6 +1292,7 @@ void decPlot(Rec& r, Plot& p) {
     h.gold = e.num("gold", 0);
     h.turn = e.intv("turn", 0);
     h.guarded = e.flag("guarded", false);
+    h.reviewed = e.flag("reviewed", false);
     p.hits.push_back(h);
   });
   p.created = r.intv("created", 1);
@@ -1253,6 +1300,33 @@ void decPlot(Rec& r, Plot& p) {
   p.stage = r.intv("stage", 0);
   p.revealTurn = r.intv("revealTurn", 0);
   p.alarm = r.flag("alarm", false);
+}
+
+void decTruceTerms(Rec& r, TruceTerms& t) {
+  t.provinces = r.refs("provinces", Seq::Province);
+  t.reparations = r.num("reparations", 0);
+  t.reparationsTurns = r.intv("reparationsTurns", 0);
+  t.resources = r.resMap("resources");
+  t.slaves = std::max<i64>(0, r.integer("slaves", 0));
+  t.heroes = r.refs("heroes", Seq::Character);
+  t.vassal = r.flag("vassal", false);
+}
+
+void decProposal(Rec& r, Proposal& p) {
+  p.kind = ProposalKind(r.enumv("kind", en(schema::kProposalKinds), 0));
+  p.from = r.ref("from", Seq::Faction);
+  p.to = r.ref("to", Seq::Faction);
+  p.other = r.ref("other", Seq::Faction);
+  p.turn = r.intv("turn", 1);
+  r.sub("deal", [&](Rec& d) { decDeal(d, p.deal); });
+  r.sub("truce", [&](Rec& t) {
+    p.truce.a = t.ref("a", Seq::Faction);
+    p.truce.b = t.ref("b", Seq::Faction);
+    t.sub("fromA", [&](Rec& x) { decTruceTerms(x, p.truce.fromA); });
+    t.sub("fromB", [&](Rec& x) { decTruceTerms(x, p.truce.fromB); });
+    p.truce.status = RelStatus(t.enumv("status", en(schema::kRelStatus), int(RelStatus::Neutral)));
+  });
+  p.note = r.str("note");
 }
 
 // Массив записей таблицы: {"<key>": [...]} (или сразу массив — с предупреждением).
@@ -1394,6 +1468,7 @@ void decode(const Value& v, FileId f, Parts& p, Warnings& warns) {
           Relation rr;
           rr.v = r.num("v", 0);
           rr.s = RelStatus(r.enumv("s", en(schema::kRelStatus), int(RelStatus::Unknown)));
+          rr.calm = r.intv("calm", 0);
           r.done();
           u64 key = relKey(*a, *b);
           if (p.relations.count(key)) c.warn(k, "пара указана повторно — взято последнее значение");
@@ -1414,6 +1489,7 @@ void decode(const Value& v, FileId f, Parts& p, Warnings& warns) {
     case F_DEALS: decTable(v, f, c, p.deals, Seq::Deal, decDeal); return;
     case F_LOG: decTable(v, f, c, p.log, Seq::Log, decLog); return;
     case F_PLOTS: decTable(v, f, c, p.plots, Seq::Plot, decPlot); return;
+    case F_PROPOSALS: decTable(v, f, c, p.proposals, Seq::Proposal, decProposal); return;
     case F_CONSTANTS: {
       if (!v.isObj()) {
         c.warn("", "ожидался объект {\"constants\": [...]} — констант нет");

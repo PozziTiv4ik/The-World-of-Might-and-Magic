@@ -42,6 +42,8 @@ const char* sourceIcon(rules::EffectSource::Kind k) {
     case rules::EffectSource::Guild: return "guild";
     case rules::EffectSource::Army: return "army";
     case rules::EffectSource::Auto: return "lock";
+    case rules::EffectSource::Hero: return "hero";
+    case rules::EffectSource::Trait: return "list";
   }
   return "sparkles";
 }
@@ -55,6 +57,8 @@ const char* sourceKind(rules::EffectSource::Kind k) {
     case rules::EffectSource::Guild: return "Гильдия";
     case rules::EffectSource::Army: return "Войско";
     case rules::EffectSource::Auto: return "Автоматически";
+    case rules::EffectSource::Hero: return "Герой";
+    case rules::EffectSource::Trait: return "Справочник";
   }
   return "";
 }
@@ -89,13 +93,24 @@ std::string sourceName(const World& wd, const rules::EffectSource& s) {
     case rules::EffectSource::Auto:
       if (const Modifier* m = sourceMod(wd, s)) return m->name.empty() ? std::string("Модификатор") : m->name;
       return "Модификатор";
+    case rules::EffectSource::Hero: return wd.characterName(s.id);
+    case rules::EffectSource::Trait: return rules::traitName(wd, s);
   }
   return {};
 }
 
 // ---------------------------------------------------------------- подсказка-разбивка
+static void breakdownBody(std::string_view title, const std::vector<TipLine>& lines);
+
 void breakdown(std::string_view title, const std::vector<TipLine>& lines, float width) {
-  if (!ui::beginTooltip(width)) return;
+  if (ui::beginTooltip(width)) breakdownBody(title, lines);
+}
+
+void breakdownOver(std::string_view title, const std::vector<TipLine>& lines, float width) {
+  if (ui::beginTooltipOver(std::string("##breakdown ") + std::string(title), ui::lastItem().rect, width)) breakdownBody(title, lines);
+}
+
+static void breakdownBody(std::string_view title, const std::vector<TipLine>& lines) {
   ui::label(title, {.font = ui::Font::Strong});
   ui::gap(2);
   for (size_t i = 0; i < lines.size(); i++) {
@@ -181,14 +196,39 @@ std::vector<TipLine> productionLines(const World& wd, const Province& p, const r
   return L;
 }
 
+// Прирост за ход (rules::ProvinceCalc::growthPct): естественный прирост государства живых и модификаторы; положительный
+// умножается на max(0, 1 − население / предел), голод владельца обнуляет его.
+std::string growthPct(double v, bool sign) { return fmtPct(v, 2, sign); }
+
 std::vector<TipLine> growthLines(const World& wd, const rules::ProvinceCalc& pc) {
   std::vector<TipLine> L;
   L.push_back({"Жителей", fmtNum(double(pc.population))});
+  if (pc.growthBase != 0)
+    L.push_back({"Естественный прирост", growthPct(pc.growthBase, true), pc.growthBase > 0 ? ui::Tone::Success : ui::Tone::Danger});
   const size_t before = L.size();
   effectLines(wd, pc.fx, Fx::PopGrowthPct, true, L);
-  if (L.size() == before) L.push_back({"Модификаторы", pct(0)});
-  const double g = pc.fx[Fx::PopGrowthPct];
-  L.push_back({"Прирост за ход", pct(g, true), g > 0 ? ui::Tone::Success : g < 0 ? ui::Tone::Danger : ui::Tone::Neutral, true});
+  if (L.size() == before && pc.growthBase == 0) L.push_back({"Модификаторы", pct(0)});
+  if (const double raw = pc.growthBase + pc.fx[Fx::PopGrowthPct]; raw > 0) {
+    const double k = std::max(0.0, 1.0 - double(pc.population) / double(std::max<i64>(1, pc.popCap)));
+    const double capped = raw * k;
+    if (capped < raw) L.push_back({"Предел " + fmtNum(double(pc.popCap)) + " · × " + fmtNum(k, 2), growthPct(capped - raw, true), ui::Tone::Warning});
+    if (pc.growthPct < capped - 1e-9) L.push_back({"Голод владельца", growthPct(pc.growthPct - capped, true), ui::Tone::Danger});
+  }
+  const double g = pc.growthPct;
+  L.push_back({"Прирост за ход", growthPct(g, true), g > 0 ? ui::Tone::Success : g < 0 ? ui::Tone::Danger : ui::Tone::Neutral, true});
+  return L;
+}
+
+// Довольство за ход (rules::ProvinceCalc::contentDelta): модификаторы и налог сверх нормы.
+std::vector<TipLine> contentLines(const World& wd, const rules::ProvinceCalc& pc) {
+  std::vector<TipLine> L;
+  effectLines(wd, pc.fx, Fx::ContentmentPerTurn, false, L);
+  if (pc.taxUnrest != 0)
+    L.push_back({"Налог " + pct(pc.taxTotal) + " · норма " + pct(rules::constantOf(wd, schema::cst::TaxNorm).num), signedNum(pc.taxUnrest),
+                 ui::Tone::Danger});
+  if (L.empty()) L.push_back({"Модификаторы", signedNum(0)});
+  const double d = pc.contentDelta;
+  L.push_back({"За ход", signedNum(d), d > 0 ? ui::Tone::Success : d < 0 ? ui::Tone::Danger : ui::Tone::Neutral, true});
   return L;
 }
 

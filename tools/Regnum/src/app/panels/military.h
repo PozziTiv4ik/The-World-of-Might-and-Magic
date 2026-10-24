@@ -81,8 +81,8 @@ void factionFlag(const World& w, Id faction, float width, float height = 0);
 void factionLabel(const World& w, Id faction, float flagW = 22);
 // Плитка значка типа (отряд или судно).
 void typeTile(RectF r, const char* icon, Color tint);
-// Строка списка объекта: фигурка, название, подзаголовок, численность. true — щелчок.
-bool objectItem(const World& w, const Army& a, bool selected, std::string_view subtitle);
+// Строка списка объекта: фигурка, название, подзаголовок, численность (hidden — «Скрыто»: туман войны). true — щелчок.
+bool objectItem(const World& w, const Army& a, bool selected, std::string_view subtitle, bool hidden = false);
 // Две строки текста в ячейке таблицы (основная и мелкая подпись).
 void cellLines(RectF r, std::string_view top, std::string_view bottom, ui::Align align, ui::Ink topInk = ui::Ink::Normal,
                ui::Ink bottomInk = ui::Ink::Muted);

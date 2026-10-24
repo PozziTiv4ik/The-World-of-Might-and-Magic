@@ -101,8 +101,12 @@ std::vector<SlotLoss> slotLosses(const World& before, const World& after);
 void trimExcessBuildings(Tx& tx, const std::vector<SlotLoss>* only = nullptr);
 
 // ================================================================ чума
-// Чуму можно установить: сухопутная провинция без чумы, без «Временного иммунитета» и не пустошь нежити.
+// Чуму можно установить: сухопутная провинция с жителями, без чумы, без «Временного иммунитета» и «Карантина», не
+// пустошь нежити.
 bool canPlague(const World& w, Id province, std::string* why = nullptr);
+// «Карантин» (действие владельца): чума не приходит в провинцию и не уходит из неё (встроенный модификатор на срок);
+// on = false — снять карантин.
+void setQuarantine(Tx& tx, Id province, bool on);
 // Установить чуму, если можно (true — установлена).
 bool infectPlague(Tx& tx, Id province);
 // «Вылечить провинцию» постройкой целительства (500 любой эссенции владельца или 500 лечебных трав — essence 0) и

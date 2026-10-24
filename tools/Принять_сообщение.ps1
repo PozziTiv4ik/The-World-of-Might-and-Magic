@@ -122,7 +122,7 @@ $inbox=$inbox.Substring(0,$newSection.body_start)+$replacement+$inbox.Substring(
 Write-WmmaText $inboxPath $inbox
 Save-WmmaReceipt $root $receipt
 
-Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
+Complete-WmmaMutation -Root $root -Documents @($receipt.source_path | Where-Object { $_ }) -SkipCheck:$SkipCheck
 
 "Accepted message into inbox: $Title"
 }

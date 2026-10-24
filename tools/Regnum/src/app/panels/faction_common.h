@@ -21,8 +21,9 @@ std::string displayName(const Faction& f);   // название или «Без
 const char* relIcon(RelStatus s);
 Color relColor(RelStatus s);
 const char* relLabel(RelStatus s);
-// Выбор состояния отношений: таблетка цвета состояния, меню со значками. true — изменено.
-bool statusPicker(std::string_view id, RelStatus& s, bool disabled = false);
+// Выбор состояния отношений: таблетка цвета состояния, меню со значками. true — изменено. warWhy непусто — пункт
+// «В войне» выключен, причина — в подсказке (rules::canDeclareWar).
+bool statusPicker(std::string_view id, RelStatus& s, bool disabled = false, std::string_view warWhy = {});
 
 using w::resourceName;   // название ресурса из справочника («Ресурс», если нет)
 

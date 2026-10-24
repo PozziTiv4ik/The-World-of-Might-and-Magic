@@ -16,7 +16,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PlayerCharacter,
 
-    [string]$Scene = 'Уточнить сцену.',
+    # Scenes of the choice (SCENE-…); the first one also fills -Scene when it is omitted.
+    [Parameter(Mandatory = $true)]
+    [string[]]$SceneIds,
+
+    [string]$Scene = '',
 
     [string]$StoryDate = 'уточнить',
 
@@ -96,110 +100,21 @@ function Get-NextPendingDecisionId {
     return ('DEC-PENDING-{0:D3}' -f ($max + 1))
 }
 
-function Update-CurrentContext {
-    param(
-        [string]$PendingId,
-        [string]$PendingQuestion,
-        [string]$PendingOwner,
-        [string]$PendingStatus
-    )
-
-    $contextPath = Join-Path $root '01_Кампания\00_Текущий_контекст.md'
-    if (-not (Test-Path -LiteralPath $contextPath)) {
-        return
-    }
-
-    $lines = @(Get-Content -Encoding UTF8 -LiteralPath $contextPath)
-    $start = -1
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -eq '## Немедленные решения') {
-            $start = $i
-            break
-        }
-    }
-
-    if ($start -lt 0) {
-        return
-    }
-
-    $end = $lines.Count
-    for ($i = $start + 1; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match '^##\s+') {
-            $end = $i
-            break
-        }
-    }
-
-    $before = @()
-    if ($start -gt 0) {
-        $before = @($lines[0..$start])
-    } else {
-        $before = @($lines[$start])
-    }
-
-    $section = @()
-    if ($end -gt ($start + 1)) {
-        $section = @($lines[($start + 1)..($end - 1)])
-    }
-
-    $after = @()
-    if ($end -lt $lines.Count) {
-        $after = @($lines[$end..($lines.Count - 1)])
-    }
-
-    $filtered = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($line in $section) {
-        if ($line -match '^Активных `DEC-PENDING-\*` сейчас нет') {
-            continue
-        }
-
-        if ($line -match [regex]::Escape($PendingId)) {
-            continue
-        }
-
-        $filtered.Add($line) | Out-Null
-    }
-
-    $insertAt = $filtered.Count
-    for ($i = 0; $i -lt $filtered.Count; $i++) {
-        if ($filtered[$i] -eq 'Главные следующие узлы:') {
-            $insertAt = $i
-            break
-        }
-    }
-
-    $pendingLine = '1. `{0}` - {1} (владелец: {2}; статус: {3}).' -f $PendingId, $PendingQuestion, $PendingOwner, $PendingStatus
-    $filtered.Insert($insertAt, $pendingLine)
-
-    if ($insertAt -gt 0 -and -not [string]::IsNullOrWhiteSpace($filtered[$insertAt - 1])) {
-        $filtered.Insert($insertAt, '')
-        $insertAt++
-    }
-
-    if ($insertAt + 1 -lt $filtered.Count -and -not [string]::IsNullOrWhiteSpace($filtered[$insertAt + 1])) {
-        $filtered.Insert($insertAt + 1, '')
-    }
-
-    $renumbered = New-Object 'System.Collections.Generic.List[string]'
-    $counter = 1
-    foreach ($line in $filtered) {
-        if ($line -match '^\d+\.\s+`DEC-PENDING-\d{3}`') {
-            $renumbered.Add(($line -replace '^\d+\.', "$counter.")) | Out-Null
-            $counter++
-        } else {
-            $renumbered.Add($line) | Out-Null
-        }
-    }
-
-    Write-WmmaText $contextPath (((@($before) + @($renumbered.ToArray()) + @($after)) -join "`n").TrimEnd() + "`n")
-}
-
 if ([string]::IsNullOrWhiteSpace($Owner)) {
     $Owner = $PlayerCharacter
 }
 
 if ([string]::IsNullOrWhiteSpace($Choice)) {
     $Choice = "ожидает решения: $Question"
+}
+
+# Every decision names the scenes of the choice; a new scene of the batch is already registered.
+$SceneIds = @($SceneIds | Where-Object { $_ } | Select-Object -Unique)
+if ($SceneIds.Count -eq 0) { throw 'A decision needs at least one scene ID (-SceneIds).' }
+$graph = Read-WmmaRegistry $root 'Сущности'
+Assert-WmmaEntityIds $graph $SceneIds -Type @('scene') -Label 'decision scene'
+if ([string]::IsNullOrWhiteSpace($Scene)) {
+    $Scene = @($graph.entities | Where-Object { $_.id -eq $SceneIds[0] })[0].path
 }
 
 $registry = Read-WmmaRegistry $root 'Решения'
@@ -243,14 +158,13 @@ $decisions += [pscustomobject][ordered]@{
     question = $Question
     owner = $Owner
     panel_status = $PanelStatus
+    scene_ids = @($SceneIds)
 }
 
 $registry.decisions = @($decisions)
 $registry.updated_real_date = $today
 
 Write-WmmaRegistry $root 'Решения' $registry
-
-Update-CurrentContext -PendingId $Id -PendingQuestion $Question -PendingOwner $Owner -PendingStatus $PanelStatus
 
 Complete-WmmaMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
 

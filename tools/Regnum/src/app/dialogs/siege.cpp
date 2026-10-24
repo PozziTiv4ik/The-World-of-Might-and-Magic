@@ -4,7 +4,10 @@
 // Мятежники после битвы, мятежа или восстания в провинции прежнего государства без его войск — штурм или захват
 // (ТЗ «Механика мятежа», п.2 и 4); перед штурмом гарнизона с отрицательной верностью его неверная часть переходит к
 // мятежникам (ТЗ «Доработки», п.1). Герои гарнизона — в карточке гарнизона и в «Судьбе героев», если он уничтожен.
-// Роли (ТЗ «Доработки №4», п.5): итог штурма и отступление — участника (своё войско или владелец провинции; App::play).
+// «Освободить провинцию» (аудит 2026-10-23, 5.1): войско владельца или его союзника в оккупированной провинции — то же
+// окно с оккупационным гарнизоном оккупанта (rules::resolveLiberation); гарнизона нет — оккупация снимается сразу.
+// Роли (ТЗ «Доработки №4», п.5): итог штурма и отступление — участника (своё войско или владелец провинции, при
+// освобождении — оккупант; App::play).
 #include "app/app_internal.h"
 #include "app/flows.h"
 #include "app/panels/military.h"
@@ -27,21 +30,26 @@ i64 sumOf(const std::map<Id, i64>& L) {
   for (auto& [k, v] : L) n += v;
   return n;
 }
-i64 garrisonCount(const Province& p) {
+i64 entriesCount(const std::vector<GarrisonEntry>& gs) {
   i64 n = 0;
-  for (const GarrisonEntry& g : p.garrison) n += std::max<i64>(0, g.count);
+  for (const GarrisonEntry& g : gs) n += std::max<i64>(0, g.count);
   return n;
 }
+i64 garrisonCount(const Province& p) { return entriesCount(p.garrison); }
 
-// Участник штурма: своя фракция в войске или владелец провинции.
-bool siegeParty(App& a, const World& w, Id army, Id province) {
+// Сторона гарнизона: владелец провинции (штурм) или оккупант (освобождение).
+Id defenderOf(const Province& p, bool occupation) { return occupation ? p.occupier : p.owner; }
+
+// Участник боя: своя фракция в войске или сторона гарнизона.
+bool siegeParty(App& a, const World& w, Id army, Id province, bool occupation = false) {
   const Province* p = w.province(province);
-  return playsAny(a, w, army) || (p && a.canPlay(p->owner));
+  return playsAny(a, w, army) || (p && a.canPlay(defenderOf(*p, occupation)));
 }
 
 struct SiegeDialog final : Dialog {
   Id army = 0, province = 0;
   Vec2 origin;
+  bool occupation = false;   // освобождение: бой с оккупационным гарнизоном оккупанта
   std::function<void(App&, bool)> done;
   bool decided = false;
   int winner = 0;   // 0 — нападающий, 1 — гарнизон
@@ -50,11 +58,14 @@ struct SiegeDialog final : Dialog {
   float cardsH = 0;
   std::shared_ptr<bool> retreatOk = std::make_shared<bool>(false);   // подтверждено «Отступить без потерь»
 
-  const char* id() const override { return "siege"; }
+  const char* id() const override { return occupation ? "liberation" : "siege"; }
   Style style(App& a) override {
     const World& w = frameWorld(a);
+    if (occupation) return {"Освобождение · " + w.provinceName(province), "unlock", ui::Tone::Danger, 880};
     return {"Штурм · " + w.provinceName(province), "castle", ui::Tone::Danger, 880};
   }
+  const std::vector<GarrisonEntry>& defenders(const Province& p) const { return occupation ? p.occGarrison : p.garrison; }
+  bool party(App& a, const World& w) const { return siegeParty(a, w, army, province, occupation); }
 
   void finish(App& a, bool applied) {
     if (decided) return;
@@ -71,7 +82,7 @@ struct SiegeDialog final : Dialog {
     if (const Army* ar = w.army(army); ar && dist2(ar->pos, origin) > 1e-6 && std::isfinite(origin.x) && std::isfinite(origin.y)) {
       std::optional<Vec2> to = rules::validPosition(w, ar->kind, origin, army) ? std::optional<Vec2>(origin) : rules::findFreeSpot(w, ar->kind, origin, army);
       const Id id = army;
-      if (to && siegeParty(a, w, army, province)) a.play("Отступить от стен: " + w.provinceName(province), [&](Tx& tx) { rules::moveArmy(tx, id, *to); });
+      if (to && party(a, w)) a.play("Отступить от стен: " + w.provinceName(province), [&](Tx& tx) { rules::moveArmy(tx, id, *to); });
       if (const Army* moved = a.world().army(army)) a.toast("«" + objectName(*moved) + "» отступает от стен", ToastKind::Info, "retreat");
     }
     finish(a, false);
@@ -107,7 +118,7 @@ struct SiegeDialog final : Dialog {
       ui::draw::rectStroke(h, Color::mix(th.border, th.accent, sk), 10, 1 + sk * 0.75f);
       if (it.focused) ui::draw::rectStroke(h.expand(3), th.accent.alpha(0.5f), 12, 2);
       ui::at(RectF{h.x + 12, h.cy() - 15, 45, 30});
-      factionFlag(w, i == 0 ? A.leader() : P.owner, 45, 30);
+      factionFlag(w, i == 0 ? A.leader() : defenderOf(P, occupation), 45, 30);
       float x = h.x + 12 + 45 + 12, right = h.right() - 12;
       if (!can[i]) {
         const char* why = "Нет отрядов";
@@ -128,8 +139,9 @@ struct SiegeDialog final : Dialog {
       }
       float lh = ui::lineHeight(ui::Font::Caption), nh = ui::lineHeight(ui::Font::Strong);
       float y0 = h.cy() - (lh + nh) * 0.5f;
-      std::string side = w.factionName(i == 0 ? A.leader() : P.owner);
-      ui::draw::text(i == 0 ? "НАПАДАЮЩИЙ" : "ГАРНИЗОН", RectF{x, y0, right - x, lh}, ui::Font::Caption, th.textMuted);
+      std::string side = w.factionName(i == 0 ? A.leader() : defenderOf(P, occupation));
+      ui::draw::text(i == 0 ? (occupation ? "ОСВОБОДИТЕЛЬ" : "НАПАДАЮЩИЙ") : (occupation ? "ОККУПАНТ" : "ГАРНИЗОН"), RectF{x, y0, right - x, lh}, ui::Font::Caption,
+                     th.textMuted);
       ui::draw::text(side, RectF{x, y0 + lh, right - x, nh}, ui::Font::Strong, sel ? th.text : th.textDim);
       a.markUi(i == 0 ? "siege.winner.attacker" : "siege.winner.garrison", h);
       if (!can[i] && it.hovered) ui::tooltip("После потерь у этой стороны не остаётся отрядов — победителем она быть не может");
@@ -213,7 +225,7 @@ struct SiegeDialog final : Dialog {
         for (const ArmyUnit& u : g.units)
           if (auto r = unitRow(w, g.faction, u.row, false))
             lines.push_back(LossLine{*r, u.count, &armyLosses[{g.faction, u.row}], "siege.loss.army." + std::to_string(u.row)});
-      lossTable(a, lines, !siegeParty(a, w, army, province));
+      lossTable(a, lines, !party(a, w));
       sideTotals(unitCount(ar), sumOf(armyLosses), "Войско будет уничтожено");
     }
     cardsH = std::max(cardsH, ui::lastItem().rect.h);
@@ -224,18 +236,19 @@ struct SiegeDialog final : Dialog {
     const ui::Theme& th = ui::theme();
     {
       ui::Card card({.pad = 12, .tone = winner == 1 ? ui::Tone::Accent : ui::Tone::Neutral});
+      const Id side = defenderOf(p, occupation);
       {
         ui::Row hr({ui::px(46), ui::fr(1)}, ui::kAuto, 10);
-        typeTile(ui::next(46, 46), "castle", winner == 1 ? th.accent : th.textDim);
+        typeTile(ui::next(46, 46), occupation ? "occupied" : "castle", winner == 1 ? th.accent : th.textDim);
         ui::Group g(0, 2);
-        ui::caption("Гарнизон");
+        ui::caption(occupation ? "Оккупационный гарнизон" : "Гарнизон");
         ui::label(w.provinceName(p.id), {.font = ui::Font::Title});
         ui::HStack hs(18, ui::Align::Left, 5);
-        factionFlag(w, p.owner, 22, 15);
-        ui::label(w.factionName(p.owner), {.font = ui::Font::Small, .ink = ui::Ink::Dim});
+        factionFlag(w, side, 22, 15);
+        ui::label(w.factionName(side), {.font = ui::Font::Small, .ink = ui::Ink::Dim});
       }
       // Герои гарнизона (ТЗ «Доработки», п.1): гарнизон уничтожен — «Судьба героев».
-      if (!p.garrisonHeroes.empty()) {
+      if (!occupation && !p.garrisonHeroes.empty()) {
         ui::HStack hs(26, ui::Align::Left, 6);
         ui::icon("hero", ui::Ink::Accent, 16, "Герои гарнизона");
         int shown = 0;
@@ -247,11 +260,11 @@ struct SiegeDialog final : Dialog {
         if (shown > 2) ui::badge("+" + std::to_string(shown - 2), ui::Tone::Neutral);
       }
       std::vector<LossLine> lines;
-      for (const GarrisonEntry& g : p.garrison)
-        if (auto r = unitRow(w, p.owner, g.row, false); r && g.count > 0)
+      for (const GarrisonEntry& g : defenders(p))
+        if (auto r = unitRow(w, side, g.row, false); r && g.count > 0)
           lines.push_back(LossLine{*r, g.count, &garrisonLosses[g.row], "siege.loss.garrison." + std::to_string(g.row)});
-      lossTable(a, lines, !siegeParty(a, w, army, province));
-      sideTotals(garrisonCount(p), sumOf(garrisonLosses), "Гарнизон будет уничтожен");
+      lossTable(a, lines, !party(a, w));
+      sideTotals(entriesCount(defenders(p)), sumOf(garrisonLosses), "Гарнизон будет уничтожен");
     }
     cardsH = std::max(cardsH, ui::lastItem().rect.h);
   }
@@ -273,21 +286,24 @@ struct SiegeDialog final : Dialog {
     const Id leader = A->leader();
     const std::string pn = w.provinceName(province);
     rules::BattleOutcome out;
-    if (!siegeParty(a, w, army, province) || !a.play("Штурм: " + pn, [&](Tx& tx) { out = rules::resolveSiege(tx, r); })) return;
+    const bool lib = occupation;
+    if (!party(a, w) || !a.play((lib ? "Освобождение: " : "Штурм: ") + pn, [&](Tx& tx) { out = lib ? rules::resolveLiberation(tx, r) : rules::resolveSiege(tx, r); }))
+      return;
     const bool won = out.winner == leader && a.world().army(army) != nullptr;
-    if (won) a.toast("Гарнизон разбит: " + pn, ToastKind::Success, "castle");
-    else if (out.winner) a.toast("Гарнизон устоял: " + pn, ToastKind::Warning, "castle");
+    if (won) a.toast((lib ? "Провинция освобождена: " : "Гарнизон разбит: ") + pn, ToastKind::Success, lib ? "unlock" : "castle");
+    else if (out.winner) a.toast((lib ? "Оккупанты устояли: " : "Гарнизон устоял: ") + pn, ToastKind::Warning, lib ? "occupied" : "castle");
     else a.toast("Обе стороны уничтожены", ToastKind::Warning, "skull");
     if (a.world().army(army)) a.select(SelType::Army, army);
     decided = true;
     auto fn = done;
     const Id ar = army, pid = province;
-    detail::later(a, [fn, out, won, ar, pid](App& x) {
+    detail::later(a, [fn, out, won, lib, ar, pid](App& x) {
       auto finish = [fn](App& y) {
         if (fn) fn(y, true);
       };
-      // Победа — захват; уничтожение войска — судьба героев (пленивший — владелец, захоронение — провинция).
-      if (won) battleAftermath(x, out, false, [ar, pid, finish](App& y) { flow::openCapture(y, ar, pid, finish); });
+      // Победа при штурме — захват; уничтожение войска — судьба героев (пленивший — сторона гарнизона, захоронение —
+      // провинция). Освобождение захвата не открывает.
+      if (won && !lib) battleAftermath(x, out, false, [ar, pid, finish](App& y) { flow::openCapture(y, ar, pid, finish); });
       else battleAftermath(x, out, false, finish);
     });
   }
@@ -296,7 +312,7 @@ struct SiegeDialog final : Dialog {
     const World& w = frameWorld(a);
     const Army* A = w.army(army);
     const Province* P = w.province(province);
-    if (!A || !P || !P->owner) {
+    if (!A || !P || !P->owner || (occupation && (!P->occupied || !P->occupier))) {
       finish(a, false);
       return false;
     }
@@ -304,7 +320,7 @@ struct SiegeDialog final : Dialog {
       retreat(a);
       return false;
     }
-    const i64 leftA = unitCount(*A) - sumOf(armyLosses), leftG = garrisonCount(*P) - sumOf(garrisonLosses);
+    const i64 leftA = unitCount(*A) - sumOf(armyLosses), leftG = entriesCount(defenders(*P)) - sumOf(garrisonLosses);
     const bool can[2] = {leftA > 0 || leftG <= 0, leftG > 0 || leftA <= 0};
     if (!can[winner]) winner = 1 - winner;
     winnerPicker(a, w, *A, *P, can);
@@ -343,7 +359,7 @@ struct SiegeDialog final : Dialog {
     }
     a.markUi("siege.retreat");
     {
-      ui::Disabled dis(!siegeParty(a, w, army, province));
+      ui::Disabled dis(!party(a, w));
       if (ui::button("Применить итог", {.variant = ui::Variant::Primary, .icon = "check"})) {
         apply(a);
         if (decided) return false;
@@ -356,8 +372,43 @@ struct SiegeDialog final : Dialog {
 
 }  // namespace
 
+namespace {
+
+// «Освободить провинцию»: оккупационный гарнизон есть — окно боя с ним, нет — оккупация снимается сразу.
+void openLiberation(App& a, Id army, Id province, Vec2 origin, std::function<void(App&, bool)> done) {
+  const World& w = a.world();
+  auto fin = [done](App& x, bool applied) {
+    if (done) done(x, applied);
+  };
+  const Province& p = *w.province(province);
+  if (entriesCount(p.occGarrison) <= 0) {
+    const std::string pn = w.provinceName(province);
+    rules::SiegeResult r;
+    r.attacker = army;
+    r.province = province;
+    r.attackerOrigin = origin;
+    const bool ok = siegeParty(a, w, army, province, true) && a.play("Освобождение: " + pn, [&](Tx& tx) { rules::resolveLiberation(tx, r); });
+    if (ok) a.toast("Провинция освобождена: " + pn, ToastKind::Success, "unlock");
+    detail::later(a, [fin, ok](App& x) { fin(x, ok); });
+    return;
+  }
+  auto d = std::make_unique<SiegeDialog>();
+  d->army = army;
+  d->province = province;
+  d->origin = origin;
+  d->occupation = true;
+  d->done = std::move(done);
+  a.openDialog(std::move(d));
+}
+
+}  // namespace
+
 void flow::openSiege(App& a, Id army, Id province, Vec2 origin, std::function<void(App&, bool)> done) {
   const World& w = a.world();
+  if (rules::canLiberate(w, army, province)) {
+    openLiberation(a, army, province, origin, std::move(done));
+    return;
+  }
   auto fin = [done](App& x, bool applied) {
     if (done) done(x, applied);
   };

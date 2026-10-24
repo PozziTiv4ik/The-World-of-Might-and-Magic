@@ -66,10 +66,12 @@ void drawFaction(App& a, Id fid) {
     built += u.built;
     building += u.building;
   }
+  const bool known = a.knows(fid);   // туман войны: стройки чужого государства скрыты
   {
     ui::Row r({ui::fr(1), ui::fr(1)}, 64, 8);
     ui::stat(std::to_string(built), "Построено", {.icon = "building", .tone = ui::Tone::Success, .tooltip = "Построек в провинциях государства"});
-    ui::stat(std::to_string(building), "Строится", {.icon = "hourglass", .tone = ui::Tone::Info});
+    if (known) ui::stat(std::to_string(building), "Строится", {.icon = "hourglass", .tone = ui::Tone::Info});
+    else w::hiddenStat("Строится");
   }
   {
     ui::Row r({ui::fr(1.2f), ui::fr(1)}, 30, 8);
@@ -93,7 +95,7 @@ void drawFaction(App& a, Id fid) {
         const Use& u = use[b->id];
         std::string sub = std::string(bld::catName(b->cat)) + " · " + levelsText(*b);
         if (ui::listItem(b->name.empty() ? "Без названия" : b->name,
-                         {.icon = bld::iconOf(*b), .subtitle = sub, .hint = u.built + u.building ? std::to_string(u.built + u.building) : std::string()}))
+                         {.icon = bld::iconOf(*b), .subtitle = sub, .hint = u.built + (known ? u.building : 0) ? std::to_string(u.built + (known ? u.building : 0)) : std::string()}))
           openBuildingTree(a, fid, b->id);
       }
     }
@@ -138,7 +140,7 @@ void drawFaction(App& a, Id fid) {
     }
   }
   // Стройки в провинциях государства
-  if (building > 0) {
+  if (building > 0 && known) {
     if (ui::Section s("Стройки", "hourglass", {.badge = std::to_string(building)}); s) {
       w.provinces.each([&](const Province& p) {
         if (p.owner != fid) return;
@@ -173,7 +175,7 @@ void drawFaction(App& a, Id fid) {
         const Use& u = use[b->id];
         std::string sub = std::string(bld::catName(b->cat)) + " · " + levelsText(*b);
         if (ui::listItem(b->name.empty() ? "Без названия" : b->name,
-                         {.icon = bld::iconOf(*b), .subtitle = sub, .hint = u.built + u.building ? std::to_string(u.built + u.building) : std::string(),
+                         {.icon = bld::iconOf(*b), .subtitle = sub, .hint = u.built + (known ? u.building : 0) ? std::to_string(u.built + (known ? u.building : 0)) : std::string(),
                           .tooltip = "Постройка общего дерева — открыть в общем дереве"}))
           openBuildingTree(a, 0, b->id);
         a.markUi("faction.buildings.commonItem." + std::to_string(b->id));

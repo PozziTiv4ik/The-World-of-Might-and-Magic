@@ -112,8 +112,8 @@ void mercBar(App& a, Id faction) {
   if (limit > 0 || have > 0) {
     ui::flex();
     ui::tag("Наёмники " + fmtCount(have) + " из " + fmtCount(limit), have >= limit ? ui::Tone::Warning : ui::Tone::Neutral, "mercenary");
-    ui::tooltip("Лимит численности наёмников: каждая достроенная «Гильдия Наемников» — " +
-                fmtCount(i64(std::max(0.0, rules::constantOf(w, schema::cst::MercPerGuild).num))));
+    w::tagTip("Лимит численности наёмников: каждая достроенная «Гильдия Наемников» — " +
+              fmtCount(i64(std::max(0.0, rules::constantOf(w, schema::cst::MercPerGuild).num))));
     a.markUi("mil.merc.limit");
   }
 }

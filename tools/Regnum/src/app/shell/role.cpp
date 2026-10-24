@@ -7,6 +7,7 @@
 #include "app/widgets.h"
 #include "base/fs.h"
 #include "base/json.h"
+#include "codec/sha256.h"
 
 namespace rg::app::detail::role {
 
@@ -82,6 +83,68 @@ void focusCapital(App& a, Id state) {
   if (!b.empty()) a.focusMap(b);
 }
 
+// Карта — с настройками вида роли (игрок — свои).
+void syncMapView(App& a) {
+  if (a.ui.screen != Screen::Editor) return;
+  a.map().setWorld(mapWorld(a, a.world()));
+  a.impl().mapGen++;
+  a.requestRedraw();
+}
+
+// Мир с паролем администратора при открытии: до выбора роли — игрок (запомненное государство мира или первое из
+// списка), чтобы закрытое окно роли не оставляло администратора без пароля.
+void lockedStart(App& a) {
+  const World& w = a.store.world();
+  if (!adminLocked(w)) return;
+  const Remembered r = remembered(a);
+  Id st = r.player && stateExists(w, r.state) ? r.state : 0;
+  if (!st) {
+    const std::vector<Id> list = playableStates(w);
+    if (!list.empty()) st = list.front();
+  }
+  if (!st) return;
+  a.ui.role = Role::Player;
+  a.ui.playerState = st;
+  a.store.clearHistory();
+  syncMapView(a);
+}
+
+// Число кодовых точек UTF-8 (точки поля пароля).
+size_t utf8Count(std::string_view s) {
+  size_t n = 0;
+  for (unsigned char c : s)
+    if ((c & 0xC0) != 0x80) n++;
+  return n;
+}
+
+// Окно «Пароль администратора»: новый пароль дважды.
+struct PasswordDlg final : Dialog {
+  std::string pw, again;
+  const char* id() const override { return "role.password"; }
+  Style style(App&) override { return {"Пароль администратора", "lock", ui::Tone::Accent, 420}; }
+  bool draw(App& a) override {
+    passwordField("pw", pw, "Новый пароль", true);
+    a.markUi("role.password.new");
+    passwordField("again", again, "Ещё раз");
+    a.markUi("role.password.again");
+    const bool differ = !pw.empty() && !again.empty() && pw != again;
+    if (differ) ui::label("Пароли не совпадают", {.font = ui::Font::Small, .ink = ui::Ink::Danger, .icon = "warning"});
+    ui::ModalFooter f;
+    if (ui::button("Отмена")) return false;
+    a.markUi("role.password.cancel");
+    if (ui::button("Сохранить", {.variant = ui::Variant::Primary, .icon = "lock", .disabled = pw.empty() || pw != again || !a.canEdit(),
+                                 .isDefault = true})) {
+      const std::string key = adminKeyOf(a.store.world(), pw);
+      if (a.act("Пароль администратора", [&](Tx& tx) { tx.settings().adminKey = key; })) {
+        a.toast("Пароль администратора задан", ToastKind::Success, "lock");
+        return false;
+      }
+    }
+    a.markUi("role.password.ok");
+    return true;
+  }
+};
+
 // ================================================================ окно выбора роли
 struct StateRow {
   Id id = 0;
@@ -105,11 +168,11 @@ class RoleDialog final : public Dialog {
 
   bool draw(App& a) override {
     if (!init_) start(a);
-    return page_ == 0 ? roles(a) : states(a);
+    return page_ == 0 ? roles(a) : page_ == 2 ? password(a) : states(a);
   }
 
  private:
-  int page_ = 0;
+  int page_ = 0;              // 0 — роли, 1 — государства игрока, 2 — пароль администратора
   bool init_ = false;
   Remembered last_;
   std::vector<StateRow> rows_;
@@ -119,6 +182,42 @@ class RoleDialog final : public Dialog {
   bool scrollToHi_ = true;
   bool focused_ = false;
   float lastMx_ = -1, lastMy_ = -1;
+  std::string pw_;            // введённый пароль администратора
+  bool wrong_ = false;        // неверный пароль (до следующего ввода)
+  std::string tried_;
+
+  // ---------------------------------------------------------------- пароль администратора
+  bool password(App& a) {
+    if (ui::keyPressed(Key::Escape)) {
+      ui::consumeKey(Key::Escape);
+      page_ = 0;
+      return true;
+    }
+    {
+      ui::Row head({ui::px(30), ui::fr(1)}, 30, 8);
+      if (ui::iconButton("arrow-left", "Назад")) page_ = 0;
+      ui::tooltip("Назад", {Key::Escape, 0});
+      a.markUi("role.back");
+      passwordField("pw", pw_, "Пароль администратора", true);
+      a.markUi("role.password");
+    }
+    if (pw_ != tried_) wrong_ = false;
+    if (wrong_) {
+      ui::label("Неверный пароль", {.font = ui::Font::Small, .ink = ui::Ink::Danger, .icon = "warning"});
+      a.markUi("role.password.wrong");
+    }
+    ui::ModalFooter f;
+    if (ui::button("Войти", {.variant = ui::Variant::Primary, .icon = "unlock", .disabled = pw_.empty(), .isDefault = true})) {
+      if (adminPasswordOk(a.store.world(), pw_)) {
+        later(a, [](App& x) { becomeAdmin(x); });
+        return false;
+      }
+      wrong_ = true;
+      tried_ = pw_;
+    }
+    a.markUi("role.password.ok");
+    return true;
+  }
 
   void start(App& a) {
     init_ = true;
@@ -143,8 +242,9 @@ class RoleDialog final : public Dialog {
   }
 
   // ---------------------------------------------------------------- карточки ролей
+  // locked — роль под паролем: значок замка на плитке, карточка доступна (дальше — ввод пароля).
   bool card(App& a, const char* mark, RectF r, const char* icon, std::string_view title, bool primary, bool disabled,
-            const Faction* sub) {
+            const Faction* sub, bool locked = false) {
     const ui::Theme& th = ui::theme();
     ui::WidgetId wid = ui::id(mark);
     ui::Interaction it = ui::interact(wid, r, disabled ? ui::IfNone : ui::IfFocusable);
@@ -161,10 +261,10 @@ class RoleDialog final : public Dialog {
     else if (primary) ui::draw::gradient(ic, th.accentHover, th.accent.darken(0.08f), 16);
     else ui::draw::rect(ic, th.surface3, 16);
     ui::draw::icon(icon, ic.inset(15), disabled ? th.textMuted : primary ? th.onAccent : th.accent);
-    if (disabled) {
+    if (disabled || locked) {
       const RectF lb{ic.right() - 14, ic.bottom() - 14, 20, 20};
       ui::draw::circle(lb.cx(), lb.cy(), 11, th.surface2);
-      ui::draw::icon("lock", lb.inset(3), th.textMuted);
+      ui::draw::icon("lock", lb.inset(3), locked && !disabled ? th.accent : th.textMuted);
     }
     ui::draw::text(title, RectF{rr.x + 12, ic.bottom() + 14, rr.w - 24, 24}, ui::Font::Subtitle, disabled ? th.textMuted : th.text, ui::Align::Center);
     if (sub) {
@@ -189,10 +289,18 @@ class RoleDialog final : public Dialog {
     const bool lastPlayer = last_.player && !noStates;
     const Faction* sub = lastPlayer ? w.faction(last_.state) : nullptr;
     const RectF ra{row.x, row.y + 4, cw, row.h - 8}, rp{row.x + cw + gap, row.y + 4, cw, row.h - 8};
-    if (card(a, "role.admin", ra, "map-edit", "Администратор редактора", !lastPlayer, false, nullptr)) {
+    const bool locked = adminLocked(w) && !a.admin();   // пароль — для входа в роль администратора
+    if (card(a, "role.admin", ra, "map-edit", "Администратор редактора", !lastPlayer, false, nullptr, locked)) {
+      if (locked) {
+        page_ = 2;
+        pw_.clear();
+        wrong_ = false;
+        return true;
+      }
       later(a, [](App& x) { becomeAdmin(x); });
       return false;
     }
+    if (locked) ui::hoverTip("role.admin.lock", ra, "Пароль администратора");
     if (card(a, "role.player", rp, "crown", "Игрок", lastPlayer, noStates, sub)) {
       page_ = 1;
       focused_ = false;
@@ -364,7 +472,7 @@ void actionTag(App& a, Id army, bool compact) {
   }
   ui::HStack hs(24, ui::Align::Left, 6);
   ui::tag(can ? "Может ходить" : "Ход сделан", can ? ui::Tone::Success : ui::Tone::Neutral, can ? "bolt" : "hourglass");
-  ui::tooltip(tip);
+  w::tagTip(tip);
   a.markUi("army.action");
 }
 
@@ -412,8 +520,7 @@ void becomeAdmin(App& a) {
   a.ui.role = Role::Admin;
   a.ui.playerState = 0;
   remember(a, false, 0);
-  a.impl().mapGen++;
-  a.requestRedraw();
+  syncMapView(a);   // вид карты — настройки мира
 }
 
 void becomePlayer(App& a, Id state) {
@@ -447,20 +554,22 @@ void becomePlayer(App& a, Id state) {
   a.ui.inspectorHidden = false;
   if (const SectionDef* sec = a.sectionOf(a.ui.sel)) a.ui.lastOf[sec->id] = a.ui.sel;
   remember(a, true, state);
-  d.mapGen++;
+  syncMapView(a);   // вид карты — свои настройки игрока
   later(a, [state](App& x) { later(x, [state](App& y) { focusCapital(y, state); }); });
-  a.requestRedraw();
 }
 
 void worldOpened(App& a, bool keep) {
   spendDone();
   if (keep && a.player() && stateExists(a.store.world(), a.ui.playerState)) return;
+  const bool wasAdmin = keep && a.admin();   // перечитанный мир у администратора — без пароля
   a.ui.role = Role::Admin;
   a.ui.playerState = 0;
-  if (a.impl().cfg.askRole)
+  if (a.impl().cfg.askRole) {
+    if (!wasAdmin) lockedStart(a);
     later(a, [](App& x) {
       if (x.ui.screen == Screen::Editor && !x.hasDialog("role")) ask(x);
     });
+  }
 }
 
 void worldClosed(App& a) {
@@ -474,7 +583,8 @@ void validate(App& a) {
   a.ui.role = Role::Admin;
   a.ui.playerState = 0;
   spendDone();
-  if (a.impl().cfg.askRole && !a.hasDialog("role")) ask(a);
+  lockedStart(a);   // пароль администратора: без него — снова игрок до выбора
+  if ((a.player() || a.impl().cfg.askRole) && !a.hasDialog("role")) ask(a);
 }
 
 // ================================================================ ограничения игрока
@@ -602,6 +712,117 @@ void topBadge(App& a) {
     d.toolSlot.x = r.right() + 8;
     d.toolSlot.w = std::max(0.f, old - d.toolSlot.x);
   }
+}
+
+// ================================================================ пароль администратора
+std::string adminKeyOf(const World& w, std::string_view password) {
+  const std::string salt = w.meta->createdAt.empty() ? w.meta->name : w.meta->createdAt;
+  const std::string text = salt + std::string(password);
+  return codec::sha256Hex(text.data(), text.size());
+}
+
+bool adminLocked(const World& w) { return !w.settings->adminKey.empty(); }
+
+bool adminPasswordOk(const World& w, std::string_view password) {
+  return !adminLocked(w) || adminKeyOf(w, password) == w.settings->adminKey;
+}
+
+void passwordField(std::string_view id, std::string& value, std::string_view placeholder, bool autofocus) {
+  ui::textField(id, value, {.placeholder = placeholder, .icon = "lock", .live = true, .maxLength = 128, .autofocus = autofocus});
+  if (value.empty()) return;
+  // Введённое закрывается точками: подложка поля поверх текста и по точке на знак (ввод, выделение и вставка — у поля).
+  const ui::Item it = ui::lastItem();
+  const ui::Theme& th = ui::theme();
+  const RectF tr{it.rect.x + 34, it.rect.y + 2, std::max(0.f, it.rect.w - 44), it.rect.h - 4};
+  ui::draw::rect(tr, th.surface3, 0);
+  const size_t n = std::min<size_t>(utf8Count(value), 40);
+  float x = tr.x;
+  for (size_t i = 0; i < n && x + 6 <= tr.right(); i++, x += 9) ui::draw::circle(x + 3, tr.cy(), 3, th.text);
+  if (it.focused) ui::draw::line(x + 1, tr.cy() - 7, x + 1, tr.cy() + 7, th.accent, 1);
+}
+
+void askSetPassword(App& a) {
+  if (!a.canEdit()) {
+    a.toast(kAdminOnly, ToastKind::Warning, "lock");
+    return;
+  }
+  a.openDialog(std::make_unique<PasswordDlg>());
+}
+
+void askClearPassword(App& a) {
+  if (!a.canEdit()) {
+    a.toast(kAdminOnly, ToastKind::Warning, "lock");
+    return;
+  }
+  a.confirmAct("Снять пароль администратора?", "Роль администратора станет доступна без пароля.", "Снять пароль", "Снять пароль администратора",
+               [](Tx& tx) { tx.settings().adminKey.clear(); });
+}
+
+// ================================================================ вид карты игрока
+namespace {
+// Поля вида карты из src в dst (правила и сохранение — мира).
+void copyView(Settings& dst, const Settings& src) {
+  dst.fillOpacity = src.fillOpacity;
+  dst.labelStates = src.labelStates;
+  dst.labelProvinces = src.labelProvinces;
+  dst.labelArmies = src.labelArmies;
+  dst.showArmies = src.showArmies;
+  dst.figureSize = src.figureSize;
+}
+}  // namespace
+
+Settings viewSettings(const App& a) {
+  Settings s = *a.world().settings;
+  if (a.player() && a.ui.playerView) copyView(s, *a.ui.playerView);
+  return s;
+}
+
+void setView(App& a, std::string_view label, const std::function<void(Settings&)>& fn, std::string_view coalesce) {
+  if (a.admin()) {
+    a.play(label, [&](Tx& tx) { fn(tx.settings()); }, {.coalesce = std::string(coalesce)});
+    return;
+  }
+  Settings s = viewSettings(a);
+  fn(s);
+  s.fillOpacity = clamp(s.fillOpacity, 0.f, 1.f);
+  s.figureSize = clamp(s.figureSize, schema::kFigureSizeMin, schema::kFigureSizeMax);
+  a.ui.playerView = s;
+  a.impl().prefsDirty = true;
+  syncMapView(a);
+}
+
+World mapWorld(const App& a, const World& w) {
+  if (!a.player() || !a.ui.playerView) return w;
+  World m = w;
+  Settings s = *w.settings;
+  copyView(s, *a.ui.playerView);
+  m.settings = std::make_shared<const Settings>(std::move(s));
+  return m;
+}
+
+void loadView(App& a, const json::Value& v) {
+  if (!v.isObj()) return;
+  Settings s;
+  s.fillOpacity = float(clamp(v.num("fillOpacity", s.fillOpacity), 0.0, 1.0));
+  s.labelStates = v.boolean("labelStates", s.labelStates);
+  s.labelProvinces = v.boolean("labelProvinces", s.labelProvinces);
+  s.labelArmies = v.boolean("labelArmies", s.labelArmies);
+  s.showArmies = v.boolean("showArmies", s.showArmies);
+  s.figureSize = int(clamp(v.num("figureSize", s.figureSize), double(schema::kFigureSizeMin), double(schema::kFigureSizeMax)));
+  a.ui.playerView = s;
+}
+
+json::Value viewJson(const App& a) {
+  if (!a.ui.playerView) return json::Value();
+  const Settings& s = *a.ui.playerView;
+  json::Value o = json::Value::object();
+  o.set("fillOpacity", double(s.fillOpacity));
+  o.set("labelStates", s.labelStates);
+  o.set("labelProvinces", s.labelProvinces);
+  o.set("labelArmies", s.labelArmies);
+  o.set("showArmies", s.showArmies);
+  o.set("figureSize", double(s.figureSize));
+  return o;
 }
 
 }  // namespace rg::app::detail::role

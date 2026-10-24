@@ -36,6 +36,27 @@ TEST(rules_states_population_take_and_give) {
   CHECK_EQ(popOf(f.w(), f.p[0]) + popOf(f.w(), f.p[1]), 1003);
 }
 
+// Население в пустые провинции государства без жителей — «Люди», а не первая по алфавиту раса (аудит 7.5).
+TEST(rules_states_population_give_fallback_race) {
+  Fix f;
+  Id angels = 0, humans = 0;
+  f.tx([&](Tx& tx) {
+    angels = addCatalogItem(tx, CatalogList::Races, "Ангелы");
+    humans = addCatalogItem(tx, CatalogList::Races, "Люди");
+    for (int i = 0; i < 2; i++) {
+      tx.province(f.p[i]).owner = f.A;
+      tx.province(f.p[i]).races.clear();
+    }
+  });
+  CHECK_EQ(f.w().catalogs->races.front().id, angels);
+  f.tx([&](Tx& tx) { givePopulation(tx, f.A, 50); });
+  i64 human = 0, other = 0;
+  for (int i = 0; i < 2; i++)
+    for (const RacePop& r : f.w().province(f.p[i])->races) (r.race == humans ? human : other) += r.pop;
+  CHECK_EQ(human, 50);
+  CHECK_EQ(other, 0);
+}
+
 // ---------------------------------------------------------------- модификаторы со сроком
 TEST(rules_states_modifier_durations_expire) {
   Fix f;
@@ -106,9 +127,9 @@ TEST(rules_states_council_influence) {
   auto autos = autoModifiers(f.w(), f.A);
   bool influence = false;
   for (const AutoMod& a : autos)
-    if (a.key == schema::mod::CouncilInfluence) influence = a.scale == 5;
+    if (a.key == schema::mod::CouncilInfluence) influence = a.scale == 4;   // пустая должность влияния не даёт
   CHECK(influence);
-  CHECK_NEAR(factionEffects(f.w(), f.A)[Fx::ResearchTimePct], -10, 1e-9);   // −2 % × 5 должностей
+  CHECK_NEAR(factionEffects(f.w(), f.A)[Fx::ResearchTimePct], -8, 1e-9);   // −2 % × 4 занятые должности
   f.tx([&](Tx& tx) {
     for (int i = 0; i < 5; i++) addCouncilSeat(tx, f.A, "Ещё " + std::to_string(i));
   });
@@ -131,7 +152,7 @@ TEST(rules_states_provisions_and_famine) {
   CHECK(f.fc(f.A).famine);
   f.tx([&](Tx& tx) { endTurn(tx); });
   CHECK_NEAR(f.w().province(f.p[0])->contentment, -5, 1e-9);   // «Голод» со следующего хода
-  CHECK_NEAR(f.w().faction(f.A)->provisionDebt, 20, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->provisionDebt, 10, 1e-9);      // недостача не копится — только этого хода
   // Ресурсы группы «Провизия» (с подгруппами): расход и недостача — поровну, исчерпанный отдаёт всё.
   const std::vector<Id> provs = provisionResources(f.w());
   CHECK(provs.size() >= 17);
@@ -141,10 +162,10 @@ TEST(rules_states_provisions_and_famine) {
     tx.faction(f.A).res[fish] = 4;
   });
   CHECK_NEAR(f.fc(f.A).resources.at(fish).consumption, 4, 1e-9);
-  CHECK_NEAR(f.fc(f.A).resources.at(grain).consumption, 26, 1e-9);   // 10 + 20 недостачи − 4
+  CHECK_NEAR(f.fc(f.A).resources.at(grain).consumption, 6, 1e-9);   // расход 10 − 4 (прошлая недостача не возвращается)
   CHECK_NEAR(f.fc(f.A).provisionDebtNext, 0, 1e-9);
   f.tx([&](Tx& tx) { endTurn(tx); });
-  CHECK_NEAR(f.w().faction(f.A)->stock(grain), 74, 1e-9);
+  CHECK_NEAR(f.w().faction(f.A)->stock(grain), 94, 1e-9);
   CHECK_NEAR(f.w().faction(f.A)->stock(fish), 0, 1e-9);
   CHECK_NEAR(f.w().faction(f.A)->provisionDebt, 0, 1e-9);
   CHECK(!f.fc(f.A).famine);

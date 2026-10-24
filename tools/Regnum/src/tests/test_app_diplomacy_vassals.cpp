@@ -1,6 +1,7 @@
 // Сценарии вассалитета (ТЗ «Механика вассалитета») на демонстрационном мире: сюзерен в карточке вассала и выбор
 // сюзерена, «Восстать» при отношениях −50 и ниже (война с сюзереном), вопрос сюзерену атакованного вассала, призыв
-// вассалов зачинщика войны и вассалов атакованного сюзерена (окна по очереди), вкладка «Вассалы» сюзерена.
+// вассалов зачинщика войны и вассалов атакованного сюзерена (окна по очереди; вступивший в войну — тот же разбор для
+// него, аудит 2026-10-23, 5.15), вкладка «Вассалы» сюзерена. Война из «Дипломатии» — после подтверждения (5.16).
 #include "app/flows.h"
 #include "tests/test_app_faction_util.h"
 
@@ -79,10 +80,12 @@ TEST(app_diplomacy_vassal_war_flow) {
   }));
   const double relKM = h->world().relation(korven, mirel).v;
   const double relAO = h->world().relation(alm, olsta).v, relAS = h->world().relation(alm, solmar).v;
-  // Альмарин объявляет войну Мирели из вкладки «Дипломатия».
+  // Альмарин объявляет войну Мирели из вкладки «Дипломатия» (с подтверждением).
   openTab(h, alm, "faction.diplomacy");
   CHECK(clickIn(h, "dip.status." + std::to_string(mirel)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
+  h.settle();
+  CHECK(h.clickUi("dip.war.ok"));
   h.settle();
   CHECK(h->world().relation(alm, mirel).s == RelStatus::War);
   // 1. Вопрос сюзерену атакованного вассала (призыв — после ответа).
@@ -105,6 +108,12 @@ TEST(app_diplomacy_vassal_war_flow) {
   CHECK(h->world().relation(solmar, mirel).s != RelStatus::War);
   CHECK_NEAR(h->world().relation(alm, olsta).v, std::min(100.0, relAO + schema::kVassalCallAgree), 1e-9);
   CHECK_NEAR(h->world().relation(alm, solmar).v, std::max(-100.0, relAS + schema::kVassalCallRefuse), 1e-9);
+  // 3. Цепочка (аудит 2026-10-23, 5.15): Ольсты вступили в войну — сюзерена Мирели снова спрашивают, теперь об Ольстах.
+  CHECK(h->hasDialog("vassal.defend"));
+  CHECK(h.clickUi("vassal.defend.no"));
+  h.settle();
+  CHECK(!h->hasDialog());
+  CHECK(h->world().relation(korven, olsta).s != RelStatus::War);
   // Вкладка «Вассалы» Альмарина: оба вассала и отношения с ними.
   openTab(h, alm, "faction.vassals");
   CHECK(h->uiRect("vassals.row." + std::to_string(olsta)) != nullptr);
@@ -128,11 +137,13 @@ TEST(app_diplomacy_vassal_defend_yes) {
   CHECK(clickIn(h, "dip.status." + std::to_string(mirel)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
   h.settle();
+  CHECK(h.clickUi("dip.war.ok"));
+  h.settle();
   CHECK(h->hasDialog("vassal.defend"));
   CHECK(h.clickUi("vassal.defend.yes"));
   h.settle();
   CHECK(!h->hasDialog("vassal.defend"));
-  CHECK(!h->hasDialog("vassal.call"));   // у Орды вассалов нет
+  CHECK(!h->hasDialog("vassal.call"));   // у Орды и Солмара вассалов нет (Мирель воюет с Ордой)
   CHECK(h->world().relation(solmar, orda).s == RelStatus::War);
   CHECK_NEAR(h->world().relation(solmar, orda).v, schema::kWarRelation, 1e-9);
   CHECK_NEAR(h->world().relation(solmar, mirel).v, std::min(100.0, rel0 + schema::kVassalDefendBonus), 1e-9);
@@ -161,6 +172,8 @@ TEST(app_diplomacy_vassal_called_to_defend) {
   openTab(h, orda, "faction.diplomacy");
   CHECK(clickIn(h, "dip.status." + std::to_string(solmar)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
+  h.settle();
+  CHECK(h.clickUi("dip.war.ok"));
   h.settle();
   CHECK(h->world().relation(orda, solmar).s == RelStatus::War);
   CHECK(!h->hasDialog("vassal.defend"));
@@ -197,6 +210,8 @@ TEST(app_diplomacy_vassal_called_to_defend) {
   CHECK(clickIn(h, "dip.status." + std::to_string(solmar)));
   CHECK(h.clickUi("status.item." + std::to_string(int(RelStatus::War))));
   h.settle();
+  CHECK(h.clickUi("dip.war.ok"));
+  h.settle();
   CHECK(h->world().relation(alm, solmar).s == RelStatus::War);
   CHECK(h->hasDialog("vassal.call"));
   CHECK(h->uiRect("vassal.call.attack") != nullptr);
@@ -205,20 +220,29 @@ TEST(app_diplomacy_vassal_called_to_defend) {
   CHECK(h.clickUi("vassal.call.ok"));
   h.settle();
   CHECK(h->world().relation(held, solmar).s == RelStatus::War);
-  // Второе окно: вассалы Солмара против Альмарина (Корвен теперь тоже зовётся — с Альмарином он не воюет).
+  // Второе окно (цепочка, аудит 2026-10-23, 5.15): Хельдвиг вступил в войну — вассалы Солмара на оборону от него.
+  CHECK(h->hasDialog("vassal.call"));
+  CHECK(h->uiRect("vassal.call.defense") != nullptr);
+  CHECK(h->uiRect("vassal.call." + std::to_string(korven)) != nullptr);
+  // Закрытие без ответа ничего не меняет.
+  const World before = h->world();
+  CHECK(h.clickUi("vassal.call.cancel"));
+  h.settle();
+  CHECK(World::diff(before, h->world()) == 0);
+  // Третье окно: вассалы Солмара против Альмарина (Корвен теперь тоже зовётся — с Альмарином он не воюет).
   CHECK(h->hasDialog("vassal.call"));
   CHECK(h->uiRect("vassal.call.defense") != nullptr);
   CHECK(h->uiRect("vassal.call." + std::to_string(korven)) != nullptr);
   CHECK(h->uiRect("vassal.call." + std::to_string(held)) == nullptr);
-  // Закрытие без ответа ничего не меняет.
-  const World before = h->world();
   CHECK(h.clickUi("vassal.call.cancel"));
   h.settle();
   CHECK(!h->hasDialog("vassal.call"));
   CHECK(World::diff(before, h->world()) == 0);
 
   // Вассал, сам напавший на сюзерена, в призыв не попадает (как и воюющие с сюзереном).
-  CHECK(h->act("Война вассала", [&](Tx& tx) { rules::declareWar(tx, mirel, solmar); }));
+  // Объявить войну сюзерену вассал не может (только «Восстать», аудит 2026-10-23, 5.5) — войну ставит администратор.
+  CHECK(!h->act("Война вассала", [&](Tx& tx) { rules::declareWar(tx, mirel, solmar); }));
+  CHECK(h->act("Война вассала", [&](Tx& tx) { rules::setRelation(tx, mirel, solmar, -60, RelStatus::War); }));
   app::flow::afterWarDeclared(h.a(), mirel, solmar);
   h.settle();
   CHECK(h->hasDialog("vassal.call"));

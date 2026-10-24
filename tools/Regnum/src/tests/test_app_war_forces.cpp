@@ -250,14 +250,14 @@ TEST(app_war_forces_trade_fleet) {
   CHECK_NEAR(h->world().faction(hel)->fleetRow(gal)->upkeep, 1.5, 1e-9);
   CHECK(h.clickUi("mil.fleet.editReserve"));
   h.settle();
-  // 20 галеонов в торговле: прибыль 20 × 1,5 × 2 = 60, риск 2 %.
+  // 20 галеонов в торговле: прибыль 20 × «Доход торгового галеона» 0,5 = 10 (от содержания не зависит), риск 2 %.
   CHECK(reveal(h, "mil.trade." + std::to_string(gal)));
   CHECK(enterNumber(h, "mil.trade." + std::to_string(gal), 20));
   const Faction* f = h->world().faction(hel);
   CHECK_EQ(f->tradeFleet.size(), size_t(1));
   if (!f->tradeFleet.empty()) CHECK_EQ(f->tradeFleet[0].count, 20);
   auto c = rules::calc(h->world());
-  CHECK_NEAR(c->faction(hel)->incTradeFleet, 60, 1e-6);
+  CHECK_NEAR(c->faction(hel)->incTradeFleet, 10, 1e-6);
   CHECK_NEAR(c->faction(hel)->pirateRisk, 2, 1e-9);
   CHECK_EQ(app::mil::reserveOf(h->world(), hel, gal, true), 10);
   // Больше резерва не назначить.

@@ -14,7 +14,10 @@ struct CatalogItem {
   std::string icon;
   bool builtin = false;
   std::string key;                    // встроенный ресурс (schema::kRes*): золото, трупы, энергия, запчасти механизмов
-  std::vector<Id> modifiers;          // должность: глобальные модификаторы, пока она занята
+  // Должность: глобальные модификаторы, пока она занята. Раса, культура, религия, форма правления: модификаторы
+  // провинций с этой культурой, религией или преобладающей расой (локальные эффекты) и государств с этой культурой,
+  // религией или формой правления (глобальные эффекты).
+  std::vector<Id> modifiers;
   std::vector<Id> vacantModifiers;    // должность: глобальные модификаторы, пока она пустует
   Id group = 0;                       // ресурс: группа справочника (0 — без группы)
 };
@@ -46,7 +49,8 @@ template <class Tag> bool inTree(const std::vector<TreeGroup<Tag>>& groups, Id g
 // (больше Rarity — выше). Легендарная и эпохальная — уникальны: одна штука в одном месте (инвентарь героя, хранилище
 // постройки, инвентарь государства или тайник провинции). Эпическая и ниже — «копируемые»: лежат стопками с
 // количеством (RelicStack) в скольких угодно местах, у скольких угодно героев. image — своё изображение (PNG/JPEG),
-// entity — карточка проекта (портрет канона).
+// entity — карточка проекта (портрет канона). modifiers действуют как модификаторы героя, в чьём инвентаре реликвия.
+// Филактерия лича (phylactery) уникальна при любой редкости, не выпадает из сундуков и раскопок и не продаётся.
 struct Relic {
   Id id = 0;
   std::string name;
@@ -55,7 +59,9 @@ struct Relic {
   Id group = 0;                       // группа реликвий (RelicGroup)
   std::string entity;
   std::string image;
-  bool unique() const { return int(rarity) >= int(Rarity::Legendary); }
+  std::vector<Id> modifiers;          // модификаторы героя-носителя
+  bool phylactery = false;            // филактерия лича
+  bool unique() const { return phylactery || int(rarity) >= int(Rarity::Legendary); }
 };
 // Талант дерева подкласса героя (как дерево талантов World of Warcraft): ярус row (сверху вниз) и столбец col; ranks —
 // рангов (1…5), cost — очков за ранг (1…5; финальные таланты — один ранг за 5 очков); prereq — талант, который нужно
@@ -91,12 +97,14 @@ int talentSpent(const SubClass& sc, const std::vector<Id>& learned);
 int talentSpentAbove(const SubClass& sc, const std::vector<Id>& learned, int row);
 
 // Класс героя: подклассы (число не ограничено), у каждого — своё дерево талантов; герой выбирает класс и подкласс.
+// modifiers — модификаторы героя этого класса (как собственные).
 struct HeroClass {
   Id id = 0;
   std::string name, desc;
   std::string icon = "hero";
   Color color = Color::hex(0x8c7ae6);
   std::vector<SubClass> subclasses;
+  std::vector<Id> modifiers;
   const SubClass* subclass(Id s) const { return findById(subclasses, s); }
 };
 // Археологическое место: постоянный список из десяти мест (новые не добавляются). rewards — «Финальная награда

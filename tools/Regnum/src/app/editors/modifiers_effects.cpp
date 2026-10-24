@@ -10,12 +10,6 @@ u32 archMask() {
     if (schema::kEffects[f].arch) m |= 1u << f;
   return m;
 }
-u32 heroMask() {
-  u32 m = 0;
-  for (int f = 0; f < kFxCount; f++)
-    if (schema::kEffects[f].hero) m |= 1u << f;
-  return m;
-}
 
 namespace {
 
@@ -176,6 +170,21 @@ void targetsRow(App& a, const Modifier& m, bool ro) {
 }
 
 }  // namespace
+
+bool groupShown(const Modifier& m, FxGroup group) {
+  bool applies = true;
+  switch (m.kind) {
+    case ModKind::Province:
+    case ModKind::Faction: applies = group != FxGroup::Hero; break;
+    case ModKind::Army: applies = group == FxGroup::Army; break;
+    case ModKind::ArchGroup: applies = group == FxGroup::Arch; break;
+    default: break;   // «Везде» и «Для героев» — все группы
+  }
+  if (applies) return true;
+  for (int f = 0; f < kFxCount; f++)
+    if (groupOf(f) == group && m.has(Fx(f))) return true;
+  return false;
+}
 
 void effectGroup(App& a, const Modifier& m, FxGroup group, bool ro) {
   int on = 0, total = 0;
