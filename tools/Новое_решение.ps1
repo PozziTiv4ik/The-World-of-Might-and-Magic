@@ -45,7 +45,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
 
 function Format-LinkText {
@@ -60,7 +60,7 @@ function Format-LinkText {
         }
 
         $clean = $link.Trim().Trim('`')
-        if (-not (Test-WmmaReference $root $clean)) {
+        if (-not (Test-VoidlightReference $root $clean)) {
             throw "Decision link points to missing file: $clean"
         }
 
@@ -82,9 +82,9 @@ function Get-NextPendingDecisionId {
     $currentContextPath = Join-Path $root '01_Кампания\00_Текущий_контекст.md'
     $haystack = @(
         $Registry | ConvertTo-Json -Depth 8
-        Read-WmmaText $decisionLogPath -AllowMissing
-        Read-WmmaText $openQuestionsPath -AllowMissing
-        Read-WmmaText $currentContextPath -AllowMissing
+        Read-VoidlightText $decisionLogPath -AllowMissing
+        Read-VoidlightText $openQuestionsPath -AllowMissing
+        Read-VoidlightText $currentContextPath -AllowMissing
     ) -join "`n"
 
     $numbers = @(
@@ -111,13 +111,13 @@ if ([string]::IsNullOrWhiteSpace($Choice)) {
 # Every decision names the scenes of the choice; a new scene of the batch is already registered.
 $SceneIds = @($SceneIds | Where-Object { $_ } | Select-Object -Unique)
 if ($SceneIds.Count -eq 0) { throw 'A decision needs at least one scene ID (-SceneIds).' }
-$graph = Read-WmmaRegistry $root 'Сущности'
-Assert-WmmaEntityIds $graph $SceneIds -Type @('scene') -Label 'decision scene'
+$graph = Read-VoidlightRegistry $root 'Сущности'
+Assert-VoidlightEntityIds $graph $SceneIds -Type @('scene') -Label 'decision scene'
 if ([string]::IsNullOrWhiteSpace($Scene)) {
     $Scene = @($graph.entities | Where-Object { $_.id -eq $SceneIds[0] })[0].path
 }
 
-$registry = Read-WmmaRegistry $root 'Решения'
+$registry = Read-VoidlightRegistry $root 'Решения'
 $decisions = @($registry.decisions)
 
 if ([string]::IsNullOrWhiteSpace($Id)) {
@@ -164,9 +164,9 @@ $decisions += [pscustomobject][ordered]@{
 $registry.decisions = @($decisions)
 $registry.updated_real_date = $today
 
-Write-WmmaRegistry $root 'Решения' $registry
+Write-VoidlightRegistry $root 'Решения' $registry
 
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
 
 "Created pending decision: $Id"
 }

@@ -23,7 +23,7 @@ static std::string gOut;
 std::string outDir() {
   if (gOut.empty()) {
     const char* env = std::getenv("REGNUM_TEST_OUT");
-    gOut = env && *env ? env : ".wmma/regnum-tests";
+    gOut = env && *env ? env : ".voidlight/regnum-tests";
   }
   std::error_code ec;
   std::filesystem::create_directories(std::filesystem::path(reinterpret_cast<const char8_t*>(gOut.c_str())), ec);

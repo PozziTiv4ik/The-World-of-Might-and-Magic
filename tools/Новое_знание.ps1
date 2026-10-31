@@ -14,13 +14,13 @@ param(
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $data=New-WmmaReadModel $root
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+    $data=New-VoidlightReadModel $root
     $graph=$data.graph
     if([string]::IsNullOrWhiteSpace($Text) -or @($EvidenceIds|Where-Object {$_}).Count -eq 0){throw 'Knowledge text and at least one evidence ID are required.'}
-    Assert-WmmaEntityIds $graph @($EvidenceIds|Where-Object {$_}) -Label 'evidence'
-    Assert-WmmaEntityIds $graph @($SubjectIds|Where-Object {$_}) -Label 'subject'
-    if($ReportedBy){Assert-WmmaEntityIds $graph @($ReportedBy) -Type @('character') -Label 'reporting character'}
+    Assert-VoidlightEntityIds $graph @($EvidenceIds|Where-Object {$_}) -Label 'evidence'
+    Assert-VoidlightEntityIds $graph @($SubjectIds|Where-Object {$_}) -Label 'subject'
+    if($ReportedBy){Assert-VoidlightEntityIds $graph @($ReportedBy) -Type @('character') -Label 'reporting character'}
     # Every knower needs a basis of their own: shared participation does not prove that a
     # character learned every episode.
     $proof=[ordered]@{}
@@ -34,14 +34,14 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         }
         if($proof.Contains($record.character_id)){throw "Knowledge holder has two bases: $($record.character_id)"}
         if(-not $record.evidence_ids.Count){throw "Knowledge holder needs evidence IDs: $($record.character_id)"}
-        Assert-WmmaSingleLine $record.basis "Basis of $($record.character_id)"
-        Assert-WmmaEntityIds $graph @($record.character_id) -Type @('character') -Label 'knowledge holder'
-        Assert-WmmaEntityIds $graph $record.evidence_ids -Label 'knowledge evidence'
+        Assert-VoidlightSingleLine $record.basis "Basis of $($record.character_id)"
+        Assert-VoidlightEntityIds $graph @($record.character_id) -Type @('character') -Label 'knowledge holder'
+        Assert-VoidlightEntityIds $graph $record.evidence_ids -Label 'knowledge evidence'
         $proof[$record.character_id]=$record
     }
     $holders=@($KnownTo|Where-Object {$_}|Sort-Object -Unique)
     if(-not $holders.Count){$holders=@($proof.Keys|Sort-Object)}
-    Assert-WmmaEntityIds $graph $holders -Type @('character') -Label 'knowledge holder'
+    Assert-VoidlightEntityIds $graph $holders -Type @('character') -Label 'knowledge holder'
     foreach($id in $holders){if(-not $proof.Contains($id)){throw "Knowledge holder $id needs a basis of their own: -KnowledgeEvidence '$id|SCENE-…|почему он это знает'."}}
     foreach($id in @($proof.Keys)){if($holders -notcontains $id){throw "Knowledge evidence names $id, who is not in -KnownTo."}}
     if($Supersedes -and -not $data.facts_by_id.ContainsKey($Supersedes)){throw "Unknown fact to replace: $Supersedes"}
@@ -49,8 +49,8 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     $max=0;foreach($fact in $registry.facts){if($fact.id -match '^FACT-(\d+)$'){$max=[Math]::Max($max,[int]$Matches[1])}}
     $id='FACT-{0:D3}' -f ($max+1)
     $registry.facts=@($registry.facts)+@([pscustomobject]@{id=$id;text=$Text;truth=$Truth;evidence_ids=@($EvidenceIds|Where-Object {$_}|Sort-Object -Unique);subject_ids=@($SubjectIds|Where-Object {$_}|Sort-Object -Unique);known_to=$holders;knowledge_evidence=@($holders|ForEach-Object {$proof[$_]});visibility=$Visibility;story_time=$StoryTime;reported_by=$(if($ReportedBy){$ReportedBy}else{$null});recorded_on=(Get-Date -Format 'yyyy-MM-dd')})
-    Write-WmmaRegistry $root 'Знания' $registry
-    if($Supersedes){[void](Set-WmmaFactSuperseded -Root $root -FactId $Supersedes -ReplacedBy $id)}
-    Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
+    Write-VoidlightRegistry $root 'Знания' $registry
+    if($Supersedes){[void](Set-VoidlightFactSuperseded -Root $root -FactId $Supersedes -ReplacedBy $id)}
+    Complete-VoidlightMutation -Root $root -SkipCheck:$SkipCheck
     "Created knowledge record: $id"
 }

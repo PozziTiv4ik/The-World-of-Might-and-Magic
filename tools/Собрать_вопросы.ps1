@@ -14,7 +14,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $openQuestionsPath = Join-Path $root '01_Кампания\03_Нерешенные_вопросы.md'
 $closedQuestionsPath = Join-Path $root '01_Кампания\03_Закрытые_вопросы.md'
 
@@ -32,11 +32,11 @@ function Add-QuestionTable {
     )
 
     $rows = @($Questions | ForEach-Object { ,@($_.id, $_.priority, $_.text, $_.owner, $_.status) })
-    Add-WmmaMarkdownTable $Lines $Header $rows -Escape { param($Value) Format-WmmaTableCell $Value }
+    Add-VoidlightMarkdownTable $Lines $Header $rows -Escape { param($Value) Format-VoidlightTableCell $Value }
 }
 
 function Get-ActiveDecisionRows {
-    $registry=Read-WmmaRegistry $root 'Решения'
+    $registry=Read-VoidlightRegistry $root 'Решения'
     foreach($decision in $registry.decisions){
         if($decision.id -notmatch '^DEC-PENDING-\d{3}$' -and $decision.state -ne 'pending'){continue}
         ,@(
@@ -95,7 +95,7 @@ function Render-OpenQuestions {
     $lines.Add('')
     $lines.Add('## Активные решения')
     $lines.Add('')
-    Add-WmmaMarkdownTable $lines @('ID', 'Приоритет', 'Вопрос', 'Владелец / ветка', 'Статус') $decisionRows -Escape { param($Value) Format-WmmaTableCell $Value }
+    Add-VoidlightMarkdownTable $lines @('ID', 'Приоритет', 'Вопрос', 'Владелец / ветка', 'Статус') $decisionRows -Escape { param($Value) Format-VoidlightTableCell $Value }
     $lines.Add('')
     $lines.Add("## $chapterHeading")
     $lines.Add('')
@@ -105,7 +105,7 @@ function Render-OpenQuestions {
     $lines.Add('')
     Add-QuestionTable -Lines $lines -Header @('ID', 'Приоритет', 'Вопрос', 'Область', 'Статус') -Questions $worldQuestions
 
-    Write-WmmaText $openQuestionsPath (($lines -join "`n").TrimEnd() + "`n")
+    Write-VoidlightText $openQuestionsPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
 function Render-ClosedQuestions {
@@ -147,24 +147,24 @@ function Render-ClosedQuestions {
     $lines.Add('## История закрытия вопросов')
     foreach ($item in $history) {
         $lines.Add('')
-        $lines.Add(('- {0} - `{1}`: {2}' -f $item.date, $item.id, (Format-WmmaTableCell $item.resolution)))
+        $lines.Add(('- {0} - `{1}`: {2}' -f $item.date, $item.id, (Format-VoidlightTableCell $item.resolution)))
     }
 
-    Write-WmmaText $closedQuestionsPath (($lines -join "`n").TrimEnd() + "`n")
+    Write-VoidlightText $closedQuestionsPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
-$registry = Read-WmmaRegistry $root 'Вопросы'
+$registry = Read-VoidlightRegistry $root 'Вопросы'
 
 Render-OpenQuestions -Registry $registry
 Render-ClosedQuestions -Registry $registry
 
 if (-not $Only) {
-    Invoke-WmmaTool -Root $root -Name 'Собрать_срезы_реестров' -Arguments @{ SkipCheck = $true }
+    Invoke-VoidlightTool -Root $root -Name 'Собрать_срезы_реестров' -Arguments @{ SkipCheck = $true }
 }
 
 if (-not $SkipCheck) {
-    Invoke-WmmaTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
-    Invoke-WmmaTool -Root $root -Name 'Проверить_проект'
+    Invoke-VoidlightTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
+    Invoke-VoidlightTool -Root $root -Name 'Проверить_проект'
 }
 
 "Updated question registry and Markdown views: 09_Реестры/Вопросы.json"

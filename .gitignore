@@ -15,7 +15,7 @@ desktop.ini
 .obsidian/cache/
 
 # Local transaction journals and test workspaces (never campaign canon).
-.wmma/
+.voidlight/
 
 # Regnum: backup copies written next to a world on save (never canon, never part of a turn).
 .regnum-backup/

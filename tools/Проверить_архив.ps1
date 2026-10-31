@@ -5,20 +5,20 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $archiveRoot = Join-Path $root '06_Архив_канона'
-$problems = New-WmmaProblemSet
+$problems = New-VoidlightProblemSet
 $archiveFiles = @()
 
 if (-not (Test-Path -LiteralPath $archiveRoot)) {
     Add-Problem Error 'Archive folder is missing: 06_Архив_канона'
 } else {
     $archiveFiles = @(Get-ChildItem -LiteralPath $archiveRoot -Recurse -File -Filter '*.md')
-    $legacyReferences = @(Get-WmmaLegacyReferences)
+    $legacyReferences = @(Get-VoidlightLegacyReferences)
 
     foreach ($file in $archiveFiles) {
-        $text = Read-WmmaText $file.FullName
-        $relative = Get-WmmaRelativePath $root $file.FullName
+        $text = Read-VoidlightText $file.FullName
+        $relative = Get-VoidlightRelativePath $root $file.FullName
 
         foreach ($forbiddenReference in $legacyReferences) {
             if ($text.Contains($forbiddenReference)) {
@@ -42,7 +42,7 @@ if (-not (Test-Path -LiteralPath $archiveRoot)) {
     }
 }
 
-Complete-WmmaCheck ([pscustomobject]@{
+Complete-VoidlightCheck ([pscustomobject]@{
     ArchiveFiles = $archiveFiles.Count
     Errors = $problems.Errors.Count
     Warnings = $problems.Warnings.Count

@@ -30,15 +30,15 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 # Adds a relative-time relation to 09_Реестры/Хронология_связей.json. A repeated relation
 # only gains new evidence; a relation that would order events in a cycle is refused.
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
     if ($From -ceq $To) { throw 'An event cannot be ordered against itself.' }
-    $graph = Read-WmmaRegistry $root 'Сущности'
-    Assert-WmmaEntityIds $graph @($From, $To) -Type @('scene', 'source', 'source_note', 'source_compilation') -Label 'event'
+    $graph = Read-VoidlightRegistry $root 'Сущности'
+    Assert-VoidlightEntityIds $graph @($From, $To) -Type @('scene', 'source', 'source_note', 'source_compilation') -Label 'event'
     $evidence = @($EvidenceIds | Where-Object { $_ } | Select-Object -Unique)
     if (-not $evidence.Count) { throw 'A temporal relation needs at least one evidence ID.' }
-    Assert-WmmaEntityIds $graph $evidence -Label 'evidence'
+    Assert-VoidlightEntityIds $graph $evidence -Label 'evidence'
 
-    $registry = Read-WmmaRegistry $root 'Хронология_связей'
+    $registry = Read-VoidlightRegistry $root 'Хронология_связей'
     $relations = [System.Collections.Generic.List[object]]::new()
     foreach ($item in @($registry.relations | Where-Object { $_ })) { $relations.Add($item) }
     $existing = @($relations | Where-Object { $_.from -ceq $From -and $_.to -ceq $To -and $_.relation -ceq $Relation }) | Select-Object -First 1
@@ -49,11 +49,11 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
     } else {
         $relations.Add([pscustomobject][ordered]@{ from = $From; to = $To; relation = $Relation; evidence_ids = $evidence; precision = $Precision })
     }
-    $cycles = @(Get-WmmaOrderCycles @($relations))
+    $cycles = @(Get-VoidlightOrderCycles @($relations))
     if ($cycles.Count) { throw "The relation would order events in a cycle: $($cycles[0])" }
 
     $registry.relations = @($relations)
-    Write-WmmaRegistry $root 'Хронология_связей' $registry
-    Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
+    Write-VoidlightRegistry $root 'Хронология_связей' $registry
+    Complete-VoidlightMutation -Root $root -SkipCheck:$SkipCheck
     "Recorded temporal relation: $From $Relation $To"
 }

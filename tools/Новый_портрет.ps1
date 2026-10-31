@@ -24,7 +24,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $characterRoot = Join-Path $root '03_Персонажи'
 $portraitRoot = Join-Path $root '11_Медиа\Портреты_персонажей'
 
@@ -80,7 +80,7 @@ $characterPath = Join-Path $characterRoot "$slug.md"
 if (-not (Test-Path -LiteralPath $characterPath)) {
     $matches = Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md' |
         Where-Object {
-            $text = Read-WmmaText $_.FullName
+            $text = Read-VoidlightText $_.FullName
             $text -match "(?m)^#\s+$([regex]::Escape($Character.Trim()))\s*$"
         }
 
@@ -92,15 +92,15 @@ if (-not (Test-Path -LiteralPath $characterPath)) {
     $slug = [System.IO.Path]::GetFileNameWithoutExtension($matches[0].Name)
 }
 
-$characterText = Read-WmmaText $characterPath
+$characterText = Read-VoidlightText $characterPath
 # A merged card is a redirect: the portrait belongs to the card it joined.
-$mergedInto = Get-WmmaMeta $characterText 'merged_into'
+$mergedInto = Get-VoidlightMeta $characterText 'merged_into'
 if ($mergedInto) {
-    $mainCard = @((Read-WmmaRegistry $root 'Сущности').entities | Where-Object { $_.id -eq $mergedInto })
+    $mainCard = @((Read-VoidlightRegistry $root 'Сущности').entities | Where-Object { $_.id -eq $mergedInto })
     if ($mainCard.Count -ne 1) { throw "Card '$Character' is merged into $mergedInto, which is missing from the entity registry." }
     $characterPath = Join-Path $root $mainCard[0].path
     $slug = [System.IO.Path]::GetFileNameWithoutExtension($characterPath)
-    $characterText = Read-WmmaText $characterPath
+    $characterText = Read-VoidlightText $characterPath
     "Card '$Character' is merged into ${mergedInto}; the portrait goes to $($mainCard[0].path)."
 }
 $displayName = $Character.Trim()
@@ -125,8 +125,8 @@ if ($ImagePath) {
         throw "Unsupported image extension: $extension"
     }
 
-    $size = Get-WmmaImageSize $resolvedImage
-    if (-not (Test-WmmaPortraitRatio -Width $size.Width -Height $size.Height)) {
+    $size = Get-VoidlightImageSize $resolvedImage
+    if (-not (Test-VoidlightPortraitRatio -Width $size.Width -Height $size.Height)) {
         throw "Portrait must be 3:4. Actual size: $($size.Width)x$($size.Height)."
     }
 
@@ -141,14 +141,14 @@ if ($ImagePath) {
     $targetImagePath = Join-Path $targetFolder $OutputName
 
     if ((Test-Path -LiteralPath $targetImagePath) -and -not $Force) {
-        throw "Target portrait already exists: $(Get-WmmaRelativePath -Root $root $targetImagePath). Use -Force to replace it."
+        throw "Target portrait already exists: $(Get-VoidlightRelativePath -Root $root $targetImagePath). Use -Force to replace it."
     }
 
     Copy-Item -LiteralPath $resolvedImage -Destination $targetImagePath -Force:$Force
-    $relativeImage = Get-WmmaRelativePath -Root $root $targetImagePath
+    $relativeImage = Get-VoidlightRelativePath -Root $root $targetImagePath
 }
 
-$relativePrompt = Get-WmmaRelativePath -Root $root $promptPath
+$relativePrompt = Get-VoidlightRelativePath -Root $root $promptPath
 
 if (-not $Prompt.Trim()) {
     $Prompt = "Вертикальный кинематографичный реалистичный портрет персонажа: $displayName. Формат 3:4, персонаж крупно в кадре, лицо хорошо видно, высокая детализация лица и глаз. Одежда, статус, фон и символика должны следовать карточке персонажа. Атмосфера: героическое темное фэнтези, серьезное эпическое настроение. Без текста, логотипов, рамок и водяных знаков."
@@ -178,7 +178,7 @@ $promptContent = @(
     '',
     $referenceLine,
     '- `00_Инструкции_для_ИИ/02_Портреты_персонажей.md`',
-    "- ``$(Get-WmmaRelativePath -Root $root $characterPath)``",
+    "- ``$(Get-VoidlightRelativePath -Root $root $characterPath)``",
     '',
     '## Готовый промпт',
     '',
@@ -193,26 +193,26 @@ $promptContent = @(
 ) -join "`r`n"
 
 # Each write ends the text with exactly one platform line break (read texts already end with one).
-Write-WmmaText $promptPath ($promptContent + [Environment]::NewLine)
+Write-VoidlightText $promptPath ($promptContent + [Environment]::NewLine)
 
 if ($relativeImage) {
     $characterText = Set-OrAppendFrontMatterField -Text $characterText -Field 'portrait' -Value $relativeImage
     $characterText = Set-OrAppendFrontMatterField -Text $characterText -Field 'portrait_status' -Value 'available'
     $characterText = Update-PortraitSection -Text $characterText -ImageReference $relativeImage -PromptReference $relativePrompt
-    Write-WmmaText $characterPath ($characterText.TrimEnd("`r", "`n") + [Environment]::NewLine)
+    Write-VoidlightText $characterPath ($characterText.TrimEnd("`r", "`n") + [Environment]::NewLine)
 
     $characterIndexPath = Join-Path $characterRoot '00_Индекс_персонажей.md'
-    $characterIndex = Read-WmmaText $characterIndexPath
-    $characterRelative = Get-WmmaRelativePath -Root $root $characterPath
+    $characterIndex = Read-VoidlightText $characterIndexPath
+    $characterRelative = Get-VoidlightRelativePath -Root $root $characterPath
     $escapedCharacterRelative = [regex]::Escape($characterRelative)
     $characterIndexPattern = '(?m)^(\|\s*[^|]+\|\s*[^|]+\|\s*)([^|]+?)(\s*\|\s*`' + $escapedCharacterRelative + '`\s*\|\s*)$'
     if ($characterIndex -match $characterIndexPattern) {
         $characterIndex = [regex]::Replace($characterIndex, $characterIndexPattern, "`${1}есть`${3}", 1)
-        Write-WmmaText $characterIndexPath ($characterIndex.TrimEnd("`r", "`n") + [Environment]::NewLine)
+        Write-VoidlightText $characterIndexPath ($characterIndex.TrimEnd("`r", "`n") + [Environment]::NewLine)
     }
 
     $portraitIndexPath = Join-Path $portraitRoot 'Индекс_портретов.md'
-    $portraitIndex = Read-WmmaText $portraitIndexPath
+    $portraitIndex = Read-VoidlightText $portraitIndexPath
     $escapedName = [regex]::Escape($displayName)
     $portraitLines = $portraitIndex -split "\r?\n" |
         Where-Object { $_ -notmatch "^\|\s*$escapedName\s*\|" }
@@ -226,10 +226,10 @@ if ($relativeImage) {
         [System.Text.RegularExpressions.RegexOptions]::Multiline,
         [TimeSpan]::FromSeconds(1)
     )
-    Write-WmmaText $portraitIndexPath ($portraitIndex.TrimEnd("`r", "`n") + [Environment]::NewLine)
+    Write-VoidlightText $portraitIndexPath ($portraitIndex.TrimEnd("`r", "`n") + [Environment]::NewLine)
 }
 
-Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -SkipCheck:$SkipCheck
 
 if ($relativeImage) {
     "Created portrait: $relativeImage"

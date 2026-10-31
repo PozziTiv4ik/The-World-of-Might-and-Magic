@@ -1,10 +1,10 @@
 {
   "format": "regnum-world",
   "meta": {
-    "basemap": "wmm-expanded-v1",
+    "basemap": "voidlight-expanded-v1",
     "createdAt": "2026-10-05T15:56:46Z",
     "mapObjects": false,
-    "name": "Мир Меча и Магии",
+    "name": "Voidlight",
     "notes": "",
     "seq": {
       "army": 0,

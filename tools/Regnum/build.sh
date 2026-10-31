@@ -10,12 +10,12 @@
 #     с целью (regnum, regnum-cli, regnum-tests, test-<модуль>, platform-demo), — цель, остальные — фильтры;
 #     после -- все слова — фильтры.
 #   tools/Regnum/build.sh --target linux-x64 regnum regnum-cli — сборка для другой системы через Zig
-#     (цели: linux-x64, linux-arm64, macos-arm64, macos-x64; Zig скачивается в .wmma/toolchains с проверкой SHA-256)
+#     (цели: linux-x64, linux-arm64, macos-arm64, macos-x64; Zig скачивается в .voidlight/toolchains с проверкой SHA-256)
 #   --debug | --release (по умолчанию release), --clean, -j N
 #   --asan — с AddressSanitizer (поиск ошибок памяти): свои папки .build/<os>-asan/, программы — .build/<os>-asan/bin;
 #     например build.sh --asan --test (замеры времени под ним медленнее порогов — их провалы не показательны)
 #
-# Компилятор: переменная CXX; на Windows по умолчанию — закреплённый LLVM-MinGW из .wmma/toolchains.
+# Компилятор: переменная CXX; на Windows по умолчанию — закреплённый LLVM-MinGW из .voidlight/toolchains.
 # Результат: tools/Regnum/bin/<os>/ (regnum[.exe], regnum-cli[.exe], regnum-tests[.exe]); при --target — bin/<цель>/.
 set -euo pipefail
 
@@ -60,7 +60,7 @@ TC_NAME=llvm-mingw-20260908-ucrt-x86_64
 TC_URL="https://github.com/mstorsjo/llvm-mingw/releases/download/20260908/$TC_NAME.zip"
 TC_SHA=1bcf74d06b724aeecaa6412ca85f5b26fb1da770e7cdcefa9263c9c5c3ad34b6
 fetch_windows_toolchain() {
-  local dir="$REPO/.wmma/toolchains" zip
+  local dir="$REPO/.voidlight/toolchains" zip
   zip="$dir/$TC_NAME.zip"
   mkdir -p "$dir"
   echo "== загрузка компилятора $TC_NAME"
@@ -74,7 +74,7 @@ fetch_windows_toolchain() {
 
 if [[ -z "${CXX:-}" ]]; then
   if [[ $OS == windows ]]; then
-    TC="$REPO/.wmma/toolchains/$TC_NAME"
+    TC="$REPO/.voidlight/toolchains/$TC_NAME"
     if [[ ! -x "$TC/bin/clang++.exe" ]] && ! command -v clang++ >/dev/null 2>&1; then fetch_windows_toolchain; fi
     if [[ -x "$TC/bin/clang++.exe" ]]; then CXX="$TC/bin/clang++.exe"; else CXX=clang++; fi
   elif command -v clang++ >/dev/null 2>&1; then CXX=clang++; else CXX=g++; fi
@@ -85,7 +85,7 @@ fi
 # во время выполнения через dlopen, поэтому системные заголовки целевой ОС не нужны.
 ZIG_VER=0.16.0
 fetch_zig() {
-  local dir="$REPO/.wmma/toolchains" name url sha
+  local dir="$REPO/.voidlight/toolchains" name url sha
   case "$HOST_OS" in
     windows) name="zig-x86_64-windows-$ZIG_VER"; sha=68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e; url="https://ziglang.org/download/$ZIG_VER/$name.zip" ;;
     *) echo "Сборка для другой системы поддерживается с Windows; на Linux и macOS собирайте без --target." >&2; exit 2 ;;

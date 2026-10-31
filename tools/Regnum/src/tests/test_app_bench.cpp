@@ -1,4 +1,4 @@
-// Замер кадра на настоящем мире проекта (12_Карты/Мир_Меча_и_Магии) в размере экрана пользователя: 2560×1440 при
+// Замер кадра на настоящем мире проекта (12_Карты/Voidlight) в размере экрана пользователя: 2560×1440 при
 // масштабе 125 %, окно развёрнуто. В обычный прогон не входит: запускается при REGNUM_BENCH=1
 // (REGNUM_BENCH=1 tools/Regnum/build.sh --test bench_). Печатает средние и худшие времена фаз кадра для типичных
 // действий и время, за которое карта становится чёткой после масштабирования.
@@ -17,7 +17,7 @@ std::string findWorld() {
   if (const char* e = std::getenv("REGNUM_BENCH_WORLD")) return e;
   for (std::string base : {fs::exeDir(), fs::absolute(".")}) {
     for (int i = 0; i < 8; i++) {
-      std::string p = fs::join(base, "12_Карты/Мир_Меча_и_Магии");
+      std::string p = fs::join(base, "12_Карты/Voidlight");
       if (fs::isFile(fs::join(p, "world.json"))) return fs::absolute(p);
       base = fs::join(base, "..");
     }
@@ -84,7 +84,7 @@ TEST(app_bench_real_world) {
     return;
   }
   const std::string world = findWorld();
-  CHECK_MSG(!world.empty(), "мир 12_Карты/Мир_Меча_и_Магии не найден (REGNUM_BENCH_WORLD)");
+  CHECK_MSG(!world.empty(), "мир 12_Карты/Voidlight не найден (REGNUM_BENCH_WORLD)");
   Harness h("bench", 2048, 1104, 1.25f);
   double t0 = nowSeconds();
   CHECK(h->loadProject(world));

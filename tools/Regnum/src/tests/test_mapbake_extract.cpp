@@ -24,7 +24,7 @@ TEST(mapbake_extract_matches_assets) {
   bake::flattenOnWhite(*img);
   art::ExtractReport rep;
   art::MapArt a = art::extract(*img, &rep);
-  a.id = "wmm-expanded-v1";
+  a.id = "voidlight-expanded-v1";
   a.source = "Expanded Map.png";
   a.sourceSha256 = codec::sha256Hex(bytes->data(), bytes->size());
   std::printf("%s", rep.text().c_str());

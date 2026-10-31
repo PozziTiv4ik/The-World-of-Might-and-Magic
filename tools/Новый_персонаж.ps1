@@ -26,10 +26,10 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-Assert-WmmaSingleLine $Name 'Name'
-foreach ($alias in $Aliases) { Assert-WmmaSingleLine $alias 'Alias' }
-$fileName = Convert-WmmaFileName -Value $Name
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Assert-VoidlightSingleLine $Name 'Name'
+foreach ($alias in $Aliases) { Assert-VoidlightSingleLine $alias 'Alias' }
+$fileName = Convert-VoidlightFileName -Value $Name
 $relativePath = "03_Персонажи/$fileName.md"
 $targetPath = Join-Path $root ($relativePath -replace '/', '\')
 
@@ -43,15 +43,15 @@ if ($PortraitStatus -eq 'available' -and ($PortraitPath -eq 'null' -or [string]:
 }
 
 # One person, one card: a title or alias equal to, or contained in, an existing one is refused.
-$graph = Read-WmmaRegistry $root 'Сущности'
-Assert-WmmaEntityIds $graph $DistinctFrom -Type @('character') -Label 'distinct character'
-$similar = @(Find-WmmaSimilarEntities @($graph.entities | Where-Object { $_.type -eq 'character' }) (@($Name) + @($Aliases)) -Except $DistinctFrom)
+$graph = Read-VoidlightRegistry $root 'Сущности'
+Assert-VoidlightEntityIds $graph $DistinctFrom -Type @('character') -Label 'distinct character'
+$similar = @(Find-VoidlightSimilarEntities @($graph.entities | Where-Object { $_.type -eq 'character' }) (@($Name) + @($Aliases)) -Except $DistinctFrom)
 if ($similar.Count) {
     throw ("A character with the same or a contained name already exists:`n" + (($similar | ForEach-Object { "- $($_.id) $($_.name) ($($_.path)), совпадение: $($_.match)" }) -join "`n") +
         "`nUse the existing card (add an alias there) or, for a different person, repeat with -DistinctFrom <ID> and record the distinction in 03_Персонажи/00_Словарь_имен_и_алиасов.md.")
 }
 
-$id = New-WmmaEntityId -Root $root -Type 'character'
+$id = New-VoidlightEntityId -Root $root -Type 'character'
 $meta = @(
     'type: character'
     'status: active'
@@ -60,9 +60,9 @@ $meta = @(
     "portrait: $PortraitPath"
     "portrait_status: $PortraitStatus"
     "id: $id"
-    "aliases: $(Format-WmmaMetaArray $Aliases)"
+    "aliases: $(Format-VoidlightMetaArray $Aliases)"
 )
-if ($DistinctFrom.Count) { $meta += "distinct_from: $(Format-WmmaMetaArray $DistinctFrom)" }
+if ($DistinctFrom.Count) { $meta += "distinct_from: $(Format-VoidlightMetaArray $DistinctFrom)" }
 
 $content = @(
     "# $Name"
@@ -109,9 +109,9 @@ $content = @(
     '- `03_Персонажи/00_Индекс_персонажей.md`'
 ) -join "`n"
 
-Write-WmmaText $targetPath ($content + "`n")
+Write-VoidlightText $targetPath ($content + "`n")
 
-Complete-WmmaMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_персонажей' -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_персонажей' -SkipCheck:$SkipCheck
 
 "Created character: $relativePath ($id)"
 }

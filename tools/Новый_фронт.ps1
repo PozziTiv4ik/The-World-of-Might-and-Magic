@@ -40,7 +40,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 function Normalize-LinkReference {
     param([string]$Value)
 
@@ -55,7 +55,7 @@ if ([string]::IsNullOrWhiteSpace($Description)) {
     $Description = $Name
 }
 
-$registry = Read-WmmaRegistry $root 'Фронты'
+$registry = Read-VoidlightRegistry $root 'Фронты'
 $fronts = @($registry.fronts)
 if ($fronts | Where-Object { $_.id -eq $Id } | Select-Object -First 1) {
     throw "FRONT-ID already exists: $Id"
@@ -109,8 +109,8 @@ if (-not [string]::IsNullOrWhiteSpace($Timer)) {
 }
 
 $registry.updated_real_date = Get-Date -Format 'yyyy-MM-dd'
-Write-WmmaRegistry $root 'Фронты' $registry
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_фронты', 'Собрать_панель_хода' -SkipCheck:$SkipCheck
+Write-VoidlightRegistry $root 'Фронты' $registry
+Complete-VoidlightMutation -Root $root -Rebuild 'Собрать_фронты', 'Собрать_панель_хода' -SkipCheck:$SkipCheck
 
 "Created front: $Id"
 }

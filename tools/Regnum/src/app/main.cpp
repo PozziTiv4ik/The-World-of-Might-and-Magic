@@ -4,7 +4,7 @@
 //   regnum <папка мира|.regnum> — открыть мир
 //   regnum --selftest           — настоящее окно, ~20 кадров с демонстрационным миром и действиями оболочки,
 //                                 код возврата 0 (проверка сборки). Данные — во временной папке.
-//   regnum --bench [мир]        — замер в настоящем окне (по умолчанию мир проекта 12_Карты/Мир_Меча_и_Магии):
+//   regnum --bench [мир]        — замер в настоящем окне (по умолчанию мир проекта 12_Карты/Voidlight):
 //                                 частота кадров и время фаз для наведения, панорамы, масштаба; отчёт в stdout и журнал.
 #include <algorithm>
 #include <cstdio>
@@ -238,11 +238,11 @@ struct Bench final : platform::App {
   }
 };
 
-// Мир проекта рядом с программой (12_Карты/Мир_Меча_и_Магии выше по дереву папок).
+// Мир проекта рядом с программой (12_Карты/Voidlight выше по дереву папок).
 std::string findProjectWorld() {
   std::string base = fs::exeDir();
   for (int i = 0; i < 8; i++) {
-    const std::string p = fs::join(base, "12_Карты/Мир_Меча_и_Магии");
+    const std::string p = fs::join(base, "12_Карты/Voidlight");
     if (fs::isFile(fs::join(p, "world.json"))) return fs::absolute(p);
     base = fs::join(base, "..");
   }

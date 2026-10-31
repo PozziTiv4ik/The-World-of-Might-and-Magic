@@ -23,9 +23,9 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
-$registry = Read-WmmaRegistry $root 'Решения'
+$registry = Read-VoidlightRegistry $root 'Решения'
 $decisions = @($registry.decisions)
 $pendingDecision = $decisions | Where-Object { $_.id -eq $PendingId } | Select-Object -First 1
 
@@ -35,7 +35,7 @@ if ($null -eq $pendingDecision) {
     throw "Cannot find $PendingId in 09_Реестры/Решения.json."
 }
 
-if (-not (Test-WmmaPendingDecision $pendingDecision)) {
+if (-not (Test-VoidlightPendingDecision $pendingDecision)) {
     throw "$PendingId is not pending in 09_Реестры/Решения.json."
 }
 
@@ -64,11 +64,11 @@ $registry.decisions = @(
     $decisions | Where-Object { $_.id -ne $PendingId -and $_.id -ne $AcceptedId }
 ) + @($pendingDecision)
 
-Write-WmmaRegistry $root 'Решения' $registry
+Write-VoidlightRegistry $root 'Решения' $registry
 
 # 01_Кампания/00_Текущий_контекст.md is a generated view: Собрать_контекст rebuilds it from the registry.
 
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -Rebuild 'Собрать_решения' -SkipCheck:$SkipCheck
 
 "Closed decision: $PendingId -> $AcceptedId"
 }

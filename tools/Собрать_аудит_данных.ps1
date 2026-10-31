@@ -2,10 +2,10 @@ param([object]$Data)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $Data=Resolve-WmmaReadModel $root $Data
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+    $Data=Resolve-VoidlightReadModel $root $Data
     $graph=$Data.graph
-    $memory=Read-WmmaJson (Join-Path $root '09_Реестры/Память_персонажей.json')
+    $memory=Read-VoidlightJson (Join-Path $root '09_Реестры/Память_персонажей.json')
     $knowledge=$Data.knowledge
     $characters=@{};foreach($person in $memory.characters){$characters[$person.character_id]=$person}
     $rows=@($graph.entities|ForEach-Object {
@@ -24,7 +24,7 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         voice_not_established=@($memory.characters|Where-Object {$_.voice.status -eq 'not_established'}).Count
         facts=$knowledge.facts.Count
     }
-    Write-WmmaJson (Join-Path $root '10_Обслуживание/Покрытие_данных.json') ([ordered]@{
+    Write-VoidlightJson (Join-Path $root '10_Обслуживание/Покрытие_данных.json') ([ordered]@{
         schema_version=2;type='data_coverage_view';generated_by='tools/Собрать_аудит_данных.ps1'
         interpretation='Отсутствие прямого источника, текущего положения или манеры речи означает незаполненную связь или незаданный факт. Это не доказательство сюжетной ошибки. Граф показывает ссылки, а не истинность всех утверждений.'
         summary=$summary;entities=$rows
@@ -48,6 +48,6 @@ Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock 
         'Исторические разделы доступны отдельно от текущих. Старое положение и отношения нельзя автоматически объявлять действующими сегодня.',
         '',
         'Число размеченных фактов показывает объём специализированного реестра знаний. Остальная история продолжает храниться в сценах, карточках и источниках.')
-    Write-WmmaText (Join-Path $root '10_Обслуживание/Покрытие_данных.md') (($lines -join [char]10)+[char]10)
+    Write-VoidlightText (Join-Path $root '10_Обслуживание/Покрытие_данных.md') (($lines -join [char]10)+[char]10)
     $summary|ConvertTo-Json
 }

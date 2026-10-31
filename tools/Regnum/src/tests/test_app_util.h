@@ -5,7 +5,7 @@
 //   h.clickUi("topbar.endturn");                // щелчок по элементу оболочки (App::uiRect)
 //   h.key(Key::K, apptest::ctrl());             // сочетание
 //   h.type("Арден");                            // ввод текста
-//   h.shot("editor");                           // снимок .wmma/regnum-tests/app_editor.png
+//   h.shot("editor");                           // снимок .voidlight/regnum-tests/app_editor.png
 //   shotClean(h, "editor");                     // то же после дорисовки карты, без уведомлений, в покое
 //   hasToast(h, "Сохранено");                   // есть уведомление с этим текстом
 //
@@ -221,7 +221,7 @@ struct Harness {
     return best;
   }
 
-  // ---- снимки (.wmma/regnum-tests/app_<name>.png)
+  // ---- снимки (.voidlight/regnum-tests/app_<name>.png)
   bool shot(const std::string& name) const {
     const platform::Frame& f = hl::lastFrame();
     return test::savePng("app_" + name + ".png", test::argbToRgba(f, 0, 0, f.w, f.h));
@@ -256,7 +256,7 @@ inline bool freeOnScreen(Harness& h, float x, float y, float margin = 24) {
   return true;
 }
 
-// ---- снимки (.wmma/regnum-tests/app_<name>.png)
+// ---- снимки (.voidlight/regnum-tests/app_<name>.png)
 // Снимок без случайных карточек (с проверкой записи): карта дорисована, уведомления закрыты, интерфейс в покое — не
 // дольше settleMax кадров (мигание каретки после ввода держит перерисовку ещё 10 с).
 inline void shotClean(Harness& h, const std::string& name, int settleMax = 240) {

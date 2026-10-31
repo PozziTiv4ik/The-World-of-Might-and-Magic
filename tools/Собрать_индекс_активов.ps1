@@ -10,13 +10,13 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $assetRoot = Join-Path $root '05_Активы_персонажей'
 $targetPath = Join-Path $assetRoot '00_Индекс_активов.md'
 
 # Rows of the previous index keep their order; new cards go to the end.
-$existingRows = (Get-WmmaIndexRows -Text (Read-WmmaText $targetPath -AllowMissing) -FileColumn 4 -HeaderCell 'Владелец').Rows
-$cards = @(Get-WmmaAssetCards $root)
+$existingRows = (Get-VoidlightIndexRows -Text (Read-VoidlightText $targetPath -AllowMissing) -FileColumn 4 -HeaderCell 'Владелец').Rows
+$cards = @(Get-VoidlightAssetCards $root)
 
 foreach ($card in $cards) {
     foreach ($required in @('Owner', 'OwnerId', 'Kind', 'Status')) {
@@ -27,20 +27,20 @@ foreach ($card in $cards) {
     }
 }
 
-$lines = New-WmmaGeneratedHeader -Title 'Индекс активов персонажей' -Type 'character_assets_index' -CanonLevel 'active' -Script 'Собрать_индекс_активов' `
+$lines = New-VoidlightGeneratedHeader -Title 'Индекс активов персонажей' -Type 'character_assets_index' -CanonLevel 'active' -Script 'Собрать_индекс_активов' `
     -Intro 'Этот файл генерируется автоматически из карточек активов персонажей. Подробные правила: `00_Инструкции_для_ИИ/05_Активы_персонажей.md`.'
 $lines.Add('')
-Add-WmmaMarkdownTable $lines @('Владелец', 'Актив', 'Тип', 'Статус', 'Файл') @(
+Add-VoidlightMarkdownTable $lines @('Владелец', 'Актив', 'Тип', 'Статус', 'Файл') @(
     $cards |
         Sort-Object @{ Expression = { if ($existingRows.ContainsKey($_.File)) { $existingRows[$_.File].Order } else { 100000 } } }, Owner, Asset, File |
         ForEach-Object { ,@($_.Owner, $_.Asset, $_.Kind, $_.Status, "``$($_.File)``") }
-) -Escape { param($Value) Format-WmmaTableCell -Empty '-' $Value }
+) -Escape { param($Value) Format-VoidlightTableCell -Empty '-' $Value }
 
 # Owner indexes: the asset table of each owner is generated from the cards with its owner_id;
 # the summary and restrictions of an existing owner index are the author's notes and stay.
-foreach ($view in @(Get-WmmaOwnerAssetIndexViews -Root $root -Cards $cards)) {
-    Write-WmmaText (Join-Path $root $view.Path) $view.Text
+foreach ($view in @(Get-VoidlightOwnerAssetIndexViews -Root $root -Cards $cards)) {
+    Write-VoidlightText (Join-Path $root $view.Path) $view.Text
 }
 
-Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'character asset index' -SkipCheck:$SkipCheck
+Save-VoidlightIndex -Root $root -Path $targetPath -Lines $lines -Label 'character asset index' -SkipCheck:$SkipCheck
 }

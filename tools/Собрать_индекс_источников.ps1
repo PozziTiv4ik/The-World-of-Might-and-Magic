@@ -9,7 +9,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $sourceRoot = Join-Path $root '08_Источники'
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
 $targetPath = Join-Path $sourceRoot '00_Индекс_источников.md'
@@ -59,18 +59,18 @@ function Get-InboxState {
     return 'нет ссылки'
 }
 
-$inboxText = Read-WmmaText $inboxPath -AllowMissing
+$inboxText = Read-VoidlightText $inboxPath -AllowMissing
 
 $rows = @(
     Get-ChildItem -LiteralPath $sourceRoot -File -Filter '*.md' |
         Where-Object { $_.Name -ne '00_Индекс_источников.md' } |
         ForEach-Object {
-            $text = Read-WmmaText $_.FullName
-            $relativePath = Get-WmmaRelativePath -Root $root $_.FullName
-            $date = Get-WmmaMeta -Default '-' -Text $text -Field 'date'
+            $text = Read-VoidlightText $_.FullName
+            $relativePath = Get-VoidlightRelativePath -Root $root $_.FullName
+            $date = Get-VoidlightMeta -Default '-' -Text $text -Field 'date'
 
             if ($date -eq '-') {
-                $date = Get-WmmaMeta -Default '-' -Text $text -Field 'received_real_date'
+                $date = Get-VoidlightMeta -Default '-' -Text $text -Field 'received_real_date'
             }
 
             if ($date -eq '-') {
@@ -79,22 +79,22 @@ $rows = @(
 
             [pscustomobject]@{
                 Date = $date
-                Status = Get-WmmaMeta -Default '-' -Text $text -Field 'status'
-                Type = Get-WmmaMeta -Default '-' -Text $text -Field 'type'
+                Status = Get-VoidlightMeta -Default '-' -Text $text -Field 'status'
+                Type = Get-VoidlightMeta -Default '-' -Text $text -Field 'type'
                 Inbox = Get-InboxState -InboxText $inboxText -Reference $relativePath
-                Title = Get-WmmaTitle -Text $text
+                Title = Get-VoidlightTitle -Text $text
                 File = $relativePath
             }
         } |
         Sort-Object Date, File
 )
 
-$lines = New-WmmaGeneratedHeader -Title 'Индекс источников' -Type 'source_index' -CanonLevel 'support' -Script 'Собрать_индекс_источников' `
+$lines = New-VoidlightGeneratedHeader -Title 'Индекс источников' -Type 'source_index' -CanonLevel 'support' -Script 'Собрать_индекс_источников' `
     -Intro 'Этот файл генерируется автоматически. Для пересборки используй `.\tools\Собрать_индекс_источников.ps1`.'
 $lines.Add('')
-Add-WmmaMarkdownTable $lines @('Дата', 'Статус', 'Тип', 'Входящее', 'Источник', 'Файл') @(
+Add-VoidlightMarkdownTable $lines @('Дата', 'Статус', 'Тип', 'Входящее', 'Источник', 'Файл') @(
     $rows | ForEach-Object { ,@($_.Date, $_.Status, $_.Type, $_.Inbox, $_.Title, "``$($_.File)``") }
 )
 
-Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'source index' -SkipCheck:$SkipCheck
+Save-VoidlightIndex -Root $root -Path $targetPath -Lines $lines -Label 'source index' -SkipCheck:$SkipCheck
 }

@@ -41,7 +41,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
 
 function Get-QuestionPrefix {
@@ -86,7 +86,7 @@ function Get-NextQuestionId {
     return ('{0}-{1:D3}' -f $prefix, ($max + 1))
 }
 
-$registry = Read-WmmaRegistry $root 'Вопросы'
+$registry = Read-VoidlightRegistry $root 'Вопросы'
 $questions = @($registry.questions)
 $history = @($registry.history)
 $expectedPrefix = Get-QuestionPrefix -Registry $registry -QuestionScope $Scope
@@ -105,8 +105,8 @@ if (@($history | Where-Object { $_.id -eq $Id }).Count -gt 0) {
     throw "Question ID already exists in question history: $Id"
 }
 
-Assert-WmmaSingleLine $AttentionReason 'AttentionReason'
-Assert-WmmaSingleLine $WaitingFor 'WaitingFor'
+Assert-VoidlightSingleLine $AttentionReason 'AttentionReason'
+Assert-VoidlightSingleLine $WaitingFor 'WaitingFor'
 if (-not $Attention) {
     $Attention = switch ($Status) { 'active' { 'current' } 'waiting' { 'awaiting_evidence' } default { 'background' } }
 }
@@ -131,8 +131,8 @@ $questions += [pscustomobject][ordered]@{
 $registry.questions = @($questions)
 $registry.updated_real_date = $today
 
-Write-WmmaRegistry $root 'Вопросы' $registry
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_вопросы' -SkipCheck:$SkipCheck
+Write-VoidlightRegistry $root 'Вопросы' $registry
+Complete-VoidlightMutation -Root $root -Rebuild 'Собрать_вопросы' -SkipCheck:$SkipCheck
 
 "Created question: $Id"
 }

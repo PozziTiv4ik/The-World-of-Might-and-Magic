@@ -156,7 +156,7 @@ function Set-SourceLifecycleStatus {
         return
     }
 
-    $sourceText = Read-WmmaText $sourcePath
+    $sourceText = Read-VoidlightText $sourcePath
     if ($sourceText -notmatch '(?m)^type:\s*(source|source_note|source_compilation)\s*$') {
         return
     }
@@ -165,19 +165,19 @@ function Set-SourceLifecycleStatus {
         return
     }
 
-    $updatedSourceText = Set-WmmaMeta $sourceText 'status' $LifecycleStatus
+    $updatedSourceText = Set-VoidlightMeta $sourceText 'status' $LifecycleStatus
 
     if ($updatedSourceText -ne $sourceText) {
-        Write-WmmaText $sourcePath $updatedSourceText
+        Write-VoidlightText $sourcePath $updatedSourceText
     }
 }
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $inboxPath = Join-Path $root '07_Черновики_и_идеи\Входящие_сообщения.md'
-$inbox = Read-WmmaText $inboxPath
+$inbox = Read-VoidlightText $inboxPath
 
-$sections=@(Get-WmmaMarkdownSections $inbox 2)
+$sections=@(Get-VoidlightMarkdownSections $inbox 2)
 $newSection=@($sections|Where-Object heading -eq 'Новые сообщения')|Select-Object -First 1
 $processedSection=@($sections|Where-Object heading -eq 'Обработанные входящие')|Select-Object -First 1
 if (-not $newSection -or -not $processedSection -or $newSection.index -ge $processedSection.index) {
@@ -189,43 +189,43 @@ $newBody = $newSection.text
 $processedHeader = "`r`n`r`n## Обработанные входящие"
 $processedRest = $inbox.Substring($processedSection.body_start).TrimStart()
 
-$entries = @(Get-WmmaInboxEntries $newBody)
+$entries = @(Get-VoidlightInboxEntries $newBody)
 if($RequestId){
-    $receipt=Get-WmmaReceipt $root $RequestId
+    $receipt=Get-VoidlightReceipt $root $RequestId
     if($receipt){
-        Assert-WmmaReceiptPayload $root $receipt
+        Assert-VoidlightReceiptPayload $root $receipt
         $targetState=if($Status -eq 'обработано'){'processed'}elseif($Status -eq 'отклонено'){'archived'}else{'deferred'}
         if($receipt.state -in @('processed','archived')){
             if($receipt.state -cne $targetState -or ($ScenePath -and $receipt.scene_path -cne $ScenePath)){throw 'Request already completed with another result.'}
             "Processed inbox message: $RequestId (already completed)";return
         }
     }
-    $matching=@($entries|Where-Object {(Get-WmmaEntryField $_.Value 'Request-ID') -ceq $RequestId})
+    $matching=@($entries|Where-Object {(Get-VoidlightEntryField $_.Value 'Request-ID') -ceq $RequestId})
     if($matching.Count -ne 1){throw 'Request ID must select exactly one new message.'}
     $selected=$matching[0]
 }else{$selected = Select-InboxEntry -Entries $entries -Needle $Title -UseFirst:$First}
 $selectedHeading = $selected.Groups[1].Value.Trim()
 $selectedBody = $selected.Groups[2].Value.Trim()
-$requestId=Get-WmmaEntryField $selectedBody 'Request-ID'
-if($requestId){$receipt=Get-WmmaReceipt $root $requestId;if($receipt){Assert-WmmaReceiptPayload $root $receipt}}
+$requestId=Get-VoidlightEntryField $selectedBody 'Request-ID'
+if($requestId){$receipt=Get-VoidlightReceipt $root $requestId;if($receipt){Assert-VoidlightReceiptPayload $root $receipt}}
 foreach($reference in @($ScenePath)+@($SourcePath)+@($Links)|Where-Object {$_}){
     $reference=$reference.Trim([char]96)
     if($reference -match '^[a-z]+://'){continue}
-    if(-not (Test-Path -LiteralPath (Resolve-WmmaPath $root $reference))){throw "Related file is missing: $reference"}
+    if(-not (Test-Path -LiteralPath (Resolve-VoidlightPath $root $reference))){throw "Related file is missing: $reference"}
 }
 if($Status -eq 'отложено'){
     $replacement=[regex]::new('(?m)^Статус:[^\r\n]*').Replace($selected.Value,'Статус: отложено.',1)
     $start=$newSection.body_start+$selected.Index
-    Write-WmmaText $inboxPath ($inbox.Substring(0,$start)+$replacement+$inbox.Substring($start+$selected.Length))
-    if($requestId){$receipt=Get-WmmaReceipt $root $requestId;if($receipt){$receipt.state='deferred';Save-WmmaReceipt $root $receipt}}
-    Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
+    Write-VoidlightText $inboxPath ($inbox.Substring(0,$start)+$replacement+$inbox.Substring($start+$selected.Length))
+    if($requestId){$receipt=Get-VoidlightReceipt $root $requestId;if($receipt){$receipt.state='deferred';Save-VoidlightReceipt $root $receipt}}
+    Complete-VoidlightMutation -Root $root -SkipCheck:$SkipCheck
     "Deferred inbox message: $selectedHeading";return
 }
 
 if (-not [string]::IsNullOrWhiteSpace($SourcePath)) {
-    $sourceLine = Format-WmmaProjectReference $SourcePath
-} elseif (Get-WmmaEntryField $selectedBody 'Источник') {
-    $sourceLine = Get-WmmaEntryField $selectedBody 'Источник'
+    $sourceLine = Format-VoidlightProjectReference $SourcePath
+} elseif (Get-VoidlightEntryField $selectedBody 'Источник') {
+    $sourceLine = Get-VoidlightEntryField $selectedBody 'Источник'
 } else {
     $sourceLine = 'не указан'
 }
@@ -237,13 +237,13 @@ $sourceLifecycleStatus = switch ($Status) {
 }
 
 $relatedLinks = New-Object 'System.Collections.Generic.List[string]'
-$sceneReference = Format-WmmaProjectReference $ScenePath
+$sceneReference = Format-VoidlightProjectReference $ScenePath
 if ($sceneReference) {
     $relatedLinks.Add($sceneReference) | Out-Null
 }
 
 foreach ($link in $Links) {
-    $linkReference = Format-WmmaProjectReference $link
+    $linkReference = Format-VoidlightProjectReference $link
     if ($linkReference) {
         $relatedLinks.Add($linkReference) | Out-Null
     }
@@ -266,9 +266,9 @@ $processedLines.Add('') | Out-Null
 $processedLines.Add((Convert-ToBulletText -Value $Summary)) | Out-Null
 
 $hasSourceFile = $sourceLine -match '`[^`]+\.md`'
-$rawMessage=Get-WmmaRawMessage $selectedBody
+$rawMessage=Get-VoidlightRawMessage $selectedBody
 if (-not $hasSourceFile -and $null -ne $rawMessage) {
-    $codeFence=Get-WmmaTextFence $rawMessage
+    $codeFence=Get-VoidlightTextFence $rawMessage
     $processedLines.Add('') | Out-Null
     $processedLines.Add('Исходное входящее:') | Out-Null
     $processedLines.Add('') | Out-Null
@@ -292,14 +292,14 @@ if (-not [string]::IsNullOrWhiteSpace($processedRest)) {
 
 $updatedInbox += "`r`n"
 
-Write-WmmaText $inboxPath $updatedInbox
+Write-VoidlightText $inboxPath $updatedInbox
 Set-SourceLifecycleStatus -Root $root -SourceLine $sourceLine -LifecycleStatus $sourceLifecycleStatus
 if($requestId){
-    $receipt=Get-WmmaReceipt $root $requestId
-    if($receipt){$receipt.state=if($Status -eq 'обработано'){'processed'}else{'archived'};if($ScenePath){$receipt.scene_path=$ScenePath};Save-WmmaReceipt $root $receipt}
+    $receipt=Get-VoidlightReceipt $root $requestId
+    if($receipt){$receipt.state=if($Status -eq 'обработано'){'processed'}else{'archived'};if($ScenePath){$receipt.scene_path=$ScenePath};Save-VoidlightReceipt $root $receipt}
 }
 
-Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -SkipCheck:$SkipCheck
 
 "Processed inbox message: $selectedHeading"
 }

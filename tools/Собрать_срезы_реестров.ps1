@@ -10,7 +10,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
 $registryDir = Join-Path $root '09_Реестры'
 
@@ -26,7 +26,7 @@ function Save-JsonFile {
     )
 
     $json = $Value | ConvertTo-Json -Depth 12
-    Write-WmmaGeneratedText -Path $Path -Text ($json.TrimEnd() + "`n") -Format json
+    Write-VoidlightGeneratedText -Path $Path -Text ($json.TrimEnd() + "`n") -Format json
 }
 
 # Total and per-value counts of one field (status of questions, state of decisions).
@@ -83,12 +83,12 @@ function New-ClosedQuestionRows {
     return @($rows.ToArray())
 }
 
-$decisionRegistry = Read-WmmaRegistry $root 'Решения'
-$questionRegistry = Read-WmmaRegistry $root 'Вопросы'
+$decisionRegistry = Read-VoidlightRegistry $root 'Решения'
+$questionRegistry = Read-VoidlightRegistry $root 'Вопросы'
 
 $decisions = @($decisionRegistry.decisions)
-$pendingDecisions = @($decisions | Where-Object { Test-WmmaPendingDecision $_ })
-$acceptedDecisions = @($decisions | Where-Object { Test-WmmaAcceptedDecision $_ })
+$pendingDecisions = @($decisions | Where-Object { Test-VoidlightPendingDecision $_ })
+$acceptedDecisions = @($decisions | Where-Object { Test-VoidlightAcceptedDecision $_ })
 
 $questions = @($questionRegistry.questions)
 $history = @($questionRegistry.history)
@@ -149,7 +149,7 @@ Save-JsonFile -Path $openQuestionPath -Value $openQuestionView
 Save-JsonFile -Path $closedQuestionPath -Value $closedQuestionView
 
 if (-not $SkipCheck) {
-    Invoke-WmmaTool -Root $root -Name 'Проверить_реестры'
+    Invoke-VoidlightTool -Root $root -Name 'Проверить_реестры'
 }
 
 "Updated registry JSON views: 09_Реестры/Решения_незакрытые.json, 09_Реестры/Решения_закрытые.json, 09_Реестры/Вопросы_открытые.json, 09_Реестры/Вопросы_закрытые.json"

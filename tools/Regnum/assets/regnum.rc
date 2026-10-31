@@ -17,11 +17,11 @@ BEGIN
   BEGIN
     BLOCK "041904b0"
     BEGIN
-      VALUE "CompanyName", L"\x041c\x0438\x0440 \x041c\x0435\x0447\x0430 \x0438 \x041c\x0430\x0433\x0438\x0438"
+      VALUE "CompanyName", "Voidlight"
       VALUE "FileDescription", L"Regnum \x2014 \x0440\x0435\x0434\x0430\x043a\x0442\x043e\x0440 \x043c\x0438\x0440\x0430"
       VALUE "FileVersion", "1.0.0"
       VALUE "InternalName", "regnum"
-      VALUE "LegalCopyright", L"\x041c\x0438\x0440 \x041c\x0435\x0447\x0430 \x0438 \x041c\x0430\x0433\x0438\x0438"
+      VALUE "LegalCopyright", "Voidlight"
       VALUE "OriginalFilename", "regnum.exe"
       VALUE "ProductName", "Regnum"
       VALUE "ProductVersion", "1.0.0"

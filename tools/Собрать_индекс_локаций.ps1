@@ -10,12 +10,12 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $locationRoot = Join-Path $root '04_Локации'
 $targetPath = Join-Path $locationRoot '00_Индекс_локаций.md'
 
 # Rows of the previous index keep their order; new cards go to the end.
-$existingRows = (Get-WmmaIndexRows -Text (Read-WmmaText $targetPath -AllowMissing) -FileColumn 3 -HeaderCell 'Локация').Rows
+$existingRows = (Get-VoidlightIndexRows -Text (Read-VoidlightText $targetPath -AllowMissing) -FileColumn 3 -HeaderCell 'Локация').Rows
 $locationRows = New-Object 'System.Collections.Generic.List[object]'
 
 foreach ($file in Get-ChildItem -LiteralPath $locationRoot -File -Filter '*.md') {
@@ -23,23 +23,23 @@ foreach ($file in Get-ChildItem -LiteralPath $locationRoot -File -Filter '*.md')
         continue
     }
 
-    $text = Read-WmmaText $file.FullName
-    if ((Get-WmmaMeta -Text $text -Field 'type') -ne 'location') {
+    $text = Read-VoidlightText $file.FullName
+    if ((Get-VoidlightMeta -Text $text -Field 'type') -ne 'location') {
         continue
     }
 
-    $relativePath = Get-WmmaRelativePath -Root $root $file.FullName
-    $frontId = Get-WmmaMeta -Text $text -Field 'front_id'
+    $relativePath = Get-VoidlightRelativePath -Root $root $file.FullName
+    $frontId = Get-VoidlightMeta -Text $text -Field 'front_id'
     if ([string]::IsNullOrWhiteSpace($frontId)) {
         throw "Location card is missing front_id: $relativePath"
     }
 
     $locationRows.Add([pscustomobject]@{
-        Name = Get-WmmaTitle -Text $text
-        Status = Get-WmmaMeta -Text $text -Field 'status'
+        Name = Get-VoidlightTitle -Text $text
+        Status = Get-VoidlightMeta -Text $text -Field 'status'
         FrontId = $frontId
         File = $relativePath
-        MergedInto = Get-WmmaMeta -Text $text -Field 'merged_into'
+        MergedInto = Get-VoidlightMeta -Text $text -Field 'merged_into'
         Order = if ($existingRows.ContainsKey($relativePath)) { $existingRows[$relativePath].Order } else { 100000 }
     }) | Out-Null
 }
@@ -48,14 +48,14 @@ foreach ($file in Get-ChildItem -LiteralPath $locationRoot -File -Filter '*.md')
 $mergedRows = @($locationRows | Where-Object { $_.MergedInto })
 $liveRows = @($locationRows | Where-Object { -not $_.MergedInto })
 $pathById = @{}
-foreach ($row in $liveRows) { $pathById[(Get-WmmaMeta -Text (Read-WmmaText (Join-Path $root $row.File)) -Field 'id')] = $row.File }
+foreach ($row in $liveRows) { $pathById[(Get-VoidlightMeta -Text (Read-VoidlightText (Join-Path $root $row.File)) -Field 'id')] = $row.File }
 
-$lines = New-WmmaGeneratedHeader -Title 'Индекс локаций' -Type 'location_index' -CanonLevel 'active' -Script 'Собрать_индекс_локаций' `
+$lines = New-VoidlightGeneratedHeader -Title 'Индекс локаций' -Type 'location_index' -CanonLevel 'active' -Script 'Собрать_индекс_локаций' `
     -Intro 'Этот файл генерируется автоматически из карточек локаций. Поле `front_id` хранится в front matter каждой карточки локации.'
 $lines.Add('')
 $lines.Add('## Служебные карты и обзоры')
 $lines.Add('')
-Add-WmmaMarkdownTable $lines @('Файл', 'Назначение') @(
+Add-VoidlightMarkdownTable $lines @('Файл', 'Назначение') @(
     ,@('`04_Локации/00_Карта_и_регионы.md`', 'словесная карта и крупные региональные заметки')
     ,@('`04_Локации/01_Регионы_Империи.md`', 'список регионов Империи')
     ,@('`04_Локации/02_Торговые_маршруты_и_пиратские_зоны.md`', 'торговые маршруты и пиратские зоны')
@@ -63,20 +63,20 @@ Add-WmmaMarkdownTable $lines @('Файл', 'Назначение') @(
 $lines.Add('')
 $lines.Add('## Локации')
 $lines.Add('')
-Add-WmmaMarkdownTable $lines @('Локация', 'Статус', 'FRONT-ID', 'Файл') @(
+Add-VoidlightMarkdownTable $lines @('Локация', 'Статус', 'FRONT-ID', 'Файл') @(
     $liveRows | Sort-Object Order, Name, File | ForEach-Object { ,@($_.Name, $_.Status, $_.FrontId, "``$($_.File)``") }
-) -Escape { param($Value) Format-WmmaTableCell -Empty '-' $Value }
+) -Escape { param($Value) Format-VoidlightTableCell -Empty '-' $Value }
 if ($mergedRows.Count) {
     $lines.Add('')
     $lines.Add('## Объединённые карточки')
     $lines.Add('')
-    Add-WmmaMarkdownTable $lines @('Локация', 'Объединена с', 'Файл') @(
+    Add-VoidlightMarkdownTable $lines @('Локация', 'Объединена с', 'Файл') @(
         $mergedRows | Sort-Object Name, File | ForEach-Object {
             $target = if ($pathById.ContainsKey($_.MergedInto)) { "$($_.MergedInto), ``$($pathById[$_.MergedInto])``" } else { $_.MergedInto }
             ,@($_.Name, $target, "``$($_.File)``")
         }
-    ) -Escape { param($Value) Format-WmmaTableCell -Empty '-' $Value }
+    ) -Escape { param($Value) Format-VoidlightTableCell -Empty '-' $Value }
 }
 
-Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'location index' -SkipCheck:$SkipCheck
+Save-VoidlightIndex -Root $root -Path $targetPath -Lines $lines -Label 'location index' -SkipCheck:$SkipCheck
 }

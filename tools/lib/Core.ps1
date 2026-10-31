@@ -1,47 +1,47 @@
 # Shared primitives. All paths are relative to the explicit project root.
-function Read-WmmaText {
+function Read-VoidlightText {
     param([string]$Path,[switch]$AllowMissing)
     # -AllowMissing: an absent optional view reads as empty text.
     if ($AllowMissing -and -not (Test-Path -LiteralPath $Path)) { return '' }
     return [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
 }
 
-function Write-WmmaText {
+function Write-VoidlightText {
     param([string]$Path, [AllowEmptyString()][string]$Text)
     $parent = Split-Path -Parent $Path
     if (-not (Test-Path -LiteralPath $parent)) { [IO.Directory]::CreateDirectory($parent) | Out-Null }
-    if ((Test-Path -LiteralPath $Path) -and (Read-WmmaText $Path) -ceq $Text) { return }
+    if ((Test-Path -LiteralPath $Path) -and (Read-VoidlightText $Path) -ceq $Text) { return }
     $temporary = "$Path.$([guid]::NewGuid().ToString('N')).tmp"
     [IO.File]::WriteAllText($temporary, $Text, [Text.UTF8Encoding]::new($false))
     if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary, $Path, [NullString]::Value) }
     else { [IO.File]::Move($temporary, $Path) }
 }
 
-function Read-WmmaJson {
+function Read-VoidlightJson {
     param([string]$Path)
-    return (Read-WmmaText $Path | ConvertFrom-Json)
+    return (Read-VoidlightText $Path | ConvertFrom-Json)
 }
 
-function Read-WmmaRegistry {
+function Read-VoidlightRegistry {
     param([string]$Root,[string]$Name)
-    $path=Resolve-WmmaPath $Root "09_Реестры/$Name.json"
+    $path=Resolve-VoidlightPath $Root "09_Реестры/$Name.json"
     if(-not (Test-Path -LiteralPath $path)){
         throw "Registry missing: $Name.json. Restore the authoritative JSON from a verified backup."
     }
-    return Read-WmmaJson $path
+    return Read-VoidlightJson $path
 }
 
-function Write-WmmaJson {
+function Write-VoidlightJson {
     param([string]$Path, [object]$Value)
-    Write-WmmaText $Path (($Value | ConvertTo-Json -Depth 50).TrimEnd() + "`n")
+    Write-VoidlightText $Path (($Value | ConvertTo-Json -Depth 50).TrimEnd() + "`n")
 }
 
-function Write-WmmaRegistry {
+function Write-VoidlightRegistry {
     param([string]$Root,[string]$Name,[object]$Value)
-    Write-WmmaJson (Resolve-WmmaPath $Root "09_Реестры/$Name.json") $Value
+    Write-VoidlightJson (Resolve-VoidlightPath $Root "09_Реестры/$Name.json") $Value
 }
 
-function Get-WmmaHash {
+function Get-VoidlightHash {
     param([string]$Text)
     $sha = [Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text)))).Replace('-', '').ToLowerInvariant() }
@@ -49,12 +49,12 @@ function Get-WmmaHash {
 }
 
 # Identity of an author message: line endings normalized to LF, outer whitespace trimmed.
-function Get-WmmaMessageHash {
+function Get-VoidlightMessageHash {
     param([string]$Text)
-    return Get-WmmaHash ($Text.Replace("`r`n", "`n").Trim())
+    return Get-VoidlightHash ($Text.Replace("`r`n", "`n").Trim())
 }
 
-function Resolve-WmmaPath {
+function Resolve-VoidlightPath {
     param([string]$Root, [string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path) -or [IO.Path]::IsPathRooted($Path)) { throw "Expected a relative project path: $Path" }
     $base = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
@@ -68,7 +68,7 @@ function Resolve-WmmaPath {
     return $full
 }
 
-function Get-WmmaRelativePath {
+function Get-VoidlightRelativePath {
     param([string]$Root, [string]$Path)
     $base = $Root.TrimEnd('\', '/')
     # A path outside the project (an absolute reference in a card) is reported as is.
@@ -78,7 +78,7 @@ function Get-WmmaRelativePath {
 
 # A document reference: absolute, from the project root or, with -FromFile, from the
 # referencing document's folder. Returns the full path of the first existing candidate.
-function Resolve-WmmaReference {
+function Resolve-VoidlightReference {
     param([string]$Root, [string]$Reference, [string]$FromFile)
     if ([string]::IsNullOrWhiteSpace($Reference)) { return $null }
     $normalized = [regex]::Replace($Reference, '[\\/]', [string][IO.Path]::DirectorySeparatorChar)
@@ -89,15 +89,15 @@ function Resolve-WmmaReference {
     return $null
 }
 
-function Test-WmmaReference {
+function Test-VoidlightReference {
     param([string]$Root, [string]$Reference, [string]$FromFile)
     if ($Reference -match '^[a-z][a-z0-9+.-]*://') { return $true }
-    return $null -ne (Resolve-WmmaReference $Root $Reference -FromFile $FromFile)
+    return $null -ne (Resolve-VoidlightReference $Root $Reference -FromFile $FromFile)
 }
 
 # Inline project reference for generated Markdown: backticked path with forward slashes;
 # URLs and already backticked values are kept.
-function Format-WmmaProjectReference {
+function Format-VoidlightProjectReference {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
     $reference = $Value.Trim() -replace '\\', '/'
@@ -105,7 +105,7 @@ function Format-WmmaProjectReference {
     return "``$reference``"
 }
 
-function Get-WmmaMeta {
+function Get-VoidlightMeta {
     param([string]$Text, [string]$Field, [AllowNull()][object]$Default = '')
     $block = [regex]::Match($Text, '(?s)\A(?:\uFEFF)?# [^\r\n]+\r?\n\s*---\r?\n(.*?)\r?\n---')
     if ($block.Success) {
@@ -115,26 +115,26 @@ function Get-WmmaMeta {
     return $Default
 }
 
-function Get-WmmaTitle {
+function Get-VoidlightTitle {
     param([string]$Text)
     $heading=[regex]::Match($Text,'(?m)^#\s+(.+?)\s*$')
     if($heading.Success){return $heading.Groups[1].Value.Trim()}
     return 'Без названия'
 }
 
-function Convert-WmmaTableRow {
+function Convert-VoidlightTableRow {
     param([string]$Line)
     if($Line -notmatch '^\|.+\|$' -or $Line -match '^\|\s*-'){return $null}
     return ,($Line.Trim('|') -split '\|' | ForEach-Object {$_.Trim()})
 }
 
-function Format-WmmaTableCell {
+function Format-VoidlightTableCell {
     param([AllowNull()][object]$Value,[string]$Empty='')
     if($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)){return $Empty}
     return (([string]$Value -replace '\|','/') -replace '\r?\n',' ').Trim()
 }
 
-function Convert-WmmaFileName {
+function Convert-VoidlightFileName {
     param([string]$Value,[switch]$Lowercase)
     $safe=([regex]::Replace($Value.Trim(),'\s+','_') -replace '[\\/:*?"<>|]','').Trim('_','.',' ')
     if(-not $safe){throw 'Cannot build a file name from an empty title.'}
@@ -142,7 +142,7 @@ function Convert-WmmaFileName {
     return $safe
 }
 
-function Set-WmmaMeta {
+function Set-VoidlightMeta {
     param([string]$Text, [string]$Field, [string]$Value)
     $block = [regex]::Match($Text, '(?s)\A(?:\uFEFF)?# [^\r\n]+\r?\n\s*---\r?\n(.*?)\r?\n---')
     if (-not $block.Success) { throw 'Document has no project front matter.' }
@@ -153,28 +153,28 @@ function Set-WmmaMeta {
     return $Text.Substring(0, $block.Groups[1].Index) + $meta + $Text.Substring($block.Groups[1].Index + $block.Groups[1].Length)
 }
 
-function Get-WmmaSection {
+function Get-VoidlightSection {
     param([string]$Text, [string]$Heading)
-    $section=@(Get-WmmaMarkdownSections $Text 2 | Where-Object {$_.heading -ceq $Heading})|Select-Object -First 1
+    $section=@(Get-VoidlightMarkdownSections $Text 2 | Where-Object {$_.heading -ceq $Heading})|Select-Object -First 1
     if ($section) { return $section.text.Trim() }
     return ''
 }
 
 # A generated view changes only when its contents change. Keep the previous
 # generation date and bytes if a rebuild merely proposes a newer date.
-function Write-WmmaGeneratedText {
+function Write-VoidlightGeneratedText {
     param([string]$Path,[string]$Text,[ValidateSet('markdown','json')][string]$Format='markdown')
     if(Test-Path -LiteralPath $Path){
-        $previous=Read-WmmaText $Path
+        $previous=Read-VoidlightText $Path
         $pattern=if($Format -eq 'json'){'(?m)^  "updated_real_date": "\d{4}-\d{2}-\d{2}"'}else{'(?m)^generated_real_date: \d{4}-\d{2}-\d{2}'}
         $before=[regex]::Replace($previous.Replace("`r`n","`n"),$pattern,'<generation-date>')
         $after=[regex]::Replace($Text.Replace("`r`n","`n"),$pattern,'<generation-date>')
         if($before -ceq $after){return}
     }
-    Write-WmmaText $Path $Text
+    Write-VoidlightText $Path $Text
 }
 
-function Get-WmmaMarkdownSections {
+function Get-VoidlightMarkdownSections {
     param([string]$Text,[int]$Level=2)
     $headings=[Collections.Generic.List[object]]::new();$fenceChar='';$fenceLength=0
     foreach($line in [regex]::Matches($Text,'(?m)^[^\r\n]*(?:\r?\n|$)')){
@@ -199,15 +199,15 @@ function Get-WmmaMarkdownSections {
     }
 }
 
-function Get-WmmaInboxEntries {
+function Get-VoidlightInboxEntries {
     param([string]$Text)
-    foreach($section in @(Get-WmmaMarkdownSections $Text 3)){
+    foreach($section in @(Get-VoidlightMarkdownSections $Text 3)){
         $value=$Text.Substring($section.index,$section.end-$section.index)
         [pscustomobject]@{Value=$value;Index=$section.index;Length=$value.Length;Groups=@([pscustomobject]@{Value=$value},[pscustomobject]@{Value=$section.heading},[pscustomobject]@{Value=$section.text})}
     }
 }
 
-function Get-WmmaEntryField {
+function Get-VoidlightEntryField {
     param([string]$Text,[string]$Field)
     $fence=[regex]::Match($Text,'(?m)^ {0,3}(?:`{3,}|~{3,})')
     $header=if($fence.Success){$Text.Substring(0,$fence.Index)}else{$Text}
@@ -216,47 +216,47 @@ function Get-WmmaEntryField {
     return ''
 }
 
-function Get-WmmaTextFence {
+function Get-VoidlightTextFence {
     param([string]$Text)
     $max=2;foreach($run in [regex]::Matches($Text,'`+')){$max=[Math]::Max($max,$run.Length)}
     return ('`'*($max+1))
 }
 
-function Get-WmmaRawMessage {
+function Get-VoidlightRawMessage {
     param([string]$Text)
     $match=[regex]::Match($Text,'(?ms)^ {0,3}(?<fence>`{3,}|~{3,})text[ \t]*\r?\n(?<body>.*?)\r?\n {0,3}\k<fence>[ \t]*(?:\r?\n|$)')
     if(-not $match.Success){return $null}
     return $match.Groups['body'].Value
 }
 
-function Test-WmmaSourcePayload {
+function Test-VoidlightSourcePayload {
     param([string]$Text,[string]$Hash)
-    $raw=Get-WmmaRawMessage $Text
-    return $null -ne $raw -and (Get-WmmaMessageHash $raw) -ceq $Hash
+    $raw=Get-VoidlightRawMessage $Text
+    return $null -ne $raw -and (Get-VoidlightMessageHash $raw) -ceq $Hash
 }
 
-function Assert-WmmaSingleLine {
+function Assert-VoidlightSingleLine {
     param([string]$Value,[string]$Name,[switch]$AllowEmpty)
     if($Value -match '[\r\n]' -or (-not $AllowEmpty -and [string]::IsNullOrWhiteSpace($Value))){throw "$Name must be a single nonempty line."}
 }
 
-function Assert-WmmaReceiptPayload {
+function Assert-VoidlightReceiptPayload {
     param([string]$Root,[object]$Receipt)
     if($Receipt.source_path){
-        $source=Read-WmmaText (Resolve-WmmaPath $Root $Receipt.source_path)
-        if((Get-WmmaMeta $source 'request_id') -cne $Receipt.request_id -or -not (Test-WmmaSourcePayload $source $Receipt.content_sha256)){throw 'Receipt source payload is missing or changed.'}
+        $source=Read-VoidlightText (Resolve-VoidlightPath $Root $Receipt.source_path)
+        if((Get-VoidlightMeta $source 'request_id') -cne $Receipt.request_id -or -not (Test-VoidlightSourcePayload $source $Receipt.content_sha256)){throw 'Receipt source payload is missing or changed.'}
     }else{
-        $inbox=Read-WmmaText (Join-Path $Root '07_Черновики_и_идеи/Входящие_сообщения.md')
-        $entries=@(Get-WmmaInboxEntries $inbox|Where-Object {(Get-WmmaEntryField $_.Value 'Request-ID') -ceq $Receipt.request_id})
-        if($entries.Count -ne 1 -or -not (Test-WmmaSourcePayload $entries[0].Value $Receipt.content_sha256)){throw 'Receipt inbox payload is missing, duplicated or changed.'}
+        $inbox=Read-VoidlightText (Join-Path $Root '07_Черновики_и_идеи/Входящие_сообщения.md')
+        $entries=@(Get-VoidlightInboxEntries $inbox|Where-Object {(Get-VoidlightEntryField $_.Value 'Request-ID') -ceq $Receipt.request_id})
+        if($entries.Count -ne 1 -or -not (Test-VoidlightSourcePayload $entries[0].Value $Receipt.content_sha256)){throw 'Receipt inbox payload is missing, duplicated or changed.'}
     }
     if($Receipt.scene_path){
-        $scene=Read-WmmaText (Resolve-WmmaPath $Root $Receipt.scene_path)
-        if((Get-WmmaMeta $scene 'request_id') -cne $Receipt.request_id){throw 'Receipt points to another scene.'}
+        $scene=Read-VoidlightText (Resolve-VoidlightPath $Root $Receipt.scene_path)
+        if((Get-VoidlightMeta $scene 'request_id') -cne $Receipt.request_id){throw 'Receipt points to another scene.'}
     }
 }
 
-function Get-WmmaImageSize {
+function Get-VoidlightImageSize {
     param([string]$Path)
     $stream=$null;$image=$null
     try{
@@ -267,106 +267,106 @@ function Get-WmmaImageSize {
     }catch{return $null}finally{if($image){$image.Dispose()};if($stream){$stream.Dispose()}}
 }
 
-function Get-WmmaArrayMeta {
+function Get-VoidlightArrayMeta {
     param([string]$Text, [string]$Field)
-    $value = Get-WmmaMeta $Text $Field
+    $value = Get-VoidlightMeta $Text $Field
     if (-not $value -or $value -in @('null', '-')) { return @() }
     if ($value.StartsWith('[')) { return @($value | ConvertFrom-Json) }
     return @($value)
 }
 
-function Get-WmmaCurrentChapter {
+function Get-VoidlightCurrentChapter {
     param([string]$Root)
-    $active = @(Get-ChildItem -LiteralPath (Join-Path $Root '01_Кампания/Главы') -Filter '*.md' -File | Where-Object { (Get-WmmaMeta (Read-WmmaText $_.FullName) 'status') -eq 'active' })
+    $active = @(Get-ChildItem -LiteralPath (Join-Path $Root '01_Кампания/Главы') -Filter '*.md' -File | Where-Object { (Get-VoidlightMeta (Read-VoidlightText $_.FullName) 'status') -eq 'active' })
     if ($active.Count -ne 1) { throw "Expected exactly one active chapter, found $($active.Count)." }
-    return [int](Get-WmmaMeta (Read-WmmaText $active[0].FullName) 'chapter')
+    return [int](Get-VoidlightMeta (Read-VoidlightText $active[0].FullName) 'chapter')
 }
 
-function Get-WmmaDocuments {
+function Get-VoidlightDocuments {
     param([string]$Root)
     foreach ($directory in @('01_Кампания/Ветки', '02_Лор', '03_Персонажи', '04_Локации', '05_Активы_персонажей', '08_Источники')) {
         foreach ($file in Get-ChildItem -LiteralPath (Join-Path $Root $directory) -Recurse -File -Filter '*.md') {
             if ($file.FullName -match '[\\/]История[\\/]') { continue }
-            $text = Read-WmmaText $file.FullName
-            $type = Get-WmmaMeta $text 'type'
+            $text = Read-VoidlightText $file.FullName
+            $type = Get-VoidlightMeta $text 'type'
             if ($type -in @('character','location','character_asset','scene','source','source_note','source_compilation','lore','faction_index','economy_notes','timeline')) {
-                [pscustomobject]@{path=(Get-WmmaRelativePath $Root $file.FullName); full_path=$file.FullName; text=$text; type=$type; id=(Get-WmmaMeta $text 'id')}
+                [pscustomobject]@{path=(Get-VoidlightRelativePath $Root $file.FullName); full_path=$file.FullName; text=$text; type=$type; id=(Get-VoidlightMeta $text 'id')}
             }
         }
     }
 }
 
-function Convert-WmmaCell {
+function Convert-VoidlightCell {
     param([object]$Value)
     return ([string]$Value).Replace('|', '&#124;').Replace("`r", '').Replace("`n", '<br>')
 }
 
-function Get-WmmaPriority {
+function Get-VoidlightPriority {
     param([string]$Value)
     switch ($Value) { 'критический' { 4 } 'высокий' { 3 } 'средний' { 2 } default { 1 } }
 }
 
 # Decision lifecycle. Pending: state pending or a DEC-PENDING-* ID; accepted: DEC-NNN in state accepted.
-function Test-WmmaPendingDecision {
+function Test-VoidlightPendingDecision {
     param([object]$Decision)
     return $Decision.state -eq 'pending' -or $Decision.id -like 'DEC-PENDING-*'
 }
 
-function Test-WmmaAcceptedDecision {
+function Test-VoidlightAcceptedDecision {
     param([object]$Decision)
     return $Decision.state -eq 'accepted' -and $Decision.id -match '^DEC-\d{3}$'
 }
 
 # Portrait column of the character index: card portrait_status -> index word.
-function Get-WmmaPortraitStatusWord {
+function Get-VoidlightPortraitStatusWord {
     param([AllowNull()][string]$Status, [AllowNull()][string]$Fallback = 'нужен')
     switch ($Status) { 'available' { return 'есть' } 'planned' { return 'запланирован' } 'missing' { return 'нужен' } }
     if ([string]::IsNullOrWhiteSpace($Fallback)) { return 'нужен' }
     return $Fallback
 }
 
-function Get-WmmaIdPrefix {
+function Get-VoidlightIdPrefix {
     param([string]$Type)
     switch ($Type) { 'character' { 'CHAR' } 'location' { 'LOC' } 'character_asset' { 'ASSET' } 'scene' { 'SCENE' } { $_ -in @('source','source_note','source_compilation') } { 'SRC' } default { 'LORE' } }
 }
 
-function Get-WmmaReceipt {
+function Get-VoidlightReceipt {
     param([string]$Root,[string]$Id)
     $path=Join-Path $Root '09_Реестры/Входящие.json'
-    if(Test-Path -LiteralPath $path){return @((Read-WmmaJson $path).receipts|Where-Object {$_.request_id -eq $Id})|Select-Object -First 1}
+    if(Test-Path -LiteralPath $path){return @((Read-VoidlightJson $path).receipts|Where-Object {$_.request_id -eq $Id})|Select-Object -First 1}
     return $null
 }
 
-function Save-WmmaReceipt {
+function Save-VoidlightReceipt {
     param([string]$Root,[object]$Receipt)
     $path=Join-Path $Root '09_Реестры/Входящие.json'
-    $registry=if(Test-Path -LiteralPath $path){Read-WmmaJson $path}else{[pscustomobject]@{schema_version=1;type='intake_registry';receipts=@()}}
+    $registry=if(Test-Path -LiteralPath $path){Read-VoidlightJson $path}else{[pscustomobject]@{schema_version=1;type='intake_registry';receipts=@()}}
     $registry.receipts=@($registry.receipts|Where-Object {$_.request_id -ne $Receipt.request_id})+@($Receipt)
-    Write-WmmaJson $path $registry
+    Write-VoidlightJson $path $registry
 }
 
 # --- Entity IDs, names, merges and protected canon -------------------------------------
 
 # ID of a document: the prefix of its type and a number of at least four digits or a GUID.
 # Returns a problem message or $null.
-function Test-WmmaEntityIdFormat {
+function Test-VoidlightEntityIdFormat {
     param([string]$Id,[string]$Type)
     $match=[regex]::Match([string]$Id,'^(CHAR|LOC|ASSET|SCENE|SRC|LORE)-(?:\d{4,}|[0-9a-f]{32})$')
     if(-not $match.Success){return "Invalid entity ID format: '$Id'"}
-    $expected=Get-WmmaIdPrefix $Type
+    $expected=Get-VoidlightIdPrefix $Type
     if($match.Groups[1].Value -cne $expected){return "Entity ID prefix does not fit type ${Type} (expected $expected-): $Id"}
     return $null
 }
 
 # Next free number for a document type: the maximum over the entity registry and the id
 # lines of the canon folders, plus one.
-function New-WmmaEntityId {
+function New-VoidlightEntityId {
     param([string]$Root,[string]$Type)
-    $prefix=Get-WmmaIdPrefix $Type
+    $prefix=Get-VoidlightIdPrefix $Type
     $max=0
     $graphPath=Join-Path $Root '09_Реестры/Сущности.json'
     if(Test-Path -LiteralPath $graphPath){
-        foreach($entity in @((Read-WmmaJson $graphPath).entities)){
+        foreach($entity in @((Read-VoidlightJson $graphPath).entities)){
             $match=[regex]::Match([string]$entity.id,'^'+$prefix+'-(\d+)$')
             if($match.Success){$max=[Math]::Max($max,[int]$match.Groups[1].Value)}
         }
@@ -375,21 +375,21 @@ function New-WmmaEntityId {
         $folder=Join-Path $Root $directory
         if(-not (Test-Path -LiteralPath $folder)){continue}
         foreach($file in Get-ChildItem -LiteralPath $folder -Recurse -File -Filter '*.md'){
-            foreach($match in [regex]::Matches((Read-WmmaText $file.FullName),'(?m)^id:[ \t]*'+$prefix+'-(\d+)[ \t]*\r?$')){$max=[Math]::Max($max,[int]$match.Groups[1].Value)}
+            foreach($match in [regex]::Matches((Read-VoidlightText $file.FullName),'(?m)^id:[ \t]*'+$prefix+'-(\d+)[ \t]*\r?$')){$max=[Math]::Max($max,[int]$match.Groups[1].Value)}
         }
     }
     return '{0}-{1:D4}' -f $prefix,($max+1)
 }
 
 # One-line JSON array of metadata values in the project style: ["A", "B"].
-function Format-WmmaMetaArray {
+function Format-VoidlightMetaArray {
     param([AllowEmptyCollection()][string[]]$Values)
     $items=@($Values|Where-Object {-not [string]::IsNullOrWhiteSpace($_)}|ForEach-Object {ConvertTo-Json -InputObject ([string]$_) -Compress})
     return '['+($items -join ', ')+']'
 }
 
 # Values with one ID replaced by another; duplicates removed, order kept.
-function Get-WmmaReplacedIds {
+function Get-VoidlightReplacedIds {
     param([object[]]$Values,[string]$From,[string]$To)
     $result=[Collections.Generic.List[string]]::new()
     foreach($value in @($Values)){
@@ -402,7 +402,7 @@ function Get-WmmaReplacedIds {
 
 # Throws unless every ID names an existing entity that is not a merged redirect and, with
 # -Type, has one of the given document types.
-function Assert-WmmaEntityIds {
+function Assert-VoidlightEntityIds {
     param([object]$Graph,[object[]]$Ids,[string[]]$Type=@(),[string]$Label='entity')
     $byId=@{};foreach($entity in $Graph.entities){$byId[$entity.id]=$entity}
     foreach($id in @($Ids)){
@@ -414,7 +414,7 @@ function Assert-WmmaEntityIds {
 }
 
 # Comparison key of a title or alias: lower case, ё as е, words separated by one space.
-function ConvertTo-WmmaNameKey {
+function ConvertTo-VoidlightNameKey {
     param([AllowNull()][string]$Value)
     if([string]::IsNullOrWhiteSpace($Value)){return ''}
     return ([regex]::Replace($Value.ToLowerInvariant().Replace('ё','е'),'[^\p{L}\p{Nd}]+',' ')).Trim()
@@ -422,7 +422,7 @@ function ConvertTo-WmmaNameKey {
 
 # Two keys may name one entity when they are equal or every word of the shorter key occurs
 # in the longer one («закхерон» and «закхерон багровый»).
-function Test-WmmaSimilarNameKeys {
+function Test-VoidlightSimilarNameKeys {
     param([string]$Left,[string]$Right)
     if(-not $Left -or -not $Right){return $false}
     if($Left -ceq $Right){return $true}
@@ -434,27 +434,27 @@ function Test-WmmaSimilarNameKeys {
 
 # Graph entities whose title or alias is similar to one of the names. Merged redirect
 # cards and the IDs in -Except (confirmed different entities) are skipped.
-function Find-WmmaSimilarEntities {
+function Find-VoidlightSimilarEntities {
     param([object[]]$Entities,[string[]]$Names,[string[]]$Except=@())
-    $keys=@($Names|ForEach-Object {ConvertTo-WmmaNameKey $_}|Where-Object {$_}|Sort-Object -Unique)
+    $keys=@($Names|ForEach-Object {ConvertTo-VoidlightNameKey $_}|Where-Object {$_}|Sort-Object -Unique)
     foreach($entity in $Entities){
         if($entity.merged_into -or $Except -contains $entity.id){continue}
         $hit=$null
-        foreach($candidate in @(@($entity.name)+@($entity.aliases)|ForEach-Object {ConvertTo-WmmaNameKey $_}|Where-Object {$_}|Sort-Object -Unique)){
-            foreach($key in $keys){if(Test-WmmaSimilarNameKeys $key $candidate){$hit=$candidate;break}}
+        foreach($candidate in @(@($entity.name)+@($entity.aliases)|ForEach-Object {ConvertTo-VoidlightNameKey $_}|Where-Object {$_}|Sort-Object -Unique)){
+            foreach($key in $keys){if(Test-VoidlightSimilarNameKeys $key $candidate){$hit=$candidate;break}}
             if($hit){break}
         }
         if($hit){[pscustomobject]@{id=$entity.id;name=$entity.name;path=$entity.path;match=$hit}}
     }
 }
 
-# Pairs of entities with similar titles or aliases (see Test-WmmaSimilarNameKeys) among the
+# Pairs of entities with similar titles or aliases (see Test-VoidlightSimilarNameKeys) among the
 # given entities. Merged cards and pairs confirmed by distinct_from on either side are skipped.
-function Get-WmmaSimilarNamePairs {
+function Get-VoidlightSimilarNamePairs {
     param([object[]]$Entities)
     $names=[Collections.Generic.List[object]]::new();$byWord=@{}
     foreach($entity in @($Entities|Where-Object {-not $_.merged_into})){
-        foreach($key in @(@($entity.name)+@($entity.aliases)|ForEach-Object {ConvertTo-WmmaNameKey $_}|Where-Object {$_}|Sort-Object -Unique)){
+        foreach($key in @(@($entity.name)+@($entity.aliases)|ForEach-Object {ConvertTo-VoidlightNameKey $_}|Where-Object {$_}|Sort-Object -Unique)){
             $item=[pscustomobject]@{entity=$entity;key=$key;words=@($key -split ' '|Sort-Object -Unique)}
             $names.Add($item)
             foreach($word in $item.words){
@@ -482,7 +482,7 @@ function Get-WmmaSimilarNamePairs {
     return @($pairs.Keys|Sort-Object|ForEach-Object {$pairs[$_]})
 }
 
-function Get-WmmaProtectionManifestPath {
+function Get-VoidlightProtectionManifestPath {
     param([string]$Root)
     return Join-Path $Root '10_Обслуживание/Миграция_v2.json'
 }
@@ -491,17 +491,17 @@ function Get-WmmaProtectionManifestPath {
 # and the reason in the manifest's amendments journal. With -Add a file that is not protected
 # yet joins the manifest with the date and the reason of its protection. Returns the number
 # of changed entries.
-function Update-WmmaProtectedFiles {
+function Update-VoidlightProtectedFiles {
     param([string]$Root,[string[]]$Paths,[string]$Reason,[switch]$Add)
     if([string]::IsNullOrWhiteSpace($Reason)){throw 'Protected canon changes need a recorded reason: a typo, formatting, a merge of duplicate IDs, a chapter close or an accepted retcon.'}
-    $manifestPath=Get-WmmaProtectionManifestPath $Root
-    $manifest=Read-WmmaJson $manifestPath
+    $manifestPath=Get-VoidlightProtectionManifestPath $Root
+    $manifest=Read-VoidlightJson $manifestPath
     $files=[Collections.Generic.List[object]]::new();foreach($item in @($manifest.protected_files|Where-Object {$_})){$files.Add($item)}
     $journal=[Collections.Generic.List[object]]::new();foreach($item in @($manifest.amendments|Where-Object {$_})){$journal.Add($item)}
     $today=Get-Date -Format 'yyyy-MM-dd';$changed=0
     foreach($path in @($Paths|Where-Object {$_})){
-        $full=Resolve-WmmaPath $Root $path
-        $relative=Get-WmmaRelativePath $Root $full
+        $full=Resolve-VoidlightPath $Root $path
+        $relative=Get-VoidlightRelativePath $Root $full
         if(-not (Test-Path -LiteralPath $full -PathType Leaf)){throw "Protected file is missing: $relative"}
         $hash=(Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant()
         $entry=@($files|Where-Object {$_.path -ceq $relative})|Select-Object -First 1
@@ -516,33 +516,33 @@ function Update-WmmaProtectedFiles {
     if($changed){
         $manifest.protected_files=@($files)
         $manifest|Add-Member -NotePropertyName amendments -NotePropertyValue @($journal) -Force
-        Write-WmmaJson $manifestPath $manifest
+        Write-VoidlightJson $manifestPath $manifest
     }
     return $changed
 }
 
 # Keeps the full text of a replaced document as protected history of another card; the
 # check compares the text hash after normalizing line endings.
-function Add-WmmaHistoryRecord {
+function Add-VoidlightHistoryRecord {
     param([string]$Root,[string]$OriginalPath,[string]$HistoryPath,[string]$Text,[string]$Note)
-    $full=Resolve-WmmaPath $Root $HistoryPath
+    $full=Resolve-VoidlightPath $Root $HistoryPath
     if(Test-Path -LiteralPath $full){throw "History record already exists: $HistoryPath"}
     $body=$Text.Replace("`r`n","`n").TrimEnd()
     $title=[IO.Path]::GetFileNameWithoutExtension($OriginalPath)
     $document=(@("# История: $title",'','---','type: history_record','status: active','canon_level: support',"original_path: $OriginalPath",'---','',$Note,'','<!-- ORIGINAL DOCUMENT -->',$body) -join "`n")+"`n"
-    Write-WmmaText $full $document
-    $manifestPath=Get-WmmaProtectionManifestPath $Root
-    $manifest=Read-WmmaJson $manifestPath
-    $manifest.history=@($manifest.history)+@([pscustomobject][ordered]@{original_path=$OriginalPath;history_path=$HistoryPath;text_sha256=(Get-WmmaHash $body)})
-    Write-WmmaJson $manifestPath $manifest
+    Write-VoidlightText $full $document
+    $manifestPath=Get-VoidlightProtectionManifestPath $Root
+    $manifest=Read-VoidlightJson $manifestPath
+    $manifest.history=@($manifest.history)+@([pscustomobject][ordered]@{original_path=$OriginalPath;history_path=$HistoryPath;text_sha256=(Get-VoidlightHash $body)})
+    Write-VoidlightJson $manifestPath $manifest
 }
 
 # Marks a fact as replaced by a newer one. The old record keeps its text, evidence and
 # knowers; context pointers move to the newer fact.
-function Set-WmmaFactSuperseded {
+function Set-VoidlightFactSuperseded {
     param([string]$Root,[string]$FactId,[string]$ReplacedBy,[string]$Note='')
     if($FactId -ceq $ReplacedBy){throw 'A fact cannot replace itself.'}
-    $knowledge=Read-WmmaRegistry $Root 'Знания'
+    $knowledge=Read-VoidlightRegistry $Root 'Знания'
     $byId=@{};foreach($fact in $knowledge.facts){$byId[$fact.id]=$fact}
     foreach($id in @($FactId,$ReplacedBy)){if(-not $byId.ContainsKey($id)){throw "Unknown fact: $id"}}
     $old=$byId[$FactId]
@@ -557,12 +557,12 @@ function Set-WmmaFactSuperseded {
         $old|Add-Member -NotePropertyName superseded_by -NotePropertyValue $ReplacedBy -Force
         $old|Add-Member -NotePropertyName superseded_on -NotePropertyValue (Get-Date -Format 'yyyy-MM-dd') -Force
         if($Note){$old|Add-Member -NotePropertyName superseded_note -NotePropertyValue $Note -Force}
-        Write-WmmaRegistry $Root 'Знания' $knowledge;$changed=$true
+        Write-VoidlightRegistry $Root 'Знания' $knowledge;$changed=$true
     }
-    $state=Read-WmmaRegistry $Root 'Контекст';$moved=0
+    $state=Read-VoidlightRegistry $Root 'Контекст';$moved=0
     foreach($holder in @($state)+@($state.branches)){
-        if(@($holder.fact_ids) -ccontains $FactId){$holder.fact_ids=@(Get-WmmaReplacedIds $holder.fact_ids $FactId $ReplacedBy);$moved++}
+        if(@($holder.fact_ids) -ccontains $FactId){$holder.fact_ids=@(Get-VoidlightReplacedIds $holder.fact_ids $FactId $ReplacedBy);$moved++}
     }
-    if($moved){Write-WmmaRegistry $Root 'Контекст' $state;$changed=$true}
+    if($moved){Write-VoidlightRegistry $Root 'Контекст' $state;$changed=$true}
     return [pscustomobject]@{changed=$changed;moved_pointers=$moved}
 }

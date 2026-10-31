@@ -2,7 +2,7 @@
 # Regnum — внешняя проверка файлов, записанных тестами кодеков (совместимость с Python zlib/gzip, Pillow, zipfile).
 #
 # Порядок:
-#   tools/Regnum/build.sh test-codec --test        # тесты пишут файлы в .wmma/regnum-tests/codec
+#   tools/Regnum/build.sh test-codec --test        # тесты пишут файлы в .voidlight/regnum-tests/codec
 #   python tools/Regnum/src/tests/data/verify_outputs.py
 #
 # Проверяется:
@@ -20,7 +20,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", ".."))
-OUT = os.environ.get("REGNUM_TEST_OUT", os.path.join(REPO, ".wmma", "regnum-tests"))
+OUT = os.environ.get("REGNUM_TEST_OUT", os.path.join(REPO, ".voidlight", "regnum-tests"))
 CODEC = os.path.join(OUT, "codec")
 
 errors = []

@@ -17,9 +17,9 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 # Read-only reconciliation of Regnum worlds with the canon; works without the editor.
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $graph = Read-WmmaRegistry $root 'Сущности'
-    $result = Test-WmmaRegnumLinks -Root $root -Graph $graph -World $World
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+    $graph = Read-VoidlightRegistry $root 'Сущности'
+    $result = Test-VoidlightRegnumLinks -Root $root -Graph $graph -World $World
     if ($AsObject) { return $result }
     if ($Json) { $result | ConvertTo-Json -Depth 6 }
     else {

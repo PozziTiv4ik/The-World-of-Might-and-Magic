@@ -55,20 +55,20 @@ function Get-DeclaredFrontIds {
 }
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-Assert-WmmaSingleLine $Branch 'Branch'
-Assert-WmmaSingleLine $Title 'Title'
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Assert-VoidlightSingleLine $Branch 'Branch'
+Assert-VoidlightSingleLine $Title 'Title'
 if($Branch -match '[\\/]' -or $Branch -in @('.','..')){throw 'Branch must be a single directory name.'}
-foreach($value in @($DateInStory,$Location,$CanonLevel)){Assert-WmmaSingleLine $value 'Scene metadata'}
+foreach($value in @($DateInStory,$Location,$CanonLevel)){Assert-VoidlightSingleLine $value 'Scene metadata'}
 if($RequestId -and $RequestId -notmatch '^[A-Za-z0-9-]+$'){throw 'Invalid request ID.'}
-if ($Chapter -le 0) { $Chapter = Get-WmmaCurrentChapter $root }
+if ($Chapter -le 0) { $Chapter = Get-VoidlightCurrentChapter $root }
 if($RequestId){
-    $prior=@(Get-ChildItem -LiteralPath (Join-Path $root '01_Кампания/Ветки') -Recurse -Filter 'Сцена*.md' | Where-Object {(Get-WmmaMeta (Read-WmmaText $_.FullName) 'request_id') -eq $RequestId})
+    $prior=@(Get-ChildItem -LiteralPath (Join-Path $root '01_Кампания/Ветки') -Recurse -Filter 'Сцена*.md' | Where-Object {(Get-VoidlightMeta (Read-VoidlightText $_.FullName) 'request_id') -eq $RequestId})
     if($prior.Count -gt 1){throw 'Duplicate scene request ID.'}
     if($prior.Count -eq 1){
-        $old=Read-WmmaText $prior[0].FullName
-        if((Get-WmmaMeta $old 'branch') -cne $Branch -or (Get-WmmaMeta $old 'chapter') -ne [string]$Chapter){throw 'Request ID belongs to another scene branch or chapter.'}
-        'Created scene: '+(Get-WmmaRelativePath $root $prior[0].FullName);return
+        $old=Read-VoidlightText $prior[0].FullName
+        if((Get-VoidlightMeta $old 'branch') -cne $Branch -or (Get-VoidlightMeta $old 'chapter') -ne [string]$Chapter){throw 'Request ID belongs to another scene branch or chapter.'}
+        'Created scene: '+(Get-VoidlightRelativePath $root $prior[0].FullName);return
     }
 }
 $frontTrackerPath = Join-Path $root '01_Кампания\06_Фронты_и_таймеры.md'
@@ -80,16 +80,16 @@ if ($FrontId -ne '-' -and $declaredFrontIds -notcontains $FrontId) {
 foreach($id in $FrontIds){if($declaredFrontIds -notcontains $id){throw "Unknown front: $id"}}
 # Scenes of a closed chapter are protected canon; a new scene belongs to an open chapter.
 foreach($chapterFile in @(Get-ChildItem -LiteralPath (Join-Path $root '01_Кампания/Главы') -File -Filter '*.md')){
-    $chapterText=Read-WmmaText $chapterFile.FullName
-    if((Get-WmmaMeta $chapterText 'chapter') -eq [string]$Chapter -and (Get-WmmaMeta $chapterText 'status') -eq 'closed'){throw "Chapter $Chapter is closed; its scenes are protected canon."}
+    $chapterText=Read-VoidlightText $chapterFile.FullName
+    if((Get-VoidlightMeta $chapterText 'chapter') -eq [string]$Chapter -and (Get-VoidlightMeta $chapterText 'status') -eq 'closed'){throw "Chapter $Chapter is closed; its scenes are protected canon."}
 }
-$entityGraph=Read-WmmaJson (Join-Path $root '09_Реестры/Сущности.json')
+$entityGraph=Read-VoidlightJson (Join-Path $root '09_Реестры/Сущности.json')
 $sources=@($entityGraph.entities|Where-Object {$_.type -like 'source*'}|ForEach-Object {$_.id})
 # A source may have just been accepted before the next graph build.
-$sources+=@(Get-ChildItem -LiteralPath (Join-Path $root '08_Источники') -Filter '*.md'|ForEach-Object {Get-WmmaMeta (Read-WmmaText $_.FullName) 'id'})
+$sources+=@(Get-ChildItem -LiteralPath (Join-Path $root '08_Источники') -Filter '*.md'|ForEach-Object {Get-VoidlightMeta (Read-VoidlightText $_.FullName) 'id'})
 foreach($id in $SourceIds){if(-not $id -or $sources -notcontains $id){throw "Unknown source ID: $id"}}
 # Participants are existing characters; a merged card is a redirect, not a participant.
-Assert-WmmaEntityIds $entityGraph $ParticipantIds -Type @('character') -Label 'participant character'
+Assert-VoidlightEntityIds $entityGraph $ParticipantIds -Type @('character') -Label 'participant character'
 
 $branchRoot = Join-Path $root (Join-Path '01_Кампания\Ветки' $Branch)
 if (-not (Test-Path -LiteralPath $branchRoot)) {
@@ -120,10 +120,10 @@ if ([string]::IsNullOrWhiteSpace($cleanTitle)) {
     throw 'Scene title cannot be empty.'
 }
 
-$fileTitle = Convert-WmmaFileName -Value $cleanTitle
+$fileTitle = Convert-VoidlightFileName -Value $cleanTitle
 $fileName = "Сцена_${sceneNumber}_$fileTitle.md"
 $targetPath = Join-Path $branchRoot $fileName
-$relativePath = Get-WmmaRelativePath -Root $root $targetPath
+$relativePath = Get-VoidlightRelativePath -Root $root $targetPath
 
 if (Test-Path -LiteralPath $targetPath) {
     throw "Scene file already exists: $relativePath. Edit the existing document to preserve its ID and history; -Force cannot replace a scene."
@@ -202,9 +202,9 @@ $Summary
 Черновик / ожидает решения / решение принято / закрыто.
 "@
 
-Write-WmmaText $targetPath $content
+Write-VoidlightText $targetPath $content
 
-Complete-WmmaMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_сцен' -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_сцен' -SkipCheck:$SkipCheck
 
 "Created scene: $relativePath"
 }

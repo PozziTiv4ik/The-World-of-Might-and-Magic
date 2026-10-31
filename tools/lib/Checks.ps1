@@ -3,30 +3,30 @@
 
 # The problem set of the running check lives in its script scope, so Add-Problem needs
 # no explicit argument. A nested check (& tools/Проверить_*.ps1) keeps its own set.
-function New-WmmaProblemSet {
-    $script:WmmaProblems=[pscustomobject]@{Errors=[Collections.Generic.List[string]]::new();Warnings=[Collections.Generic.List[string]]::new()}
-    return $script:WmmaProblems
+function New-VoidlightProblemSet {
+    $script:VoidlightProblems=[pscustomobject]@{Errors=[Collections.Generic.List[string]]::new();Warnings=[Collections.Generic.List[string]]::new()}
+    return $script:VoidlightProblems
 }
 
 function Add-Problem {
     param([string]$Kind,[string]$Message)
-    if($Kind -eq 'Error'){$script:WmmaProblems.Errors.Add($Message)}else{$script:WmmaProblems.Warnings.Add($Message)}
+    if($Kind -eq 'Error'){$script:VoidlightProblems.Errors.Add($Message)}else{$script:VoidlightProblems.Warnings.Add($Message)}
 }
 
 # Summary, then warnings and errors in alphabetical order. Does not stop the script.
-function Write-WmmaProblemReport {
+function Write-VoidlightProblemReport {
     param([object]$Summary)
-    $problems=$script:WmmaProblems
+    $problems=$script:VoidlightProblems
     if($null -ne $Summary){$Summary|Format-List}
     if($problems.Warnings.Count -gt 0){"`nWarnings:";$problems.Warnings|Sort-Object|ForEach-Object {"- $_"}}
     if($problems.Errors.Count -gt 0){"`nErrors:";$problems.Errors|Sort-Object|ForEach-Object {"- $_"}}
 }
 
 # Final report of a standalone check: exit code 1 on errors, otherwise the success message.
-function Complete-WmmaCheck {
+function Complete-VoidlightCheck {
     param([object]$Summary,[string]$SuccessMessage)
-    Write-WmmaProblemReport $Summary
-    if($script:WmmaProblems.Errors.Count -gt 0){exit 1}
+    Write-VoidlightProblemReport $Summary
+    if($script:VoidlightProblems.Errors.Count -gt 0){exit 1}
     if($SuccessMessage){"`n$SuccessMessage"}
 }
 
@@ -40,7 +40,7 @@ function Compare-IdSets {
 
 # Files and folders of the old project layout. None may exist, and no text may refer to
 # them with either path separator. This file is excluded from the reference scan.
-function Get-WmmaLegacyPaths {
+function Get-VoidlightLegacyPaths {
     @(
         '00_НАЧАТЬ_ОТСЮДА.md'
         '00_ТЕКУЩИЙ_КОНТЕКСТ_ДЛЯ_ИИ.md'
@@ -57,8 +57,8 @@ function Get-WmmaLegacyPaths {
     )
 }
 
-function Get-WmmaLegacyReferences {
-    foreach($path in Get-WmmaLegacyPaths){
+function Get-VoidlightLegacyReferences {
+    foreach($path in Get-VoidlightLegacyPaths){
         # Only the root-level dictionary is legacy; 03_Персонажи/00_Словарь_имен_и_алиасов.md is current.
         if($path -eq '00_Словарь_имен_и_алиасов.md'){continue}
         $path
@@ -67,7 +67,7 @@ function Get-WmmaLegacyReferences {
 }
 
 # Portrait proportions: 3:4 within 0.04; -AllowLegacy also accepts the old 2:3 portraits.
-function Test-WmmaPortraitRatio {
+function Test-VoidlightPortraitRatio {
     param([int]$Width,[int]$Height,[switch]$AllowLegacy)
     if($Width -le 0 -or $Height -le 0 -or $Width -ge $Height){return $false}
     $ratio=$Width/$Height
@@ -77,17 +77,17 @@ function Test-WmmaPortraitRatio {
 # Portrait file of a card with portrait_status=available. Problem is missing (no file),
 # unreadable (no image size), ratio (neither 3:4 nor 2:3) or empty. -CardPath also resolves
 # the path from the card's folder. Each caller keeps its own severity per problem.
-function Test-WmmaPortraitFile {
+function Test-VoidlightPortraitFile {
     param([string]$Root,[string]$Portrait,[string]$CardPath)
-    $path=if($Portrait -ne 'null'){Resolve-WmmaReference $Root $Portrait -FromFile $CardPath}
+    $path=if($Portrait -ne 'null'){Resolve-VoidlightReference $Root $Portrait -FromFile $CardPath}
     if(-not $path){return [pscustomobject]@{Problem='missing';Path=$null;Size=$null}}
-    $size=Get-WmmaImageSize $path
-    $problem=if(-not $size){'unreadable'}elseif(-not (Test-WmmaPortraitRatio $size.Width $size.Height -AllowLegacy)){'ratio'}else{''}
+    $size=Get-VoidlightImageSize $path
+    $problem=if(-not $size){'unreadable'}elseif(-not (Test-VoidlightPortraitRatio $size.Width $size.Height -AllowLegacy)){'ratio'}else{''}
     return [pscustomobject]@{Problem=$problem;Path=$path;Size=$size}
 }
 
 # Portrait folders (direct children of the portrait root) that contain an image.
-function Get-WmmaPortraitImageFolders {
+function Get-VoidlightPortraitImageFolders {
     param([string]$PortraitRoot)
     Get-ChildItem -LiteralPath $PortraitRoot -Directory|Where-Object {
         @(Get-ChildItem -LiteralPath $_.FullName -File|Where-Object {$_.Extension -match '^\.(jpg|jpeg|png|webp)$'}).Count -gt 0
@@ -97,37 +97,37 @@ function Get-WmmaPortraitImageFolders {
 # --- Canon checks shared by Проверить_проект, Проверить_контекст and the scenario suites --
 # Each returns problems as objects {kind = Error | Warning; message}.
 
-function New-WmmaProblem([string]$Kind,[string]$Message){[pscustomobject]@{kind=$Kind;message=$Message}}
+function New-VoidlightProblem([string]$Kind,[string]$Message){[pscustomobject]@{kind=$Kind;message=$Message}}
 
 # ID format and the prefix that fits the document type (CHAR, LOC, ASSET, SCENE, SRC, LORE).
-function Get-WmmaEntityIdProblems {
+function Get-VoidlightEntityIdProblems {
     param([object]$Graph)
     foreach($entity in $Graph.entities){
-        $problem=Test-WmmaEntityIdFormat $entity.id $entity.type
-        if($problem){New-WmmaProblem Error "$problem ($($entity.path))"}
+        $problem=Test-VoidlightEntityIdFormat $entity.id $entity.type
+        if($problem){New-VoidlightProblem Error "$problem ($($entity.path))"}
     }
 }
 
 # A merged card stays as a redirect; nothing may point at it directly.
-function Get-WmmaMergedReferenceProblems {
+function Get-VoidlightMergedReferenceProblems {
     param([object]$Graph,[object]$State,[object]$Knowledge,[object]$Decisions,[object]$Chronology)
     $byId=@{};foreach($entity in $Graph.entities){$byId[$entity.id]=$entity}
     $merged=@{}
     foreach($entity in $Graph.entities){
         if(-not $entity.merged_into){continue}
         $target=$entity.merged_into
-        if($target -ceq $entity.id){New-WmmaProblem Error "Entity is merged into itself: $($entity.id)";continue}
-        if(-not $byId.ContainsKey($target)){New-WmmaProblem Error "Merged entity points to an unknown card: $($entity.id) -> $target";continue}
-        if($byId[$target].merged_into){New-WmmaProblem Error "Merged entity points to another redirect: $($entity.id) -> $target; point it at the main card."}
-        if($byId[$target].type -ne $entity.type){New-WmmaProblem Error "Merged entity changes type: $($entity.id) ($($entity.type)) -> $target ($($byId[$target].type))"}
-        if($entity.status -ne 'merged'){New-WmmaProblem Error "Merged entity must have status merged: $($entity.path)"}
+        if($target -ceq $entity.id){New-VoidlightProblem Error "Entity is merged into itself: $($entity.id)";continue}
+        if(-not $byId.ContainsKey($target)){New-VoidlightProblem Error "Merged entity points to an unknown card: $($entity.id) -> $target";continue}
+        if($byId[$target].merged_into){New-VoidlightProblem Error "Merged entity points to another redirect: $($entity.id) -> $target; point it at the main card."}
+        if($byId[$target].type -ne $entity.type){New-VoidlightProblem Error "Merged entity changes type: $($entity.id) ($($entity.type)) -> $target ($($byId[$target].type))"}
+        if($entity.status -ne 'merged'){New-VoidlightProblem Error "Merged entity must have status merged: $($entity.path)"}
         $merged[$entity.id]=$target
     }
-    foreach($entity in $Graph.entities){if($entity.status -eq 'merged' -and -not $entity.merged_into){New-WmmaProblem Error "Status merged needs merged_into: $($entity.path)"}}
+    foreach($entity in $Graph.entities){if($entity.status -eq 'merged' -and -not $entity.merged_into){New-VoidlightProblem Error "Status merged needs merged_into: $($entity.path)"}}
     if(-not $merged.Count){return}
     function Test-Ids([object[]]$Ids,[string]$Where){
         foreach($id in @($Ids|Where-Object {$_})){
-            if($merged.ContainsKey([string]$id)){New-WmmaProblem Error "Reference to merged entity: $Where -> $id (use $($merged[[string]$id]))"}
+            if($merged.ContainsKey([string]$id)){New-VoidlightProblem Error "Reference to merged entity: $Where -> $id (use $($merged[[string]$id]))"}
         }
     }
     foreach($entity in $Graph.entities){
@@ -146,66 +146,66 @@ function Get-WmmaMergedReferenceProblems {
 }
 
 # The character status dictionary: values, the alive flag and plain synonyms.
-function Get-WmmaCharacterStatuses {
+function Get-VoidlightCharacterStatuses {
     param([string]$Root)
     $path=Join-Path $Root '09_Реестры/Статусы_персонажей.json'
     if(-not (Test-Path -LiteralPath $path)){throw 'Character status dictionary is missing: 09_Реестры/Статусы_персонажей.json'}
-    $dictionary=Read-WmmaJson $path
+    $dictionary=Read-VoidlightJson $path
     $values=@{};foreach($status in @($dictionary.statuses)){$values[[string]$status.value]=$status}
     $synonyms=@{};foreach($property in @($dictionary.synonyms.PSObject.Properties)){$synonyms[$property.Name]=[string]$property.Value}
     return [pscustomobject]@{values=$values;synonyms=$synonyms}
 }
 
-function Get-WmmaCharacterStatusProblems {
+function Get-VoidlightCharacterStatusProblems {
     param([string]$Root,[object]$Graph)
-    $statuses=Get-WmmaCharacterStatuses $Root
+    $statuses=Get-VoidlightCharacterStatuses $Root
     foreach($entity in @($Graph.entities|Where-Object type -eq 'character')){
         $status=[string]$entity.status
         if($statuses.values.ContainsKey($status)){continue}
-        if($statuses.synonyms.ContainsKey($status)){New-WmmaProblem Error "Character status '$status' is a synonym; write '$($statuses.synonyms[$status])': $($entity.path)";continue}
-        New-WmmaProblem Error "Character status '$status' is not in 09_Реестры/Статусы_персонажей.json: $($entity.path)"
+        if($statuses.synonyms.ContainsKey($status)){New-VoidlightProblem Error "Character status '$status' is a synonym; write '$($statuses.synonyms[$status])': $($entity.path)";continue}
+        New-VoidlightProblem Error "Character status '$status' is not in 09_Реестры/Статусы_персонажей.json: $($entity.path)"
     }
 }
 
 # Titles and aliases that may name one entity twice; acknowledged pairs carry distinct_from.
-function Get-WmmaDuplicateNameProblems {
+function Get-VoidlightDuplicateNameProblems {
     param([object]$Graph)
     foreach($type in @('character','location','character_asset','lore')){
         $entities=@($Graph.entities|Where-Object type -eq $type)
-        foreach($pair in @(Get-WmmaSimilarNamePairs $entities)){
-            New-WmmaProblem Warning "Possible duplicate ${type}: $($pair.ids -join ' / ') ('$($pair.left)' ~ '$($pair.right)'). Merge with Объединить_сущности or record distinct_from in one card and the name dictionary."
+        foreach($pair in @(Get-VoidlightSimilarNamePairs $entities)){
+            New-VoidlightProblem Warning "Possible duplicate ${type}: $($pair.ids -join ' / ') ('$($pair.left)' ~ '$($pair.right)'). Merge with Объединить_сущности or record distinct_from in one card and the name dictionary."
         }
     }
 }
 
 # Scenes of a closed chapter are closed and protected by hash in the manifest.
-function Get-WmmaClosedSceneProblems {
+function Get-VoidlightClosedSceneProblems {
     param([string]$Root,[object]$Graph)
     $closed=@{}
     foreach($file in @(Get-ChildItem -LiteralPath (Join-Path $Root '01_Кампания/Главы') -File -Filter '*.md')){
-        $text=Read-WmmaText $file.FullName
-        if((Get-WmmaMeta $text 'status') -eq 'closed'){$closed[[string](Get-WmmaMeta $text 'chapter')]=$true}
+        $text=Read-VoidlightText $file.FullName
+        if((Get-VoidlightMeta $text 'status') -eq 'closed'){$closed[[string](Get-VoidlightMeta $text 'chapter')]=$true}
     }
-    $manifestPath=Get-WmmaProtectionManifestPath $Root
+    $manifestPath=Get-VoidlightProtectionManifestPath $Root
     $protected=@{}
-    if(Test-Path -LiteralPath $manifestPath){foreach($item in @((Read-WmmaJson $manifestPath).protected_files)){$protected[$item.path]=$true}}
+    if(Test-Path -LiteralPath $manifestPath){foreach($item in @((Read-VoidlightJson $manifestPath).protected_files)){$protected[$item.path]=$true}}
     foreach($scene in @($Graph.entities|Where-Object {$_.type -eq 'scene' -and $closed.ContainsKey([string]$_.chapter)})){
-        if($scene.status -ne 'closed'){New-WmmaProblem Error "Scene of closed chapter $($scene.chapter) must have status closed: $($scene.path)"}
-        if(-not $protected.ContainsKey($scene.path)){New-WmmaProblem Error "Scene of closed chapter $($scene.chapter) is not protected: $($scene.path). Use Обновить_защиту_канона -Add with a reason."}
+        if($scene.status -ne 'closed'){New-VoidlightProblem Error "Scene of closed chapter $($scene.chapter) must have status closed: $($scene.path)"}
+        if(-not $protected.ContainsKey($scene.path)){New-VoidlightProblem Error "Scene of closed chapter $($scene.chapter) is not protected: $($scene.path). Use Обновить_защиту_канона -Add with a reason."}
     }
 }
 
 # Formulations of closed forks that must not return to live context (data file).
-function Get-WmmaStaleContextMarkers {
+function Get-VoidlightStaleContextMarkers {
     param([string]$Root)
     $path=Join-Path $Root '09_Реестры/Маркеры_контекста.json'
     if(-not (Test-Path -LiteralPath $path)){return @()}
-    return @((Read-WmmaJson $path).markers|Where-Object {$_})
+    return @((Read-VoidlightJson $path).markers|Where-Object {$_})
 }
 
 # Records of Regnum worlds (12_Карты/<world>/data, format: tools/Regnum/docs/FORMAT.md)
 # that link a campaign card through their entity field. Read only.
-function Get-WmmaRegnumEntityLinks {
+function Get-VoidlightRegnumEntityLinks {
     param([string]$Root,[string]$World='')
     $mapsRoot=Join-Path $Root '12_Карты'
     $worlds=if($World){@((Resolve-Path -LiteralPath $World).Path)}elseif(Test-Path -LiteralPath $mapsRoot){
@@ -213,10 +213,10 @@ function Get-WmmaRegnumEntityLinks {
     }else{@()}
     foreach($worldDir in $worlds){
         $data=Join-Path $worldDir 'data'
-        $label=Get-WmmaRelativePath $Root $worldDir
+        $label=Get-VoidlightRelativePath $Root $worldDir
         $read={param([string]$File,[string]$Field)
             $path=Join-Path $data $File
-            if(Test-Path -LiteralPath $path){@((Read-WmmaJson $path).$Field|Where-Object {$_})}
+            if(Test-Path -LiteralPath $path){@((Read-VoidlightJson $path).$Field|Where-Object {$_})}
         }
         $dead=@(& $read 'modifiers.json' 'modifiers'|Where-Object {$_.key -eq 'dead' -or (-not $_.key -and $_.name -eq 'Мертв')}|ForEach-Object {[string]$_.id})
         foreach($record in @(& $read 'provinces.json' 'provinces')){
@@ -237,26 +237,26 @@ function Get-WmmaRegnumEntityLinks {
 # Links of Regnum worlds against the canon: an existing, not merged card with the prefix of
 # the record kind (province or state: LOC; guild: LOC, ASSET or LORE; hero: CHAR; relic:
 # ASSET), and the «Мертв» modifier of a hero against the alive flag of the card status.
-function Test-WmmaRegnumLinks {
+function Test-VoidlightRegnumLinks {
     param([string]$Root,[object]$Graph,[string]$World='')
     $byId=@{};foreach($entity in $Graph.entities){$byId[$entity.id]=$entity}
-    $statuses=Get-WmmaCharacterStatuses $Root
+    $statuses=Get-VoidlightCharacterStatuses $Root
     $expected=@{province=@('LOC');state=@('LOC');guild=@('LOC','ASSET','LORE');character=@('CHAR');relic=@('ASSET')}
-    $links=@(Get-WmmaRegnumEntityLinks -Root $Root -World $World)
+    $links=@(Get-VoidlightRegnumEntityLinks -Root $Root -World $World)
     $problems=[Collections.Generic.List[object]]::new()
     foreach($link in $links){
         $label="$($link.world): $($link.table) $($link.id) «$($link.name)» -> $($link.entity)"
-        if(-not $byId.ContainsKey($link.entity)){$problems.Add((New-WmmaProblem Error "${label}: no such campaign card"));continue}
+        if(-not $byId.ContainsKey($link.entity)){$problems.Add((New-VoidlightProblem Error "${label}: no such campaign card"));continue}
         $card=$byId[$link.entity]
-        if($card.merged_into){$problems.Add((New-WmmaProblem Error "${label}: the card is merged into $($card.merged_into); relink the record"));continue}
+        if($card.merged_into){$problems.Add((New-VoidlightProblem Error "${label}: the card is merged into $($card.merged_into); relink the record"));continue}
         $prefix=($link.entity -split '-')[0]
-        if($expected[$link.kind] -notcontains $prefix){$problems.Add((New-WmmaProblem Error "${label}: a $($link.kind) links $($expected[$link.kind] -join ' or ') cards, not $prefix"));continue}
+        if($expected[$link.kind] -notcontains $prefix){$problems.Add((New-VoidlightProblem Error "${label}: a $($link.kind) links $($expected[$link.kind] -join ' or ') cards, not $prefix"));continue}
         if($link.kind -ne 'character'){continue}
         $value=[string]$card.status
         if($statuses.synonyms.ContainsKey($value)){$value=$statuses.synonyms[$value]}
         $alive=if($statuses.values.ContainsKey($value)){$statuses.values[$value].alive}else{$null}
-        if($link.dead -and $alive -eq $true){$problems.Add((New-WmmaProblem Warning "${label}: the hero has «Мертв», but the card status is $($card.status)"))}
-        elseif(-not $link.dead -and $alive -eq $false){$problems.Add((New-WmmaProblem Warning "${label}: the card status is $($card.status), but the hero has no «Мертв»"))}
+        if($link.dead -and $alive -eq $true){$problems.Add((New-VoidlightProblem Warning "${label}: the hero has «Мертв», but the card status is $($card.status)"))}
+        elseif(-not $link.dead -and $alive -eq $false){$problems.Add((New-VoidlightProblem Warning "${label}: the card status is $($card.status), but the hero has no «Мертв»"))}
     }
     return [pscustomobject]@{links=$links.Count;problems=@($problems)}
 }

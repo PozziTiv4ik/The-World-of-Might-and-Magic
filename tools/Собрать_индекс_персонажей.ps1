@@ -10,7 +10,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $characterRoot = Join-Path $root '03_Персонажи'
 $targetPath = Join-Path $characterRoot '00_Индекс_персонажей.md'
 $visualSection = 'Визуальные материалы'
@@ -18,7 +18,7 @@ $toolGroup = 'Добавлено инструментом'
 $mergedGroup = 'Объединённые карточки'
 
 # Sections of the previous index are navigation groups: they keep their order and rows.
-$existingIndex = Get-WmmaIndexRows -Text (Read-WmmaText $targetPath -AllowMissing) -FileColumn 3 -HeaderCell 'Персонаж'
+$existingIndex = Get-VoidlightIndexRows -Text (Read-VoidlightText $targetPath -AllowMissing) -FileColumn 3 -HeaderCell 'Персонаж'
 $existingRows = $existingIndex.Rows
 $groupOrder = New-Object 'System.Collections.Generic.List[string]'
 foreach ($group in @($existingIndex.Sections) + @($toolGroup)) {
@@ -34,18 +34,18 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
         continue
     }
 
-    $text = Read-WmmaText $file.FullName
-    if ((Get-WmmaMeta -Text $text -Field 'type') -ne 'character') {
+    $text = Read-VoidlightText $file.FullName
+    if ((Get-VoidlightMeta -Text $text -Field 'type') -ne 'character') {
         continue
     }
 
-    $relativePath = Get-WmmaRelativePath -Root $root $file.FullName
+    $relativePath = Get-VoidlightRelativePath -Root $root $file.FullName
     $existing = $null
     if ($existingRows.ContainsKey($relativePath)) {
         $existing = $existingRows[$relativePath]
     }
 
-    $role = Get-WmmaMeta -Text $text -Field 'role'
+    $role = Get-VoidlightMeta -Text $text -Field 'role'
     if (
         ([string]::IsNullOrWhiteSpace($role) -or $role -match '^(уточнить|Уточнить\.?)$') -and
         $existing -and
@@ -69,8 +69,8 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
     }
 
     # A merged card is a redirect: it stays in the index (its ID is kept) in its own group.
-    $portrait = Get-WmmaPortraitStatusWord -Status (Get-WmmaMeta -Text $text -Field 'portrait_status') -Fallback $portraitFallback
-    if (Get-WmmaMeta -Text $text -Field 'merged_into') {
+    $portrait = Get-VoidlightPortraitStatusWord -Status (Get-VoidlightMeta -Text $text -Field 'portrait_status') -Fallback $portraitFallback
+    if (Get-VoidlightMeta -Text $text -Field 'merged_into') {
         $group = $mergedGroup
         $portrait = '-'
     }
@@ -80,7 +80,7 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
     }
 
     $characterRows.Add([pscustomobject]@{
-        Name = Get-WmmaTitle -Text $text
+        Name = Get-VoidlightTitle -Text $text
         Role = $role
         Portrait = $portrait
         File = $relativePath
@@ -89,7 +89,7 @@ foreach ($file in Get-ChildItem -LiteralPath $characterRoot -File -Filter '*.md'
     }) | Out-Null
 }
 
-$lines = New-WmmaGeneratedHeader -Title 'Индекс персонажей' -Type 'character_index' -CanonLevel 'active' -Script 'Собрать_индекс_персонажей' `
+$lines = New-VoidlightGeneratedHeader -Title 'Индекс персонажей' -Type 'character_index' -CanonLevel 'active' -Script 'Собрать_индекс_персонажей' `
     -Intro "Этот файл генерируется автоматически из карточек персонажей. Текущие разделы сохраняются как навигационные группы; новые карточки без прежней строки попадают в ``$toolGroup``."
 
 foreach ($group in $groupOrder) {
@@ -107,7 +107,7 @@ foreach ($group in $groupOrder) {
     $lines.Add('')
     $lines.Add("## $group")
     $lines.Add('')
-    Add-WmmaMarkdownTable $lines @('Персонаж', 'Роль', 'Портрет', 'Файл') $rows -Escape { param($Value) Format-WmmaTableCell -Empty 'Уточнить' $Value }
+    Add-VoidlightMarkdownTable $lines @('Персонаж', 'Роль', 'Портрет', 'Файл') $rows -Escape { param($Value) Format-VoidlightTableCell -Empty 'Уточнить' $Value }
 }
 
 $lines.Add('')
@@ -115,5 +115,5 @@ $lines.Add("## $visualSection")
 $lines.Add('')
 $lines.Add('Индекс портретов: `11_Медиа/Портреты_персонажей/Индекс_портретов.md`.')
 
-Save-WmmaIndex -Root $root -Path $targetPath -Lines $lines -Label 'character index' -SkipCheck:$SkipCheck
+Save-VoidlightIndex -Root $root -Path $targetPath -Lines $lines -Label 'character index' -SkipCheck:$SkipCheck
 }

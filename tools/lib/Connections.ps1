@@ -1,6 +1,6 @@
 # Only explicit IDs connect registries to documents. This index is transient:
 # inferred, reverse and transitive relationships are never written into canon.
-function New-WmmaConnectionIndex {
+function New-VoidlightConnectionIndex {
     param([object]$Data,[switch]$IncludeReferences,[switch]$IncludeHistory)
     $nodes=@{};$adjacent=@{};$keys=[Collections.Generic.HashSet[string]]::new()
     foreach($entity in $Data.graph.entities){$nodes[$entity.id]=$entity}
@@ -15,8 +15,8 @@ function New-WmmaConnectionIndex {
         if(-not $nodes.ContainsKey($From) -or -not $nodes.ContainsKey($To)){throw "Unknown connection endpoint: $From -> $To"}
         if(-not $keys.Add("$From|$To|$Kind|$Evidence|$Scope")){return}
         $edge=[pscustomobject]@{from=$From;to=$To;kind=$Kind;evidence=$Evidence;scope=$Scope}
-        Add-WmmaIndexItem $adjacent $From ([pscustomobject]@{id=$To;direction='outgoing';edge=$edge})
-        Add-WmmaIndexItem $adjacent $To ([pscustomobject]@{id=$From;direction='incoming';edge=$edge})
+        Add-VoidlightIndexItem $adjacent $From ([pscustomobject]@{id=$To;direction='outgoing';edge=$edge})
+        Add-VoidlightIndexItem $adjacent $To ([pscustomobject]@{id=$From;direction='incoming';edge=$edge})
     }
     foreach($fact in $Data.knowledge.facts){Add-Node $fact.id 'fact' $fact.text '09_Реестры/Знания.json'}
     foreach($decision in $Data.decisions.decisions){
@@ -35,7 +35,7 @@ function New-WmmaConnectionIndex {
         foreach($id in $fact.subject_ids){Add-Connection $fact.id $id 'subject' '09_Реестры/Знания.json'}
         foreach($id in $fact.evidence_ids){Add-Connection $fact.id $id 'evidence' '09_Реестры/Знания.json'}
         foreach($id in $fact.known_to){
-            if(Test-WmmaFactVisible $fact $id){Add-Connection $fact.id $id 'known_by' '09_Реестры/Знания.json'}
+            if(Test-VoidlightFactVisible $fact $id){Add-Connection $fact.id $id 'known_by' '09_Реестры/Знания.json'}
         }
     }
     foreach($decision in $Data.decisions.decisions){
@@ -57,19 +57,19 @@ function New-WmmaConnectionIndex {
     return [pscustomobject]@{nodes=$nodes;adjacent=$adjacent}
 }
 
-function Get-WmmaConnections {
+function Get-VoidlightConnections {
     param(
         [string]$Root,[Parameter(Mandatory)][string]$Entity,
         [ValidateRange(1,3)][int]$Depth=1,[ValidateRange(1,200)][int]$MaxNodes=20,
         [switch]$IncludeReferences,[switch]$IncludeHistory,[object]$Data
     )
-    $Data=Resolve-WmmaReadModel $Root $Data
-    $index=New-WmmaConnectionIndex $Data -IncludeReferences:$IncludeReferences -IncludeHistory:$IncludeHistory
+    $Data=Resolve-VoidlightReadModel $Root $Data
+    $index=New-VoidlightConnectionIndex $Data -IncludeReferences:$IncludeReferences -IncludeHistory:$IncludeHistory
     $requested=$Entity
     if($Data.decision_aliases.ContainsKey($Entity)){$Entity=$Data.decision_aliases[$Entity].id}
     # A merged card is a redirect: navigation starts at the card it joined.
     if($Data.merged_into -and $Data.merged_into.ContainsKey($Entity)){$Entity=$Data.merged_into[$Entity]}
-    $start=if($index.nodes.ContainsKey($Entity)){$index.nodes[$Entity]}else{Resolve-WmmaEntity $Data $Entity}
+    $start=if($index.nodes.ContainsKey($Entity)){$index.nodes[$Entity]}else{Resolve-VoidlightEntity $Data $Entity}
     $visited=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     [void]$visited.Add($start.id)
     $queue=[Collections.Generic.Queue[object]]::new()
@@ -105,7 +105,7 @@ function Get-WmmaConnections {
 
 # Iterative DFS visits each ordering node once, including converging paths.
 # Overlaps is not an ordering relation. Cycles in ordinary mentions are allowed.
-function Get-WmmaOrderCycles {
+function Get-VoidlightOrderCycles {
     param([object[]]$Relations)
     $next=@{};$state=@{};$position=@{}
     foreach($relation in $Relations){

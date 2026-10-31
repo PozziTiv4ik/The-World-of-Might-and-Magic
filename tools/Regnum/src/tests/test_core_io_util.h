@@ -60,7 +60,7 @@ inline World richWorld() {
   m.createdAt = "2026-09-01T10:00:00Z";
   m.updatedAt = "2026-10-01T11:22:33Z";
   m.turn = 7;
-  m.basemap = "wmm-expanded-v1";
+  m.basemap = "voidlight-expanded-v1";
   m.notes = "Заметки мира\nвторая строка\t«кавычки» \"двойные\" \\ обратная черта 🏰";
 
   Settings& s = tx.settings();

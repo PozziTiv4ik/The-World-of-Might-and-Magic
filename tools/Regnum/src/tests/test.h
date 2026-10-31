@@ -8,7 +8,7 @@
 // (app_turn_history_restart_after_rollback, core_io_roundtrip_folder): фильтр по началу имени выбирает модуль или
 // функцию. Тесты скорости — со словом perf, speed или bench в имени. Устройство набора и общие помощники —
 // docs/ARCHITECTURE.md, §7.
-// Каталог для артефактов (PNG и т. п.): rg::test::outDir() (по умолчанию .wmma/regnum-tests); запись PNG — tests/test_png.h.
+// Каталог для артефактов (PNG и т. п.): rg::test::outDir() (по умолчанию .voidlight/regnum-tests); запись PNG — tests/test_png.h.
 //
 // Переменные окружения: REGNUM_PERF_STRICT=1 — строгие пороги скорости (perf()); REGNUM_AUDIT=1 — проверки аудита
 // (AUDIT_EXPECT, auditStrict()) роняют тест; REGNUM_BENCH=1 — долгие замеры (иначе они пропускаются).

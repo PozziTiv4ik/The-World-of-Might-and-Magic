@@ -2,7 +2,7 @@ param([string]$Branch='', [string]$Query='', [string]$Entity='', [ValidateSet('g
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $result=Get-WmmaContext -Root $root -Branch $Branch -Query $Query -Entity $Entity -Audience $Audience -MaxWords $MaxWords
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+    $result=Get-VoidlightContext -Root $root -Branch $Branch -Query $Query -Entity $Entity -Audience $Audience -MaxWords $MaxWords
     if ($Json) { $result | ConvertTo-Json -Depth 30 } else { $result.text }
 }

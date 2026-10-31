@@ -16,9 +16,9 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $today = Get-Date -Format 'yyyy-MM-dd'
-$registry = Read-WmmaRegistry $root 'Вопросы'
+$registry = Read-VoidlightRegistry $root 'Вопросы'
 $questions = @($registry.questions)
 $question = $questions | Where-Object { $_.id -eq $QuestionId } | Select-Object -First 1
 
@@ -46,8 +46,8 @@ $registry.questions = @(
     $questions | Where-Object { $_.id -ne $QuestionId }
 ) + @($question)
 
-Write-WmmaRegistry $root 'Вопросы' $registry
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_вопросы' -SkipCheck:$SkipCheck
+Write-VoidlightRegistry $root 'Вопросы' $registry
+Complete-VoidlightMutation -Root $root -Rebuild 'Собрать_вопросы' -SkipCheck:$SkipCheck
 
 "Closed question: $QuestionId"
 }

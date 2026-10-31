@@ -617,7 +617,7 @@ struct Meta {
   std::string createdAt, updatedAt;
   int turn = 1;
   std::array<u32, kSeqCount> seq{};
-  std::string basemap = "wmm-expanded-v1";
+  std::string basemap = "voidlight-expanded-v1";
   // Знаки и фигуры карты хранятся в мире (data/map.json) и правятся в редакторе. false — мир показывает объекты
   // базовой карты (assets/basemap/map.json); первая правка карты переносит их в мир.
   bool mapObjects = false;

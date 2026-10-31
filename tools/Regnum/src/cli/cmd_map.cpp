@@ -67,7 +67,7 @@ int runBuildMap(const std::vector<std::string>& args) {
   }
   map::art::ExtractReport rep;
   map::art::MapArt art = map::art::extract(*img, &rep, option(args, "--debug"));
-  art.id = option(args, "--id", "wmm-expanded-v1");
+  art.id = option(args, "--id", "voidlight-expanded-v1");
   art.source = fs::filename(pos[0]);
   art.sourceSha256 = sha;
   std::fputs(rep.text().c_str(), stdout);

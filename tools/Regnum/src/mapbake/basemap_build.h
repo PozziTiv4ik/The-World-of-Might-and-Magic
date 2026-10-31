@@ -23,7 +23,7 @@ constexpr Color kOcean{0, 38, 255, 255};
 constexpr int kCoordScale = 100;  // координаты берега хранятся в сотых долях пикселя
 
 struct Options {
-  std::string id = "wmm-expanded-v1";
+  std::string id = "voidlight-expanded-v1";
   std::string sourceName = "Expanded Map.png";
   std::string sourceSha256;     // SHA-256 файла исходника (hex), пусто — не записывать
   int erodeRadius = 6;          // эрозия воды: протоки уже 2r+1 не соединяют воду с морем

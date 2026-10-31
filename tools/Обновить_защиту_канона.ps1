@@ -23,10 +23,10 @@ $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
 # The only way to accept new bytes of closed canon: the manifest records the new hash with
 # the date, the previous hash and the reason (amendments of 10_Обслуживание/Миграция_v2.json).
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    Assert-WmmaSingleLine $Reason 'Reason'
-    $count = Update-WmmaProtectedFiles -Root $root -Paths $Path -Reason $Reason -Add:$Add
-    if ($count) { Complete-WmmaMutation -Root $root -SkipCheck:$SkipCheck }
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+    Assert-VoidlightSingleLine $Reason 'Reason'
+    $count = Update-VoidlightProtectedFiles -Root $root -Paths $Path -Reason $Reason -Add:$Add
+    if ($count) { Complete-VoidlightMutation -Root $root -SkipCheck:$SkipCheck }
     if ($count) { "Protected canon updated: $count file(s); the reason is recorded in 10_Обслуживание/Миграция_v2.json." }
     else { 'Protected canon already matches these files.' }
 }

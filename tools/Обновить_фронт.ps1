@@ -31,14 +31,14 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 function Normalize-Cell {
     param([string]$Value)
 
     return (($Value.Trim() -replace '\r?\n', ' ') -replace '\|', '/')
 }
 
-$registry = Read-WmmaRegistry $root 'Фронты'
+$registry = Read-VoidlightRegistry $root 'Фронты'
 $fronts = @($registry.fronts)
 if (-not ($fronts | Where-Object { $_.id -eq $FrontId } | Select-Object -First 1)) {
     throw "FRONT-ID is not found: $FrontId"
@@ -116,8 +116,8 @@ if (-not $changed) {
 }
 
 $registry.updated_real_date = Get-Date -Format 'yyyy-MM-dd'
-Write-WmmaRegistry $root 'Фронты' $registry
-Complete-WmmaMutation -Root $root -Rebuild 'Собрать_фронты' -SkipCheck:$SkipCheck
+Write-VoidlightRegistry $root 'Фронты' $registry
+Complete-VoidlightMutation -Root $root -Rebuild 'Собрать_фронты' -SkipCheck:$SkipCheck
 
 "Updated front: $FrontId"
 }

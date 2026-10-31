@@ -14,7 +14,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $decisionLogPath = Join-Path $root '01_Кампания\02_Журнал_решений.md'
 
 function Format-Value {
@@ -53,12 +53,12 @@ function Render-DecisionLog {
     $decisions = @($Registry.decisions)
     $pendingDecisions = @(
         $decisions |
-            Where-Object { Test-WmmaPendingDecision $_ } |
+            Where-Object { Test-VoidlightPendingDecision $_ } |
             Sort-Object @{ Expression = { [int]($_.id -replace '^DEC-PENDING-', '') } }
     )
     $acceptedDecisions = @(
         $decisions |
-            Where-Object { Test-WmmaAcceptedDecision $_ } |
+            Where-Object { Test-VoidlightAcceptedDecision $_ } |
             Sort-Object @{ Expression = { [int]($_.id -replace '^DEC-', '') } }
     )
     $lines = New-Object 'System.Collections.Generic.List[string]'
@@ -105,20 +105,20 @@ function Render-DecisionLog {
         Add-DecisionBlock -Lines $lines -Decision $decision
     }
 
-    Write-WmmaText $decisionLogPath (($lines -join "`n").TrimEnd() + "`n")
+    Write-VoidlightText $decisionLogPath (($lines -join "`n").TrimEnd() + "`n")
 }
 
-$registry = Read-WmmaRegistry $root 'Решения'
+$registry = Read-VoidlightRegistry $root 'Решения'
 
 Render-DecisionLog -Registry $registry
 
 if (-not $Only) {
-    Invoke-WmmaTool -Root $root -Name 'Собрать_вопросы' -Arguments @{ SkipCheck = $true }
+    Invoke-VoidlightTool -Root $root -Name 'Собрать_вопросы' -Arguments @{ SkipCheck = $true }
 }
 
 if (-not $SkipCheck) {
-    Invoke-WmmaTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
-    Invoke-WmmaTool -Root $root -Name 'Проверить_проект'
+    Invoke-VoidlightTool -Root $root -Name 'Собрать_панель_хода' -Arguments @{ SkipCheck = $true }
+    Invoke-VoidlightTool -Root $root -Name 'Проверить_проект'
 }
 
 "Updated decision registry and Markdown log: 09_Реестры/Решения.json"

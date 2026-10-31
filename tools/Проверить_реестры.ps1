@@ -10,8 +10,8 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-$problems = New-WmmaProblemSet
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+$problems = New-VoidlightProblemSet
 
 function Test-HasProperty {
     param(
@@ -88,7 +88,7 @@ function Assert-LocalReference {
     )
 
     # Registry links are project-root paths, optionally backticked.
-    if ([string]::IsNullOrWhiteSpace($Reference) -or -not (Test-WmmaReference $root $Reference.Trim().Trim('`'))) {
+    if ([string]::IsNullOrWhiteSpace($Reference) -or -not (Test-VoidlightReference $root $Reference.Trim().Trim('`'))) {
         Add-Problem Error "$Context points to missing file: $Reference"
     }
 }
@@ -261,7 +261,7 @@ function Read-RegistryJson {
     }
 
     try {
-        $registry = Read-WmmaJson $path
+        $registry = Read-VoidlightJson $path
     } catch {
         Add-Problem Error "Registry is not valid JSON: $RelativePath - $($_.Exception.Message)"
         return $null
@@ -302,7 +302,7 @@ $graphPath = Join-Path $root '09_Реестры\Сущности.json'
 if (Test-Path -LiteralPath $graphPath) {
     try {
         $sceneIdSet = @{}
-        foreach ($entity in @((Read-WmmaJson $graphPath).entities | Where-Object { $_.type -eq 'scene' -and -not $_.merged_into })) { $sceneIdSet[$entity.id] = $true }
+        foreach ($entity in @((Read-VoidlightJson $graphPath).entities | Where-Object { $_.type -eq 'scene' -and -not $_.merged_into })) { $sceneIdSet[$entity.id] = $true }
     } catch {
         Add-Problem Error "Entity registry is not valid JSON: $($_.Exception.Message)"
         $sceneIdSet = $null
@@ -392,8 +392,8 @@ if ($null -ne $decisionRegistry) {
     }
 
     Assert-UniqueValues -Values $decisionIds -Context 'Decision registry IDs'
-    $pendingDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { Test-WmmaPendingDecision $_ })
-    $acceptedDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { Test-WmmaAcceptedDecision $_ })
+    $pendingDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { Test-VoidlightPendingDecision $_ })
+    $acceptedDecisionIds = Get-ObjectIds -Items @($decisions | Where-Object { Test-VoidlightAcceptedDecision $_ })
 }
 
 $questionRegistry = Read-RegistryJson -RelativePath '09_Реестры\Вопросы.json' -ExpectedType 'question_registry' -ExtraTopFields @('current_chapter')
@@ -678,13 +678,13 @@ foreach ($dictionaryName in @('Статусы_персонажей', 'Марке
     }
 
     try {
-        [void](Test-Json -Json (Read-WmmaText $dictionaryPath) -SchemaFile $dictionarySchema -ErrorAction Stop)
+        [void](Test-Json -Json (Read-VoidlightText $dictionaryPath) -SchemaFile $dictionarySchema -ErrorAction Stop)
     } catch {
         Add-Problem Error "Schema mismatch: $dictionaryName — $($_.Exception.Message)"
         continue
     }
 
-    $dictionary = Read-WmmaJson $dictionaryPath
+    $dictionary = Read-VoidlightJson $dictionaryPath
     if ($dictionary.type -eq 'character_status_dictionary') {
         $values = @($dictionary.statuses | ForEach-Object { [string]$_.value })
         Assert-UniqueValues -Values $values -Context 'Character status dictionary'
@@ -714,7 +714,7 @@ $summary = [pscustomobject]@{
 }
 
 if (-not $Quiet) {
-    Write-WmmaProblemReport $summary
+    Write-VoidlightProblemReport $summary
 }
 
 # -PassThru returns the problems to a caller (Проверить_проект) instead of failing the script.

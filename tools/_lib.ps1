@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/Views.ps1')
 . (Join-Path $PSScriptRoot 'lib/Checks.ps1')
 
-function Get-WmmaToolLockPath {
+function Get-VoidlightToolLockPath {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Root
@@ -25,10 +25,10 @@ function Get-WmmaToolLockPath {
         $sha.Dispose()
     }
 
-    return Join-Path ([System.IO.Path]::GetTempPath()) "wmma_tool_$hash.lock"
+    return Join-Path ([System.IO.Path]::GetTempPath()) "voidlight_tool_$hash.lock"
 }
 
-function Enter-WmmaToolLock {
+function Enter-VoidlightToolLock {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Root,
@@ -38,15 +38,15 @@ function Enter-WmmaToolLock {
         [int]$TimeoutSeconds = 90
     )
 
-    if (-not $global:WmmaToolLocks) {
-        $global:WmmaToolLocks = @{}
+    if (-not $global:VoidlightToolLocks) {
+        $global:VoidlightToolLocks = @{}
     }
 
     $resolvedRoot = (Resolve-Path -LiteralPath $Root).Path
     $rootKey = $resolvedRoot.ToLowerInvariant()
 
-    if ($global:WmmaToolLocks.ContainsKey($rootKey)) {
-        $entry = $global:WmmaToolLocks[$rootKey]
+    if ($global:VoidlightToolLocks.ContainsKey($rootKey)) {
+        $entry = $global:VoidlightToolLocks[$rootKey]
         $entry.Depth++
         return [pscustomobject]@{
             RootKey = $rootKey
@@ -54,7 +54,7 @@ function Enter-WmmaToolLock {
         }
     }
 
-    $lockPath = Get-WmmaToolLockPath -Root $resolvedRoot
+    $lockPath = Get-VoidlightToolLockPath -Root $resolvedRoot
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $stream = $null
 
@@ -81,7 +81,7 @@ function Enter-WmmaToolLock {
         Path = $lockPath
         Root = $resolvedRoot
     }
-    $global:WmmaToolLocks[$rootKey] = $entry
+    $global:VoidlightToolLocks[$rootKey] = $entry
 
     $lockInfo = @(
         "pid=$PID",
@@ -101,21 +101,21 @@ function Enter-WmmaToolLock {
     }
 }
 
-function Exit-WmmaToolLock {
+function Exit-VoidlightToolLock {
     param(
         [object]$Lock
     )
 
-    if (-not $Lock -or -not $global:WmmaToolLocks) {
+    if (-not $Lock -or -not $global:VoidlightToolLocks) {
         return
     }
 
     $rootKey = $Lock.RootKey
-    if (-not $rootKey -or -not $global:WmmaToolLocks.ContainsKey($rootKey)) {
+    if (-not $rootKey -or -not $global:VoidlightToolLocks.ContainsKey($rootKey)) {
         return
     }
 
-    $entry = $global:WmmaToolLocks[$rootKey]
+    $entry = $global:VoidlightToolLocks[$rootKey]
     $entry.Depth--
 
     if ($entry.Depth -gt 0) {
@@ -125,11 +125,11 @@ function Exit-WmmaToolLock {
     try {
         $entry.Stream.Dispose()
     } finally {
-        $global:WmmaToolLocks.Remove($rootKey)
+        $global:VoidlightToolLocks.Remove($rootKey)
     }
 }
 
-function Invoke-WmmaToolMain {
+function Invoke-VoidlightToolMain {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Root,
@@ -141,17 +141,17 @@ function Invoke-WmmaToolMain {
         [string]$ToolName = 'tool'
     )
 
-    $lock = Enter-WmmaToolLock -Root $Root -Name $ToolName
+    $lock = Enter-VoidlightToolLock -Root $Root -Name $ToolName
     try {
         & $ScriptBlock
     } finally {
-        Exit-WmmaToolLock -Lock $lock
+        Exit-VoidlightToolLock -Lock $lock
     }
 }
 
 # Runs a sibling command tools/<Name>.ps1 of the same project. A thrown error, a failed
 # status or a nonzero exit code of the child becomes an exception naming the step.
-function Invoke-WmmaTool {
+function Invoke-VoidlightTool {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Root,
@@ -174,7 +174,7 @@ function Invoke-WmmaTool {
 # -SkipCheck the documents the command created or changed are registered in Сущности.json
 # at once (-FullGraph rebuilds the whole graph instead), so the next command of a batch
 # sees their IDs; the full graph is rebuilt by Завершить_ход or Подготовить_ход.
-function Complete-WmmaMutation {
+function Complete-VoidlightMutation {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Root,
@@ -189,16 +189,16 @@ function Complete-WmmaMutation {
     )
 
     if ($SkipCheck -and $FullGraph) {
-        Invoke-WmmaTool -Root $Root -Name 'Собрать_связи' -Arguments @{ AssignMissingIds = $true; SkipCheck = $true }
+        Invoke-VoidlightTool -Root $Root -Name 'Собрать_связи' -Arguments @{ AssignMissingIds = $true; SkipCheck = $true }
     } elseif ($SkipCheck -and @($Documents | Where-Object { $_ }).Count) {
-        Register-WmmaDocuments -Root $Root -Paths @($Documents | Where-Object { $_ })
+        Register-VoidlightDocuments -Root $Root -Paths @($Documents | Where-Object { $_ })
     }
 
     foreach ($name in $Rebuild) {
-        Invoke-WmmaTool -Root $Root -Name $name -Arguments @{ SkipCheck = $true }
+        Invoke-VoidlightTool -Root $Root -Name $name -Arguments @{ SkipCheck = $true }
     }
 
     if (-not $SkipCheck) {
-        Invoke-WmmaTool -Root $Root -Name 'Завершить_ход'
+        Invoke-VoidlightTool -Root $Root -Name 'Завершить_ход'
     }
 }

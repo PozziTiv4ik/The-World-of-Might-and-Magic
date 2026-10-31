@@ -6,8 +6,8 @@ param(
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-    $result=Get-WmmaConnections -Root $root -Entity $Entity -Depth $Depth -MaxNodes $MaxNodes -IncludeReferences:$IncludeReferences -IncludeHistory:$IncludeHistory
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+    $result=Get-VoidlightConnections -Root $root -Entity $Entity -Depth $Depth -MaxNodes $MaxNodes -IncludeReferences:$IncludeReferences -IncludeHistory:$IncludeHistory
     if($Json){$result|ConvertTo-Json -Depth 15;return}
     "Связи: $($result.entity.id) — $($result.entity.name)"
     "Глубина: $Depth; найдено узлов: $($result.connections.Count); предел: $MaxNodes."

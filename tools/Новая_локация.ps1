@@ -23,11 +23,11 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 . (Join-Path $PSScriptRoot '_lib.ps1')
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
-Assert-WmmaSingleLine $Name 'Name'
-Assert-WmmaSingleLine $Summary 'Summary'
-foreach ($alias in $Aliases) { Assert-WmmaSingleLine $alias 'Alias' }
-$fileName = Convert-WmmaFileName -Value $Name
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Assert-VoidlightSingleLine $Name 'Name'
+Assert-VoidlightSingleLine $Summary 'Summary'
+foreach ($alias in $Aliases) { Assert-VoidlightSingleLine $alias 'Alias' }
+$fileName = Convert-VoidlightFileName -Value $Name
 $relativePath = "04_Локации/$fileName.md"
 $targetPath = Join-Path $root ($relativePath -replace '/', '\')
 
@@ -37,24 +37,24 @@ if (Test-Path -LiteralPath $targetPath) {
 }
 
 # One place, one card: a title or alias equal to, or contained in, an existing one is refused.
-$graph = Read-WmmaRegistry $root 'Сущности'
-Assert-WmmaEntityIds $graph $DistinctFrom -Type @('location') -Label 'distinct location'
-$similar = @(Find-WmmaSimilarEntities @($graph.entities | Where-Object { $_.type -eq 'location' }) (@($Name) + @($Aliases)) -Except $DistinctFrom)
+$graph = Read-VoidlightRegistry $root 'Сущности'
+Assert-VoidlightEntityIds $graph $DistinctFrom -Type @('location') -Label 'distinct location'
+$similar = @(Find-VoidlightSimilarEntities @($graph.entities | Where-Object { $_.type -eq 'location' }) (@($Name) + @($Aliases)) -Except $DistinctFrom)
 if ($similar.Count) {
     throw ("A location with the same or a contained name already exists:`n" + (($similar | ForEach-Object { "- $($_.id) $($_.name) ($($_.path)), совпадение: $($_.match)" }) -join "`n") +
         "`nUse the existing card (add an alias there) or, for a different place, repeat with -DistinctFrom <ID> and record the distinction in 03_Персонажи/00_Словарь_имен_и_алиасов.md.")
 }
 
-$id = New-WmmaEntityId -Root $root -Type 'location'
+$id = New-VoidlightEntityId -Root $root -Type 'location'
 $meta = @(
     'type: location'
     'status: active'
     'canon_level: active'
     "front_id: $FrontId"
     "id: $id"
-    "aliases: $(Format-WmmaMetaArray $Aliases)"
+    "aliases: $(Format-VoidlightMetaArray $Aliases)"
 )
-if ($DistinctFrom.Count) { $meta += "distinct_from: $(Format-WmmaMetaArray $DistinctFrom)" }
+if ($DistinctFrom.Count) { $meta += "distinct_from: $(Format-VoidlightMetaArray $DistinctFrom)" }
 
 $content = @(
     "# $Name"
@@ -96,10 +96,10 @@ $content = @(
     '- Уточнить.'
 ) -join "`n"
 
-Write-WmmaText $targetPath ($content + "`n")
+Write-VoidlightText $targetPath ($content + "`n")
 
 $mapPath = Join-Path $root '04_Локации\00_Карта_и_регионы.md'
-$mapText = Read-WmmaText $mapPath
+$mapText = Read-VoidlightText $mapPath
 $row = "- ``$relativePath`` - $Summary"
 
 if ($mapText -notmatch [regex]::Escape($relativePath)) {
@@ -109,10 +109,10 @@ if ($mapText -notmatch [regex]::Escape($relativePath)) {
         $mapText = $mapText.TrimEnd() + "`n$row"
     }
 
-    Write-WmmaText $mapPath ($mapText + "`n")
+    Write-VoidlightText $mapPath ($mapText + "`n")
 }
 
-Complete-WmmaMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_локаций' -SkipCheck:$SkipCheck
+Complete-VoidlightMutation -Root $root -Documents @($relativePath) -Rebuild 'Собрать_индекс_локаций' -SkipCheck:$SkipCheck
 
 "Created location: $relativePath ($id)"
 }

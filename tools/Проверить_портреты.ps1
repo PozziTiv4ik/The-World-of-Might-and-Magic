@@ -5,10 +5,10 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 . (Join-Path $PSScriptRoot '_lib.ps1')
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-Invoke-WmmaToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
+Invoke-VoidlightToolMain -Root $root -Name $MyInvocation.MyCommand.Name -ScriptBlock {
 $characterRoot = Join-Path $root '03_Персонажи'
 $portraitRoot = Join-Path $root '11_Медиа\Портреты_персонажей'
-$problems = New-WmmaProblemSet
+$problems = New-VoidlightProblemSet
 $missing = New-Object 'System.Collections.Generic.List[string]'
 $wrongRatio = New-Object 'System.Collections.Generic.List[string]'
 $available = 0
@@ -20,14 +20,14 @@ $characterFiles = @(
 )
 
 foreach ($file in $characterFiles) {
-    $text = Read-WmmaText $file.FullName
+    $text = Read-VoidlightText $file.FullName
     if ($text -notmatch '(?m)^type:\s*character\s*$') {
         continue
     }
 
-    $relativeFile = Get-WmmaRelativePath $root $file.FullName
+    $relativeFile = Get-VoidlightRelativePath $root $file.FullName
     # A merged card is a redirect; the portrait belongs to the main card.
-    if (Get-WmmaMeta -Text $text -Field 'merged_into') {
+    if (Get-VoidlightMeta -Text $text -Field 'merged_into') {
         continue
     }
 
@@ -53,19 +53,19 @@ foreach ($file in $characterFiles) {
     }
 
     # The portrait path is resolved from the project root only; an unreadable image is an error here.
-    $portrait = Test-WmmaPortraitFile -Root $root -Portrait $Matches[1].Trim()
+    $portrait = Test-VoidlightPortraitFile -Root $root -Portrait $Matches[1].Trim()
     switch ($portrait.Problem) {
         'missing' { Add-Problem Error "portrait_status=available but file is missing: $relativeFile" }
-        'unreadable' { Add-Problem Error "Cannot read portrait dimensions: $(Get-WmmaRelativePath $root $portrait.Path)" }
-        'ratio' { $wrongRatio.Add("$(Get-WmmaRelativePath $root $portrait.Path) ($($portrait.Size.Width)x$($portrait.Size.Height))") | Out-Null }
+        'unreadable' { Add-Problem Error "Cannot read portrait dimensions: $(Get-VoidlightRelativePath $root $portrait.Path)" }
+        'ratio' { $wrongRatio.Add("$(Get-VoidlightRelativePath $root $portrait.Path) ($($portrait.Size.Width)x$($portrait.Size.Height))") | Out-Null }
     }
 }
 
-$portraitFoldersWithImages = @(Get-WmmaPortraitImageFolders $portraitRoot)
+$portraitFoldersWithImages = @(Get-VoidlightPortraitImageFolders $portraitRoot)
 $foldersWithoutPrompt = @(
     $portraitFoldersWithImages |
         Where-Object { -not (Test-Path -LiteralPath (Join-Path $_.FullName 'Промпт_портрета.md')) } |
-        ForEach-Object { Get-WmmaRelativePath $root $_.FullName }
+        ForEach-Object { Get-VoidlightRelativePath $root $_.FullName }
 )
 
 [pscustomobject]@{
@@ -97,5 +97,5 @@ if ($wrongRatio.Count -gt 0) {
     }
 }
 
-Complete-WmmaCheck
+Complete-VoidlightCheck
 }

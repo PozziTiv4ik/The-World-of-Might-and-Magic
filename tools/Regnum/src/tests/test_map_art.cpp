@@ -54,7 +54,7 @@ TEST(map_art_basemap_loads) {
   CHECK(bm.loaded());
   CHECK_EQ(bm.width(), 8000);
   CHECK_EQ(bm.height(), 4500);
-  CHECK_EQ(bm.id(), std::string("wmm-expanded-v1"));
+  CHECK_EQ(bm.id(), std::string("voidlight-expanded-v1"));
   const geo::Coast c = bm.coast();
   CHECK_EQ(c.landRings.size(), size_t(338));
   CHECK_EQ(c.landRings.size(), bm.art().land.size());
